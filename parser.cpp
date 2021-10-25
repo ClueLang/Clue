@@ -14,6 +14,11 @@
 			fprintf(output, "%s", "if"); \
 			break; \
 		} \
+		case str2hash("while"): { \
+			scope.push(token(line, TOKEN_WHILE)); \
+			fprintf(output, "%s", "while"); \
+			break; \
+		} \
 		default: { \
 			fprintf(output, "%s", prevcompiled.c_str()); \
 			break; \
@@ -68,7 +73,6 @@ void compilefile(std::string path, std::string filename) {
 	int byte;
 	while ((byte = fgetc(code)) != EOF) {
 		char crt = byte;
-		printf("%s\n", spaced ? "true" : "false");
 		switch (crt) {
 			case '\t': {
 				fprintf(output, "\t");
@@ -106,6 +110,10 @@ void compilefile(std::string path, std::string filename) {
 						fprintf(output, "%s", SPACEIF("then"));
 						break;
 					}
+					case TOKEN_WHILE: {
+						fprintf(output, "%s", SPACEIF("do"));
+						break;
+					}
 					default: {
 						ERROR("Unknown token in stack.");
 						break;
@@ -123,7 +131,6 @@ void compilefile(std::string path, std::string filename) {
 				continue;
 			}
 			case ' ': {
-				printf("%d ", (int)crt);
 				PARSETOKEN
 				fprintf(output, " ");
 				spaced = true;
