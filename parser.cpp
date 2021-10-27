@@ -9,13 +9,18 @@
 #define PARSETOKEN \
 	prevcompiled = compiling; \
 	switch (str2hash(prevcompiled.c_str())) { \
+		case str2hash("do"): { \
+			queue.alter(line, TOKEN_DO); \
+			fprintf(output, "%s", "do "); \
+			break; \
+		} \
 		case str2hash("if"): { \
-			scope.push(token(line, TOKEN_IF)); \
+			queue.alter(line, TOKEN_IF); \
 			fprintf(output, "%s", "if"); \
 			break; \
 		} \
 		case str2hash("while"): { \
-			scope.push(token(line, TOKEN_WHILE)); \
+			queue.alter(line, TOKEN_WHILE); \
 			fprintf(output, "%s", "while"); \
 			break; \
 		} \
@@ -26,23 +31,43 @@
 	} \
 	compiling.clear();
 
-
 std::string codepath;
 std::unordered_map<std::string, std::string> files;
 
 enum token_type {
-	TOKEN_DO,
-	TOKEN_IF,
-	TOKEN_WHILE,
-	TOKEN_UNTIL,
+	TOKEN_NULL, 	//empty token
+	TOKEN_DO,		//"do ... end" starts here
+	TOKEN_IF,		//"if condition then ... end" starts here
+	TOKEN_WHILE,	//"whild condition do ... end" starts here
+	TOKEN_UNTIL,	//"repeat ... until condition" starts here [TODO]
+	TOKEN_DEFINE, 	//"value = ..." starts here [TODO]
+	TOKEN_TABLE,	//"{ ... }" starts here [TODO]
 };
 
 struct token {
 	unsigned int line;
 	token_type type;
-	token(unsigned int line, token_type type) :
+	std::string arg;
+	
+	bool valid() {
+		return this->type != TOKEN_NULL ? true : false;	
+	};
+	
+	void clear() {
+		this->line = 0;
+		this->type = TOKEN_NULL;
+	};
+	
+	void alter(unsigned int line, token_type type, std::string arg = "") {
+		this->line = line;
+		this->type = type;
+		this->arg = arg;
+	};
+	
+	token(unsigned int line, token_type type, std::string arg = "") :
     	line(line),
-    	type(type)
+    	type(type),
+    	arg(arg)
 	{}
 };
 
@@ -52,11 +77,12 @@ constexpr unsigned int str2hash(const char *str, int h = 0) {
 
 void compilefile(std::string path, std::string filename) {
 	bool spaced = false;
+	token queue = token(0, TOKEN_NULL);
 	unsigned int pscope = 0, line = 1;
 	std::string prevcompiled, compiling;
-	std::stack<token> scope, inscope;
+	std::stack<token> inscope;
 	
-	std::string compiledname = filename == "main.clue" ? "main.lua" : std::string(std::to_string(files.size()) + ".lua");
+	std::string compiledname = filename == "main.clue" ? "main.lua" : filename == "init.clue" ? "init.lua" : std::string(std::to_string(files.size()) + ".lua");
 	files[filename] = compiledname;
 	FILE *output = fopen((codepath + "\\.clue\\" + compiledname).c_str(), "w+");
 	if (output == NULL) {
@@ -101,17 +127,16 @@ void compilefile(std::string path, std::string filename) {
 			}
 			case '{': {
 				PARSETOKEN
-				if (scope.empty()) ERROR("Unexpected token \"{\".");
-				token poptoken = scope.top();
-				scope.pop();
-				inscope.push(poptoken);
-				switch (poptoken.type) {
+				if (!queue.valid()) ERROR("Unexpected token \"{\".");
+				inscope.push(queue);
+				switch (queue.type) {
+					case TOKEN_DO: break;
 					case TOKEN_IF: {
-						fprintf(output, "%s", SPACEIF("then"));
+						fprintf(output, "%s ", SPACEIF("then"));
 						break;
 					}
 					case TOKEN_WHILE: {
-						fprintf(output, "%s", SPACEIF("do"));
+						fprintf(output, "%s ", SPACEIF("do"));
 						break;
 					}
 					default: {
@@ -120,6 +145,7 @@ void compilefile(std::string path, std::string filename) {
 					}
 				}
 				spaced = false;
+				queue.clear();
 				continue;
 			}
 			case '}': {
@@ -135,6 +161,12 @@ void compilefile(std::string path, std::string filename) {
 				fprintf(output, " ");
 				spaced = true;
 				continue;
+			}
+			case '=': {
+				if (!spaced) PARSETOKEN
+				queue.alter(line, TOKEN_DEFINE, prevcompiled);
+				if (spaced) PARSETOKEN
+				break;
 			}
 		}
 		spaced = false;
