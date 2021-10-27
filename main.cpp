@@ -4,6 +4,8 @@
 #include <string>
 #include "parser.cpp"
 
+//VERSION 3 BETA 0.1
+
 int main(int argc, char** argv) {
 	/*std::ifstream code;
 	code.open("main.cpp", std::ifstream::in);
