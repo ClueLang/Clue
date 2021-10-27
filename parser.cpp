@@ -40,8 +40,7 @@ enum token_type {
 	TOKEN_IF,		//"if condition then ... end" starts here
 	TOKEN_WHILE,	//"whild condition do ... end" starts here
 	TOKEN_UNTIL,	//"repeat ... until condition" starts here [TODO]
-	TOKEN_DEFINE, 	//"value = ..." starts here [TODO]
-	TOKEN_TABLE,	//"{ ... }" starts here [TODO]
+	TOKEN_TABLE,	//"{ ... }" starts here
 };
 
 struct token {
@@ -76,7 +75,7 @@ constexpr unsigned int str2hash(const char *str, int h = 0) {
 }
 
 void compilefile(std::string path, std::string filename) {
-	bool spaced = false;
+	bool spaced = false, defining = false;
 	token queue = token(0, TOKEN_NULL);
 	unsigned int pscope = 0, line = 1;
 	std::string prevcompiled, compiling;
@@ -114,7 +113,12 @@ void compilefile(std::string path, std::string filename) {
 				line++;
 				fprintf(output, "\n");
 				spaced = true;
+				if (!inscope.empty() && inscope.top().type != TOKEN_TABLE) defining = false;
 				continue;
+			}
+			case ';': {
+				defining = false;
+				break;
 			}
 			case '(': {
 				pscope++;
@@ -127,6 +131,12 @@ void compilefile(std::string path, std::string filename) {
 			}
 			case '{': {
 				PARSETOKEN
+				if (defining) {
+					inscope.push(token(line, TOKEN_TABLE));
+					fprintf(output, "{");
+					spaced = false;
+					continue;
+				}
 				if (!queue.valid()) ERROR("Unexpected token \"{\".");
 				inscope.push(queue);
 				switch (queue.type) {
@@ -151,6 +161,12 @@ void compilefile(std::string path, std::string filename) {
 			case '}': {
 				PARSETOKEN
 				if (inscope.empty()) ERROR("Unexpected token \"}\".");
+				if (inscope.top().type == TOKEN_TABLE) {
+					inscope.pop();
+					fprintf(output, "}");
+					spaced = false;
+					continue;
+				}
 				inscope.pop();
 				fprintf(output, "%s", SPACEIF("end"));
 				spaced = false;
@@ -163,8 +179,9 @@ void compilefile(std::string path, std::string filename) {
 				continue;
 			}
 			case '=': {
+				if (!inscope.empty() && inscope.top().type == TOKEN_TABLE) break;
 				if (!spaced) PARSETOKEN
-				queue.alter(line, TOKEN_DEFINE, prevcompiled);
+				defining = true;
 				if (spaced) PARSETOKEN
 				break;
 			}

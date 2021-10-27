@@ -4,7 +4,7 @@
 #include <string>
 #include "parser.cpp"
 
-//VERSION 3 BETA 0.1
+//VERSION 4 BETA 0.1
 
 int main(int argc, char** argv) {
 	/*std::ifstream code;
