@@ -30,6 +30,14 @@
 		} \
 	} \
 	compiling.clear();
+#define PARSEQUAL(crt) \
+	if (spaced) prevcompiled = compiling; compiling.clear(); \
+	if (!spaced) { \
+		printf("\"%s\" \"%s\"\n", prevcompiled.c_str(), compiling.c_str()); \
+	} \
+	fprintf(output, "= %s %c ", prevcompiled.c_str(), crt); \
+	compiling += ""; \
+	continue;
 
 std::string codepath;
 std::unordered_map<std::string, std::string> files;
@@ -180,9 +188,15 @@ void compilefile(std::string path, std::string filename) {
 			}
 			case '=': {
 				if (!inscope.empty() && inscope.top().type == TOKEN_TABLE) break;
-				if (!spaced) PARSETOKEN
 				defining = true;
-				if (spaced) PARSETOKEN
+				switch (compiling.back()) {
+					case '+': PARSEQUAL('+')
+					case '-': PARSEQUAL('-')
+					/*default: {
+						if (!spaced) prevcompiled = compiling; compiling.clear();
+						break;
+					}*/
+				}
 				break;
 			}
 		}
