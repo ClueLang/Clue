@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <stack>
 #include <vector>
-#define ERROR(msg) throw std::string("Error in file \"" + filename + "\" at line [" + std::to_string(line) + "]: " + msg)
+/*#define ERROR(msg) throw std::string("Error in file \"" + filename + "\" at line [" + std::to_string(line) + "]: " + msg)
 #define SPACEIF(msg) !spaced ? std::string(std::string(" ") + msg).c_str() : msg
 #define PARSETOKEN \
 	prevcompiled = compiling; \
@@ -31,10 +31,8 @@
 	} \
 	compiling.clear();
 #define PARSEQUAL(crt) \
+	printf("\"%s\"\n", compiling.c_str()); \
 	if (spaced) prevcompiled = compiling; compiling.clear(); \
-	if (!spaced) { \
-		printf("\"%s\" \"%s\"\n", prevcompiled.c_str(), compiling.c_str()); \
-	} \
 	fprintf(output, "= %s %c ", prevcompiled.c_str(), crt); \
 	compiling += ""; \
 	continue;
@@ -195,7 +193,7 @@ void compilefile(std::string path, std::string filename) {
 					/*default: {
 						if (!spaced) prevcompiled = compiling; compiling.clear();
 						break;
-					}*/
+					}
 				}
 				break;
 			}
@@ -206,27 +204,6 @@ void compilefile(std::string path, std::string filename) {
 	fprintf(output, "%s", compiling.c_str());
 	fclose(output);
 	fclose(code);
-}
+}*/
 
-void compilefolder(std::string path) {
-	DIR *directory = opendir(path.c_str());
-	if (directory == NULL) {
-		std::string errormsg = "Failed to open directory \"";
-		errormsg += path + "\"";
-		throw errormsg;
-	}
-	struct dirent *entry;
-	while (entry = readdir(directory)) {
-		std::string name = entry->d_name;
-		if (name != "." && name != "..") {
-			struct stat s;
-			stat((path + "\\" + name).c_str(), &s);
-			if (s.st_mode & S_IFDIR) {
-				compilefolder(path + "\\" + name);
-			} else if (name.find(".clue") != name.npos) {
-				compilefile(path + "\\" + name, name);
-			}
-		}
-	}
-	closedir(directory);
-}
+//REFERENCE FILE FOR OLD CODE, WILL BE DELETED EVENTUALLY

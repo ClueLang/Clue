@@ -1,10 +1,60 @@
 #include <stdio.h>
 #include <direct.h>
+#include <sys/stat.h>
+#include <dirent.h>
 #include <iostream>
+#include <unordered_map>
 #include <string>
-#include "parser.cpp"
+#include "scanner.cpp"
 
-//VERSION 4 BETA 0.1
+//VERSION 5 BETA 2.0
+
+std::string codepath;
+std::unordered_map<std::string, std::string> files;
+
+constexpr unsigned int str2hash(const char *str, int h = 0) {
+	return !str[h] ? 5381 : (str2hash(str, h + 1) * 33) ^ str[h];
+}
+
+void compilefile(std::string path, std::string filename) {
+	std::string compiledname = filename == "main.clue" ? "main.lua" : filename == "init.clue" ? "init.lua" : std::string(std::to_string(files.size()) + ".lua");
+	files[filename] = compiledname;
+	FILE *output = fopen((codepath + "\\.clue\\" + compiledname).c_str(), "w+");
+	if (output == NULL) {
+		std::string errormsg = "Failed to create output file \"";
+		errormsg += codepath + "\\.clue\\" + compiledname + "\"";
+		throw errormsg;
+	}
+	FILE *code = fopen(path.c_str(), "rb");
+	if (code == NULL) {
+		std::string errormsg = "Failed to open code file \"";
+		errormsg += path + "\"";
+		throw errormsg;
+	}
+}
+
+void compilefolder(std::string path) {
+	DIR *directory = opendir(path.c_str());
+	if (directory == NULL) {
+		std::string errormsg = "Failed to open directory \"";
+		errormsg += path + "\"";
+		throw errormsg;
+	}
+	struct dirent *entry;
+	while (entry = readdir(directory)) {
+		std::string name = entry->d_name;
+		if (name != "." && name != "..") {
+			struct stat s;
+			stat((path + "\\" + name).c_str(), &s);
+			if (s.st_mode & S_IFDIR) {
+				compilefolder(path + "\\" + name);
+			} else if (name.find(".clue") != name.npos) {
+				compilefile(path + "\\" + name, name);
+			}
+		}
+	}
+	closedir(directory);
+}
 
 int main(int argc, char** argv) {
 	/*std::ifstream code;
