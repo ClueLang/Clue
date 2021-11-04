@@ -3,16 +3,14 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <iostream>
-#include <unordered_map>
 #include <string>
 #include "scanner.cpp"
 
-//VERSION 5 BETA 2.0
+//VERSION 6 BETA 2.0
 
 std::string codepath;
-std::unordered_map<std::string, std::string> files;
 
-constexpr unsigned int str2hash(const char *str, int h = 0) {
+constexpr uint str2hash(const char *str, int h = 0) {
 	return !str[h] ? 5381 : (str2hash(str, h + 1) * 33) ^ str[h];
 }
 
@@ -25,12 +23,20 @@ void compilefile(std::string path, std::string filename) {
 		errormsg += codepath + "\\.clue\\" + compiledname + "\"";
 		throw errormsg;
 	}
-	FILE *code = fopen(path.c_str(), "rb");
-	if (code == NULL) {
+	FILE *codefile = fopen(path.c_str(), "rb");
+	if (codefile == NULL) {
 		std::string errormsg = "Failed to open code file \"";
 		errormsg += path + "\"";
 		throw errormsg;
 	}
+	std::string code;
+	char c;
+	while ((c = fgetc(codefile)) != EOF) {
+		code += c;
+	}
+	fclose(codefile);
+	std::list<token> tokens = scanfile(code, filename);
+	fclose(output);
 }
 
 void compilefolder(std::string path) {
