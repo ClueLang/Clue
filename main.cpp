@@ -5,14 +5,11 @@
 #include <iostream>
 #include <string>
 #include "scanner.cpp"
+#include "treemaker.cpp"
 
 //VERSION 7 BETA 2.0
 
 std::string codepath;
-
-constexpr uint str2hash(const char *str, int h = 0) {
-	return !str[h] ? 5381 : (str2hash(str, h + 1) * 33) ^ str[h];
-}
 
 void compilefile(std::string path, std::string filename) {
 	std::string compiledname = filename == "main.clue" ? "main.lua" : filename == "init.clue" ? "init.lua" : std::string(std::to_string(files.size()) + ".lua");
