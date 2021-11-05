@@ -6,7 +6,7 @@
 #include <string>
 #include "scanner.cpp"
 
-//VERSION 6 BETA 2.0
+//VERSION 7 BETA 2.0
 
 std::string codepath;
 
@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
 	try {
 		compilefolder(codepath);
 	} catch (std::string errormsg) {
-		printf("%s\n", errormsg.c_str());
+		printf("%s\nCannot proceed, compilation stopped.\n", errormsg.c_str());
 		system("pause");
 	}
 }
