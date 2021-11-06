@@ -1,5 +1,5 @@
 #include <unordered_map>
-#include <list>
+#include <vector>
 #undef EOF
 #define ADDTOKEN(type) i.addtoken(type, ""); break;
 
@@ -67,7 +67,7 @@ struct codeinfo {
 	uint start = 0;
 	uint current = 0;
 	std::string code, filename;
-	std::list<token> tokens = std::list<token>();
+	std::vector<token> tokens = std::vector<token>();
 	
 	codeinfo(std::string code, std::string filename) :
 		code(code),
@@ -114,13 +114,9 @@ struct codeinfo {
 		printf("%s\n", std::string("Error in file \"" + filename + "\" at line [" + std::to_string(line) + "]: " + message).c_str());
 		errored = true;
 	}
-	
-	void error(std::string message) {
-		throw std::string("Error in file \"" + filename + "\" at line [" + std::to_string(line) + "]: " + message);
-	}
 };
 
-std::list<token> scanfile(std::string code, std::string filename) {
+std::vector<token> scanfile(std::string code, std::string filename) {
 	codeinfo i(code, filename);
 	while (!i.ended()) {
 		i.start = i.current;
@@ -189,9 +185,9 @@ std::list<token> scanfile(std::string code, std::string filename) {
 					if (keywords.find(text) != keywords.end()) type = keywords.at(text);
 					i.addtoken(type, "");
 				} else {
-					std::string errormsg = "Unexpected character \"";
+					std::string errormsg = "Unexpected character '";
 					errormsg += c;
-					errormsg += "\".";
+					errormsg += "'.";
 					i.warning(errormsg);
 				}
 				break;

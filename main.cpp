@@ -5,9 +5,9 @@
 #include <iostream>
 #include <string>
 #include "scanner.cpp"
-#include "treemaker.cpp"
+#include "parser.cpp"
 
-//VERSION 7 BETA 2.0
+//VERSION 8 BETA 2.0
 
 std::string codepath;
 
@@ -32,7 +32,8 @@ void compilefile(std::string path, std::string filename) {
 		code += c;
 	}
 	fclose(codefile);
-	std::list<token> tokens = scanfile(code, filename);
+	std::vector<token> tokens = scanfile(code, filename);
+	parsetokens(tokens, filename);
 	fclose(output);
 }
 
