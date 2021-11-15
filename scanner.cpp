@@ -1,9 +1,7 @@
 #include <unordered_map>
-#include <vector>
 #undef EOF
-#define ADDTOKEN(type) i.addtoken(type, ""); break;
+#define ADDTOKEN(type) i.addToken(type, ""); break;
 
-std::unordered_map<std::string, std::string> files;
 bool errored = false;
 
 typedef unsigned int uint;
@@ -25,12 +23,12 @@ enum tokentype {
 	
 	//keywords
 	DO, IF, ELSEIF, ELSE, FOR, WHILE, UNTIL, GOTO,
-	LOCAL, RETURN, THIS, TRUE, FALSE, NIL, REQUIRE,
+	LOCAL, RETURN, THIS, TRUE, FALSE, NIL,
 	
 	EOF = -1
 };
 
-const std::unordered_map<std::string, tokentype> keywords = {
+const std::unordered_map<std::string, tokentype> keyWords = {
 	{"do", DO},
 	{"if", IF},
 	{"elseif", ELSEIF},
@@ -45,7 +43,6 @@ const std::unordered_map<std::string, tokentype> keywords = {
 	{"true", TRUE},
 	{"false", FALSE},
 	{"nil", NIL},
-	{"require", REQUIRE}
 };
 
 struct token {
@@ -63,9 +60,7 @@ struct token {
 };
 
 struct codeinfo {
-	uint line = 1;
-	uint start = 0;
-	uint current = 0;
+	uint line = 1, start = 0, current = 0;
 	std::string code, filename;
 	std::vector<token> tokens = std::vector<token>();
 	
@@ -78,7 +73,7 @@ struct codeinfo {
 		return current >= code.length();
 	}
 	
-	char readnext() {
+	char readNext() {
 		return code.at(current++);
 	}
 	
@@ -93,19 +88,20 @@ struct codeinfo {
 		return current + pos >= code.length() ? '\0' : code.at(current + pos);
 	}
 	
-	bool isnumber(char c) {
+	bool isNumber(char c) {
 		return c >= '0' && c <= '9';
 	}
 	
-	bool ischar(char c) {
+	bool isChar(char c) {
 		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 	}
 	
-	bool ischarornumber(char c) {
-		return ischar(c) || isnumber(c);
+	bool isCharOrNumber(char c) {
+		printf("%c", c);
+		return isChar(c) || isNumber(c);
 	}
 	
-	void addtoken(tokentype type, std::string literal) {
+	void addToken(tokentype type, std::string literal) {
 		std::string text = code.substr(start, current);
 		tokens.push_back(token(type, text, literal, line));
 	}
@@ -116,11 +112,11 @@ struct codeinfo {
 	}
 };
 
-std::vector<token> scanfile(std::string code, std::string filename) {
+std::vector<token> ScanFile(std::string code, std::string filename) {
 	codeinfo i(code, filename);
 	while (!i.ended()) {
 		i.start = i.current;
-		char c = i.readnext();
+		char c = i.readNext();
 		switch (c) {
 			case '(': ADDTOKEN(ROUND_BRACKET_OPEN)
 			case ')': ADDTOKEN(ROUND_BRACKET_CLOSED)
@@ -136,16 +132,19 @@ std::vector<token> scanfile(std::string code, std::string filename) {
 			case '*': ADDTOKEN(i.compare('=') ? MULTIPLY : STAR)
 			case '/': {
 				if (i.compare('/')) {
-					while (i.peek() != '\n' && !i.ended()) i.readnext();
-					break;
+					while (i.peek() != '\n' && !i.ended()) i.readNext();
 				} else if (i.compare('*')) {
-					while (!(i.peek() == '*' && i.peek(1) == '/')) {
+					while (!i.ended() && !(i.peek() == '*' && i.peek(1) == '/')) {
 						if (i.peek() == '\n') i.line++;
-						i.readnext();
+						i.readNext();
+					}
+					if (i.ended()) {
+						i.warning("Unterminated comment.");
 					}
 				} else {
 					ADDTOKEN(SLASH)
 				}
+				break;
 			}
 			case '!': ADDTOKEN(i.compare('=') ? NOT_EQUAL : NOT)
 			case '=': ADDTOKEN(i.compare('=') ? EQUAL : DEFINE)
@@ -159,31 +158,32 @@ std::vector<token> scanfile(std::string code, std::string filename) {
 			case '"': {
 				while (!i.ended() && i.peek() != '"') {
 					if (i.peek() == '\n') i.line++;
-					i.readnext();
+					i.readNext();
 				}
 				if (i.ended()) {
 					i.warning("Unterminated string.");
 					break;
 				}
-				i.readnext();
+				i.readNext();
 				std::string value = i.code.substr(i.start + 1, i.current - 1);
-				i.addtoken(STRING, value);
+				i.addToken(STRING, value);
 				break;
 			}
 			default: {
-				if (i.isnumber(c)) {
-					while (i.isnumber(i.peek())) i.readnext();
-						if (i.peek() == '.' && i.isnumber(i.peek(1))) {
-						i.readnext();
-						while (i.isnumber(i.peek())) i.readnext();
+				if (i.isNumber(c)) {
+					while (i.isNumber(i.peek())) i.readNext();
+						if (i.peek() == '.' && i.isNumber(i.peek(1))) {
+						i.readNext();
+						while (i.isNumber(i.peek())) i.readNext();
 					}
-					i.addtoken(NUMBER, i.code.substr(i.start, i.current));
-				} else if (i.ischar((c))) {
-					while (i.ischarornumber(i.peek())) i.readnext();
+					i.addToken(NUMBER, i.code.substr(i.start, i.current));
+				} else if (i.isChar((c))) {
+					while (i.isCharOrNumber(i.peek())) i.readNext();
 					std::string text = i.code.substr(i.start, i.current);
 					tokentype type = IDENTIFIER;
-					if (keywords.find(text) != keywords.end()) type = keywords.at(text);
-					i.addtoken(type, "");
+					//printf("%s\n", text.c_str());
+					if (keyWords.find(text) != keyWords.end()) type = keyWords.at(text);
+					i.addToken(type, "");
 				} else {
 					std::string errormsg = "Unexpected character '";
 					errormsg += c;

@@ -4,20 +4,31 @@
 #include <dirent.h>
 #include <iostream>
 #include <string>
+#include <sstream>
+#include <vector>
 #include "scanner.cpp"
-#include "parser.cpp"
+#include "compiler.cpp"
 
-//VERSION 8 BETA 2.0
+//VERSION 10 BETA 2.0
 
 std::string codepath;
 
-void compilefile(std::string path, std::string filename) {
-	std::string compiledname = filename == "main.clue" ? "main.lua" : filename == "init.clue" ? "init.lua" : std::string(std::to_string(files.size()) + ".lua");
-	files[filename] = compiledname;
-	FILE *output = fopen((codepath + "\\.clue\\" + compiledname).c_str(), "w+");
+void CompileFile(std::string path, std::string filename) {
+	std::string compiledname = path, outputpath = codepath + "\\.clue";
+	compiledname.erase(0, codepath.length() + 1);
+	{
+		std::stringstream dirfinder(compiledname);
+		std::string segment, dirpath = outputpath;
+		while (std::getline(dirfinder, segment, '\\')) {
+			if (segment.find(".clue") != segment.npos) break;
+			dirpath += "\\" + segment;
+			_mkdir(dirpath.c_str());
+		}
+	}
+	FILE *output = fopen((outputpath + "\\" + compiledname).c_str(), "w+");
 	if (output == NULL) {
 		std::string errormsg = "Failed to create output file \"";
-		errormsg += codepath + "\\.clue\\" + compiledname + "\"";
+		errormsg += outputpath + "\\" + compiledname + "\"";
 		throw errormsg;
 	}
 	FILE *codefile = fopen(path.c_str(), "rb");
@@ -32,12 +43,12 @@ void compilefile(std::string path, std::string filename) {
 		code += c;
 	}
 	fclose(codefile);
-	std::vector<token> tokens = scanfile(code, filename);
-	parsetokens(tokens, filename);
+	std::vector<token> tokens = ScanFile(code, filename);
+	ParseTokens(tokens, filename, output);
 	fclose(output);
 }
 
-void compilefolder(std::string path) {
+void CompileFolder(std::string path) {
 	DIR *directory = opendir(path.c_str());
 	if (directory == NULL) {
 		std::string errormsg = "Failed to open directory \"";
@@ -47,13 +58,13 @@ void compilefolder(std::string path) {
 	struct dirent *entry;
 	while (entry = readdir(directory)) {
 		std::string name = entry->d_name;
-		if (name != "." && name != "..") {
+		if (name != "." && name != ".." && name != ".clue") {
 			struct stat s;
 			stat((path + "\\" + name).c_str(), &s);
 			if (s.st_mode & S_IFDIR) {
-				compilefolder(path + "\\" + name);
+				CompileFolder(path + "\\" + name);
 			} else if (name.find(".clue") != name.npos) {
-				compilefile(path + "\\" + name, name);
+				CompileFile(path + "\\" + name, name);
 			}
 		}
 	}
@@ -75,7 +86,7 @@ int main(int argc, char** argv) {
 	}
 	_mkdir((codepath + "\\.clue").c_str());
 	try {
-		compilefolder(codepath);
+		CompileFolder(codepath);
 	} catch (std::string errormsg) {
 		printf("%s\nCannot proceed, compilation stopped.\n", errormsg.c_str());
 		system("pause");
