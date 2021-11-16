@@ -97,12 +97,17 @@ struct codeinfo {
 	}
 	
 	bool isCharOrNumber(char c) {
-		printf("%c", c);
 		return isChar(c) || isNumber(c);
 	}
 	
+	std::string substr(uint start, uint end) {
+		std::string result;
+		for (int i = start; i < end; i++) result += code.at(i);
+		return result;
+	}
+
 	void addToken(tokentype type, std::string literal) {
-		std::string text = code.substr(start, current);
+		std::string text = substr(start, current);
 		tokens.push_back(token(type, text, literal, line));
 	}
 	
@@ -165,7 +170,7 @@ std::vector<token> ScanFile(std::string code, std::string filename) {
 					break;
 				}
 				i.readNext();
-				std::string value = i.code.substr(i.start + 1, i.current - 1);
+				std::string value = i.substr(i.start + 1, i.current - 1);
 				i.addToken(STRING, value);
 				break;
 			}
@@ -176,12 +181,11 @@ std::vector<token> ScanFile(std::string code, std::string filename) {
 						i.readNext();
 						while (i.isNumber(i.peek())) i.readNext();
 					}
-					i.addToken(NUMBER, i.code.substr(i.start, i.current));
+					i.addToken(NUMBER, i.substr(i.start, i.current));
 				} else if (i.isChar((c))) {
 					while (i.isCharOrNumber(i.peek())) i.readNext();
-					std::string text = i.code.substr(i.start, i.current);
+					std::string text = i.substr(i.start, i.current);
 					tokentype type = IDENTIFIER;
-					//printf("%s\n", text.c_str());
 					if (keyWords.find(text) != keyWords.end()) type = keyWords.at(text);
 					i.addToken(type, "");
 				} else {

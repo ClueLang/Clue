@@ -9,7 +9,7 @@
 #include "scanner.cpp"
 #include "compiler.cpp"
 
-//VERSION 10 BETA 2.0
+//VERSION 11 BETA 2.0
 
 std::string codepath;
 
