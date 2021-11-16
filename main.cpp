@@ -9,7 +9,7 @@
 #include "scanner.cpp"
 #include "compiler.cpp"
 
-//VERSION 11 BETA 2.0
+//VERSION 12 BETA 2.0
 
 std::string codepath;
 
@@ -44,7 +44,10 @@ void CompileFile(std::string path, std::string filename) {
 	}
 	fclose(codefile);
 	std::vector<token> tokens = ScanFile(code, filename);
-	ParseTokens(tokens, filename, output);
+	tokensinfo i(tokens, filename, output);
+    while(!i.ended()) {
+        i.parse();
+    }
 	fclose(output);
 }
 

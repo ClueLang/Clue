@@ -69,11 +69,11 @@ struct codeinfo {
 		filename(filename)
 	{}
 	
-	bool ended() {
+	inline bool ended() {
 		return current >= code.length();
 	}
 	
-	char readNext() {
+	inline char readNext() {
 		return code.at(current++);
 	}
 	
@@ -84,15 +84,15 @@ struct codeinfo {
 		return true;
 	}
 	
-	char peek(short pos = 0) {
+	inline char peek(short pos = 0) {
 		return current + pos >= code.length() ? '\0' : code.at(current + pos);
 	}
 	
-	bool isNumber(char c) {
+	inline bool isNumber(char c) {
 		return c >= '0' && c <= '9';
 	}
 	
-	bool isChar(char c) {
+	inline bool isChar(char c) {
 		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 	}
 	
