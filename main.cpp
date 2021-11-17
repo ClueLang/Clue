@@ -9,7 +9,7 @@
 #include "scanner.cpp"
 #include "compiler.cpp"
 
-//VERSION 12 BETA 2.0
+//VERSION 13 BETA 1.0
 
 std::string codepath;
 
@@ -25,6 +25,7 @@ void CompileFile(std::string path, std::string filename) {
 			_mkdir(dirpath.c_str());
 		}
 	}
+	compiledname = compiledname.substr(0, compiledname.length() - 5) + ".lua";
 	FILE *output = fopen((outputpath + "\\" + compiledname).c_str(), "w+");
 	if (output == NULL) {
 		std::string errormsg = "Failed to create output file \"";
@@ -44,10 +45,7 @@ void CompileFile(std::string path, std::string filename) {
 	}
 	fclose(codefile);
 	std::vector<token> tokens = ScanFile(code, filename);
-	tokensinfo i(tokens, filename, output);
-    while(!i.ended()) {
-        i.parse();
-    }
+	ParseTokens(tokens, filename, output);
 	fclose(output);
 }
 

@@ -1,4 +1,5 @@
 #include <stack>
+#define PRINT(text) i.print(text); break;
 
 enum parsedtype {
     //openings
@@ -9,7 +10,7 @@ enum parsedtype {
 };
 
 struct tokensinfo {
-    uint line = 1, current = 0;
+    uint current = 0, pscope = 0;
 	std::string filename;
 	std::vector<token> tokens;
     std::stack<parsedtype> queue = std::stack<parsedtype>();
@@ -27,7 +28,11 @@ struct tokensinfo {
 
     void error(std::string message) {
         fclose(output);
-        throw std::string("Unexpected token '" + message + "'.");
+        throw std::string("Error in file \"" + filename + "\" at line [" + std::to_string(tokens[current].line) + "]: " + message + ".");
+    }
+
+    inline void unexpected(std::string character) {
+        error("Unexpected token '" + character + "'");
     }
 
     inline bool ended() {
@@ -43,67 +48,78 @@ struct tokensinfo {
     }
 
     inline token previous() {
-        return tokens[current - 1];
+        return tokens[current - 2];
     }
 
-    void parse() {
-        token t = advance();
-        if (t.type == EOF) error("<eof>");
+    inline bool isLiteral(tokentype check) {
+        return check == IDENTIFIER || check == STRING || check == NUMBER || check == TRUE || check == FALSE || check == NIL;
+    }
+
+    void parseComparison(std::string comparison, std::string toprint) {
+        if (!isLiteral(previous().type)) error(comparison);
+        print(" " + toprint + " ");
+    }
+};
+
+void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) {
+    tokensinfo i(tokens, filename, output);
+    while(!i.ended()) {
+        token t = i.advance();
+        if (t.type == EOF) i.unexpected("<eof>");
         switch (t.type) {
+            case ROUND_BRACKET_OPEN: {
+                i.pscope++;
+                PRINT("(")
+            }
+            case ROUND_BRACKET_CLOSED: {
+                if (i.pscope == 0) i.unexpected(")");
+                i.pscope--;
+                PRINT(")")
+            }
             case CURLY_BRACKET_OPEN: {
-                if (queue.empty()) error("{");
-                parsedtype type = queue.top();
-                queue.pop();
+                if (i.queue.empty()) i.unexpected("{");
+                parsedtype type = i.queue.top();
+                i.queue.pop();
                 switch (type) {
                     case THEN: {
-                        print(" then\n");
-                        line++;
-                        queue.push(END);
+                        i.print(" then\n");
+                        i.queue.push(END);
                         break;
                     }
-                    default: error("{");
+                    default: i.unexpected("{");
                 }
                 break;
             }
             case CURLY_BRACKET_CLOSED: {
-                if (queue.empty()) error("}");
-                parsedtype type = queue.top();
-                queue.pop();
+                if (i.queue.empty()) i.unexpected("}");
+                parsedtype type = i.queue.top();
+                i.queue.pop();
                 switch (type) {
                     case END: {
-                        print("\nend\n");
-                        line += 2;
+                        i.print("\nend\n");
                         break;
                     }
-                    default: error("}");
+                    default: i.unexpected("}");
                 }
                 break;
             }
             case EQUAL: case BIGGER_EQUAL: case SMALLER_EQUAL: case BIGGER: case SMALLER: {
-                tokentype check = previous().type;
-                if (check != IDENTIFIER && check != STRING && check != NUMBER && check != TRUE && check != FALSE && check != NIL)
-                    error(t.lexeme);
-                print(t.lexeme);
+                i.parseComparison(t.lexeme, t.lexeme);
                 break;
             }
             case NOT_EQUAL: {
-                tokentype check = previous().type;
-                if (check != IDENTIFIER && check != STRING && check != NUMBER && check != TRUE && check != FALSE && check != NIL)
-                    error("!=");
-                print("~=");
+                i.parseComparison("!=", "~=");
                 break;
             }
-            case IDENTIFIER: {
-                print(t.lexeme);
-                parse();
-                break;
-            }
+            case IDENTIFIER: PRINT(t.lexeme)
+            case NUMBER: PRINT(t.literal)
+            case STRING: PRINT("[[" + t.literal + "]]")
             case IF: {
-                print("if ");
-                queue.push(THEN);
-                parse();
+                i.print("if ");
+                i.queue.push(THEN);
                 break;
             }
         }
     }
-};
+    if (i.pscope > 0) i.error("Expected token ')' before '<eof>'");
+}
