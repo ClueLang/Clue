@@ -11,11 +11,11 @@ enum tokentype {
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED,
 	SQUARE_BRACKET_OPEN, SQUARE_BRACKET_CLOSED,
 	CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
-	COMMA, DOT, SEMICOLON, PLUS, MINUS, STAR, SLASH,
-	NOT, AND, OR, DOLLAR,
+	COMMA, DOT, SEMICOLON, NOT, AND, OR, DOLLAR,
+	PLUS, MINUS, STAR, SLASH, CARET,
 	
 	//definition and comparison
-	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE,
+	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE,
 	EQUAL, NOT_EQUAL, BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL,
 	
 	//literals
@@ -135,6 +135,7 @@ std::vector<token> ScanFile(std::string code, std::string filename) {
 			case '+': ADDTOKEN(i.compare('=') ? INCREASE : PLUS)
 			case '-': ADDTOKEN(i.compare('=') ? DECREASE : MINUS)
 			case '*': ADDTOKEN(i.compare('=') ? MULTIPLY : STAR)
+			case '^': ADDTOKEN(i.compare('=') ? EXPONENTIATE : CARET)
 			case '/': {
 				if (i.compare('/')) {
 					while (i.peek() != '\n' && !i.ended()) i.readNext();
@@ -146,6 +147,8 @@ std::vector<token> ScanFile(std::string code, std::string filename) {
 					if (i.ended()) {
 						i.warning("Unterminated comment.");
 					}
+				} else if (i.compare('=')) {
+					ADDTOKEN(DIVIDE)
 				} else {
 					ADDTOKEN(SLASH)
 				}
@@ -155,7 +158,8 @@ std::vector<token> ScanFile(std::string code, std::string filename) {
 			case '=': ADDTOKEN(i.compare('=') ? EQUAL : DEFINE)
 			case '<': ADDTOKEN(i.compare('=') ? SMALLER_EQUAL : SMALLER)
 			case '>': ADDTOKEN(i.compare('=') ? BIGGER_EQUAL : BIGGER)
-			case '?': case '&': ADDTOKEN(AND)
+			case '?': ADDTOKEN(i.compare('=') ? DEFINEIF : AND)
+			case '&': ADDTOKEN(AND)
 			case ':': case '|': ADDTOKEN(OR)
 			case '$': ADDTOKEN(DOLLAR)
 			case ' ': case '\r': case '\t': break;

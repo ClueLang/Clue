@@ -11,7 +11,7 @@ enum parsedtype {
 
 struct tokensinfo {
     uint current = 0, pscope = 0, qscope = 0;
-	std::string filename;
+	std::string filename, lastvariable;
 	std::vector<token> tokens;
     std::stack<parsedtype> queue = std::stack<parsedtype>();
     FILE *output;
@@ -113,6 +113,49 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 }
                 break;
             }
+            case COMMA: PRINT(",")
+            case DOT: PRINT(".")
+            case SEMICOLON: PRINT(";\n")
+            case NOT: PRINT(" not ")
+            case AND: PRINT(" and ")
+            case OR: PRINT(" or ")
+            case DOLLAR: {
+                if (i.lastvariable.empty()) i.unexpected("$");
+                PRINT(i.lastvariable)
+            }
+            case PLUS: PRINT("+")
+            case MINUS: PRINT("-")
+            case STAR: PRINT("*")
+            case SLASH: PRINT("/")
+            case CARET: PRINT("^")
+            case DEFINE: {
+                i.lastvariable = i.previous().lexeme;
+                PRINT(" = ")
+            }
+            case DEFINEIF: {
+                i.lastvariable = i.previous().lexeme;
+                PRINT(" = " + i.lastvariable + " and ")
+            }
+            case INCREASE: {
+                i.lastvariable = i.previous().lexeme;
+                PRINT(" = " + i.lastvariable + " + ")
+            }
+            case DECREASE: {
+                i.lastvariable = i.previous().lexeme;
+                PRINT(" = " + i.lastvariable + " - ")
+            }
+            case MULTIPLY: {
+                i.lastvariable = i.previous().lexeme;
+                PRINT(" = " + i.lastvariable + " * ")
+            }
+            case DIVIDE: {
+                i.lastvariable = i.previous().lexeme;
+                PRINT(" = " + i.lastvariable + " / ")
+            }
+            case EXPONENTIATE: {
+                i.lastvariable = i.previous().lexeme;
+                PRINT(" = " + i.lastvariable + " ^ ")
+            }
             case EQUAL: case BIGGER_EQUAL: case SMALLER_EQUAL: case BIGGER: case SMALLER: {
                 i.parseComparison(t.lexeme, t.lexeme);
                 break;
@@ -129,6 +172,7 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 i.queue.push(THEN);
                 break;
             }
+            case LOCAL: PRINT("local ")
         }
     }
     if (i.pscope > 0) i.error("Expected token ')' before '<eof>'");
