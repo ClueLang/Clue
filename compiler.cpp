@@ -10,7 +10,7 @@ enum parsedtype {
 };
 
 struct tokensinfo {
-    uint current = 0, pscope = 0;
+    uint current = 0, pscope = 0, qscope = 0;
 	std::string filename;
 	std::vector<token> tokens;
     std::stack<parsedtype> queue = std::stack<parsedtype>();
@@ -68,6 +68,7 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
         if (t.type == EOF) i.unexpected("<eof>");
         switch (t.type) {
             case ROUND_BRACKET_OPEN: {
+                //REMEMBER TO ADD THE CHECKS
                 i.pscope++;
                 PRINT("(")
             }
@@ -75,6 +76,15 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 if (i.pscope == 0) i.unexpected(")");
                 i.pscope--;
                 PRINT(")")
+            }
+            case SQUARE_BRACKET_OPEN: {
+                i.qscope++;
+                PRINT("[")
+            }
+            case SQUARE_BRACKET_CLOSED: {
+                if (i.pscope == 0) i.unexpected("]");
+                i.qscope--;
+                PRINT("]")
             }
             case CURLY_BRACKET_OPEN: {
                 if (i.queue.empty()) i.unexpected("{");
@@ -122,4 +132,5 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
         }
     }
     if (i.pscope > 0) i.error("Expected token ')' before '<eof>'");
+    if (i.qscope > 0) i.error("Expected token ']' before '<eof>'");
 }
