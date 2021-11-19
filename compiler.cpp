@@ -3,7 +3,7 @@
 
 enum parsedtype {
     //openings
-    THEN,
+    THEN, NEXTLINE,
 
     //closures
     END
@@ -59,6 +59,17 @@ struct tokensinfo {
         if (!isLiteral(previous().type)) error(comparison);
         print(" " + toprint + " ");
     }
+
+    void parseVariable() {
+        //if (current == 0)
+        if (tokens[current - 2].type == DOLLAR) return;
+        lastvariable.clear();
+        uint i = current - 2;
+        while (tokens[i].type != SEMICOLON && tokens[i].type != CURLY_BRACKET_CLOSED && tokens[i].type != LOCAL) {
+            lastvariable.insert(0, tokens[i].lexeme);
+            i--;
+        }
+    }
 };
 
 void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) {
@@ -82,7 +93,7 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 PRINT("[")
             }
             case SQUARE_BRACKET_CLOSED: {
-                if (i.pscope == 0) i.unexpected("]");
+                if (i.qscope == 0) i.unexpected("]");
                 i.qscope--;
                 PRINT("]")
             }
@@ -93,6 +104,11 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 switch (type) {
                     case THEN: {
                         i.print(" then\n");
+                        i.queue.push(END);
+                        break;
+                    }
+                    case NEXTLINE: {
+                        i.print("\n");
                         i.queue.push(END);
                         break;
                     }
@@ -129,31 +145,31 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
             case SLASH: PRINT("/")
             case CARET: PRINT("^")
             case DEFINE: {
-                i.lastvariable = i.previous().lexeme;
+                i.parseVariable();
                 PRINT(" = ")
             }
             case DEFINEIF: {
-                i.lastvariable = i.previous().lexeme;
+                i.parseVariable();
                 PRINT(" = " + i.lastvariable + " and ")
             }
             case INCREASE: {
-                i.lastvariable = i.previous().lexeme;
+                i.parseVariable();
                 PRINT(" = " + i.lastvariable + " + ")
             }
             case DECREASE: {
-                i.lastvariable = i.previous().lexeme;
+                i.parseVariable();
                 PRINT(" = " + i.lastvariable + " - ")
             }
             case MULTIPLY: {
-                i.lastvariable = i.previous().lexeme;
+                i.parseVariable();
                 PRINT(" = " + i.lastvariable + " * ")
             }
             case DIVIDE: {
-                i.lastvariable = i.previous().lexeme;
+                i.parseVariable();
                 PRINT(" = " + i.lastvariable + " / ")
             }
             case EXPONENTIATE: {
-                i.lastvariable = i.previous().lexeme;
+                i.parseVariable();
                 PRINT(" = " + i.lastvariable + " ^ ")
             }
             case EQUAL: case BIGGER_EQUAL: case SMALLER_EQUAL: case BIGGER: case SMALLER: {
@@ -167,6 +183,11 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
             case IDENTIFIER: PRINT(t.lexeme)
             case NUMBER: PRINT(t.literal)
             case STRING: PRINT("[[" + t.literal + "]]")
+            case DO: {
+                i.print("do");
+                i.queue.push(NEXTLINE);
+                break;
+            }
             case IF: {
                 i.print("if ");
                 i.queue.push(THEN);

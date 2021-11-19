@@ -146,6 +146,9 @@ std::vector<token> ScanFile(std::string code, std::string filename) {
 					}
 					if (i.ended()) {
 						i.warning("Unterminated comment.");
+					} else {
+						i.readNext();
+						i.readNext();
 					}
 				} else if (i.compare('=')) {
 					ADDTOKEN(DIVIDE)
