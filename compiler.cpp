@@ -3,10 +3,10 @@
 
 enum parsedtype {
     //openings
-    THEN, NEXTLINE,
+    THEN, NEXTLINE, 
 
     //closures
-    END, TABLE
+    IF_END, END, TABLE
 };
 
 struct tokensinfo {
@@ -108,7 +108,7 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 switch (type) {
                     case THEN: {
                         i.print(" then\n");
-                        i.queue.push(END);
+                        i.queue.push(IF_END);
                         break;
                     }
                     case NEXTLINE: {
@@ -129,6 +129,21 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 parsedtype type = i.queue.top();
                 i.queue.pop();
                 switch (type) {
+                    case IF_END: {
+                        tokentype check = i.tokens[i.current].type;
+                        if (check == ELSEIF) {
+                            i.print("\nelseif ");
+                            i.queue.push(THEN);
+                            i.advance();
+                            break;
+                        } else if (check == ELSE) {
+                            i.print("\nelse\n");
+                            i.queue.push(NEXTLINE);
+                            i.advance();
+                            break;
+                        }
+                        //if there is not an elseif just do what END does
+                    }
                     case END: {
                         i.print("\nend\n");
                         break;
@@ -205,6 +220,7 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 i.queue.push(THEN);
                 break;
             }
+            case ELSEIF: i.unexpected("elseif");
             case LOCAL: PRINT("local ")
         }
     }
