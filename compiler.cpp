@@ -6,7 +6,7 @@ enum parsedtype {
     THEN, NEXTLINE,
 
     //closures
-    END
+    END, TABLE
 };
 
 struct tokensinfo {
@@ -64,8 +64,8 @@ struct tokensinfo {
         //if (current == 0)
         if (tokens[current - 2].type == DOLLAR) return;
         lastvariable.clear();
-        uint i = current - 2;
-        while (tokens[i].type != SEMICOLON && tokens[i].type != CURLY_BRACKET_CLOSED && tokens[i].type != LOCAL) {
+        int i = current - 2;
+        while (i > 0 && tokens[i].type != SEMICOLON && tokens[i].type != CURLY_BRACKET_OPEN && tokens[i].type != CURLY_BRACKET_CLOSED && tokens[i].type != LOCAL) {
             lastvariable.insert(0, tokens[i].lexeme);
             i--;
         }
@@ -90,15 +90,19 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
             }
             case SQUARE_BRACKET_OPEN: {
                 i.qscope++;
-                PRINT("[")
+                PRINT("[ ")
             }
             case SQUARE_BRACKET_CLOSED: {
                 if (i.qscope == 0) i.unexpected("]");
                 i.qscope--;
-                PRINT("]")
+                PRINT(" ]")
             }
             case CURLY_BRACKET_OPEN: {
-                if (i.queue.empty()) i.unexpected("{");
+                if (i.queue.empty()) {
+                    i.print("{\n");
+                    i.queue.push(TABLE);
+                    break;
+                }
                 parsedtype type = i.queue.top();
                 i.queue.pop();
                 switch (type) {
@@ -112,7 +116,11 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                         i.queue.push(END);
                         break;
                     }
-                    default: i.unexpected("{");
+                    default: {
+                        i.print("{\n");
+                        i.queue.push(TABLE);
+                        break;
+                    }
                 }
                 break;
             }
@@ -123,6 +131,10 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 switch (type) {
                     case END: {
                         i.print("\nend\n");
+                        break;
+                    }
+                    case TABLE: {
+                        i.print("\n}\n");
                         break;
                     }
                     default: i.unexpected("}");
