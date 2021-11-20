@@ -1,39 +1,41 @@
 #include <stack>
+#include <array>
 #define PRINT(text) i.print(text); break;
 #define CODEBLOCK(start, type) {i.print(start); i.queue.push(type); break;}
 
 enum parsedtype {
     //openings
-    THEN, NEXTLINE, FOR_LOOP, WHILE_LOOP,
+    THEN, NEXTLINE, FOR_LOOP, WHILE_LOOP, UNTIL_LOOP_START,
 
     //closures
-    IF_END, END, TABLE_END
+    IF_END, END, TABLE_END, UNTIL_LOOP_END
 };
 
 struct tokensinfo {
     uint current = 0, pscope = 0, qscope = 0;
-	std::string filename, lastvariable;
+	std::string output, filename, lastvariable, repeatloopcondition;
 	std::vector<token> tokens;
     std::stack<parsedtype> queue = std::stack<parsedtype>();
-    FILE *output;
 	
-	tokensinfo(std::vector<token> tokens, std::string filename, FILE *output) :
+	tokensinfo(std::vector<token> tokens, std::string filename) :
 		tokens(tokens),
-		filename(filename),
-        output(output)
+		filename(filename)
 	{}
 
     inline void print(std::string text) {
-        fprintf(output, "%s", text.c_str());
+        output += text;
     }
 
     void error(std::string message) {
-        fclose(output);
         throw std::string("Error in file \"" + filename + "\" at line [" + std::to_string(tokens[current].line) + "]: " + message + ".");
     }
 
     inline void unexpected(std::string character) {
         error("Unexpected token '" + character + "'");
+    }
+
+    inline void expectedBeforeEOF(std::string character) {
+        error("Expected token '" + character + "' before '<eof>'");
     }
 
     inline bool ended() {
@@ -71,10 +73,18 @@ struct tokensinfo {
             i--;
         }
     }
+
+    void expect(token t, std::vector<tokentype> checks) {
+        tokentype check = t.type;
+		for (tokentype tocheck : checks) {
+            if (check == tocheck) return;
+        }
+        unexpected(t.lexeme);
+    }
 };
 
-void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) {
-    tokensinfo i(tokens, filename, output);
+std::string ParseTokens(std::vector<token> tokens, std::string filename) {
+    tokensinfo i(tokens, filename);
     while(!i.ended()) {
         token t = i.advance();
         if (t.type == EOF) i.unexpected("<eof>");
@@ -106,6 +116,7 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                     case THEN: CODEBLOCK(" then\n", IF_END)
                     case NEXTLINE: CODEBLOCK("\n", END)
                     case FOR_LOOP: case WHILE_LOOP: CODEBLOCK(" do\n", END)
+                    case UNTIL_LOOP_START: CODEBLOCK("repeat\n", UNTIL_LOOP_END)
                     default: i.unexpected("{");
                 }
                 break;
@@ -126,12 +137,10 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                         }
                         //if there is not an elseif just do what END does
                     }
-                    case END: {
-                        i.print("\nend\n");
-                        break;
-                    }
-                    case TABLE_END: {
-                        i.print("\n}\n");
+                    case END: PRINT("\nend\n")
+                    case TABLE_END: PRINT("\n}\n")
+                    case UNTIL_LOOP_END: {
+                        i.print("\nuntil " + i.repeatloopcondition + "\n");
                         break;
                     }
                     default: i.unexpected("}");
@@ -154,6 +163,7 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
             case SLASH: PRINT("/")
             case CARET: PRINT("^")
             case HASHTAG: PRINT("#")
+            case METHOD: PRINT(":")
             case DEFINE: {
                 i.parseVariable();
                 PRINT(" = ")
@@ -203,7 +213,6 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
             case IDENTIFIER: PRINT(t.lexeme)
             case NUMBER: PRINT(t.literal)
             case STRING: PRINT("[[" + t.literal + "]]")
-            case TABLE: CODEBLOCK("{\n", TABLE_END)
             case DO: CODEBLOCK("do", NEXTLINE)
             case IF: CODEBLOCK("if ", THEN)
             case ELSEIF: i.unexpected("elseif");
@@ -228,9 +237,30 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 i.print(" in ");
                 break;
             }
+            case WHILE: CODEBLOCK("while ", WHILE_LOOP)
+            case NEW: {
+                i.expect(i.peek(), {CURLY_BRACKET_OPEN});
+                i.advance();
+                CODEBLOCK("{\n", TABLE_END)
+            }
+            case UNTIL: {
+                std::vector<token> conditionTokens;
+                for (uint it = i.current; i.tokens[it].type != CURLY_BRACKET_OPEN; it++) {
+                    if (i.tokens[it].type == EOF) i.expectedBeforeEOF("{");
+                    conditionTokens.push_back(i.tokens[it]);
+                    i.advance();
+                }
+                conditionTokens.push_back(token(EOF, "", "", 0));
+                i.repeatloopcondition = ParseTokens(conditionTokens, filename);
+                i.queue.push(UNTIL_LOOP_START);
+                break;
+            }
             case LOCAL: PRINT("local ")
         }
     }
-    if (i.pscope > 0) i.error("Expected token ')' before '<eof>'");
-    if (i.qscope > 0) i.error("Expected token ']' before '<eof>'");
+    if (i.pscope > 0) i.expectedBeforeEOF(")");
+    if (i.qscope > 0) i.expectedBeforeEOF("]");
+    return i.output;
 }
+
+#define EOF -1

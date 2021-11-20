@@ -9,7 +9,7 @@
 #include "scanner.cpp"
 #include "compiler.cpp"
 
-//VERSION 18 BETA 1.0
+//VERSION 19 BETA 1.0
 
 std::string codepath;
 
@@ -45,7 +45,7 @@ void CompileFile(std::string path, std::string filename) {
 	}
 	fclose(codefile);
 	std::vector<token> tokens = ScanFile(code, filename);
-	ParseTokens(tokens, filename, output);
+	fprintf(output, "%s", ParseTokens(tokens, filename).c_str());
 	fclose(output);
 }
 
@@ -73,12 +73,6 @@ void CompileFolder(std::string path) {
 }
 
 int main(int argc, char** argv) {
-	/*std::ifstream code;
-	code.open("main.cpp", std::ifstream::in);
-	std::string test;
-	while (code >> test) {
-		printf("%s\n", test.c_str());
-	}*/
 	if (argc >= 2)
 		codepath = argv[1];
 	else {
