@@ -12,18 +12,18 @@ enum tokentype {
 	SQUARE_BRACKET_OPEN, SQUARE_BRACKET_CLOSED,
 	CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	COMMA, DOT, SEMICOLON, NOT, AND, OR, DOLLAR,
-	PLUS, MINUS, STAR, SLASH, CARET,
+	PLUS, MINUS, STAR, SLASH, CARET, HASHTAG,
 	
 	//definition and comparison
-	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE,
-	EQUAL, NOT_EQUAL, BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL,
+	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE, LAMBDA,
+	EQUAL, NOT_EQUAL, BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL, TABLE,
 	
 	//literals
 	IDENTIFIER, NUMBER, STRING,
 	
 	//keywords
-	DO, IF, ELSEIF, ELSE, FOR, WHILE, UNTIL, GOTO,
-	LOCAL, RETURN, THIS, TRUE, FALSE, NIL,
+	DO, IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE,
+	UNTIL, GOTO, LOCAL, RETURN, THIS, TRUE, FALSE, NIL,
 	
 	EOF = -1
 };
@@ -34,6 +34,9 @@ const std::unordered_map<std::string, tokentype> keyWords = {
 	{"elseif", ELSEIF},
 	{"else", ELSE},
 	{"for", FOR},
+	{"of", OF},
+	{"in", IN},
+	{"with", WITH},
 	{"while", WHILE},
 	{"until", UNTIL},
 	{"goto", GOTO},
@@ -136,6 +139,7 @@ std::vector<token> ScanFile(std::string code, std::string filename) {
 			case '-': ADDTOKEN(i.compare('=') ? DECREASE : MINUS)
 			case '*': ADDTOKEN(i.compare('=') ? MULTIPLY : STAR)
 			case '^': ADDTOKEN(i.compare('=') ? EXPONENTIATE : CARET)
+			case '#': ADDTOKEN(HASHTAG)
 			case '/': {
 				if (i.compare('/')) {
 					while (i.peek() != '\n' && !i.ended()) i.readNext();
@@ -158,11 +162,11 @@ std::vector<token> ScanFile(std::string code, std::string filename) {
 				break;
 			}
 			case '!': ADDTOKEN(i.compare('=') ? NOT_EQUAL : NOT)
-			case '=': ADDTOKEN(i.compare('=') ? EQUAL : DEFINE)
+			case '=': ADDTOKEN(i.compare('=') ? EQUAL : i.compare('>') ? LAMBDA : DEFINE)
 			case '<': ADDTOKEN(i.compare('=') ? SMALLER_EQUAL : SMALLER)
 			case '>': ADDTOKEN(i.compare('=') ? BIGGER_EQUAL : BIGGER)
 			case '?': ADDTOKEN(i.compare('=') ? DEFINEIF : AND)
-			case '&': ADDTOKEN(AND)
+			case '&': ADDTOKEN(i.compare('{') ? TABLE : AND)
 			case ':': case '|': ADDTOKEN(OR)
 			case '$': ADDTOKEN(DOLLAR)
 			case ' ': case '\r': case '\t': break;

@@ -1,12 +1,13 @@
 #include <stack>
 #define PRINT(text) i.print(text); break;
+#define CODEBLOCK(start, type) {i.print(start); i.queue.push(type); break;}
 
 enum parsedtype {
     //openings
-    THEN, NEXTLINE, 
+    THEN, NEXTLINE, FOR_LOOP, WHILE_LOOP,
 
     //closures
-    IF_END, END, TABLE
+    IF_END, END, TABLE_END
 };
 
 struct tokensinfo {
@@ -44,7 +45,7 @@ struct tokensinfo {
     }
 
     inline token peek() {
-        return tokens[current + 1];
+        return tokens[current];
     }
 
     inline token previous() {
@@ -98,29 +99,14 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 PRINT(" ]")
             }
             case CURLY_BRACKET_OPEN: {
-                if (i.queue.empty()) {
-                    i.print("{\n");
-                    i.queue.push(TABLE);
-                    break;
-                }
+                if (i.queue.empty()) i.unexpected("{");
                 parsedtype type = i.queue.top();
                 i.queue.pop();
                 switch (type) {
-                    case THEN: {
-                        i.print(" then\n");
-                        i.queue.push(IF_END);
-                        break;
-                    }
-                    case NEXTLINE: {
-                        i.print("\n");
-                        i.queue.push(END);
-                        break;
-                    }
-                    default: {
-                        i.print("{\n");
-                        i.queue.push(TABLE);
-                        break;
-                    }
+                    case THEN: CODEBLOCK(" then\n", IF_END)
+                    case NEXTLINE: CODEBLOCK("\n", END)
+                    case FOR_LOOP: case WHILE_LOOP: CODEBLOCK(" do\n", END)
+                    default: i.unexpected("{");
                 }
                 break;
             }
@@ -132,15 +118,11 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                     case IF_END: {
                         tokentype check = i.tokens[i.current].type;
                         if (check == ELSEIF) {
-                            i.print("\nelseif ");
-                            i.queue.push(THEN);
                             i.advance();
-                            break;
+                            CODEBLOCK("\nelseif ", THEN)
                         } else if (check == ELSE) {
-                            i.print("\nelse\n");
-                            i.queue.push(NEXTLINE);
                             i.advance();
-                            break;
+                            CODEBLOCK("\nelse\n", NEXTLINE)
                         }
                         //if there is not an elseif just do what END does
                     }
@@ -148,7 +130,7 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                         i.print("\nend\n");
                         break;
                     }
-                    case TABLE: {
+                    case TABLE_END: {
                         i.print("\n}\n");
                         break;
                     }
@@ -171,6 +153,7 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
             case STAR: PRINT("*")
             case SLASH: PRINT("/")
             case CARET: PRINT("^")
+            case HASHTAG: PRINT("#")
             case DEFINE: {
                 i.parseVariable();
                 PRINT(" = ")
@@ -207,20 +190,44 @@ void ParseTokens(std::vector<token> tokens, std::string filename, FILE *output) 
                 i.parseComparison("!=", "~=");
                 break;
             }
+            case LAMBDA: {
+                if (i.previous().type == IDENTIFIER) i.print(" = ");
+                i.print("function");
+                i.queue.push(NEXTLINE);
+                token check = i.peek();
+                if (check.type == CURLY_BRACKET_OPEN) {
+                    i.print("()");
+                } else if (check.type != ROUND_BRACKET_OPEN) i.unexpected(check.lexeme);
+                break;
+            }
             case IDENTIFIER: PRINT(t.lexeme)
             case NUMBER: PRINT(t.literal)
             case STRING: PRINT("[[" + t.literal + "]]")
-            case DO: {
-                i.print("do");
-                i.queue.push(NEXTLINE);
-                break;
-            }
-            case IF: {
-                i.print("if ");
-                i.queue.push(THEN);
-                break;
-            }
+            case TABLE: CODEBLOCK("{\n", TABLE_END)
+            case DO: CODEBLOCK("do", NEXTLINE)
+            case IF: CODEBLOCK("if ", THEN)
             case ELSEIF: i.unexpected("elseif");
+            case ELSE: i.unexpected("else");
+            case FOR: CODEBLOCK("for ", FOR_LOOP)
+            case OF: {
+                token table = i.peek();
+                if (i.queue.top() != FOR_LOOP || table.type != IDENTIFIER) i.unexpected("of");
+                i.print(" in pairs(" + table.lexeme + ")");
+                i.advance();
+                break;
+            }
+            case IN: {
+                token array = i.peek();
+                if (i.queue.top() != FOR_LOOP || array.type != IDENTIFIER) i.unexpected("of");
+                i.print(" in ipairs(" + array.lexeme + ")");
+                i.advance();
+                break;
+            }
+            case WITH: {
+                if (i.queue.top() != FOR_LOOP) i.unexpected("with");
+                i.print(" in ");
+                break;
+            }
             case LOCAL: PRINT("local ")
         }
     }
