@@ -1,5 +1,5 @@
 #include <stack>
-#include <array>
+#include <unordered_set>
 #define PRINT(text) i.print(text); break;
 #define CODEBLOCK(start, type) {i.print(start); i.queue.push(type); break;}
 
@@ -15,6 +15,7 @@ struct tokensinfo {
     uint current = 0, pscope = 0, qscope = 0;
 	std::string output, filename, lastvariable, repeatloopcondition;
 	std::vector<token> tokens;
+    std::unordered_set<std::string> labels;
     std::stack<parsedtype> queue = std::stack<parsedtype>();
 	
 	tokensinfo(std::vector<token> tokens, std::string filename) :
@@ -46,8 +47,8 @@ struct tokensinfo {
         return tokens[current++];
     }
 
-    inline token peek() {
-        return tokens[current];
+    inline token peek(uint offset = 0) {
+        return tokens[current + offset];
     }
 
     inline token previous() {
@@ -164,6 +165,7 @@ std::string ParseTokens(std::vector<token> tokens, std::string filename) {
             case CARET: PRINT("^")
             case HASHTAG: PRINT("#")
             case METHOD: PRINT(":")
+            case TWODOTS: PRINT("..")
             case DEFINE: {
                 i.parseVariable();
                 PRINT(" = ")
@@ -192,12 +194,29 @@ std::string ParseTokens(std::vector<token> tokens, std::string filename) {
                 i.parseVariable();
                 PRINT(" = " + i.lastvariable + " ^ ")
             }
-            case EQUAL: case BIGGER_EQUAL: case SMALLER_EQUAL: case BIGGER: case SMALLER: {
+            case CONCATENATE: {
+                i.parseVariable();
+                PRINT(" = " + i.lastvariable + " .. ")
+            }
+            case EQUAL: case BIGGER_EQUAL: case SMALLER_EQUAL: case BIGGER: {
                 i.parseComparison(t.lexeme, t.lexeme);
                 break;
             }
             case NOT_EQUAL: {
                 i.parseComparison("!=", "~=");
+                break;
+            }
+            case SMALLER: {
+                token check = i.peek();
+                if (check.type == IDENTIFIER && i.peek(1).type == BIGGER) {
+                    if (i.labels.find(check.lexeme) != i.labels.end()) i.error("Label '" + check.lexeme + "' already exists");
+                    i.labels.insert(check.lexeme);
+                    i.print("::" + check.lexeme + "::\n");
+                    i.advance();
+                    i.advance();
+                    break;
+                }
+                i.parseComparison("<", "<");
                 break;
             }
             case LAMBDA: {
@@ -255,7 +274,16 @@ std::string ParseTokens(std::vector<token> tokens, std::string filename) {
                 i.queue.push(UNTIL_LOOP_START);
                 break;
             }
+            case GOTO: {
+                std::string label = i.peek().lexeme;
+                if (i.labels.find(label) == i.labels.end()) i.error("Unknown label '" + label + "'");
+                PRINT("goto ")
+            }
             case LOCAL: PRINT("local ")
+            case RETURN: PRINT("return ")
+            case THIS: PRINT("this")
+            case TRUE: PRINT("true")
+            case FALSE: PRINT("false")
         }
     }
     if (i.pscope > 0) i.expectedBeforeEOF(")");

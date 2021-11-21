@@ -6,10 +6,11 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <fstream>
 #include "scanner.cpp"
 #include "compiler.cpp"
 
-//VERSION 19 BETA 1.0
+//VERSION 20 BETA 1.0
 
 std::string codepath;
 
@@ -72,6 +73,10 @@ void CompileFolder(std::string path) {
 	closedir(directory);
 }
 
+/*constexpr unsigned int str2hash(const char *str, int h = 0) {
+	return !str[h] ? 5381 : (str2hash(str, h + 1) * 33) ^ str[h];
+}*/
+
 int main(int argc, char** argv) {
 	if (argc >= 2)
 		codepath = argv[1];
@@ -81,6 +86,12 @@ int main(int argc, char** argv) {
 	}
 	_mkdir((codepath + "\\.clue").c_str());
 	try {
+		/*std::ifstream conf(codepath + "\\.clueconf");
+		if (!conf.fail()) {
+			for (std::string line; std::getline(conf, line);) {
+				still not sure about this
+			}
+		} else printf("Configuration file ('.clueconf') not found, using default settings...\n");*/
 		CompileFolder(codepath);
 	} catch (std::string errormsg) {
 		printf("%s\nCannot proceed, compilation stopped.\n", errormsg.c_str());
