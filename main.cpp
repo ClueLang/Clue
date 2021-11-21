@@ -10,7 +10,7 @@
 #include "scanner.cpp"
 #include "compiler.cpp"
 
-//VERSION 20 BETA 1.0
+//VERSION 21 BETA 1.0
 
 std::string codepath;
 
@@ -33,18 +33,14 @@ void CompileFile(std::string path, std::string filename) {
 		errormsg += outputpath + "\\" + compiledname + "\"";
 		throw errormsg;
 	}
-	FILE *codefile = fopen(path.c_str(), "rb");
-	if (codefile == NULL) {
+	std::ifstream codefile(path);
+	if (codefile.fail()) {
 		std::string errormsg = "Failed to open code file \"";
 		errormsg += path + "\"";
 		throw errormsg;
 	}
-	std::string code;
-	char c;
-	while ((c = fgetc(codefile)) != EOF) {
-		code += c;
-	}
-	fclose(codefile);
+	std::string code((std::istreambuf_iterator<char>(codefile)), (std::istreambuf_iterator<char>()));
+	codefile.close();
 	std::vector<token> tokens = ScanFile(code, filename);
 	fprintf(output, "%s", ParseTokens(tokens, filename).c_str());
 	fclose(output);
