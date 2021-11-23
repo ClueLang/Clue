@@ -12,8 +12,8 @@ enum tokentype {
 	SQUARE_BRACKET_OPEN, SQUARE_BRACKET_CLOSED,
 	CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	COMMA, DOT, SEMICOLON, NOT, AND, OR, DOLLAR,
-	PLUS, MINUS, STAR, SLASH, CARET, HASHTAG,
-	METHOD, TWODOTS, TREDOTS,
+	PLUS, MINUS, STAR, SLASH, PERCENTUAL, CARET,
+	HASHTAG, METHOD, TWODOTS, TREDOTS,
 	
 	//definition and comparison
 	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE, CONCATENATE,
@@ -23,7 +23,7 @@ enum tokentype {
 	IDENTIFIER, NUMBER, STRING,
 	
 	//keywords
-	DO, IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, NEW,
+	DO, IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, NEW, META,
 	UNTIL, GOTO, LOCAL, RETURN, THIS, TRUE, FALSE, NIL,
 	
 	EOF = -1
@@ -40,6 +40,7 @@ const std::unordered_map<std::string, tokentype> keyWords = {
 	{"with", WITH},
 	{"while", WHILE},
 	{"new", NEW},
+	{"meta", META},
 	{"until", UNTIL},
 	{"goto", GOTO},
 	{"local", LOCAL},
@@ -64,6 +65,8 @@ struct token {
 	{}
 };
 
+struct method;
+
 struct codeinfo {
 	uint line = 1, start = 0, current = 0;
 	std::string code, filename;
@@ -74,11 +77,11 @@ struct codeinfo {
 		filename(filename)
 	{}
 	
-	inline bool ended() {
+	bool ended() {
 		return current >= code.length();
 	}
 	
-	inline char readNext() {
+	char readNext() {
 		return code.at(current++);
 	}
 	
@@ -89,15 +92,15 @@ struct codeinfo {
 		return true;
 	}
 	
-	inline char peek(short pos = 0) {
+	char peek(short pos = 0) {
 		return current + pos >= code.length() ? '\0' : code.at(current + pos);
 	}
 	
-	inline bool isNumber(char c) {
+	bool isNumber(char c) {
 		return c >= '0' && c <= '9';
 	}
 	
-	inline bool isChar(char c) {
+	bool isChar(char c) {
 		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 	}
 	
@@ -163,6 +166,7 @@ std::vector<token> ScanFile(std::string code, std::string filename) {
 				}
 				break;
 			}
+			case '%': ADDTOKEN(PERCENTUAL)
 			case '!': ADDTOKEN(i.compare('=') ? NOT_EQUAL : NOT)
 			case '=': ADDTOKEN(i.compare('=') ? EQUAL : i.compare('>') ? LAMBDA : DEFINE)
 			case '<': ADDTOKEN(i.compare('=') ? SMALLER_EQUAL : SMALLER)

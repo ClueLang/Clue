@@ -1,4 +1,5 @@
 #include <stack>
+#include <set>
 #include <unordered_set>
 #define PRINT(text) i.print(text); break;
 #define CODEBLOCK(start, type) {i.print(start); i.queue.push(type); break;}
@@ -17,13 +18,14 @@ struct tokensinfo {
 	std::vector<token> tokens;
     std::unordered_set<std::string> labels;
     std::stack<parsedtype> queue = std::stack<parsedtype>();
+    std::stack<std::set<method>> tables;
 	
 	tokensinfo(std::vector<token> tokens, std::string filename) :
-		tokens(tokens),
-		filename(filename)
-	{}
+        tokens(tokens),
+        filename(filename)
+    {}
 
-    inline void print(std::string text) {
+    void print(std::string text) {
         output += text;
     }
 
@@ -31,31 +33,31 @@ struct tokensinfo {
         throw std::string("Error in file \"" + filename + "\" at line [" + std::to_string(tokens[current].line) + "]: " + message + ".");
     }
 
-    inline void unexpected(std::string character) {
+    void unexpected(std::string character) {
         error("Unexpected token '" + character + "'");
     }
 
-    inline void expectedBeforeEOF(std::string character) {
+    void expectedBeforeEOF(std::string character) {
         error("Expected token '" + character + "' before '<eof>'");
     }
 
-    inline bool ended() {
+    bool ended() {
         return tokens[current].type == EOF;
     }
 
-    inline token advance() {
+    token advance() {
         return tokens[current++];
     }
 
-    inline token peek(uint offset = 0) {
+    token peek(uint offset = 0) {
         return tokens[current + offset];
     }
 
-    inline token previous() {
+    token previous() {
         return tokens[current - 2];
     }
 
-    inline bool isLiteral(tokentype check) {
+    bool isLiteral(tokentype check) {
         return check == IDENTIFIER || check == STRING || check == NUMBER || check == TRUE || check == FALSE || check == NIL;
     }
 
@@ -75,12 +77,74 @@ struct tokensinfo {
         }
     }
 
-    void expect(token t, std::vector<tokentype> checks) {
+    void expect(token t, std::set<tokentype> checks) {
         tokentype check = t.type;
 		for (tokentype tocheck : checks) {
             if (check == tocheck) return;
         }
         unexpected(t.lexeme);
+    }
+};
+
+const std::unordered_map<std::string, std::string> methodNames = {
+    {"index", "__index"},
+    {"newindex", "__newindex"},
+    {"mode", "__mode"},
+    {"call", "__call"},
+    {"metatable", "__metatable"},
+    {"tostring", "__tostring"},
+    {"gc", "__gc"},
+    {"name", "__name"},
+    {"unm", "__unm"},
+    {"unary", "__unm"},
+    {"add", "__add"},
+    {"+", "__add"},
+    {"sub", "__sub"},
+    {"-", "__sub"},
+    {"mul", "__mul"},
+    {"*", "__mul"},
+    {"div", "__div"},
+    {"/", "__div"},
+    {"mod", "__mod"},
+    {"%", "__mod"},
+    {"pow", "__pow"},
+    {"^", "__pow"},
+    {"concat", "__concat"},
+    {"..", "__concat"},
+    {"eq", "__eq"},
+    {"equal", "__eq"},
+    {"==", "__eq"},
+    {"lt", "__lt"},
+    {"less_than", "__lt"},
+    {"<", "__lt"},
+    {"le", "__le"},
+    {"less_than_equal", "__lt"},
+    {"<=", "__le"},
+};
+
+std::string ParseTokens(std::vector<token> tokens, std::string filename);
+
+struct method {
+    std::string name, value;
+
+    method(std::string name, tokensinfo i) :
+        name(name)
+    {
+        auto search = methodNames.find(name);
+        if (search == methodNames.end()) {
+            i.error("Unknown metatable event named '" + name + "'");
+            return;
+        }
+        name = search->second;
+        std::vector<token> methodTokens;
+        for (uint it = i.current; i.tokens[it].type != SEMICOLON; it++) {
+            if (i.tokens[it].type == EOF) i.expectedBeforeEOF(";");
+            methodTokens.push_back(i.tokens[it]);
+            i.advance();
+        }
+        methodTokens.push_back(token(EOF, "", "", 0));
+        value = ParseTokens(methodTokens, i.filename);
+        printf("%s\n", value.c_str());
     }
 };
 
@@ -162,10 +226,12 @@ std::string ParseTokens(std::vector<token> tokens, std::string filename) {
             case MINUS: PRINT("-")
             case STAR: PRINT("*")
             case SLASH: PRINT("/")
+            case PERCENTUAL: PRINT("%")
             case CARET: PRINT("^")
             case HASHTAG: PRINT("#")
             case METHOD: PRINT(":")
             case TWODOTS: PRINT("..")
+            case TREDOTS: PRINT("...")
             case DEFINE: {
                 i.parseVariable();
                 PRINT(" = ")
@@ -246,7 +312,7 @@ std::string ParseTokens(std::vector<token> tokens, std::string filename) {
             }
             case IN: {
                 token array = i.peek();
-                if (i.queue.top() != FOR_LOOP || array.type != IDENTIFIER) i.unexpected("of");
+                if (i.queue.top() != FOR_LOOP || array.type != IDENTIFIER) i.unexpected("in");
                 i.print(" in ipairs(" + array.lexeme + ")");
                 i.advance();
                 break;
@@ -260,7 +326,12 @@ std::string ParseTokens(std::vector<token> tokens, std::string filename) {
             case NEW: {
                 i.expect(i.peek(), {CURLY_BRACKET_OPEN});
                 i.advance();
-                CODEBLOCK("{\n", TABLE_END)
+                CODEBLOCK("setmetatable({\n", TABLE_END)
+            }
+            case META: {
+                if (i.queue.top() != TABLE_END) i.unexpected("operator");
+                std::string methodname = i.peek().lexeme;
+                break;
             }
             case UNTIL: {
                 std::vector<token> conditionTokens;
@@ -284,6 +355,7 @@ std::string ParseTokens(std::vector<token> tokens, std::string filename) {
             case THIS: PRINT("this")
             case TRUE: PRINT("true")
             case FALSE: PRINT("false")
+            case NIL: PRINT("nil")
         }
     }
     if (i.pscope > 0) i.expectedBeforeEOF(")");

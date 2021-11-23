@@ -10,7 +10,7 @@
 #include "scanner.cpp"
 #include "compiler.cpp"
 
-//VERSION 21 BETA 1.0
+//VERSION 24 BETA 1.0
 
 std::string codepath;
 
