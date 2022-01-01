@@ -1,5 +1,5 @@
 #include <stack>
-#include <set>
+#include <list>
 #include <unordered_set>
 #define PRINT(text) i.print(text); break;
 #define CODEBLOCK(start, type) {i.print(start); i.queue.push(type); break;}
@@ -9,7 +9,7 @@ enum parsedtype {
     THEN, NEXTLINE, FOR_LOOP, WHILE_LOOP, UNTIL_LOOP_START,
 
     //closures
-    IF_END, END, TABLE_END, UNTIL_LOOP_END
+    IF_END, END, TABLE_END, METATABLE_END, UNTIL_LOOP_END
 };
 
 struct tokensinfo {
@@ -18,11 +18,12 @@ struct tokensinfo {
 	std::vector<token> tokens;
     std::unordered_set<std::string> labels;
     std::stack<parsedtype> queue = std::stack<parsedtype>();
-    std::stack<std::set<method>> tables;
+    std::stack<std::list<method>> metatables;
 	
-	tokensinfo(std::vector<token> tokens, std::string filename) :
+	tokensinfo(std::vector<token> tokens, std::string filename, std::unordered_set<std::string> labels) :
         tokens(tokens),
-        filename(filename)
+        filename(filename),
+        labels(labels)
     {}
 
     void print(std::string text) {
@@ -67,7 +68,6 @@ struct tokensinfo {
     }
 
     void parseVariable() {
-        //if (current == 0)
         if (tokens[current - 2].type == DOLLAR) return;
         lastvariable.clear();
         int i = current - 2;
@@ -77,7 +77,7 @@ struct tokensinfo {
         }
     }
 
-    void expect(token t, std::set<tokentype> checks) {
+    void expect(token t, std::list<tokentype> checks) {
         tokentype check = t.type;
 		for (tokentype tocheck : checks) {
             if (check == tocheck) return;
@@ -122,13 +122,13 @@ const std::unordered_map<std::string, std::string> methodNames = {
     {"<=", "__le"},
 };
 
-std::string ParseTokens(std::vector<token> tokens, std::string filename);
+std::string ParseTokens(std::vector<token> tokens, std::string filename, std::unordered_set<std::string> labels = {});
 
 struct method {
     std::string name, value;
 
-    method(std::string name, tokensinfo i) :
-        name(name)
+    method(std::string oname, tokensinfo &i) :
+        name(oname)
     {
         auto search = methodNames.find(name);
         if (search == methodNames.end()) {
@@ -142,14 +142,16 @@ struct method {
             methodTokens.push_back(i.tokens[it]);
             i.advance();
         }
+        i.advance();
+        methodTokens.push_back(token(SEMICOLON, ";", "", 0));
         methodTokens.push_back(token(EOF, "", "", 0));
-        value = ParseTokens(methodTokens, i.filename);
-        printf("%s\n", value.c_str());
+        value = ParseTokens(methodTokens, i.filename, i.labels);
+        printf("%s", value);
     }
 };
 
-std::string ParseTokens(std::vector<token> tokens, std::string filename) {
-    tokensinfo i(tokens, filename);
+std::string ParseTokens(std::vector<token> tokens, std::string filename, std::unordered_set<std::string> labels) {
+    tokensinfo i(tokens, filename, labels);
     while(!i.ended()) {
         token t = i.advance();
         if (t.type == EOF) i.unexpected("<eof>");
@@ -204,6 +206,16 @@ std::string ParseTokens(std::vector<token> tokens, std::string filename) {
                     }
                     case END: PRINT("\nend\n")
                     case TABLE_END: PRINT("\n}\n")
+                    case METATABLE_END: {
+                        i.print("\n}, {\n");
+                        std::list<method> methods = i.metatables.top();
+                        i.metatables.pop();
+                        for (method m : methods) {
+                            i.print(m.name + m.value);
+                        }
+                        i.print("\n})\n");
+                        break;
+                    }
                     case UNTIL_LOOP_END: {
                         i.print("\nuntil " + i.repeatloopcondition + "\n");
                         break;
@@ -326,11 +338,41 @@ std::string ParseTokens(std::vector<token> tokens, std::string filename) {
             case NEW: {
                 i.expect(i.peek(), {CURLY_BRACKET_OPEN});
                 i.advance();
-                CODEBLOCK("setmetatable({\n", TABLE_END)
+                bool meta = false;
+                uint cscope = 0;
+                for (uint it = i.current; i.tokens[it].type != CURLY_BRACKET_CLOSED && cscope == 0; it++) {
+                    tokentype type = i.tokens[it].type;
+                    printf("%d %d %d %d\n", cscope, type, IDENTIFIER);
+                    //printf("%s %d\n", i.tokens[it].literal, cscope);
+                    switch (type) {
+                        case EOF: {
+                            i.expectedBeforeEOF("}");
+                            break;
+                        }
+                        case CURLY_BRACKET_OPEN: {
+                            cscope++;
+                            printf("%d\n", cscope);
+                            break;
+                        }
+                        case CURLY_BRACKET_CLOSED: {
+                            cscope--;
+                            break;
+                        }
+                        case META: {
+                            meta = true;
+                            break;
+                        }
+                    }
+                }
+                if (meta) {
+                    i.metatables.push(std::list<method>());
+                    CODEBLOCK("setmetatable({\n", METATABLE_END)
+                }
+                CODEBLOCK("{\n", TABLE_END)
             }
             case META: {
-                if (i.queue.top() != TABLE_END) i.unexpected("operator");
-                std::string methodname = i.peek().lexeme;
+                if (i.queue.top() != METATABLE_END) i.unexpected("meta");
+                i.metatables.top().push_back(method(i.advance().lexeme, i));
                 break;
             }
             case UNTIL: {
