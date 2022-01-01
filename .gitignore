@@ -2,3 +2,10 @@
 main.exe
 test/
 main.clue
+src/main.exe
+src/main.pdb
+debug/
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
