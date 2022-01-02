@@ -4,21 +4,33 @@ use std::io;
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::process;
 
-fn error(msg: &str) {
-	println!("{}", &msg);
-	process::exit(1)
-}
+//Version 5 Alpha 0.0
 
-fn CompileFolder(path: &Path) -> io::Result<()> {
+fn IterateFolder(path: &Path, func: &dyn Fn(fs::DirEntry) -> ()) -> io::Result<()> {
 	for entry in fs::read_dir(path)? {
 		let entry = entry?;
+		func(entry);
 	}
 	Ok(())
 }
 
-fn main() {
+fn CompileFile(entry: fs::DirEntry) {
+	//todo
+}
+
+fn CompileFolder(path: &Path) -> Result<(), String> {
+	let result = IterateFolder(path, &CompileFile);
+	if result.is_err() {
+		return Err(match result.err() {
+			Some(error) => error.to_string(),
+			None => String::new()
+		})
+	}
+	Ok(())
+}
+
+fn main() -> Result<(), String> {
 	let args: Vec<String> = env::args().collect();
 	let mut codepath: String = String::new();
 	if args.len() == 1 {
@@ -30,7 +42,7 @@ fn main() {
 		codepath = args[1].clone();
 	}
 	if !Path::new(&codepath).is_dir() {
-		error("The given path doesn't exist");
+		return Err(String::from("The given path doesn't exist"));
 	}
 	if Path::new(&(codepath.clone() + "\\.clue")).is_dir() {
 		fs::remove_dir_all(Path::new(&(codepath.clone() + "\\.clue")))
@@ -38,5 +50,6 @@ fn main() {
 	}
 	fs::create_dir_all(Path::new(&(codepath.clone() + "\\.clue")))
 		.expect("Failed to create output directory!");
-	CompileFolder(Path::new(&codepath)).ok();
+	CompileFolder(Path::new(&codepath))?;
+	Ok(())
 }
