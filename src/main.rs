@@ -11,10 +11,11 @@ fn error(msg: &str) {
 	process::exit(1)
 }
 
-fn CompileFolder(path: String) {
-	for entry in fs::read_dir(path) {
-
+fn CompileFolder(path: &Path) -> io::Result<()> {
+	for entry in fs::read_dir(path)? {
+		let entry = entry?;
 	}
+	Ok(())
 }
 
 fn main() {
@@ -28,8 +29,14 @@ fn main() {
 	} else {
 		codepath = args[1].clone();
 	}
-	if !Path::new(&codepath).is_dir() {error("Given path is invalid!");}
-	fs::create_dir(codepath.clone() + "\\.clue")
+	if !Path::new(&codepath).is_dir() {
+		error("The given path doesn't exist");
+	}
+	if Path::new(&(codepath.clone() + "\\.clue")).is_dir() {
+		fs::remove_dir_all(Path::new(&(codepath.clone() + "\\.clue")))
+			.expect("Faied to remove previous output directory!");
+	}
+	fs::create_dir_all(Path::new(&(codepath.clone() + "\\.clue")))
 		.expect("Failed to create output directory!");
-		CompileFolder(codepath);
+	CompileFolder(Path::new(&codepath)).ok();
 }
