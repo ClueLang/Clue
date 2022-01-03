@@ -5,20 +5,12 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
-//Version 6 Alpha 0.0
+//Version 7 Alpha 0.0
 
-/*fn CompileFile(entry: fs::DirEntry) {
-	println!("{}", entry.path().file_name().unwrap().to_string_lossy().into_owned());
+fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	//todo
-}*/
-
-/*fn IterateFolder(path: &Path) -> io::Result<()> {
-	for entry in fs::read_dir(path)? {
-		let entry = entry?;
-		func(entry);
-	}
 	Ok(())
-}*/
+}
 
 macro_rules! check {
 	($tocheck: expr) => {
@@ -34,7 +26,13 @@ fn CompileFolder(path: &Path) -> Result<(), String> {
 		let entry = check!(entry);
 		let name: String = entry.path().file_name().unwrap().to_string_lossy().into_owned();
 		if name != ".clue" {
-			let path = Path::new("");
+			let filePathName: String = path.display().to_string() + "\\" + &name;
+			let filepath: &Path = &Path::new(&filePathName);
+			if filepath.is_dir() {
+				CompileFolder(filepath)?;
+			} else if filePathName.ends_with(".clue") {
+				CompileFile(filepath, name)?;
+			}
 		}
 	}
 	Ok(())
