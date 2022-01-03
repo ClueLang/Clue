@@ -1,14 +1,5 @@
 #![allow(non_snake_case)]
 
-use std::io;
-use std::env;
-use std::fs;
-use std::fs::File;
-use std::io::prelude::*;
-use std::path::Path;
-
-//Version 7 Alpha 0.0
-
 macro_rules! check {
 	($tocheck: expr) => {
 		match $tocheck {
@@ -17,6 +8,16 @@ macro_rules! check {
 		}
 	};
 }
+
+use std::io;
+use std::env;
+use std::fs;
+use std::fs::File;
+use std::io::prelude::*;
+use std::path::Path;
+mod compiler;
+
+//Version 7 Alpha 0.0
 
 fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let mut code: String = String::new();
@@ -52,6 +53,7 @@ fn main() -> Result<(), String> {
 		io::stdin()
 			.read_line(&mut codepath)
 			.expect("Failed to read path!");
+		codepath.pop();
 	} else {
 		codepath = args[1].clone();
 	}
