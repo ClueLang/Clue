@@ -5,27 +5,37 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
-//Version 5 Alpha 0.0
+//Version 6 Alpha 0.0
 
-fn IterateFolder(path: &Path, func: &dyn Fn(fs::DirEntry) -> ()) -> io::Result<()> {
+/*fn CompileFile(entry: fs::DirEntry) {
+	println!("{}", entry.path().file_name().unwrap().to_string_lossy().into_owned());
+	//todo
+}*/
+
+/*fn IterateFolder(path: &Path) -> io::Result<()> {
 	for entry in fs::read_dir(path)? {
 		let entry = entry?;
 		func(entry);
 	}
 	Ok(())
-}
+}*/
 
-fn CompileFile(entry: fs::DirEntry) {
-	//todo
+macro_rules! check {
+	($tocheck: expr) => {
+		match $tocheck {
+			Ok(t) => t,
+			Err(e) => return Err(e.to_string())
+		}
+	};
 }
 
 fn CompileFolder(path: &Path) -> Result<(), String> {
-	let result = IterateFolder(path, &CompileFile);
-	if result.is_err() {
-		return Err(match result.err() {
-			Some(error) => error.to_string(),
-			None => String::new()
-		})
+	for entry in check!(fs::read_dir(path)) {
+		let entry = check!(entry);
+		let name: String = entry.path().file_name().unwrap().to_string_lossy().into_owned();
+		if name != ".clue" {
+			let path = Path::new("");
+		}
 	}
 	Ok(())
 }
@@ -41,15 +51,16 @@ fn main() -> Result<(), String> {
 	} else {
 		codepath = args[1].clone();
 	}
-	if !Path::new(&codepath).is_dir() {
+	let path: &Path = Path::new(&codepath);
+	if !path.is_dir() {
 		return Err(String::from("The given path doesn't exist"));
 	}
-	if Path::new(&(codepath.clone() + "\\.clue")).is_dir() {
-		fs::remove_dir_all(Path::new(&(codepath.clone() + "\\.clue")))
-			.expect("Faied to remove previous output directory!");
+	let outputname: String = codepath.clone() + "\\.clue";
+	let outputpath: &Path = Path::new(&outputname);
+	if outputpath.is_dir() {
+		check!(fs::remove_dir_all(outputpath));
 	}
-	fs::create_dir_all(Path::new(&(codepath.clone() + "\\.clue")))
-		.expect("Failed to create output directory!");
-	CompileFolder(Path::new(&codepath))?;
+	check!(fs::create_dir_all(outputpath));
+	CompileFolder(path)?;
 	Ok(())
 }
