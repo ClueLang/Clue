@@ -23,7 +23,9 @@ enum TokenType {
 	EOF = -1
 }
 
-struct Token {
+use TokenType::*;
+
+pub struct Token {
     kind: TokenType,
     lexeme: String,
     literal: String,
@@ -113,11 +115,49 @@ impl CodeInfo {
         self.addLiteralToken(kind, String::new())
     }
 
-    fn warning(&self, message: String) {
+    fn warning(&mut self, message: String) {
         println!("Error in file \"{}\" at line [{}]!\nError: \"{}\"", self.filename, self.line, message);
+        self.errored = true;
     }
 }
 
-pub fn ScanFile() -> Vec<Token> {
-    
+macro_rules! compare {
+    ($i: ident, $f: ident, $s: ident) => {
+        match $i.compare('=') {
+            true => $f,
+            false => $s
+        }
+    };
+
+    ($i: ident, $f: ident, $s: ident, $c: ident) => {
+        match $i.compare($c) {
+            true => $f,
+            false => $s
+        }
+    };
+}
+
+pub fn ScanFile(code: String, filename: String) -> Vec<Token> {
+    let mut i: CodeInfo = CodeInfo::new(code, filename);
+    while !i.ended() {
+        i.start = i.current;
+        let c: char = i.readNext();
+        match c {
+            '(' => i.addToken(ROUND_BRACKET_OPEN),
+            ')' => i.addToken(ROUND_BRACKET_CLOSED),
+			'[' => i.addToken(SQUARE_BRACKET_OPEN),
+			']' => i.addToken(SQUARE_BRACKET_CLOSED),
+			'{' => i.addToken(CURLY_BRACKET_OPEN),
+			'}' => i.addToken(CURLY_BRACKET_CLOSED),
+			',' => i.addToken(COMMA),
+			'.' => i.addToken(DOT),
+			';' => i.addToken(SEMICOLON),
+			'+' => i.addToken(if i.compare('=') {INCREASE} else {PLUS}),
+			'-' => i.addToken(if i.compare('=') {DECREASE} else {MINUS}),
+			'*' => i.addToken(if i.compare('=') {MULTIPLY} else {STAR}),
+			'^' => i.addToken(if i.compare('=') {EXPONENTIATE} else {CARET}),
+			'#' => i.addToken(HASHTAG),
+        }
+    }
+    i.tokens
 }

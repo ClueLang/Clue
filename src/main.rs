@@ -9,19 +9,22 @@ macro_rules! check {
 	};
 }
 
+mod compiler;
+
 use std::io;
 use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
-mod compiler;
+use compiler::Token;
 
 //Version 7 Alpha 0.0
 
 fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
+	let tokens: Vec<Token> = compiler::ScanFile(code, name);
 	let compiledname: String = String::from(path.display()
 		.to_string()
 		.strip_suffix(".clue")
