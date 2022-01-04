@@ -31,7 +31,7 @@ struct Token {
 }
 
 impl Token {
-    fn new(kind: TokenType, lexeme: &str, literal: &str, line: u32) -> Token {
+    fn new(kind: TokenType, lexeme: String, literal: String, line: u32) -> Token {
         Token {
             kind: kind,
             lexeme: String::from(lexeme),
@@ -49,6 +49,7 @@ struct CodeInfo {
     code: String,
     filename: String,
     tokens: Vec<Token>,
+    errored: bool,
 }
 
 impl CodeInfo {
@@ -60,7 +61,8 @@ impl CodeInfo {
             size: code.chars().count(),
             code: code,
             filename: filename,
-            tokens: Vec::new()
+            tokens: Vec::new(),
+            errored: false
         }
     }
 
@@ -68,27 +70,54 @@ impl CodeInfo {
         self.current >= self.size
     }
 
-    fn at(&self, pos: usize) -> u8 {
-        self.code.as_bytes()[pos]
+    fn at(&self, pos: usize) -> char {
+        self.code.as_bytes()[pos] as char
     }
 
-    fn readNext(&mut self) -> u8 {
+    fn readNext(&mut self) -> char {
         self.current = self.current + 1;
         self.at(self.current)
     }
 
-    fn compare(&mut self, expected: u8) -> bool {
+    fn compare(&mut self, expected: char) -> bool {
         if self.ended() {return false;}
         if self.at(self.current) != expected {return false;}
         self.current = self.current + 1;
         true
     }
 
-    fn peek(&self, pos: usize) -> u8 {
+    fn peek(&self, pos: usize) -> char {
         let pos: usize = self.current + pos;
-        if pos >= self.size {return 0;}
+        if pos >= self.size {return 0 as char;}
         self.at(pos)
     }
 
+    //isNumber: c.is_ascii_digit()
+    //isChar: c.is_ascii_alphabetic()
+    //isCharOrNumber: c.is_ascii_alphanumeric()
+
+    fn substr(&self, start: usize, end: usize) -> String {
+        let mut result: String = String::new();
+        for i in start..end {
+            result.push(self.at(i));
+        }
+        result
+    }
+
+    fn addLiteralToken(&mut self, kind: TokenType, literal: String) {
+        let lexeme: String = self.substr(self.start, self.current);
+        self.tokens.push(Token::new(kind, lexeme, literal, self.line))
+    }
+
+    fn addToken(&mut self, kind: TokenType) {
+        self.addLiteralToken(kind, String::new())
+    }
+
+    fn warning(&self, message: String) {
+        println!("Error in file \"{}\" at line [{}]!\nError: \"{}\"", self.filename, self.line, message);
+    }
+}
+
+pub fn ScanFile() -> Vec<Token> {
     
 }
