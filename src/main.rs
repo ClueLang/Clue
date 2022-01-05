@@ -19,7 +19,7 @@ use std::io::prelude::*;
 use std::path::Path;
 use compiler::Token;
 
-//Version 7 Alpha 0.0
+//Version 9 Alpha 0.0
 
 fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let mut code: String = String::new();
