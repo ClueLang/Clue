@@ -24,7 +24,7 @@ use scanner::Token;
 fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
-	let tokens: Vec<Token> = scanner::ScanFile(code, name)?;
+	let tokens: Vec<Token> = scanner::ScanCode(code, name)?;
 	/*let compiledname: String = String::from(path.display()
 		.to_string()
 		.strip_suffix(".clue")

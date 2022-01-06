@@ -143,7 +143,7 @@ impl CodeInfo {
 	}
 }
 
-pub fn ScanFile(code: String, filename: String) -> Result<Vec<Token>, String> {
+pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() {
 		i.start = i.current;
