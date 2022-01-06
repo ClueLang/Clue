@@ -19,17 +19,20 @@ use std::io::prelude::*;
 use std::path::Path;
 use compiler::Token;
 
-//Version 9 Alpha 0.0
+//Version 10 Alpha 0.0
 
 fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
-	let tokens: Vec<Token> = compiler::ScanFile(code, name);
-	let compiledname: String = String::from(path.display()
+	let tokens: Vec<Token> = compiler::ScanFile(code, name)?;
+	/*let compiledname: String = String::from(path.display()
 		.to_string()
 		.strip_suffix(".clue")
 		.unwrap()) + ".lua";
-	let output: File = check!(File::create(compiledname));
+	let output: File = check!(File::create(compiledname));*/
+	for token in tokens.iter() {
+		println!("{} \"{}\" {}", token.kind, token.lexeme, token.line);
+	}
 	Ok(())
 }
 

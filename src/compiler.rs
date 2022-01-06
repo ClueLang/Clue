@@ -1,6 +1,10 @@
 #![allow(non_camel_case_types)]
 
-enum TokenType {
+use self::TokenType::*;
+use std::fmt;
+
+#[derive(Debug)]
+pub enum TokenType {
 	//symbols
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED,
 	SQUARE_BRACKET_OPEN, SQUARE_BRACKET_CLOSED,
@@ -18,26 +22,28 @@ enum TokenType {
 	
 	//keywords
 	DO, IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, NEW, META,
-	UNTIL, GOTO, LOCAL, RETURN, THIS, TRUE, FALSE, NIL,
+	UNTIL, GOTO, LOCAL, FUNCTION, RETURN, THIS, TRUE, FALSE, NIL,
 	
 	EOF = -1
 }
 
-use TokenType::*;
+impl fmt::Display for TokenType {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{:?}", self)
+	}
+}
 
 pub struct Token {
-	kind: TokenType,
-	lexeme: String,
-	literal: String,
-	line: u32
+	pub kind: TokenType,
+	pub lexeme: String,
+	pub line: u32
 }
 
 impl Token {
-	fn new(kind: TokenType, lexeme: String, literal: String, line: u32) -> Token {
+	fn new(kind: TokenType, lexeme: String, line: u32) -> Token {
 		Token {
 			kind: kind,
 			lexeme: String::from(lexeme),
-			literal: String::from(literal),
 			line: line
 		}
 	}
@@ -73,6 +79,7 @@ impl CodeInfo {
 	}
 
 	fn at(&self, pos: usize) -> char {
+		if pos >= self.size {return 0 as char}
 		self.code.as_bytes()[pos] as char
 	}
 
@@ -106,18 +113,19 @@ impl CodeInfo {
 	fn substr(&self, start: usize, end: usize) -> String {
 		let mut result: String = String::new();
 		for i in start..end {
+			if i >= self.size {break}
 			result.push(self.at(i));
 		}
 		result
 	}
 
 	fn addLiteralToken(&mut self, kind: TokenType, literal: String) {
-		let lexeme: String = self.substr(self.start, self.current);
-		self.tokens.push(Token::new(kind, lexeme, literal, self.line))
+		self.tokens.push(Token::new(kind, literal, self.line));
 	}
 
 	fn addToken(&mut self, kind: TokenType) {
-		self.addLiteralToken(kind, String::new())
+		let lexeme: String = self.substr(self.start, self.current);
+		self.tokens.push(Token::new(kind, lexeme, self.line));
 	}
 
 	fn compareAndAdd(&mut self, c: char, kt: TokenType, kf: TokenType) {
@@ -134,7 +142,7 @@ impl CodeInfo {
 	}
 }
 
-pub fn ScanFile(code: String, filename: String) -> Vec<Token> {
+pub fn ScanFile(code: String, filename: String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() {
 		i.start = i.current;
@@ -204,7 +212,7 @@ pub fn ScanFile(code: String, filename: String) -> Vec<Token> {
 			':' => i.compareAndAdd(':', METHOD, OR),
 			'|' => i.addToken(OR),
 			'$' => i.addToken(DOLLAR),
-			' ' | '\r' | '\t' => break,
+			' ' | '\r' | '\t' => {},
 			'\n' => i.line += 1,
 			'"' => {
 				while !i.ended() && i.peek() != '"' {
@@ -245,6 +253,7 @@ pub fn ScanFile(code: String, filename: String) -> Vec<Token> {
 						"until" => UNTIL,
 						"goto" => GOTO,
 						"local" => LOCAL,
+						"function" => FUNCTION,
 						"return" => RETURN,
 						"this" => THIS,
 						"true" => TRUE,
@@ -259,6 +268,9 @@ pub fn ScanFile(code: String, filename: String) -> Vec<Token> {
 			}
 		}
 	}
-	i.addToken(EOF);
-	i.tokens
+	if i.errored {
+		return Err(String::from("Cannot continue until the above errors are fixed."));
+	}
+	i.addLiteralToken(EOF, String::new());
+	Ok(i.tokens)
 }
