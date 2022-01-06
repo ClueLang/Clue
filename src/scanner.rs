@@ -54,7 +54,7 @@ struct CodeInfo {
 	start: usize,
 	current: usize,
 	size: usize,
-	code: String,
+	code: Vec<char>,
 	filename: String,
 	tokens: Vec<Token>,
 	errored: bool,
@@ -62,12 +62,13 @@ struct CodeInfo {
 
 impl CodeInfo {
 	fn new(code: String, filename: String) -> CodeInfo {
+		let chars = code.chars();
 		CodeInfo {
 			line: 1,
 			start: 0,
 			current: 0,
-			size: code.chars().count(),
-			code: code,
+			size: chars.clone().count(),
+			code: chars.collect(),
 			filename: filename,
 			tokens: Vec::new(),
 			errored: false
@@ -80,7 +81,7 @@ impl CodeInfo {
 
 	fn at(&self, pos: usize) -> char {
 		if pos >= self.size {return 0 as char}
-		self.code.as_bytes()[pos] as char
+		self.code[pos]
 	}
 
 	fn readNext(&mut self) -> char {
@@ -137,7 +138,7 @@ impl CodeInfo {
 	}
 
 	fn warning(&mut self, message: &str) {
-		println!("Error in file \"{}\" at line [{}]!\nError: \"{}\"", self.filename, self.line, message);
+		println!("Error in file \"{}\" at line [{}]!\nError: \"{}\"\n", self.filename, self.line, message);
 		self.errored = true;
 	}
 }

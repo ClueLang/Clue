@@ -9,7 +9,7 @@ macro_rules! check {
 	};
 }
 
-mod compiler;
+mod scanner;
 
 use std::io;
 use std::env;
@@ -17,14 +17,14 @@ use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
-use compiler::Token;
+use scanner::Token;
 
-//Version 10 Alpha 0.0
+//Version 12 Alpha 0.1
 
 fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
-	let tokens: Vec<Token> = compiler::ScanFile(code, name)?;
+	let tokens: Vec<Token> = scanner::ScanFile(code, name)?;
 	/*let compiledname: String = String::from(path.display()
 		.to_string()
 		.strip_suffix(".clue")
@@ -59,7 +59,6 @@ fn main() -> Result<(), String> {
 		io::stdin()
 			.read_line(&mut codepath)
 			.expect("Failed to read path!");
-		codepath.pop();
 	} else {
 		codepath = args[1].clone();
 	}
