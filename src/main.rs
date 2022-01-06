@@ -10,6 +10,7 @@ macro_rules! check {
 }
 
 mod scanner;
+mod parser;
 
 use std::io;
 use std::env;
@@ -30,9 +31,9 @@ fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 		.strip_suffix(".clue")
 		.unwrap()) + ".lua";
 	let output: File = check!(File::create(compiledname));*/
-	for token in tokens.iter() {
+	/*for token in tokens.iter() {
 		println!("{} \"{}\" {}", token.kind, token.lexeme, token.line);
-	}
+	}*/
 	Ok(())
 }
 
