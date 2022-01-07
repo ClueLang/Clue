@@ -3,7 +3,7 @@
 use self::TokenType::*;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
 	//symbols
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED,
@@ -33,6 +33,7 @@ impl fmt::Display for TokenType {
 	}
 }
 
+#[derive(Clone)]
 pub struct Token {
 	pub kind: TokenType,
 	pub lexeme: String,
@@ -40,7 +41,7 @@ pub struct Token {
 }
 
 impl Token {
-	fn new(kind: TokenType, lexeme: String, line: u32) -> Token {
+	pub fn new(kind: TokenType, lexeme: String, line: u32) -> Token {
 		Token {
 			kind: kind,
 			lexeme: String::from(lexeme),

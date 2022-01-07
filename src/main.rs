@@ -19,13 +19,15 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use scanner::Token;
+use parser::ComplexToken;
 
 //Version 12 Alpha 0.1
 
 fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
-	let tokens: Vec<Token> = scanner::ScanCode(code, name)?;
+	let tokens: Vec<Token> = scanner::ScanCode(code, name.clone())?;
+	let ctokens: Vec<ComplexToken> = parser::ParseTokens(tokens, name.clone())?;
 	/*let compiledname: String = String::from(path.display()
 		.to_string()
 		.strip_suffix(".clue")
