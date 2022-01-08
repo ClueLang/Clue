@@ -2,8 +2,9 @@ use crate::scanner::Token;
 use crate::scanner::TokenType;
 use crate::scanner::TokenType::*;
 use self::ComplexToken::*;
+use std::cmp;
 
-macro_rules! parser_check {
+/*macro_rules! parser_check {
 	($i: expr, $tocheck: expr, $emsg: expr) => {
 		match $tocheck {
 			Ok(t) => t,
@@ -17,7 +18,7 @@ macro_rules! parser_check {
 			Err(_) => return Err($i.error(String::from("Something unexpected happened")))
 		}
 	};
-}
+}*/
 
 struct Expression {
 	tokens: Vec<ComplexToken>,
@@ -37,7 +38,6 @@ pub enum ComplexToken {
 }
 
 struct ParserInfo {
-	line: u32,
 	current: usize,
 	size: usize,
 	tokens: Vec<Token>,
@@ -48,7 +48,6 @@ struct ParserInfo {
 impl ParserInfo {
 	fn new(tokens: Vec<Token>, filename: String) -> ParserInfo {
 		ParserInfo {
-			line: 1,
 			current: 0,
 			size: tokens.len(),
 			tokens: tokens,
@@ -57,9 +56,17 @@ impl ParserInfo {
 		}
 	}
 
+	fn getLine(&self) -> u32 {
+		self.at(self.current).line
+	}
+
 	fn error(&self, msg: String) -> String {
-		println!("Error in file \"{}\" at line [{}]!", self.filename, self.line);
+		println!("Error in file \"{}\" at line [{}]!", self.filename, self.getLine());
 		msg
+	}
+
+	fn expected(&self, expected: &str, before: &str) -> String {
+		self.error(format!("Expected token '{}' before '{}'.", expected, before))
 	}
 
 	fn unexpected(&self, str: &str) -> String {
@@ -70,63 +77,81 @@ impl ParserInfo {
 		self.current >= self.size
 	}
 
-	fn at(&self, pos: usize) -> Result<Token, ()> {
-		if pos >= self.size {return Err(());}
-		Ok(self.tokens[pos].clone())
+	fn at(&self, pos: usize) -> Token {
+		self.tokens[cmp::min(pos, self.size - 1)].clone()
 	}
 
-	fn advance(&mut self) -> Result<Token, ()> {
-		let prev: Token = self.at(self.current)?;
+	fn advance(&mut self) -> Token {
+		let prev: Token = self.at(self.current);
 		self.current += 1;
-		Ok(prev)
+		prev
 	}
 
-	fn peekFar(&self, pos: usize) -> Result<Token, ()> {
+	fn peekFar(&self, pos: usize) -> Token {
 		let pos: usize = self.current + pos;
-		if pos >= self.size {return Err(());}
 		self.at(pos)
 	}
 
-	fn peek(&self) -> Result<Token, ()> {
+	fn peek(&self) -> Token {
 		self.peekFar(0)
 	}
 
-	fn compare(&mut self, expected: TokenType) -> Result<bool, ()> {
-		if self.ended() {return Ok(false);}
-		if self.at(self.current)?.kind != expected {return Ok(false);}
-		self.current = self.current + 1;
-		Ok(true)
+	fn compare(&mut self, expected: TokenType) -> bool {
+		if self.ended() {return false;}
+		if self.at(self.current).kind != expected {return false;}
+		true
 	}
 
 	fn buildCall(&mut self, name: Expression) -> Result<ComplexToken, String> {
-		let call: ComplexToken = CALL {
+		let mut args: Vec<Expression> = Vec::new();
+		let mut start: usize;
+		let mut pscope: u8 = 0;
+		loop {
+			self.current += 1;
+			start = self.current;
+			while self.compare(COMMA) {
+				let t: Token = self.advance();
+				match t.kind {
+					ROUND_BRACKET_OPEN => {pscope += 1}
+					ROUND_BRACKET_CLOSED => {
+						if pscope == 0 {
+							break;
+						}
+					}
+					EOF => {return Err(self.expected(")", "<eof>"))}
+					_ => {}
+				}
+			}
+			args.push(self.buildExpression(start, self.current - 1)?);
+			if pscope == 0 && self.compare(ROUND_BRACKET_CLOSED) {
+				break;
+			}
+		}
+		Ok(CALL {
 			name: name,
-			args: Vec::new(),
-			line: self.line
-		};
-
-		Ok(call)
+			args: args,
+			line: self.getLine()
+		})
 	}
 
 	fn buildExpression(&mut self, start: usize, end: usize) -> Result<Expression, String> {
 		let mut expr = Expression {
 			tokens: Vec::new(),
-			line: self.line
+			line: self.at(start).line
 		};
 		self.current = start;
 		while self.current <= end {
-			let t: Token = parser_check!(self, self.at(self.current));
-			self.line = t.line;
+			let t: Token = self.at(self.current);
 			match t.kind {
 				IDENTIFIER => {
-					if parser_check!(self, self.peek()).kind == ROUND_BRACKET_OPEN {
-						
+					let line: u32 = self.getLine();
+					if self.compare(ROUND_BRACKET_OPEN) {
 						expr.tokens.push(self.buildCall(Expression {
 							tokens: vec![VALUE {
 								value: t.lexeme,
-								line: self.line
+								line: line
 							}],
-							line: self.line
+							line: line
 						})?);
 					}
 				},
@@ -141,12 +166,12 @@ impl ParserInfo {
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Vec<ComplexToken>, String> {
 	let mut i: ParserInfo = ParserInfo::new(tokens, filename);
 	while !i.ended() {
-		let t: Token = parser_check!(i, i.advance());
-		i.line = t.line;
+		let t: Token = i.advance();
 		match t.kind {
 			IF => {
 
-			}
+			},
+			_ => {}
 		}
 	}
 	Ok(i.ctokens)
