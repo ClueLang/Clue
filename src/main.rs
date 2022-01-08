@@ -21,13 +21,13 @@ use std::path::Path;
 use scanner::Token;
 use parser::ComplexToken;
 
-//Version 14 Alpha 0.1
+//Version Pre-Alpha 0.0.15
 
 fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
 	let tokens: Vec<Token> = scanner::ScanCode(code, name.clone())?;
-	//let ctokens: Vec<ComplexToken> = parser::ParseTokens(tokens, name.clone())?;
+	let ctokens: Vec<ComplexToken> = parser::ParseTokens(tokens, name.clone())?;
 	/*let compiledname: String = String::from(path.display()
 		.to_string()
 		.strip_suffix(".clue")
@@ -36,6 +36,8 @@ fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	/*for token in tokens.iter() {
 		println!("{} \"{}\" {}", token.kind, token.lexeme, token.line);
 	}*/
+	let ct = &ctokens[0];
+	println!("{:?}", ct);
 	Ok(())
 }
 

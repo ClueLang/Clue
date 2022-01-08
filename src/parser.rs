@@ -4,32 +4,24 @@ use crate::scanner::TokenType::*;
 use self::ComplexToken::*;
 use std::cmp;
 
-/*macro_rules! parser_check {
-	($i: expr, $tocheck: expr, $emsg: expr) => {
-		match $tocheck {
-			Ok(t) => t,
-			Err(_) => return Err($i.error($emsg))
-		}
-	};
-
-	($i: expr, $tocheck: expr) => {
-		match $tocheck {
-			Ok(t) => t,
-			Err(_) => return Err($i.error(String::from("Something unexpected happened")))
-		}
-	};
-}*/
-
+#[derive(Debug)]
 struct Expression {
 	tokens: Vec<ComplexToken>,
 	line: u32
 }
 
+#[derive(Debug)]
 pub enum ComplexToken {
 	VALUE {
 		value: String,
 		line: u32
 	},
+
+	CHAR {
+		kind: TokenType,
+		line: u32,
+	},
+
 	CALL {
 		name: Expression,
 		args: Vec<Expression>,
@@ -92,6 +84,11 @@ impl ParserInfo {
 		self.at(pos)
 	}
 
+	fn lookBack(&self, pos: usize) -> Token {
+		let pos: usize = self.current - pos - 1;
+		self.at(pos)
+	}
+
 	fn peek(&self) -> Token {
 		self.peekFar(0)
 	}
@@ -104,17 +101,19 @@ impl ParserInfo {
 
 	fn buildCall(&mut self, name: Expression) -> Result<ComplexToken, String> {
 		let mut args: Vec<Expression> = Vec::new();
-		let mut start: usize;
+		let mut start: usize = self.current + 2;
 		let mut pscope: u8 = 0;
+		let mut ended: bool = false;
 		loop {
-			self.current += 1;
-			start = self.current;
-			while self.compare(COMMA) {
+			while !self.compare(COMMA) {
 				let t: Token = self.advance();
 				match t.kind {
 					ROUND_BRACKET_OPEN => {pscope += 1}
 					ROUND_BRACKET_CLOSED => {
+						pscope -= 1;
 						if pscope == 0 {
+							ended = true;
+							self.current -= 1;
 							break;
 						}
 					}
@@ -122,10 +121,12 @@ impl ParserInfo {
 					_ => {}
 				}
 			}
-			args.push(self.buildExpression(start, self.current - 1)?);
-			if pscope == 0 && self.compare(ROUND_BRACKET_CLOSED) {
+			args.push(self.buildExpression(start, self.current)?);
+			if ended {
 				break;
 			}
+			self.current += 1;
+			start = self.current;
 		}
 		Ok(CALL {
 			name: name,
@@ -140,8 +141,8 @@ impl ParserInfo {
 			line: self.at(start).line
 		};
 		self.current = start;
-		while self.current <= end {
-			let t: Token = self.at(self.current);
+		while self.current < end {
+			let t: Token = self.advance();
 			match t.kind {
 				IDENTIFIER => {
 					let line: u32 = self.getLine();
@@ -153,11 +154,50 @@ impl ParserInfo {
 							}],
 							line: line
 						})?);
+					} else if self.current == end || self.at(self.current).isOp() {
+						expr.tokens.push(VALUE {
+							value: t.lexeme,
+							line: line
+						})
+					} else {
+						return Err(self.unexpected(t.lexeme.as_str()))
 					}
-				},
+				}
+				PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS => {
+					if self.current - 1 == start {
+						return Err(self.error(format!("Operator '{}' not expected at the start of expression.", t.lexeme)))
+					}
+					if self.current == end {
+						return Err(self.error(format!("Operator '{}' not expected at the end of expression.", t.lexeme)))
+					}
+					let pt: TokenType = self.lookBack(1).kind;
+					let nt: TokenType = self.peek().kind ;
+					if pt == TRUE || nt == TRUE || pt == FALSE || nt == FALSE {
+						return Err(self.error(format!("Operator '{}' cannot operate with booleans.", t.lexeme)))
+					}
+					if pt != NUMBER && pt != IDENTIFIER && pt != STRING && pt != CURLY_BRACKET_CLOSED && pt != SQUARE_BRACKET_CLOSED && pt != NEW {
+						return Err(self.error(format!("Operator '{}' has invalid left hand token.", t.lexeme)))
+					}
+					if nt != NUMBER && nt != IDENTIFIER && pt != STRING && nt != CURLY_BRACKET_OPEN && pt != CURLY_BRACKET_CLOSED {
+						return Err(self.error(format!("Operator '{}' has invalid right hand token.", t.lexeme)))
+					}
+					expr.tokens.push(CHAR {
+						kind: t.kind,
+						line: self.getLine()
+					})
+				}
+				NUMBER | STRING | TRUE | FALSE => {
+					if self.current - 1 == start || self.current == end || self.at(self.current).isOp() {
+						expr.tokens.push(VALUE {
+							value: t.lexeme,
+							line: self.getLine()
+						})
+					} else {
+						return Err(self.unexpected(t.lexeme.as_str()))
+					}
+				}
 				_ => {return Err(self.unexpected(t.lexeme.as_str()))}
 			}
-			self.current += 1;
 		}
 		Ok(expr)
 	}
@@ -165,7 +205,7 @@ impl ParserInfo {
 
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Vec<ComplexToken>, String> {
 	let mut i: ParserInfo = ParserInfo::new(tokens, filename);
-	while !i.ended() {
+	/*while !i.ended() {
 		let t: Token = i.advance();
 		match t.kind {
 			IF => {
@@ -173,6 +213,14 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Vec<ComplexTo
 			},
 			_ => {}
 		}
-	}
+	}*/
+	let call = i.buildCall(Expression {
+		tokens: vec![VALUE {
+			value: i.at(i.current).lexeme,
+			line: 1,
+		}],
+		line: 1,
+	})?;
+	i.ctokens.push(call);
 	Ok(i.ctokens)
 }

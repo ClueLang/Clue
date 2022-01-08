@@ -1,7 +1,6 @@
 #![allow(non_camel_case_types)]
 
 use self::TokenType::*;
-use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -27,12 +26,6 @@ pub enum TokenType {
 	EOF = -1
 }
 
-impl fmt::Display for TokenType {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{:?}", self)
-	}
-}
-
 #[derive(Clone)]
 pub struct Token {
 	pub kind: TokenType,
@@ -46,6 +39,13 @@ impl Token {
 			kind: kind,
 			lexeme: String::from(lexeme),
 			line: line
+		}
+	}
+
+	pub fn isOp(&self) -> bool {
+		match self.kind {
+			PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS => true,
+			_ => false
 		}
 	}
 }
