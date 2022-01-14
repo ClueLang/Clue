@@ -21,7 +21,7 @@ use std::path::Path;
 use scanner::Token;
 use parser::ComplexToken;
 
-//Version Pre-Alpha 0.0.15
+//Version Pre-Alpha 0.0.17
 
 fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let mut code: String = String::new();
@@ -37,7 +37,7 @@ fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 		println!("{} \"{}\" {}", token.kind, token.lexeme, token.line);
 	}*/
 	let ct = &ctokens[0];
-	println!("{:?}", ct);
+	println!("{:#?}", ct);
 	Ok(())
 }
 

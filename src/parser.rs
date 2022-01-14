@@ -14,6 +14,7 @@ struct Expression {
 pub enum ComplexToken {
 	VALUE {
 		value: String,
+		kind: TokenType,
 		line: u32
 	},
 
@@ -49,7 +50,7 @@ impl ParserInfo {
 	}
 
 	fn getLine(&self) -> u32 {
-		self.at(self.current).line
+		self.at(self.current - 1).line
 	}
 
 	fn error(&self, msg: String) -> String {
@@ -105,21 +106,36 @@ impl ParserInfo {
 		let mut pscope: u8 = 0;
 		let mut ended: bool = false;
 		loop {
-			while !self.compare(COMMA) {
+			println!("{:?}", name);
+			loop {
 				let t: Token = self.advance();
+				println!("{:?}", t.kind);
 				match t.kind {
 					ROUND_BRACKET_OPEN => {pscope += 1}
 					ROUND_BRACKET_CLOSED => {
 						pscope -= 1;
+						println!("{}", pscope);
 						if pscope == 0 {
 							ended = true;
 							self.current -= 1;
 							break;
 						}
 					}
+					COMMA => {
+						if pscope > 1 {continue}
+						self.current -= 1;
+						break;
+					}
 					EOF => {return Err(self.expected(")", "<eof>"))}
 					_ => {}
 				}
+			}
+			println!("{} {}", start, self.current);
+			if start == self.current {
+				if args.len() > 0 {
+					return Err(self.error(String::from("Invalid empty function argument found.")))
+				}
+				break
 			}
 			args.push(self.buildExpression(start, self.current)?);
 			if ended {
@@ -128,6 +144,7 @@ impl ParserInfo {
 			self.current += 1;
 			start = self.current;
 		}
+		println!("Finished func");
 		Ok(CALL {
 			name: name,
 			args: args,
@@ -143,20 +160,25 @@ impl ParserInfo {
 		self.current = start;
 		while self.current < end {
 			let t: Token = self.advance();
+			println!("{:?}", t.kind);
 			match t.kind {
 				IDENTIFIER => {
 					let line: u32 = self.getLine();
 					if self.compare(ROUND_BRACKET_OPEN) {
+						self.current -= 1;
 						expr.tokens.push(self.buildCall(Expression {
 							tokens: vec![VALUE {
 								value: t.lexeme,
+								kind: IDENTIFIER,
 								line: line
 							}],
 							line: line
 						})?);
+						self.current += 1;
 					} else if self.current == end || self.at(self.current).isOp() {
 						expr.tokens.push(VALUE {
 							value: t.lexeme,
+							kind: IDENTIFIER,
 							line: line
 						})
 					} else {
@@ -190,6 +212,7 @@ impl ParserInfo {
 					if self.current - 1 == start || self.current == end || self.at(self.current).isOp() {
 						expr.tokens.push(VALUE {
 							value: t.lexeme,
+							kind: t.kind,
 							line: self.getLine()
 						})
 					} else {
@@ -198,6 +221,9 @@ impl ParserInfo {
 				}
 				_ => {return Err(self.unexpected(t.lexeme.as_str()))}
 			}
+		}
+		if expr.tokens.len() == 0 {
+			return Err(self.unexpected(self.at(end).lexeme.as_str()))
 		}
 		Ok(expr)
 	}
@@ -217,6 +243,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Vec<ComplexTo
 	let call = i.buildCall(Expression {
 		tokens: vec![VALUE {
 			value: i.at(i.current).lexeme,
+			kind: IDENTIFIER,
 			line: 1,
 		}],
 		line: 1,
