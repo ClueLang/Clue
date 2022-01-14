@@ -12,7 +12,6 @@ macro_rules! check {
 mod scanner;
 mod parser;
 
-use std::io;
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -20,8 +19,6 @@ use std::io::prelude::*;
 use std::path::Path;
 use scanner::Token;
 use parser::ComplexToken;
-
-//Version Pre-Alpha 0.0.17
 
 fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let mut code: String = String::new();
@@ -36,8 +33,7 @@ fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	/*for token in tokens.iter() {
 		println!("{} \"{}\" {}", token.kind, token.lexeme, token.line);
 	}*/
-	let ct = &ctokens[0];
-	println!("{:#?}", ct);
+	println!("{:#?}", ctokens);
 	Ok(())
 }
 
@@ -58,14 +54,15 @@ fn CompileFolder(path: &Path) -> Result<(), String> {
 
 fn main() -> Result<(), String> {
 	let args: Vec<String> = env::args().collect();
-	let mut codepath: String = String::new();
+	let codepath: String;
 	if args.len() == 1 {
-		println!("Please insert path to code directory: ");
-		io::stdin()
-			.read_line(&mut codepath)
-			.expect("Failed to read path!");
-	} else {
-		codepath = args[1].clone();
+		println!("Command use:\n\nclue [Path]/-version");
+		return Ok(());
+	}
+	codepath = args[1].clone();
+	if codepath == "-version" {
+		println!("Version a1.0.18");
+		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
 	if !path.is_dir() {

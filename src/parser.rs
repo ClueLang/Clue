@@ -14,6 +14,12 @@ pub enum ComplexToken {
 		line: u32
 	},
 
+	VARIABLE {
+		local: bool,
+		names: Vec<String>,
+		values: Vec<Expression>
+	},
+
 	CHAR {
 		kind: TokenType,
 		line: u32,
@@ -53,7 +59,11 @@ impl ParserInfo {
 		msg
 	}
 
-	fn expected(&self, expected: &str, before: &str) -> String {
+	fn expected(&self, expected: &str, got: &str) -> String {
+		self.error(format!("Expected '{}', got '{}'.", expected, got))
+	}
+
+	fn expectedBefore(&self, expected: &str, before: &str) -> String {
 		self.error(format!("Expected token '{}' before '{}'.", expected, before))
 	}
 
@@ -70,7 +80,7 @@ impl ParserInfo {
 	}
 
 	fn advance(&mut self) -> Token {
-		let prev: Token = self.at(self.current);
+		let prev: Token = self.peek();
 		self.current += 1;
 		prev
 	}
@@ -91,7 +101,7 @@ impl ParserInfo {
 
 	fn compare(&mut self, expected: TokenType) -> bool {
 		if self.ended() {return false;}
-		if self.at(self.current).kind != expected {return false;}
+		if self.peek().kind != expected {return false;}
 		true
 	}
 
@@ -118,7 +128,7 @@ impl ParserInfo {
 						self.current -= 1;
 						break;
 					}
-					EOF => {return Err(self.expected(")", "<eof>"))}
+					EOF => {return Err(self.expectedBefore(")", "<eof>"))}
 					_ => {}
 				}
 			}
@@ -159,7 +169,7 @@ impl ParserInfo {
 						});
 						expr.push(self.buildCall(fname)?);
 						self.current += 1;
-					} else if self.current == end || self.at(self.current).isOp() {
+					} else if self.current == end || self.peek().isOp() {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: IDENTIFIER,
@@ -192,8 +202,8 @@ impl ParserInfo {
 						line: self.getLine()
 					})
 				}
-				NUMBER | STRING | TRUE | FALSE => {
-					if self.current - 1 == start || self.current == end || self.at(self.current).isOp() {
+				NUMBER | STRING | TRUE | FALSE | NIL => {
+					if self.current - 1 == start || self.current == end || self.peek().isOp() {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: t.kind,
@@ -215,22 +225,52 @@ impl ParserInfo {
 
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Vec<ComplexToken>, String> {
 	let mut i: ParserInfo = ParserInfo::new(tokens, filename);
-	/*while !i.ended() {
+	while !i.ended() {
 		let t: Token = i.advance();
 		match t.kind {
-			IF => {
-
-			},
+			LOCAL | GLOBAL => {
+				/*let mut r = VARIABLE {
+					local: t.kind == LOCAL,
+					names: Vec::new(),
+					values: Vec::new()
+				};*/
+				let mut names: Vec<String> = Vec::new();
+				loop {
+					let pname = i.advance();
+					if pname.kind != IDENTIFIER {
+						return Err(i.expected("<name>", &pname.lexeme));
+					}
+					names.push(pname.lexeme);
+					if i.peek().kind != COMMA {
+						break
+					}
+					i.current += 1;
+				}
+				let check = i.advance();
+				if check.kind != DEFINE {
+					return Err(i.expected("=", &check.lexeme));
+				}
+				drop(check);
+				let mut values: Vec<Expression> = Vec::new();
+				loop {
+					let start = i.current;
+					while match i.peek().kind {
+						COMMA | SEMICOLON => false,
+						_ => true
+					} {
+						i.current += 1;
+					}
+					values.push(i.buildExpression(start, i.current)?);
+					if i.peek().kind == SEMICOLON {break}
+				}
+				i.ctokens.push(VARIABLE {
+					local: t.kind == LOCAL,
+					names: names,
+					values: values
+				})
+			}
 			_ => {}
 		}
-	}*/
-	let mut expr = Expression::new();
-	expr.push(VALUE {
-		value: i.at(i.current).lexeme,
-		kind: IDENTIFIER,
-		line: 1,
-	});
-	let call = i.buildCall(expr)?;
-	i.ctokens.push(call);
+	}
 	Ok(i.ctokens)
 }
