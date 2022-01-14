@@ -4,11 +4,7 @@ use crate::scanner::TokenType::*;
 use self::ComplexToken::*;
 use std::cmp;
 
-#[derive(Debug)]
-struct Expression {
-	tokens: Vec<ComplexToken>,
-	line: u32
-}
+type Expression = Vec<ComplexToken>;
 
 #[derive(Debug)]
 pub enum ComplexToken {
@@ -26,7 +22,6 @@ pub enum ComplexToken {
 	CALL {
 		name: Expression,
 		args: Vec<Expression>,
-		line: u32
 	},
 }
 
@@ -106,15 +101,12 @@ impl ParserInfo {
 		let mut pscope: u8 = 0;
 		let mut ended: bool = false;
 		loop {
-			println!("{:?}", name);
 			loop {
 				let t: Token = self.advance();
-				println!("{:?}", t.kind);
 				match t.kind {
 					ROUND_BRACKET_OPEN => {pscope += 1}
 					ROUND_BRACKET_CLOSED => {
 						pscope -= 1;
-						println!("{}", pscope);
 						if pscope == 0 {
 							ended = true;
 							self.current -= 1;
@@ -130,7 +122,6 @@ impl ParserInfo {
 					_ => {}
 				}
 			}
-			println!("{} {}", start, self.current);
 			if start == self.current {
 				if args.len() > 0 {
 					return Err(self.error(String::from("Invalid empty function argument found.")))
@@ -144,39 +135,32 @@ impl ParserInfo {
 			self.current += 1;
 			start = self.current;
 		}
-		println!("Finished func");
 		Ok(CALL {
 			name: name,
 			args: args,
-			line: self.getLine()
 		})
 	}
 
 	fn buildExpression(&mut self, start: usize, end: usize) -> Result<Expression, String> {
-		let mut expr = Expression {
-			tokens: Vec::new(),
-			line: self.at(start).line
-		};
+		let mut expr = Expression::new();
 		self.current = start;
 		while self.current < end {
 			let t: Token = self.advance();
-			println!("{:?}", t.kind);
 			match t.kind {
 				IDENTIFIER => {
 					let line: u32 = self.getLine();
 					if self.compare(ROUND_BRACKET_OPEN) {
 						self.current -= 1;
-						expr.tokens.push(self.buildCall(Expression {
-							tokens: vec![VALUE {
-								value: t.lexeme,
-								kind: IDENTIFIER,
-								line: line
-							}],
+						let mut fname = Expression::new();
+						fname.push(VALUE {
+							value: t.lexeme,
+							kind: IDENTIFIER,
 							line: line
-						})?);
+						});
+						expr.push(self.buildCall(fname)?);
 						self.current += 1;
 					} else if self.current == end || self.at(self.current).isOp() {
-						expr.tokens.push(VALUE {
+						expr.push(VALUE {
 							value: t.lexeme,
 							kind: IDENTIFIER,
 							line: line
@@ -203,14 +187,14 @@ impl ParserInfo {
 					if nt != NUMBER && nt != IDENTIFIER && pt != STRING && nt != CURLY_BRACKET_OPEN && pt != CURLY_BRACKET_CLOSED {
 						return Err(self.error(format!("Operator '{}' has invalid right hand token.", t.lexeme)))
 					}
-					expr.tokens.push(CHAR {
+					expr.push(CHAR {
 						kind: t.kind,
 						line: self.getLine()
 					})
 				}
 				NUMBER | STRING | TRUE | FALSE => {
 					if self.current - 1 == start || self.current == end || self.at(self.current).isOp() {
-						expr.tokens.push(VALUE {
+						expr.push(VALUE {
 							value: t.lexeme,
 							kind: t.kind,
 							line: self.getLine()
@@ -222,7 +206,7 @@ impl ParserInfo {
 				_ => {return Err(self.unexpected(t.lexeme.as_str()))}
 			}
 		}
-		if expr.tokens.len() == 0 {
+		if expr.len() == 0 {
 			return Err(self.unexpected(self.at(end).lexeme.as_str()))
 		}
 		Ok(expr)
@@ -240,14 +224,13 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Vec<ComplexTo
 			_ => {}
 		}
 	}*/
-	let call = i.buildCall(Expression {
-		tokens: vec![VALUE {
-			value: i.at(i.current).lexeme,
-			kind: IDENTIFIER,
-			line: 1,
-		}],
+	let mut expr = Expression::new();
+	expr.push(VALUE {
+		value: i.at(i.current).lexeme,
+		kind: IDENTIFIER,
 		line: 1,
-	})?;
+	});
+	let call = i.buildCall(expr)?;
 	i.ctokens.push(call);
 	Ok(i.ctokens)
 }
