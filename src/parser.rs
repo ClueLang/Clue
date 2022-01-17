@@ -6,7 +6,7 @@ use std::cmp;
 
 type Expression = Vec<ComplexToken>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ComplexToken {
 	VALUE {
 		value: String,
@@ -16,8 +16,7 @@ pub enum ComplexToken {
 
 	VARIABLE {
 		local: bool,
-		names: Vec<String>,
-		values: Vec<Expression>
+		values: Vec<(String, Expression)>
 	},
 
 	CHAR {
@@ -36,7 +35,7 @@ struct ParserInfo {
 	size: usize,
 	tokens: Vec<Token>,
 	filename: String,
-	ctokens: Vec<ComplexToken>
+	expr: Expression
 }
 
 impl ParserInfo {
@@ -46,7 +45,7 @@ impl ParserInfo {
 			size: tokens.len(),
 			tokens: tokens,
 			filename: filename,
-			ctokens: Vec::new()
+			expr: Vec::new()
 		}
 	}
 
@@ -153,6 +152,8 @@ impl ParserInfo {
 
 	fn buildExpression(&mut self, start: usize, end: usize) -> Result<Expression, String> {
 		let mut expr = Expression::new();
+		let mut pscope: u8 = 0;
+		let mut qscope: u8 = 0;
 		self.current = start;
 		while self.current < end {
 			let t: Token = self.advance();
@@ -213,27 +214,62 @@ impl ParserInfo {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
+				CURLY_BRACKET_OPEN => {
+					pscope += 1;
+					expr.push(CHAR {
+						kind: CURLY_BRACKET_OPEN,
+						line: self.getLine()
+					})
+				}
+				CURLY_BRACKET_CLOSED => {
+					if pscope == 0 {
+						return Err(self.unexpected(")"))
+					}
+					pscope -= 1;
+					expr.push(CHAR {
+						kind: CURLY_BRACKET_CLOSED,
+						line: self.getLine()
+					})
+				}
+				SQUARE_BRACKET_OPEN => {
+					qscope += 1;
+					expr.push(CHAR {
+						kind: SQUARE_BRACKET_OPEN,
+						line: self.getLine()
+					})
+				}
+				SQUARE_BRACKET_CLOSED => {
+					if qscope == 0 {
+						return Err(self.unexpected("]"))
+					}
+					qscope -= 1;
+					expr.push(CHAR {
+						kind: SQUARE_BRACKET_CLOSED,
+						line: self.getLine()
+					})
+				}
 				_ => {return Err(self.unexpected(t.lexeme.as_str()))}
 			}
 		}
 		if expr.len() == 0 {
 			return Err(self.unexpected(self.at(end).lexeme.as_str()))
 		}
+		if pscope > 0 {
+			return Err(self.expectedBefore(")", self.at(end).lexeme.as_str()))
+		}
+		if qscope > 0 {
+			return Err(self.expectedBefore(")", self.at(end).lexeme.as_str()))
+		}
 		Ok(expr)
 	}
 }
 
-pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Vec<ComplexToken>, String> {
+pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
 	let mut i: ParserInfo = ParserInfo::new(tokens, filename);
 	while !i.ended() {
 		let t: Token = i.advance();
 		match t.kind {
 			LOCAL | GLOBAL => {
-				/*let mut r = VARIABLE {
-					local: t.kind == LOCAL,
-					names: Vec::new(),
-					values: Vec::new()
-				};*/
 				let mut names: Vec<String> = Vec::new();
 				loop {
 					let pname = i.advance();
@@ -241,36 +277,61 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Vec<ComplexTo
 						return Err(i.expected("<name>", &pname.lexeme));
 					}
 					names.push(pname.lexeme);
-					if i.peek().kind != COMMA {
+					if !i.compare(COMMA) {
 						break
 					}
 					i.current += 1;
 				}
 				let check = i.advance();
-				if check.kind != DEFINE {
-					return Err(i.expected("=", &check.lexeme));
-				}
+				let areInit: bool;
+				match check.kind {
+					DEFINE => {areInit = true},
+					SEMICOLON => {areInit = false},
+					_ => {return Err(i.expected("=", &check.lexeme))}
+				};
 				drop(check);
 				let mut values: Vec<Expression> = Vec::new();
-				loop {
-					let start = i.current;
-					while match i.peek().kind {
-						COMMA | SEMICOLON => false,
-						_ => true
-					} {
-						i.current += 1;
+				if areInit {
+					loop {
+						let start = i.current;
+						while match i.peek().kind {
+							COMMA | SEMICOLON => false,
+							_ => true
+						} {
+							i.current += 1;
+						}
+						values.push(i.buildExpression(start, i.current)?);
+						match i.peek().kind {
+							COMMA => {i.current += 1}
+							SEMICOLON => {break}
+							_ => {}
+						}
 					}
-					values.push(i.buildExpression(start, i.current)?);
-					if i.peek().kind == SEMICOLON {break}
 				}
-				i.ctokens.push(VARIABLE {
+				let mut tuples: Vec<(String, Expression)> = Vec::new();
+				let mut it: usize = 0;
+				for name in names.iter() {
+					tuples.push((String::from(name), match values.get(it) {
+						Some(value) => value.clone(),
+						None => {
+							let mut default = Expression::new();
+							default.push(VALUE {
+								kind: NIL,
+								line: i.getLine(),
+								value: "nil".to_string()
+							});
+							default
+						}
+					}));
+					it += 1;
+				}
+				i.expr.push(VARIABLE {
 					local: t.kind == LOCAL,
-					names: names,
-					values: values
+					values: tuples
 				})
 			}
 			_ => {}
 		}
 	}
-	Ok(i.ctokens)
+	Ok(i.expr)
 }

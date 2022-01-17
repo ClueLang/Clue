@@ -55,13 +55,13 @@ fn CompileFolder(path: &Path) -> Result<(), String> {
 fn main() -> Result<(), String> {
 	let args: Vec<String> = env::args().collect();
 	let codepath: String;
-	if args.len() == 1 {
-		println!("Command use:\n\nclue [Path]/-version");
+	if args.len() == 1 || args[1] == "-help" {
+		println!("Command use:\n\n\tclue -help\n\tclue -version\n\tclue [Path]\n\tclue [Path] [OPTIONS]\n\nOPTIONS:\n\t-blua\n\t-struct\n\t-tokens");
 		return Ok(());
 	}
 	codepath = args[1].clone();
 	if codepath == "-version" {
-		println!("Version a1.0.18");
+		println!("Version a1.0.23");
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
