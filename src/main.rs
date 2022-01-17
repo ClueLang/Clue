@@ -17,13 +17,17 @@ use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
+use std::collections::HashSet;
 use scanner::Token;
 use parser::ComplexToken;
 
-fn CompileFile(path: &Path, name: String) -> Result<(), String> {
+fn CompileFile(path: &Path, name: String, args: &HashSet<String>) -> Result<(), String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
 	let tokens: Vec<Token> = scanner::ScanCode(code, name.clone())?;
+	if args.contains("-tokens") {
+		println!("{:#?}", tokens);
+	}
 	let ctokens: Vec<ComplexToken> = parser::ParseTokens(tokens, name.clone())?;
 	/*let compiledname: String = String::from(path.display()
 		.to_string()
@@ -37,37 +41,38 @@ fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	Ok(())
 }
 
-fn CompileFolder(path: &Path) -> Result<(), String> {
+fn CompileFolder(path: &Path, args: &HashSet<String>) -> Result<(), String> {
 	for entry in check!(fs::read_dir(path)) {
 		let entry = check!(entry);
 		let name: String = entry.path().file_name().unwrap().to_string_lossy().into_owned();
 		let filePathName: String = path.display().to_string() + "\\" + &name;
 		let filepath: &Path = &Path::new(&filePathName);
 		if filepath.is_dir() {
-			CompileFolder(filepath)?;
+			CompileFolder(filepath, args)?;
 		} else if filePathName.ends_with(".clue") {
-			CompileFile(filepath, name)?;
+			CompileFile(filepath, name, args)?;
 		}
 	}
 	Ok(())
 }
 
 fn main() -> Result<(), String> {
-	let args: Vec<String> = env::args().collect();
+	let args: HashSet<String> = env::args().collect();
 	let codepath: String;
-	if args.len() == 1 || args[1] == "-help" {
+	if args.len() == 1 || args.contains("-help") {
 		println!("Command use:\n\n\tclue -help\n\tclue -version\n\tclue [Path]\n\tclue [Path] [OPTIONS]\n\nOPTIONS:\n\t-blua\n\t-struct\n\t-tokens");
 		return Ok(());
 	}
-	codepath = args[1].clone();
+	codepath = env::args().nth(1).unwrap();
+	println!("{}", codepath);
 	if codepath == "-version" {
-		println!("Version a1.0.23");
+		println!("Version a1.0.24");
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
 	if !path.is_dir() {
 		return Err(String::from("The given path doesn't exist"));
 	}
-	CompileFolder(path)?;
+	CompileFolder(path, &args)?;
 	Ok(())
 }
