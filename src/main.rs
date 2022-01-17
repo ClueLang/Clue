@@ -60,7 +60,19 @@ fn main() -> Result<(), String> {
 	let args: HashSet<String> = env::args().collect();
 	let codepath: String;
 	if args.len() == 1 || args.contains("-help") {
-		println!("Command use:\n\n\tclue -help\n\tclue -version\n\tclue [Path]\n\tclue [Path] [OPTIONS]\n\nOPTIONS:\n\t-blua\n\t-struct\n\t-tokens");
+		println!(
+"Clue transpiler
+
+USAGE:
+	clue -help		Send this very message
+	clue -version 		Send this transpiler's version
+	clue [Path] [OPTIONS]	Compile any *.clue file found in the given directory
+
+OPTIONS:
+	-blua		Compile into Blua instead of Lua (slightly different rules)
+	-tokens		Print list of detected tokens in compiled files
+	-struct 	Print syntax structure of the tokens of the compiled files
+	-dontsave	Don't save compiled code");//\\n\n\tclue -help\n\tclue -version\n\tclue [Path]\n\tclue [Path] [OPTIONS]\n\nOPTIONS:\n\t-blua\n\t-struct\n\t-tokens");
 		return Ok(());
 	}
 	codepath = env::args().nth(1).unwrap();

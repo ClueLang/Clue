@@ -19,6 +19,12 @@ pub enum ComplexToken {
 		values: Vec<(String, Expression)>
 	},
 
+	ALTER {
+		name: String,
+		kind: TokenType,
+		value: Expression
+	},
+
 	CHAR {
 		kind: TokenType,
 		line: u32,
@@ -42,7 +48,7 @@ impl ParserInfo {
 	fn new(tokens: Vec<Token>, filename: String) -> ParserInfo {
 		ParserInfo {
 			current: 0,
-			size: tokens.len(),
+			size: tokens.len() - 1,
 			tokens: tokens,
 			filename: filename,
 			expr: Vec::new()
@@ -330,7 +336,38 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					values: tuples
 				})
 			}
-			_ => {}
+			IDENTIFIER => {
+				let line: u32 = i.getLine();
+				/*if i.compare(ROUND_BRACKET_OPEN) {
+					i.current -= 1;
+					let mut fname = Expression::new();
+					fname.push(VALUE {
+						value: t.lexeme,
+						kind: IDENTIFIER,
+						line: line
+					});
+					let call = i.buildCall(fname)?;
+					i.expr.push(call);
+					i.current += 1;
+				}*/
+				let p = i.peek();
+				match p.kind {
+					ROUND_BRACKET_OPEN => {
+						i.current -= 1;
+						let mut fname = Expression::new();
+						fname.push(VALUE {
+							value: t.lexeme,
+							kind: IDENTIFIER,
+							line: line
+						});
+						let call = i.buildCall(fname)?;
+						i.expr.push(call);
+						i.current += 1;
+					}
+					_ => {return Err(i.unexpected(p.lexeme.as_str()))}
+				}
+			}
+			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}
 	}
 	Ok(i.expr)
