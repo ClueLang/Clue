@@ -20,9 +20,8 @@ pub enum ComplexToken {
 	},
 
 	ALTER {
-		name: String,
 		kind: TokenType,
-		value: Expression
+		values: Vec<(String, Expression)>
 	},
 
 	CHAR {
@@ -334,22 +333,11 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.expr.push(VARIABLE {
 					local: t.kind == LOCAL,
 					values: tuples
-				})
+				});
+				i.current += 1;
 			}
 			IDENTIFIER => {
 				let line: u32 = i.getLine();
-				/*if i.compare(ROUND_BRACKET_OPEN) {
-					i.current -= 1;
-					let mut fname = Expression::new();
-					fname.push(VALUE {
-						value: t.lexeme,
-						kind: IDENTIFIER,
-						line: line
-					});
-					let call = i.buildCall(fname)?;
-					i.expr.push(call);
-					i.current += 1;
-				}*/
 				let p = i.peek();
 				match p.kind {
 					ROUND_BRACKET_OPEN => {
@@ -364,7 +352,57 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						i.expr.push(call);
 						i.current += 1;
 					}
-					_ => {return Err(i.unexpected(p.lexeme.as_str()))}
+					_ => {
+						let mut names: Vec<String> = Vec::new();
+						names.push(t.lexeme);
+						loop {
+							if !i.compare(COMMA) {
+								break
+							}
+							i.current += 1;
+							let pname = i.advance();
+							if pname.kind != IDENTIFIER {
+								return Err(i.expected("<name>", &pname.lexeme));
+							}
+							names.push(pname.lexeme);
+						}
+						let checkt = i.advance();
+						let check = checkt.kind.clone() as u8;
+						if check < DEFINE as u8 || check > CONCATENATE as u8 {
+							return Err(i.expected("=", &checkt.lexeme))
+						}
+						drop(check);
+						let mut values: Vec<Expression> = Vec::new();
+						loop {
+							let start = i.current;
+							while match i.peek().kind {
+								COMMA | SEMICOLON => false,
+								_ => true
+							} {
+								i.current += 1;
+							}
+							values.push(i.buildExpression(start, i.current)?);
+							match i.peek().kind {
+								COMMA => {i.current += 1}
+								SEMICOLON => {break}
+								_ => {}
+							}
+						}
+						if names.len() != values.len() {
+							return Err(i.expectedBefore("<expr>", &i.peek().lexeme))
+						}
+						let mut tuples: Vec<(String, Expression)> = Vec::new();
+						let mut it: usize = 0;
+						for name in names.iter() {
+							tuples.push((String::from(name), values.get(it).unwrap().clone()));
+							it += 1;
+						}
+						i.expr.push(ALTER {
+							kind: checkt.kind,
+							values: tuples
+						});
+						i.current += 1;
+					}
 				}
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}

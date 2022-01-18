@@ -23,7 +23,7 @@ pub enum TokenType {
 	DO, IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, NEW, META, GLOBAL,
 	UNTIL, GOTO, LOCAL, FUNCTION, RETURN, THIS, TRUE, FALSE, NIL,
 	
-	EOF = -1
+	EOF
 }
 
 #[derive(Clone, Debug)]
