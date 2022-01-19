@@ -72,13 +72,13 @@ OPTIONS:
 	-blua		Compile into Blua instead of Lua (slightly different rules)
 	-tokens		Print list of detected tokens in compiled files
 	-struct 	Print syntax structure of the tokens of the compiled files
-	-dontsave	Don't save compiled code");//\\n\n\tclue -help\n\tclue -version\n\tclue [Path]\n\tclue [Path] [OPTIONS]\n\nOPTIONS:\n\t-blua\n\t-struct\n\t-tokens");
+	-dontsave	Don't save compiled code");
 		return Ok(());
 	}
 	codepath = env::args().nth(1).unwrap();
 	println!("{}", codepath);
 	if codepath == "-version" {
-		println!("Version a1.0.26");
+		println!("Version a1.0.27");
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);

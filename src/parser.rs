@@ -5,27 +5,29 @@ use self::ComplexToken::*;
 use std::cmp;
 
 type Expression = Vec<ComplexToken>;
+type SimpleString = &'static str;
 
 #[derive(Debug, Clone)]
 pub enum ComplexToken {
 	VALUE {
-		value: String,
+		value: SimpleString,
 		kind: TokenType,
 		line: u32
 	},
 
 	VARIABLE {
 		local: bool,
-		values: Vec<(String, Expression)>
+		values: Vec<(SimpleString, Expression)>
 	},
 
 	ALTER {
 		kind: TokenType,
-		values: Vec<(String, Expression)>
+		values: Vec<(SimpleString, Expression)>
 	},
 
 	CHAR {
 		kind: TokenType,
+		lexeme: SimpleString,
 		line: u32,
 	},
 
@@ -175,7 +177,7 @@ impl ParserInfo {
 						});
 						expr.push(self.buildCall(fname)?);
 						self.current += 1;
-					} else if self.current == end || self.peek().isOp() {
+					} else if self.current == end || self.peek().isOp() || self.peek().kind == SQUARE_BRACKET_OPEN {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: IDENTIFIER,
@@ -185,7 +187,8 @@ impl ParserInfo {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
-				PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS => {
+				PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS | AND | OR |
+				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
 					if self.current - 1 == start {
 						return Err(self.error(format!("Operator '{}' not expected at the start of expression.", t.lexeme)))
 					}
@@ -193,14 +196,11 @@ impl ParserInfo {
 						return Err(self.error(format!("Operator '{}' not expected at the end of expression.", t.lexeme)))
 					}
 					let pt: TokenType = self.lookBack(1).kind;
-					let nt: TokenType = self.peek().kind ;
-					if pt == TRUE || nt == TRUE || pt == FALSE || nt == FALSE {
-						return Err(self.error(format!("Operator '{}' cannot operate with booleans.", t.lexeme)))
-					}
+					let nt: TokenType = self.peek().kind;
 					if pt != NUMBER && pt != IDENTIFIER && pt != STRING && pt != CURLY_BRACKET_CLOSED && pt != SQUARE_BRACKET_CLOSED && pt != NEW {
 						return Err(self.error(format!("Operator '{}' has invalid left hand token.", t.lexeme)))
 					}
-					if nt != NUMBER && nt != IDENTIFIER && pt != STRING && nt != CURLY_BRACKET_OPEN && pt != CURLY_BRACKET_CLOSED {
+					if nt != NUMBER && nt != IDENTIFIER && nt != STRING && nt != CURLY_BRACKET_OPEN && nt != CURLY_BRACKET_CLOSED {
 						return Err(self.error(format!("Operator '{}' has invalid right hand token.", t.lexeme)))
 					}
 					expr.push(CHAR {
@@ -209,7 +209,7 @@ impl ParserInfo {
 					})
 				}
 				NUMBER | STRING | TRUE | FALSE | NIL => {
-					if self.current - 1 == start || self.current == end || self.peek().isOp() {
+					if self.current - 1 == start || self.current == end || self.peek().isOp() || self.peek().kind == SQUARE_BRACKET_CLOSED {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: t.kind,

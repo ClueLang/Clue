@@ -11,6 +11,8 @@ pub enum TokenType {
 	COMMA, DOT, SEMICOLON, NOT, AND, OR, DOLLAR,
 	PLUS, MINUS, STAR, SLASH, PERCENTUAL, CARET,
 	HASHTAG, METHOD, TWODOTS, TREDOTS,
+	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT,
+	LEFT_SHIFT, RIGHT_SHIFT,
 	
 	//definition and comparison
 	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE, CONCATENATE,
@@ -44,7 +46,8 @@ impl Token {
 
 	pub fn isOp(&self) -> bool {
 		match self.kind {
-			PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS => true,
+			PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS | AND | OR |
+			BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => true,
 			_ => false
 		}
 	}
@@ -138,6 +141,17 @@ impl CodeInfo {
 		self.addToken(kind);
 	}
 
+	fn matchAndAdd(&mut self, c1: char, k1: TokenType, c2: char, k2: TokenType, kd: TokenType) {
+		let kind: TokenType = match self.compare(c1) {
+			true => k1,
+			false => match self.compare(c2) {
+				true => k2,
+				false => kd
+			}
+		};
+		self.addToken(kind);
+	}
+
 	fn warning(&mut self, message: &str) {
 		println!("Error in file \"{}\" at line [{}]!\nError: \"{}\"\n", self.filename, self.line, message);
 		self.errored = true;
@@ -178,7 +192,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'+' => i.compareAndAdd('=', INCREASE, PLUS),
 			'-' => i.compareAndAdd('=', DECREASE, MINUS),
 			'*' => i.compareAndAdd('=', MULTIPLY, STAR),
-			'^' => i.compareAndAdd('=', EXPONENTIATE, CARET),
+			'^' => i.matchAndAdd('=', EXPONENTIATE, '^', BIT_XOR, CARET),
 			'#' => i.addToken(HASHTAG),
 			'/' => {
 				match i.peek() {
@@ -200,19 +214,14 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			},
 			'%' => i.addToken(PERCENTUAL),
 			'!' => i.compareAndAdd('=', NOT_EQUAL, NOT),
-			'=' => {
-				match i.peek() {
-					'=' => {i.current += 1; i.addToken(EQUAL)},
-					'>' => {i.current += 1; i.addToken(LAMBDA)},
-					_ => i.addToken(DEFINE)
-				}
-			},
-			'<' => i.compareAndAdd('=', SMALLER_EQUAL, SMALLER),
-			'>' => i.compareAndAdd('=', BIGGER_EQUAL, BIGGER),
+			'~' => i.addToken(BIT_NOT),
+			'=' => i.matchAndAdd('=', EQUAL, '>', LAMBDA, DEFINE),
+			'<' => i.matchAndAdd('=', SMALLER_EQUAL, '<', LEFT_SHIFT, SMALLER),
+			'>' => i.matchAndAdd('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
 			'?' => i.compareAndAdd('=', DEFINEIF, AND),
-			'&' => i.addToken(AND),
+			'&' => i.compareAndAdd('&', AND, BIT_AND),
 			':' => i.compareAndAdd(':', METHOD, OR),
-			'|' => i.addToken(OR),
+			'|' => i.compareAndAdd('|', OR, BIT_OR),
 			'$' => i.addToken(DOLLAR),
 			' ' | '\r' | '\t' => {},
 			'\n' => i.line += 1,
