@@ -5,29 +5,28 @@ use self::ComplexToken::*;
 use std::cmp;
 
 type Expression = Vec<ComplexToken>;
-type SimpleString = &'static str;
 
 #[derive(Debug, Clone)]
 pub enum ComplexToken {
 	VALUE {
-		value: SimpleString,
+		value: String,
 		kind: TokenType,
 		line: u32
 	},
 
 	VARIABLE {
 		local: bool,
-		values: Vec<(SimpleString, Expression)>
+		values: Vec<(String, Expression)>
 	},
 
 	ALTER {
 		kind: TokenType,
-		values: Vec<(SimpleString, Expression)>
+		values: Vec<(String, Expression)>
 	},
 
 	CHAR {
 		kind: TokenType,
-		lexeme: SimpleString,
+		// lexeme: String,
 		line: u32,
 	},
 
@@ -173,7 +172,7 @@ impl ParserInfo {
 						fname.push(VALUE {
 							value: t.lexeme,
 							kind: IDENTIFIER,
-							line: line
+							line
 						});
 						expr.push(self.buildCall(fname)?);
 						self.current += 1;
@@ -181,7 +180,7 @@ impl ParserInfo {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: IDENTIFIER,
-							line: line
+							line
 						})
 					} else {
 						return Err(self.unexpected(t.lexeme.as_str()))
