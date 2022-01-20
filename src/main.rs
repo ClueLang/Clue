@@ -17,15 +17,14 @@ use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
-use std::collections::HashSet;
 use scanner::Token;
 use parser::ComplexToken;
 
-fn CompileFile(path: &Path, name: String, args: &HashSet<String>) -> Result<(), String> {
+fn CompileFile(path: &Path, name: String, args: &[String]) -> Result<(), String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
 	let tokens: Vec<Token> = scanner::ScanCode(code, name.clone())?;
-	if args.contains("-tokens") {
+	if args.contains(&"-tokens".to_string()) {
 		println!("{:#?}", tokens);
 	}
 	let ctokens: Vec<ComplexToken> = parser::ParseTokens(tokens, name.clone())?;
@@ -41,7 +40,7 @@ fn CompileFile(path: &Path, name: String, args: &HashSet<String>) -> Result<(), 
 	Ok(())
 }
 
-fn CompileFolder(path: &Path, args: &HashSet<String>) -> Result<(), String> {
+fn CompileFolder(path: &Path, args: &[String]) -> Result<(), String> {
 	for entry in check!(fs::read_dir(path)) {
 		let entry = check!(entry);
 		let name: String = entry.path().file_name().unwrap().to_string_lossy().into_owned();
@@ -57,9 +56,9 @@ fn CompileFolder(path: &Path, args: &HashSet<String>) -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-	let args: HashSet<String> = env::args().collect();
-	let codepath: String;
-	if args.len() == 1 || args.contains("-help") {
+	let args: Vec<String> = env::args().collect();
+	let codepath;
+	if args.len() == 1 || args.contains(&"-help".to_string()) {
 		println!(
 "Clue transpiler
 
@@ -75,7 +74,7 @@ OPTIONS:
 	-dontsave	Don't save compiled code");
 		return Ok(());
 	}
-	codepath = env::args().nth(1).unwrap();
+	codepath = &args[1];
 	println!("{}", codepath);
 	if codepath == "-version" {
 		println!("Version a1.0.27");
