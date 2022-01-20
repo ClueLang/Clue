@@ -26,7 +26,7 @@ pub enum ComplexToken {
 
 	CHAR {
 		kind: TokenType,
-		// lexeme: String,
+		lexeme: String,
 		line: u32,
 	},
 
@@ -204,6 +204,7 @@ impl ParserInfo {
 					}
 					expr.push(CHAR {
 						kind: t.kind,
+						lexeme: t.lexeme,
 						line: self.getLine()
 					})
 				}
@@ -222,6 +223,7 @@ impl ParserInfo {
 					pscope += 1;
 					expr.push(CHAR {
 						kind: CURLY_BRACKET_OPEN,
+						lexeme: "(".to_string(),
 						line: self.getLine()
 					})
 				}
@@ -232,6 +234,7 @@ impl ParserInfo {
 					pscope -= 1;
 					expr.push(CHAR {
 						kind: CURLY_BRACKET_CLOSED,
+						lexeme: ")".to_string(),
 						line: self.getLine()
 					})
 				}
@@ -239,6 +242,7 @@ impl ParserInfo {
 					qscope += 1;
 					expr.push(CHAR {
 						kind: SQUARE_BRACKET_OPEN,
+						lexeme: "[".to_string(),
 						line: self.getLine()
 					})
 				}
@@ -249,6 +253,7 @@ impl ParserInfo {
 					qscope -= 1;
 					expr.push(CHAR {
 						kind: SQUARE_BRACKET_CLOSED,
+						lexeme: "]".to_string(),
 						line: self.getLine()
 					})
 				}
