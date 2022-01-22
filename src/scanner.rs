@@ -51,6 +51,10 @@ impl Token {
 			_ => false
 		}
 	}
+
+	pub fn isVar(&self, current: usize, start: usize, end: usize, nt: &Token) -> bool {
+		current - 1 == start || current == end || nt.isOp() || nt.kind == SQUARE_BRACKET_CLOSED || nt.kind == ROUND_BRACKET_CLOSED
+	}
 }
 
 struct CodeInfo {

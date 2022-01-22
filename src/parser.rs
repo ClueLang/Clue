@@ -34,6 +34,11 @@ pub enum ComplexToken {
 		name: Expression,
 		args: Vec<Expression>,
 	},
+
+	PSEUDO {
+		num: u8,
+		line: u32
+	}
 }
 
 struct ParserInfo {
@@ -121,6 +126,7 @@ impl ParserInfo {
 				match t.kind {
 					ROUND_BRACKET_OPEN => {pscope += 1}
 					ROUND_BRACKET_CLOSED => {
+						if pscope == 0 {continue}
 						pscope -= 1;
 						if pscope == 0 {
 							ended = true;
@@ -176,7 +182,7 @@ impl ParserInfo {
 						});
 						expr.push(self.buildCall(fname)?);
 						self.current += 1;
-					} else if self.current == end || self.peek().isOp() || self.peek().kind == SQUARE_BRACKET_OPEN {
+					} else if t.isVar(self.current, start, end, &self.peek()) {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: IDENTIFIER,
@@ -196,10 +202,18 @@ impl ParserInfo {
 					}
 					let pt: TokenType = self.lookBack(1).kind;
 					let nt: TokenType = self.peek().kind;
-					if pt != NUMBER && pt != IDENTIFIER && pt != STRING && pt != CURLY_BRACKET_CLOSED && pt != SQUARE_BRACKET_CLOSED && pt != NEW {
+					if match pt {
+						NUMBER | IDENTIFIER | STRING | NEW | DOLLAR |
+						CURLY_BRACKET_CLOSED | SQUARE_BRACKET_CLOSED => false,
+						_ => true
+					} {
 						return Err(self.error(format!("Operator '{}' has invalid left hand token.", t.lexeme)))
 					}
-					if nt != NUMBER && nt != IDENTIFIER && nt != STRING && nt != CURLY_BRACKET_OPEN && nt != CURLY_BRACKET_CLOSED {
+					if match nt {
+						NUMBER | IDENTIFIER | STRING | DOLLAR |
+						CURLY_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
+						_ => true
+					} {
 						return Err(self.error(format!("Operator '{}' has invalid right hand token.", t.lexeme)))
 					}
 					expr.push(CHAR {
@@ -209,7 +223,7 @@ impl ParserInfo {
 					})
 				}
 				NUMBER | STRING | TRUE | FALSE | NIL => {
-					if self.current - 1 == start || self.current == end || self.peek().isOp() || self.peek().kind == SQUARE_BRACKET_CLOSED {
+					if t.isVar(self.current, start, end, &self.peek()) {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: t.kind,
@@ -219,7 +233,7 @@ impl ParserInfo {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
-				CURLY_BRACKET_OPEN => {
+				ROUND_BRACKET_OPEN => {
 					pscope += 1;
 					expr.push(CHAR {
 						kind: CURLY_BRACKET_OPEN,
@@ -227,7 +241,7 @@ impl ParserInfo {
 						line: self.getLine()
 					})
 				}
-				CURLY_BRACKET_CLOSED => {
+				ROUND_BRACKET_CLOSED => {
 					if pscope == 0 {
 						return Err(self.unexpected(")"))
 					}
@@ -256,6 +270,21 @@ impl ParserInfo {
 						lexeme: "]".to_string(),
 						line: self.getLine()
 					})
+				}
+				DOLLAR => {
+					let nt = self.peek();
+					let mut num: u8 = 1;
+					if self.current != end && nt.kind == NUMBER {
+						num = nt.lexeme.parse().unwrap();
+					}
+					if t.isVar(self.current, start, end, &nt) {
+						expr.push(PSEUDO {
+							num,
+							line: self.getLine()
+						})
+					} else {
+						return Err(self.unexpected(&nt.lexeme))
+					}
 				}
 				_ => {return Err(self.unexpected(t.lexeme.as_str()))}
 			}
@@ -355,6 +384,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						let call = i.buildCall(fname)?;
 						i.expr.push(call);
 						i.current += 1;
+						if i.compare(SEMICOLON) {i.current += 1}
 					}
 					_ => {
 						let mut names: Vec<String> = Vec::new();
@@ -408,6 +438,29 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						i.current += 1;
 					}
 				}
+			}
+			ROUND_BRACKET_OPEN => {
+				i.current -= 1;
+				let start = i.current;
+				let mut pscope: u8 = 0;
+				loop {
+					let nt = i.advance().kind;
+					match nt {
+						ROUND_BRACKET_OPEN => {pscope += 1}
+						ROUND_BRACKET_CLOSED => {
+							pscope -= 1;
+							if pscope == 0 {break}
+						}
+						EOF => {return Err(i.expectedBefore(")", "<eof>"))}
+						_ => {}
+					}
+				}
+				let fname = i.buildExpression(start, i.current)?;
+				i.current -= 1;
+				let call = i.buildCall(fname)?;
+				i.expr.push(call);
+				i.current += 1;
+				if i.compare(SEMICOLON) {i.current += 1}
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}
