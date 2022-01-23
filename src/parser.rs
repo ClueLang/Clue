@@ -86,7 +86,7 @@ impl ParserInfo {
 	}
 
 	fn at(&self, pos: usize) -> Token {
-		self.tokens[cmp::min(pos, self.size - 1)].clone()
+		self.tokens[cmp::min(pos, self.size)].clone()
 	}
 
 	fn advance(&mut self) -> Token {
@@ -162,6 +162,36 @@ impl ParserInfo {
 		})
 	}
 
+	/*fn buildTable(&mut self) -> Result<ComplexToken, String> {
+
+	}*/
+
+	fn checkOperator(&self, t: &Token, start: usize, end: usize) -> Result<(), String> {
+		if self.current - 1 == start {
+			return Err(self.error(format!("Operator '{}' not expected at the start of expression", t.lexeme)))
+		}
+		if self.current == end {
+			return Err(self.error(format!("Operator '{}' not expected at the end of expression", t.lexeme)))
+		}
+		let pt: TokenType = self.lookBack(1).kind;
+		let nt: TokenType = self.peek().kind;
+		if match pt {
+			NUMBER | IDENTIFIER | STRING | NEW | DOLLAR |
+			ROUND_BRACKET_CLOSED | SQUARE_BRACKET_CLOSED => false,
+			_ => true
+		} {
+			return Err(self.error(format!("Operator '{}' has invalid left hand token", t.lexeme)))
+		}
+		if match nt {
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET |
+			ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
+			_ => true
+		} {
+			return Err(self.error(format!("Operator '{}' has invalid right hand token", t.lexeme)))
+		}
+		Ok(())
+	}
+
 	fn buildExpression(&mut self, start: usize, end: usize) -> Result<Expression, String> {
 		let mut expr = Expression::new();
 		let mut pscope: u8 = 0;
@@ -192,33 +222,63 @@ impl ParserInfo {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
-				PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS | AND | OR |
+				/*CURLY_BRACKET_OPEN => {
+					expr.push(self.buildTable()?);
+				}*/
+				PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
 				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
-					if self.current - 1 == start {
-						return Err(self.error(format!("Operator '{}' not expected at the start of expression.", t.lexeme)))
-					}
-					if self.current == end {
-						return Err(self.error(format!("Operator '{}' not expected at the end of expression.", t.lexeme)))
-					}
-					let pt: TokenType = self.lookBack(1).kind;
-					let nt: TokenType = self.peek().kind;
-					if match pt {
-						NUMBER | IDENTIFIER | STRING | NEW | DOLLAR |
-						CURLY_BRACKET_CLOSED | SQUARE_BRACKET_CLOSED => false,
-						_ => true
-					} {
-						return Err(self.error(format!("Operator '{}' has invalid left hand token.", t.lexeme)))
-					}
-					if match nt {
-						NUMBER | IDENTIFIER | STRING | DOLLAR |
-						CURLY_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
-						_ => true
-					} {
-						return Err(self.error(format!("Operator '{}' has invalid right hand token.", t.lexeme)))
-					}
+					self.checkOperator(&t, start, end)?;
 					expr.push(CHAR {
 						kind: t.kind,
 						lexeme: t.lexeme,
+						line: self.getLine()
+					})
+				}
+				PROTECTED_GET => {
+					if self.peek().kind == ROUND_BRACKET_OPEN {
+						let cpscope = pscope + 1;
+						let pstart = self.current + 1;
+						loop {
+							let nt = self.advance().kind;
+							match nt {
+								ROUND_BRACKET_OPEN => {pscope += 1}
+								ROUND_BRACKET_CLOSED => {
+									if pscope == cpscope {pscope -= 1; break}
+									pscope -= 1;
+								}
+								EOF => {return Err(self.expectedBefore(")", "<eof>"))}
+								_ => {}
+							}
+						}
+						expr.push(PGET {
+							toGet: self.buildExpression(pstart, self.current - 1)?
+						});
+						self.current += 1;
+					} else {
+						return Err(self.unexpected("?>"))
+					}
+				}
+				AND => {
+					self.checkOperator(&t, start, end)?;
+					expr.push(CHAR {
+						kind: t.kind,
+						lexeme: String::from("and"),
+						line: self.getLine()
+					})
+				}
+				OR => {
+					self.checkOperator(&t, start, end)?;
+					expr.push(CHAR {
+						kind: t.kind,
+						lexeme: String::from("or"),
+						line: self.getLine()
+					})
+				}
+				NOT => {
+					self.checkOperator(&t, start, end)?; //todo: fix this little thing
+					expr.push(CHAR {
+						kind: t.kind,
+						lexeme: String::from("not"),
 						line: self.getLine()
 					})
 				}
@@ -334,6 +394,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						let start = i.current;
 						while match i.peek().kind {
 							COMMA | SEMICOLON => false,
+							EOF => {return Err(i.expectedBefore(";", "<eof>"))}
 							_ => true
 						} {
 							i.current += 1;
