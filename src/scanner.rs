@@ -8,11 +8,11 @@ pub enum TokenType {
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED,
 	SQUARE_BRACKET_OPEN, SQUARE_BRACKET_CLOSED,
 	CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
-	COMMA, DOT, SEMICOLON, NOT, AND, OR, DOLLAR,
+	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR,
 	PLUS, MINUS, STAR, SLASH, PERCENTUAL, CARET,
 	HASHTAG, METHOD, TWODOTS, TREDOTS,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT,
-	LEFT_SHIFT, RIGHT_SHIFT,
+	LEFT_SHIFT, RIGHT_SHIFT, PROTECTED_GET,
 	
 	//definition and comparison
 	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE, CONCATENATE,
@@ -189,7 +189,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						i.addToken(TWODOTS);
 					}
 				} else {
-					i.addToken(DOT);
+					i.warning("Unexpected character '.'");
 				}
 			},
 			';' => i.addToken(SEMICOLON),
@@ -207,7 +207,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 							i.current += 1;
 						}
 						if i.ended() {
-							i.warning("Unterminated comment.");
+							i.warning("Unterminated comment");
 						} else {
 							i.current += 2;
 						}
@@ -222,7 +222,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'=' => i.matchAndAdd('=', EQUAL, '>', LAMBDA, DEFINE),
 			'<' => i.matchAndAdd('=', SMALLER_EQUAL, '<', LEFT_SHIFT, SMALLER),
 			'>' => i.matchAndAdd('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
-			'?' => i.compareAndAdd('=', DEFINEIF, AND),
+			'?' => i.matchAndAdd('=', DEFINEIF, '>', PROTECTED_GET, AND),
 			'&' => i.compareAndAdd('&', AND, BIT_AND),
 			':' => i.compareAndAdd(':', METHOD, OR),
 			'|' => i.compareAndAdd('|', OR, BIT_OR),
@@ -251,7 +251,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 					}
 					i.addLiteralToken(NUMBER, i.substr(i.start, i.current));
 				} else if c.is_ascii_alphabetic() {
-					while i.peek().is_ascii_alphanumeric() {i.current += 1}
+					while i.peek().is_ascii_alphanumeric() || i.peek() == '.' {i.current += 1}
 					let string: String = i.substr(i.start, i.current);
 					let kind: TokenType = match string.as_str() {
 						"do" => DO,
@@ -279,13 +279,13 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 					};
 					i.addToken(kind);
 				} else {
-					i.warning(format!("Unexpected character '{}'.", c).as_str());
+					i.warning(format!("Unexpected character '{}'", c).as_str());
 				}
 			}
 		}
 	}
 	if i.errored {
-		return Err(String::from("Cannot continue until the above errors are fixed."));
+		return Err(String::from("Cannot continue until the above errors are fixed"));
 	}
 	i.addLiteralToken(EOF, String::new());
 	Ok(i.tokens)
