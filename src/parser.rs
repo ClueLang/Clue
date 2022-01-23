@@ -38,6 +38,14 @@ pub enum ComplexToken {
 	PSEUDO {
 		num: u8,
 		line: u32
+	},
+
+	TABLE {
+		values: Vec<(String, Expression)>
+	},
+
+	PGET {
+		toGet: Expression
 	}
 }
 
