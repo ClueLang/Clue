@@ -70,15 +70,15 @@ impl ParserInfo {
 	}
 
 	fn expected(&self, expected: &str, got: &str) -> String {
-		self.error(format!("Expected '{}', got '{}'.", expected, got))
+		self.error(format!("Expected '{}', got '{}'", expected, got))
 	}
 
 	fn expectedBefore(&self, expected: &str, before: &str) -> String {
-		self.error(format!("Expected token '{}' before '{}'.", expected, before))
+		self.error(format!("Expected token '{}' before '{}'", expected, before))
 	}
 
 	fn unexpected(&self, str: &str) -> String {
-		self.error(format!("Unexpected token '{}'.", str))
+		self.error(format!("Unexpected token '{}'", str))
 	}
 
 	fn ended(&self) -> bool {
@@ -145,7 +145,7 @@ impl ParserInfo {
 			}
 			if start == self.current {
 				if args.len() > 0 {
-					return Err(self.error(String::from("Invalid empty function argument found.")))
+					return Err(self.error(String::from("Invalid empty function argument found")))
 				}
 				break
 			}
