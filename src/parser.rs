@@ -41,7 +41,8 @@ pub enum ComplexToken {
 	},
 
 	TABLE {
-		values: Vec<(String, Expression)>
+		values: Vec<(Expression, Expression)>,
+		metas: Vec<(String, Expression)>
 	},
 
 	PGET {
@@ -170,9 +171,86 @@ impl ParserInfo {
 		})
 	}
 
-	/*fn buildTable(&mut self) -> Result<ComplexToken, String> {
+	fn findExpressions(&mut self) -> Result<Vec<Expression>, String> {
+		let mut values: Vec<Expression> = Vec::new();
+		loop {
+			let start = self.current;
+			while match self.peek().kind {
+				COMMA | SEMICOLON => false,
+				EOF => {return Err(self.expectedBefore(";", "<eof>"))}
+				_ => true
+			} {
+				self.current += 1;
+			}
+			values.push(self.buildExpression(start, self.current)?);
+			match self.peek().kind {
+				COMMA => {self.current += 1}
+				SEMICOLON => {break}
+				_ => {}
+			}
+		}
+		Ok(values)
+	}
 
-	}*/
+	fn buildTable(&mut self) -> Result<ComplexToken, String> {
+		let mut values: Vec<(Expression, Expression)> = Vec::new();
+		let mut metas: Vec<(String, Expression)> = Vec::new();
+		loop {
+			let name: Result<Expression, String>;
+			let pn = self.advance();
+			match pn.kind {
+				IDENTIFIER => {
+					name = Ok(vec![VALUE {
+						kind: pn.kind,
+						line: pn.line,
+						value: pn.lexeme
+					}]);
+				}
+				CURLY_BRACKET_CLOSED => {break}
+				SQUARE_BRACKET_OPEN => {
+					let mut qscope: u8 = 1;
+					let start = self.current;
+					while match self.advance().kind {
+						SQUARE_BRACKET_OPEN => {qscope += 1; true}
+						SQUARE_BRACKET_CLOSED => {
+							qscope -= 1;
+							match qscope {
+								0 => false,
+								_ => true
+							}
+						}
+						EOF => {return Err(self.expectedBefore("]", "<eof>"))}
+						_ => true
+					} {}
+					name = Ok(self.buildExpression(start, self.current - 1)?);
+					self.current += 1;
+				}
+				META => {
+					//hm, this is tricky
+				}
+				_ => {return Err(self.expected("<name>", &pn.lexeme))}
+			}
+			let check = self.advance();
+			if check.kind != DEFINE {
+				return Err(self.expected("=", &check.lexeme))
+			}
+			drop(check);
+			let start = self.current;
+			while match self.peek().kind {
+				COMMA | CURLY_BRACKET_CLOSED => false,
+				EOF => {return Err(self.expectedBefore(",", "<eof>"))}
+				_ => true
+			} {
+				self.current += 1;
+			}
+			match name {
+				Ok(n) => {values.push((n, self.buildExpression(start, self.current)?))}
+				Err(n) => {metas.push((n, self.buildExpression(start, self.current)?))}
+			}
+			if self.peek().kind == COMMA {self.current += 1}
+		}
+		Ok(TABLE {values, metas})
+	}
 
 	fn checkOperator(&self, t: &Token, start: usize, end: usize) -> Result<(), String> {
 		if self.current - 1 == start {
@@ -230,9 +308,9 @@ impl ParserInfo {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
-				/*CURLY_BRACKET_OPEN => {
+				CURLY_BRACKET_OPEN => {
 					expr.push(self.buildTable()?);
-				}*/
+				}
 				PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
 				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
 					self.checkOperator(&t, start, end)?;
@@ -396,25 +474,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					_ => {return Err(i.expected("=", &check.lexeme))}
 				};
 				drop(check);
-				let mut values: Vec<Expression> = Vec::new();
-				if areInit {
-					loop {
-						let start = i.current;
-						while match i.peek().kind {
-							COMMA | SEMICOLON => false,
-							EOF => {return Err(i.expectedBefore(";", "<eof>"))}
-							_ => true
-						} {
-							i.current += 1;
-						}
-						values.push(i.buildExpression(start, i.current)?);
-						match i.peek().kind {
-							COMMA => {i.current += 1}
-							SEMICOLON => {break}
-							_ => {}
-						}
-					}
-				}
+				let values: Vec<Expression> = if !areInit {Vec::new()} else {i.findExpressions()?};
 				let mut tuples: Vec<(String, Expression)> = Vec::new();
 				let mut it: usize = 0;
 				for name in names.iter() {
@@ -475,22 +535,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							return Err(i.expected("=", &checkt.lexeme))
 						}
 						drop(check);
-						let mut values: Vec<Expression> = Vec::new();
-						loop {
-							let start = i.current;
-							while match i.peek().kind {
-								COMMA | SEMICOLON => false,
-								_ => true
-							} {
-								i.current += 1;
-							}
-							values.push(i.buildExpression(start, i.current)?);
-							match i.peek().kind {
-								COMMA => {i.current += 1}
-								SEMICOLON => {break}
-								_ => {}
-							}
-						}
+						let values: Vec<Expression> = i.findExpressions()?;
 						if names.len() != values.len() {
 							return Err(i.expectedBefore("<expr>", &i.peek().lexeme))
 						}
