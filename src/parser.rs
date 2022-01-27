@@ -99,7 +99,7 @@ impl ParserInfo {
 	}
 
 	fn advance(&mut self) -> Token {
-		let prev: Token = self.peek();
+		let prev = self.peek();
 		self.current += 1;
 		prev
 	}
@@ -131,7 +131,7 @@ impl ParserInfo {
 		let mut ended: bool = false;
 		loop {
 			loop {
-				let t: Token = self.advance();
+				let t = self.advance();
 				match t.kind {
 					ROUND_BRACKET_OPEN => {pscope += 1}
 					ROUND_BRACKET_CLOSED => {
@@ -226,7 +226,28 @@ impl ParserInfo {
 					self.current += 1;
 				}
 				META => {
-					//hm, this is tricky
+					name = Err(String::from(match self.advance().lexeme.as_ref() {
+						"index" => "__index",
+						"newindex" => "__newindex",
+						"mode" => "__mode",
+						"call" => "__call",
+						"metatable" => "__metatable",
+						"tostring" => "__tostring",
+						"gc" => "__gc",
+						"name" => "__name",
+						"unm" | "unary" => "__unm",
+						"add" | "+" => "__add",
+						"sub" | "-" => "__sub",
+						"mul" | "*" => "__mul",
+						"div" | "/" => "__div",
+						"mod" | "%" => "__mod",
+						"pow" | "^" => "__pow",
+						"concat" | ".." => "__concat",
+						"eq" | "equal" | "==" => "__eq",
+						"lt" | "less_than" | "<" => "__lt",
+						"le" | "less_than_equal" | "<=" => "__le",
+						_ => {return Err(self.expected("<meta name>", &self.lookBack(0).lexeme))}
+					}))
 				}
 				_ => {return Err(self.expected("<name>", &pn.lexeme))}
 			}
@@ -284,7 +305,7 @@ impl ParserInfo {
 		let mut qscope: u8 = 0;
 		self.current = start;
 		while self.current < end {
-			let t: Token = self.advance();
+			let t = self.advance();
 			match t.kind {
 				IDENTIFIER => {
 					let line: u32 = self.getLine();
@@ -451,7 +472,7 @@ impl ParserInfo {
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
 	let mut i: ParserInfo = ParserInfo::new(tokens, filename);
 	while !i.ended() {
-		let t: Token = i.advance();
+		let t = i.advance();
 		match t.kind {
 			LOCAL | GLOBAL => {
 				let mut names: Vec<String> = Vec::new();
