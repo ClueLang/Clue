@@ -21,7 +21,7 @@ pub enum ComplexToken {
 
 	ALTER {
 		kind: TokenType,
-		values: Vec<(String, Expression)>
+		values: Vec<(Expression, Expression)>
 	},
 
 	CHAR {
@@ -33,6 +33,11 @@ pub enum ComplexToken {
 	CALL {
 		name: Expression,
 		args: Vec<Expression>,
+	},
+
+	FUNCTION {
+		args: Vec<String>,
+		code: Expression
 	},
 
 	PSEUDO {
@@ -283,7 +288,7 @@ impl ParserInfo {
 		let pt: TokenType = self.lookBack(1).kind;
 		let nt: TokenType = self.peek().kind;
 		if match pt {
-			NUMBER | IDENTIFIER | STRING | NEW | DOLLAR |
+			NUMBER | IDENTIFIER | STRING | DOLLAR |
 			ROUND_BRACKET_CLOSED | SQUARE_BRACKET_CLOSED => false,
 			_ => true
 		} {
@@ -328,6 +333,16 @@ impl ParserInfo {
 					} else {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
+				}
+				DOT | METHOD => {
+					if self.peek().kind != IDENTIFIER || self.lookBack(0).kind != IDENTIFIER {
+						return Err(self.error(format!("'{}' should be used only when indexing tables.", t.lexeme)))
+					}
+					expr.push(CHAR {
+						kind: t.kind,
+						lexeme: t.lexeme,
+						line: self.getLine()
+					})
 				}
 				CURLY_BRACKET_OPEN => {
 					expr.push(self.buildTable()?);

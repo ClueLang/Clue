@@ -10,19 +10,19 @@ pub enum TokenType {
 	CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR,
 	PLUS, MINUS, STAR, SLASH, PERCENTUAL, CARET,
-	HASHTAG, METHOD, TWODOTS, TREDOTS,
+	HASHTAG, METHOD, DOT, TWODOTS, TREDOTS,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT,
 	LEFT_SHIFT, RIGHT_SHIFT, PROTECTED_GET,
 	
 	//definition and comparison
 	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE, CONCATENATE,
-	EQUAL, NOT_EQUAL, BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL, LAMBDA,
+	EQUAL, NOT_EQUAL, BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL,
 	
 	//literals
 	IDENTIFIER, NUMBER, STRING,
 	
 	//keywords
-	DO, IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, NEW, META, GLOBAL,
+	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, EXTERN,
 	UNTIL, GOTO, LOCAL, FUNCTION, RETURN, THIS, TRUE, FALSE, NIL,
 	
 	EOF
@@ -189,7 +189,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						i.addToken(TWODOTS);
 					}
 				} else {
-					i.warning("Unexpected character '.'");
+					i.addToken(DOT);
 				}
 			},
 			';' => i.addToken(SEMICOLON),
@@ -219,7 +219,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'%' => i.addToken(PERCENTUAL),
 			'!' => i.compareAndAdd('=', NOT_EQUAL, NOT),
 			'~' => i.addToken(BIT_NOT),
-			'=' => i.matchAndAdd('=', EQUAL, '>', LAMBDA, DEFINE),
+			'=' => i.compareAndAdd('=', EQUAL, DEFINE),
 			'<' => i.matchAndAdd('=', SMALLER_EQUAL, '<', LEFT_SHIFT, SMALLER),
 			'>' => i.matchAndAdd('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
 			'?' => i.matchAndAdd('=', DEFINEIF, '>', PROTECTED_GET, AND),
@@ -251,10 +251,9 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 					}
 					i.addLiteralToken(NUMBER, i.substr(i.start, i.current));
 				} else if c.is_ascii_alphabetic() {
-					while i.peek().is_ascii_alphanumeric() || i.peek() == '.' {i.current += 1}
+					while i.peek().is_ascii_alphanumeric() {i.current += 1}
 					let string: String = i.substr(i.start, i.current);
 					let kind: TokenType = match string.as_str() {
-						"do" => DO,
 						"if" => IF,
 						"elseif" => ELSEIF,
 						"else" => ELSE,
@@ -263,13 +262,13 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"in" => IN,
 						"with" => WITH,
 						"while" => WHILE,
-						"new" => NEW,
 						"meta" => META,
 						"global" => GLOBAL,
+						"extern" => EXTERN,
 						"until" => UNTIL,
 						"goto" => GOTO,
 						"local" => LOCAL,
-						"function" => FUNCTION,
+						"fn" | "function" => FUNCTION,
 						"return" => RETURN,
 						"this" => THIS,
 						"true" => TRUE,
