@@ -482,6 +482,18 @@ impl ParserInfo {
 		}
 		Ok(expr)
 	}
+
+	fn buildIdentifier(&mut self) -> Result<Expression, String> {
+		let mut expr = Expression::new();
+		self.current -= 1;
+		loop {
+			let t = self.advance();
+			match t.kind {
+
+			}
+		}
+		Ok(expr)
+	}
 }
 
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
@@ -535,7 +547,9 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.current += 1;
 			}
 			IDENTIFIER => {
-				let line: u32 = i.getLine();
+				let expr: Expression = Vec::new();
+
+				/*let line: u32 = i.getLine();
 				let p = i.peek();
 				match p.kind {
 					ROUND_BRACKET_OPEN => {
@@ -552,8 +566,20 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						if i.compare(SEMICOLON) {i.current += 1}
 					}
 					_ => {
-						let mut names: Vec<String> = Vec::new();
-						names.push(t.lexeme);
+						let mut names: Vec<Expression> = Vec::new();
+						loop {
+							let name: Expression = vec![VALUE {
+								value: t.lexeme,
+								kind: IDENTIFIER,
+								line: line
+							}];
+
+						}
+						/*names.push(vec![VALUE {
+							value: t.lexeme,
+							kind: IDENTIFIER,
+							line: line
+						}]);
 						loop {
 							if !i.compare(COMMA) {
 								break
@@ -564,7 +590,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 								return Err(i.expected("<name>", &pname.lexeme));
 							}
 							names.push(pname.lexeme);
-						}
+						}*/
 						let checkt = i.advance();
 						let check = checkt.kind.clone() as u8;
 						if check < DEFINE as u8 || check > CONCATENATE as u8 {
@@ -587,7 +613,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						});
 						i.current += 1;
 					}
-				}
+				}*/
 			}
 			ROUND_BRACKET_OPEN => {
 				i.current -= 1;
