@@ -55,6 +55,11 @@ pub enum ComplexToken {
 	}
 }
 
+fn IsVar(current: usize, start: usize, end: usize, nt: &Token) -> bool {
+	println!("{} {} {} {:#?}", current, start, end, nt);
+	current == end || nt.isOp()
+}
+
 struct ParserInfo {
 	current: usize,
 	size: usize,
@@ -337,7 +342,7 @@ impl ParserInfo {
 			let t = self.advance();
 			match t.kind {
 				IDENTIFIER => {
-					let line: u32 = self.getLine();
+					/*let line: u32 = self.getLine();
 					if self.compare(ROUND_BRACKET_OPEN) {
 						self.current -= 1;
 						let mut fname = Expression::new();
@@ -348,7 +353,7 @@ impl ParserInfo {
 						});
 						expr.push(self.buildCall(fname)?);
 						self.current += 1;
-					} else if t.isVar(self.current, start, end, &self.peek(0)) {
+					} else if IsVar(self.current, start, end, &self.peek(0)) {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: IDENTIFIER,
@@ -356,7 +361,9 @@ impl ParserInfo {
 						})
 					} else {
 						return Err(self.unexpected(t.lexeme.as_str()))
-					}
+					}*/
+					let ident = self.buildIdentifier();
+
 				}
 				DOT => {self.checkIndex(&t, &mut expr)?}
 				METHOD => {
@@ -426,7 +433,7 @@ impl ParserInfo {
 					})
 				}
 				NUMBER | STRING | TRUE | FALSE | NIL => {
-					if t.isVar(self.current, start, end, &self.peek(0)) {
+					if IsVar(self.current, start, end, &self.peek(0)) {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: t.kind,
@@ -479,12 +486,13 @@ impl ParserInfo {
 					let mut num: u8 = 1;
 					if self.current != end && nt.kind == NUMBER {
 						num = nt.lexeme.parse().unwrap();
+						self.current += 1;
 					}
-					if t.isVar(self.current, start, end, &nt) {
+					if IsVar(self.current, start, end, &self.peek(0)) {
 						expr.push(PSEUDO {
 							num,
 							line: self.getLine()
-						})
+						});
 					} else {
 						return Err(self.unexpected(&nt.lexeme))
 					}
@@ -496,10 +504,10 @@ impl ParserInfo {
 			return Err(self.unexpected(self.at(end).lexeme.as_str()))
 		}
 		if pscope > 0 {
-			return Err(self.expectedBefore(")", self.at(end).lexeme.as_str()))
+			return Err(self.expectedBefore(")", self.at(end - 1).lexeme.as_str()))
 		}
 		if qscope > 0 {
-			return Err(self.expectedBefore(")", self.at(end).lexeme.as_str()))
+			return Err(self.expectedBefore(")", self.at(end - 1).lexeme.as_str()))
 		}
 		Ok(expr)
 	}
@@ -540,7 +548,7 @@ impl ParserInfo {
 					}
 					expr.append(&mut self.buildExpression(start, self.current - 1)?)
 				}
-				_ => {}
+				_ => {break}
 			}
 		}
 		Ok(expr)
@@ -668,7 +676,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			}
 			ROUND_BRACKET_OPEN => {
 				i.current -= 1;
-				let start = i.current;
+				let start = i.current + 1;
 				let mut pscope: u8 = 0;
 				loop {
 					let nt = i.advance().kind;
@@ -682,8 +690,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						_ => {}
 					}
 				}
-				let fname = i.buildExpression(start, i.current)?;
-				i.current -= 1;
+				let fname = i.buildExpression(start, i.current - 1)?;
 				let call = i.buildCall(fname)?;
 				i.expr.push(call);
 				i.current += 1;
