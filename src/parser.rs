@@ -104,12 +104,11 @@ impl ParserInfo {
 	}
 
 	fn advance(&mut self) -> Token {
-		let prev = self.peek();
 		self.current += 1;
-		prev
+		self.lookBack(0)
 	}
 
-	fn peekFar(&self, pos: usize) -> Token {
+	fn peek(&self, pos: usize) -> Token {
 		let pos: usize = self.current + pos;
 		self.at(pos)
 	}
@@ -119,13 +118,16 @@ impl ParserInfo {
 		self.at(pos)
 	}
 
-	fn peek(&self) -> Token {
-		self.peekFar(0)
+	fn compare(&self, expected: TokenType) -> bool {
+		if self.ended() {return false;}
+		if self.peek(0).kind != expected {return false;}
+		true
 	}
 
-	fn compare(&mut self, expected: TokenType) -> bool {
+	fn advanceIf(&mut self, expected: TokenType) -> bool {
 		if self.ended() {return false;}
-		if self.peek().kind != expected {return false;}
+		if self.peek(0).kind != expected {return false;}
+		self.current += 1;
 		true
 	}
 
@@ -180,7 +182,7 @@ impl ParserInfo {
 		let mut values: Vec<Expression> = Vec::new();
 		loop {
 			let start = self.current;
-			while match self.peek().kind {
+			while match self.peek(0).kind {
 				COMMA | SEMICOLON => false,
 				EOF => {return Err(self.expectedBefore(";", "<eof>"))}
 				_ => true
@@ -188,7 +190,7 @@ impl ParserInfo {
 				self.current += 1;
 			}
 			values.push(self.buildExpression(start, self.current)?);
-			match self.peek().kind {
+			match self.peek(0).kind {
 				COMMA => {self.current += 1}
 				SEMICOLON => {break}
 				_ => {}
@@ -208,7 +210,7 @@ impl ParserInfo {
 					name = Ok(vec![VALUE {
 						kind: pn.kind,
 						line: pn.line,
-						value: pn.lexeme
+						value: pn.lexeme.clone()
 					}]);
 				}
 				CURLY_BRACKET_CLOSED => {break}
@@ -256,15 +258,22 @@ impl ParserInfo {
 				}
 				_ => {return Err(self.expected("<name>", &pn.lexeme))}
 			}
-			let check = self.advance();
-			if check.kind != DEFINE {
-				return Err(self.expected("=", &check.lexeme))
+			if !self.advanceIf(DEFINE) {
+				return Err(self.expected("=", &self.peek(0).lexeme))
 			}
-			drop(check);
 			let start = self.current;
-			while match self.peek().kind {
-				COMMA | CURLY_BRACKET_CLOSED => false,
-				EOF => {return Err(self.expectedBefore(",", "<eof>"))}
+			let mut cscope = 0u8;
+			while match self.peek(0).kind {
+				COMMA | CURLY_BRACKET_CLOSED => {
+					if cscope == 0 {false} else {true}
+				}
+				ROUND_BRACKET_OPEN => {cscope += 1; true}
+				ROUND_BRACKET_CLOSED => {
+					if cscope == 0 {return Err(self.expectedBefore("(", ")"))}
+					cscope -= 1;
+					true
+				}
+				EOF => {return Err(self.expectedBefore("}", "<eof>"))}
 				_ => true
 			} {
 				self.current += 1;
@@ -273,7 +282,7 @@ impl ParserInfo {
 				Ok(n) => {values.push((n, self.buildExpression(start, self.current)?))}
 				Err(n) => {metas.push((n, self.buildExpression(start, self.current)?))}
 			}
-			if self.peek().kind == COMMA {self.current += 1}
+			self.advanceIf(COMMA);
 		}
 		Ok(TABLE {values, metas})
 	}
@@ -286,7 +295,7 @@ impl ParserInfo {
 			return Err(self.error(format!("Operator '{}' not expected at the end of expression", t.lexeme)))
 		}
 		let pt: TokenType = self.lookBack(1).kind;
-		let nt: TokenType = self.peek().kind;
+		let nt: TokenType = self.peek(0).kind;
 		if match pt {
 			NUMBER | IDENTIFIER | STRING | DOLLAR |
 			ROUND_BRACKET_CLOSED | SQUARE_BRACKET_CLOSED => false,
@@ -301,6 +310,21 @@ impl ParserInfo {
 		} {
 			return Err(self.error(format!("Operator '{}' has invalid right hand token", t.lexeme)))
 		}
+		Ok(())
+	}
+
+	fn checkIndex(&self, t: &Token, expr: &mut Expression) -> Result<(), String> {
+		if self.peek(0).kind != IDENTIFIER || match self.lookBack(0).kind {
+			IDENTIFIER | SQUARE_BRACKET_CLOSED => false,
+			_ => true
+		} {
+			return Err(self.error(format!("'{}' should be used only when indexing tables.", t.lexeme)))
+		}
+		expr.push(CHAR {
+			kind: t.kind,
+			lexeme: t.lexeme.clone(),
+			line: self.getLine()
+		});
 		Ok(())
 	}
 
@@ -324,7 +348,7 @@ impl ParserInfo {
 						});
 						expr.push(self.buildCall(fname)?);
 						self.current += 1;
-					} else if t.isVar(self.current, start, end, &self.peek()) {
+					} else if t.isVar(self.current, start, end, &self.peek(0)) {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: IDENTIFIER,
@@ -334,15 +358,12 @@ impl ParserInfo {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
-				DOT | METHOD => {
-					if self.peek().kind != IDENTIFIER || self.lookBack(0).kind != IDENTIFIER {
-						return Err(self.error(format!("'{}' should be used only when indexing tables.", t.lexeme)))
+				DOT => {self.checkIndex(&t, &mut expr)?}
+				METHOD => {
+					self.checkIndex(&t, &mut expr)?;
+					if self.peek(1).kind != CURLY_BRACKET_OPEN {
+						return Err(self.error(self.expected("(", &self.peek(1).lexeme)))
 					}
-					expr.push(CHAR {
-						kind: t.kind,
-						lexeme: t.lexeme,
-						line: self.getLine()
-					})
 				}
 				CURLY_BRACKET_OPEN => {
 					expr.push(self.buildTable()?);
@@ -357,7 +378,7 @@ impl ParserInfo {
 					})
 				}
 				PROTECTED_GET => {
-					if self.peek().kind == ROUND_BRACKET_OPEN {
+					if self.peek(0).kind == ROUND_BRACKET_OPEN {
 						let cpscope = pscope + 1;
 						let pstart = self.current + 1;
 						loop {
@@ -405,7 +426,7 @@ impl ParserInfo {
 					})
 				}
 				NUMBER | STRING | TRUE | FALSE | NIL => {
-					if t.isVar(self.current, start, end, &self.peek()) {
+					if t.isVar(self.current, start, end, &self.peek(0)) {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: t.kind,
@@ -454,7 +475,7 @@ impl ParserInfo {
 					})
 				}
 				DOLLAR => {
-					let nt = self.peek();
+					let nt = self.peek(0);
 					let mut num: u8 = 1;
 					if self.current != end && nt.kind == NUMBER {
 						num = nt.lexeme.parse().unwrap();
@@ -489,7 +510,37 @@ impl ParserInfo {
 		loop {
 			let t = self.advance();
 			match t.kind {
-
+				IDENTIFIER => {
+					expr.push(VALUE {
+						kind: IDENTIFIER,
+						line: self.getLine(),
+						value: t.lexeme
+					})
+				}
+				DOT => {self.checkIndex(&t, &mut expr)?}
+				METHOD => {
+					self.checkIndex(&t, &mut expr)?;
+					if self.peek(1).kind != CURLY_BRACKET_OPEN {
+						return Err(self.error(self.expected("(", &self.peek(1).lexeme)))
+					}
+				}
+				SQUARE_BRACKET_OPEN => {
+					let mut qscope = 1u8;
+					let start = self.current;
+					loop {
+						match self.advance().kind {
+							SQUARE_BRACKET_OPEN => {qscope += 1}
+							SQUARE_BRACKET_CLOSED => {
+								qscope -= 1;
+								if qscope == 0 {break}
+							}
+							EOF => {return Err(self.expectedBefore("]", "<eof>"))}
+							_ => {}
+						}
+					}
+					expr.append(&mut self.buildExpression(start, self.current - 1)?)
+				}
+				_ => {}
 			}
 		}
 		Ok(expr)
@@ -550,7 +601,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				let expr: Expression = Vec::new();
 
 				/*let line: u32 = i.getLine();
-				let p = i.peek();
+				let p = i.peek(0);
 				match p.kind {
 					ROUND_BRACKET_OPEN => {
 						i.current -= 1;
@@ -599,7 +650,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						drop(check);
 						let values: Vec<Expression> = i.findExpressions()?;
 						if names.len() != values.len() {
-							return Err(i.expectedBefore("<expr>", &i.peek().lexeme))
+							return Err(i.expectedBefore("<expr>", &i.peek(0).lexeme))
 						}
 						let mut tuples: Vec<(String, Expression)> = Vec::new();
 						let mut it: usize = 0;
@@ -636,7 +687,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				let call = i.buildCall(fname)?;
 				i.expr.push(call);
 				i.current += 1;
-				if i.compare(SEMICOLON) {i.current += 1}
+				i.advanceIf(SEMICOLON);
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}

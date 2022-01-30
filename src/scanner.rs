@@ -2,7 +2,7 @@
 
 use self::TokenType::*;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenType {
 	//symbols
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED,
