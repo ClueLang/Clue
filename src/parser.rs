@@ -56,7 +56,6 @@ pub enum ComplexToken {
 }
 
 fn IsVar(current: usize, start: usize, end: usize, nt: &Token) -> bool {
-	println!("{} {} {} {:#?}", current, start, end, nt);
 	current == end || nt.isOp()
 }
 
@@ -320,8 +319,8 @@ impl ParserInfo {
 
 	fn checkIndex(&self, t: &Token, expr: &mut Expression) -> Result<(), String> {
 		if self.peek(0).kind != IDENTIFIER || match self.lookBack(0).kind {
-			IDENTIFIER | SQUARE_BRACKET_CLOSED => false,
-			_ => true
+			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
+			_ => false
 		} {
 			return Err(self.error(format!("'{}' should be used only when indexing tables.", t.lexeme)))
 		}
@@ -342,39 +341,17 @@ impl ParserInfo {
 			let t = self.advance();
 			match t.kind {
 				IDENTIFIER => {
-					/*let line: u32 = self.getLine();
+					let mut fname = self.buildIdentifier()?;
+					self.current -= 1;
 					if self.compare(ROUND_BRACKET_OPEN) {
 						self.current -= 1;
-						let mut fname = Expression::new();
-						fname.push(VALUE {
-							value: t.lexeme,
-							kind: IDENTIFIER,
-							line
-						});
 						expr.push(self.buildCall(fname)?);
 						self.current += 1;
 					} else if IsVar(self.current, start, end, &self.peek(0)) {
-						expr.push(VALUE {
-							value: t.lexeme,
-							kind: IDENTIFIER,
-							line
-						})
-					} else {
-						return Err(self.unexpected(t.lexeme.as_str()))
-					}*/
-					let ident = self.buildIdentifier();
-
+						expr.append(&mut fname);
+					} else {return Err(self.unexpected(t.lexeme.as_str()))}
 				}
-				DOT => {self.checkIndex(&t, &mut expr)?}
-				METHOD => {
-					self.checkIndex(&t, &mut expr)?;
-					if self.peek(1).kind != CURLY_BRACKET_OPEN {
-						return Err(self.error(self.expected("(", &self.peek(1).lexeme)))
-					}
-				}
-				CURLY_BRACKET_OPEN => {
-					expr.push(self.buildTable()?);
-				}
+				CURLY_BRACKET_OPEN => {expr.push(self.buildTable()?)}
 				PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
 				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
 					self.checkOperator(&t, start, end)?;
@@ -528,8 +505,8 @@ impl ParserInfo {
 				DOT => {self.checkIndex(&t, &mut expr)?}
 				METHOD => {
 					self.checkIndex(&t, &mut expr)?;
-					if self.peek(1).kind != CURLY_BRACKET_OPEN {
-						return Err(self.error(self.expected("(", &self.peek(1).lexeme)))
+					if self.peek(1).kind != ROUND_BRACKET_OPEN {
+						return Err(self.expected("(", &self.peek(1).lexeme))
 					}
 				}
 				SQUARE_BRACKET_OPEN => {
@@ -546,7 +523,19 @@ impl ParserInfo {
 							_ => {}
 						}
 					}
-					expr.append(&mut self.buildExpression(start, self.current - 1)?)
+					let mut qexpr: &mut Expression = &mut self.buildExpression(start, self.current - 1)?;
+					qexpr.push(CHAR {
+						kind: SQUARE_BRACKET_CLOSED,
+						lexeme: String::from("]"),
+						line: t.line
+					});
+					qexpr.insert(0, CHAR {
+						kind: SQUARE_BRACKET_OPEN,
+						lexeme: String::from("["),
+						line: t.line
+					});
+					expr.append(&mut qexpr);
+					self.current += 1;
 				}
 				_ => {break}
 			}
