@@ -343,11 +343,7 @@ impl ParserInfo {
 				IDENTIFIER => {
 					let mut fname = self.buildIdentifier()?;
 					self.current -= 1;
-					if self.compare(ROUND_BRACKET_OPEN) {
-						self.current -= 1;
-						expr.push(self.buildCall(fname)?);
-						self.current += 1;
-					} else if IsVar(self.current, start, end, &self.peek(0)) {
+					if IsVar(self.current, start, end, &self.peek(0)) {
 						expr.append(&mut fname);
 					} else {return Err(self.unexpected(t.lexeme.as_str()))}
 				}
@@ -535,6 +531,13 @@ impl ParserInfo {
 						line: t.line
 					});
 					expr.append(&mut qexpr);
+					self.current += 1;
+				}
+				ROUND_BRACKET_OPEN => {
+					let mut fname = Expression::new();
+					fname.append(&mut expr);
+					self.current -= 2;
+					expr.push(self.buildCall(fname)?);
 					self.current += 1;
 				}
 				_ => {break}
