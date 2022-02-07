@@ -22,7 +22,7 @@ pub enum TokenType {
 	IDENTIFIER, NUMBER, STRING,
 	
 	//keywords
-	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, EXTERN,
+	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL,
 	UNTIL, GOTO, LOCAL, FUNCTION, RETURN, THIS, TRUE, FALSE, NIL, LOOP,
 	
 	EOF
@@ -260,7 +260,6 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"while" => WHILE,
 						"meta" => META,
 						"global" => GLOBAL,
-						"extern" => EXTERN,
 						"until" => UNTIL,
 						"goto" => GOTO,
 						"local" => LOCAL,

@@ -50,13 +50,11 @@ pub enum ComplexToken {
 		metas: Vec<(String, Expression)>
 	},
 
-	PGET {
-		toGet: Expression
-	}
+	PGET (Expression)
 }
 
-fn IsVar(current: usize, start: usize, end: usize, nt: &Token) -> bool {
-	current == end || nt.isOp()
+fn IsVar(current: usize, end: usize, nt: &Token) -> bool {
+	current == end || nt.isOp() || nt.kind == ROUND_BRACKET_CLOSED
 }
 
 struct ParserInfo {
@@ -301,14 +299,14 @@ impl ParserInfo {
 		let pt: TokenType = self.lookBack(1).kind;
 		let nt: TokenType = self.peek(0).kind;
 		if match pt {
-			NUMBER | IDENTIFIER | STRING | DOLLAR |
+			NUMBER | IDENTIFIER | STRING | DOLLAR | TRUE | FALSE | NIL |
 			ROUND_BRACKET_CLOSED | SQUARE_BRACKET_CLOSED => false,
 			_ => true
 		} {
 			return Err(self.error(format!("Operator '{}' has invalid left hand token", t.lexeme)))
 		}
 		if match nt {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET |
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | NIL |
 			ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
 			_ => true
 		} {
@@ -343,9 +341,16 @@ impl ParserInfo {
 				IDENTIFIER => {
 					let mut fname = self.buildIdentifier()?;
 					self.current -= 1;
-					if IsVar(self.current, start, end, &self.peek(0)) {
+					if IsVar(self.current, end, &self.peek(0)) {
 						expr.append(&mut fname);
 					} else {return Err(self.unexpected(t.lexeme.as_str()))}
+				}
+				DOT => {self.checkIndex(&t, &mut expr)?}
+				METHOD => {
+					self.checkIndex(&t, &mut expr)?;
+					if self.peek(1).kind != ROUND_BRACKET_OPEN {
+						return Err(self.expected("(", &self.peek(1).lexeme))
+					}
 				}
 				CURLY_BRACKET_OPEN => {expr.push(self.buildTable()?)}
 				PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
@@ -373,9 +378,7 @@ impl ParserInfo {
 								_ => {}
 							}
 						}
-						expr.push(PGET {
-							toGet: self.buildExpression(pstart, self.current - 1)?
-						});
+						expr.push(PGET (self.buildExpression(pstart, self.current - 1)?));
 						self.current += 1;
 					} else {
 						return Err(self.unexpected("?>"))
@@ -406,7 +409,7 @@ impl ParserInfo {
 					})
 				}
 				NUMBER | STRING | TRUE | FALSE | NIL => {
-					if IsVar(self.current, start, end, &self.peek(0)) {
+					if IsVar(self.current, end, &self.peek(0)) {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: t.kind,
@@ -461,7 +464,7 @@ impl ParserInfo {
 						num = nt.lexeme.parse().unwrap();
 						self.current += 1;
 					}
-					if IsVar(self.current, start, end, &self.peek(0)) {
+					if IsVar(self.current, end, &self.peek(0)) {
 						expr.push(PSEUDO {
 							num,
 							line: self.getLine()
