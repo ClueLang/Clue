@@ -330,16 +330,49 @@ impl ParserInfo {
 		Ok(())
 	}
 
+	fn buildDelimitedExpression(&mut self, square: bool) -> Result<Expression, String> {
+		let mut pscope = 0u8;
+		let pstart = self.current + 1;
+		if square {
+			loop {
+				let nt = self.advance().kind;
+				match nt {
+					SQUARE_BRACKET_OPEN => {pscope += 1}
+					SQUARE_BRACKET_CLOSED => {
+						pscope -= 1;
+						if pscope == 0 {break}
+					}
+					EOF => {return Err(self.expectedBefore("]", "<eof>"))}
+					_ => {}
+				}
+			}
+		} else {
+			loop {
+				let nt = self.advance().kind;
+				match nt {
+					ROUND_BRACKET_OPEN => {pscope += 1}
+					ROUND_BRACKET_CLOSED => {
+						pscope -= 1;
+						if pscope == 0 {break}
+					}
+					EOF => {return Err(self.expectedBefore(")", "<eof>"))}
+					_ => {}
+				}
+			}
+		}
+		self.buildExpression(pstart, self.current - 1)
+	}
+
 	fn buildExpression(&mut self, start: usize, end: usize) -> Result<Expression, String> {
 		let mut expr = Expression::new();
-		let mut pscope: u8 = 0;
-		let mut qscope: u8 = 0;
+		//let mut pscope: u8 = 0;
+		//let mut qscope: u8 = 0;
 		self.current = start;
 		while self.current < end {
 			let t = self.advance();
 			match t.kind {
 				IDENTIFIER => {
-					let mut fname = self.buildIdentifier()?;
+					let mut fname = self.buildIdentifier(true)?;
 					self.current -= 1;
 					if IsVar(self.current, end, &self.peek(0)) {
 						expr.append(&mut fname);
@@ -364,21 +397,7 @@ impl ParserInfo {
 				}
 				PROTECTED_GET => {
 					if self.peek(0).kind == ROUND_BRACKET_OPEN {
-						let cpscope = pscope + 1;
-						let pstart = self.current + 1;
-						loop {
-							let nt = self.advance().kind;
-							match nt {
-								ROUND_BRACKET_OPEN => {pscope += 1}
-								ROUND_BRACKET_CLOSED => {
-									if pscope == cpscope {pscope -= 1; break}
-									pscope -= 1;
-								}
-								EOF => {return Err(self.expectedBefore(")", "<eof>"))}
-								_ => {}
-							}
-						}
-						expr.push(PGET (self.buildExpression(pstart, self.current - 1)?));
+						expr.push(PGET (self.buildDelimitedExpression(false)?));
 						self.current += 1;
 					} else {
 						return Err(self.unexpected("?>"))
@@ -419,7 +438,7 @@ impl ParserInfo {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
-				ROUND_BRACKET_OPEN => {
+				/*ROUND_BRACKET_OPEN => {
 					pscope += 1;
 					expr.push(CHAR {
 						kind: CURLY_BRACKET_OPEN,
@@ -456,7 +475,7 @@ impl ParserInfo {
 						lexeme: "]".to_string(),
 						line: self.getLine()
 					})
-				}
+				}*/
 				DOLLAR => {
 					let nt = self.peek(0);
 					let mut num: u8 = 1;
@@ -479,16 +498,16 @@ impl ParserInfo {
 		if expr.len() == 0 {
 			return Err(self.unexpected(self.at(end).lexeme.as_str()))
 		}
-		if pscope > 0 {
+		/*if pscope > 0 {
 			return Err(self.expectedBefore(")", self.at(end - 1).lexeme.as_str()))
 		}
 		if qscope > 0 {
 			return Err(self.expectedBefore(")", self.at(end - 1).lexeme.as_str()))
-		}
+		}*/
 		Ok(expr)
 	}
 
-	fn buildIdentifier(&mut self) -> Result<Expression, String> {
+	fn buildIdentifier(&mut self, dofuncs: bool) -> Result<Expression, String> {
 		let mut expr = Expression::new();
 		self.current -= 1;
 		loop {
@@ -537,6 +556,7 @@ impl ParserInfo {
 					self.current += 1;
 				}
 				ROUND_BRACKET_OPEN => {
+					if !dofuncs {return Err(self.error(String::from("You can't call functions here.")))}
 					let mut fname = Expression::new();
 					fname.append(&mut expr);
 					self.current -= 2;
