@@ -54,7 +54,8 @@ pub enum ComplexToken {
 }
 
 fn IsVar(current: usize, end: usize, nt: &Token) -> bool {
-	current == end || nt.isOp() || nt.kind == ROUND_BRACKET_CLOSED
+	println!("{} {} {:?}", current, end , nt);
+	current >= end || nt.isOp() || nt.kind == ROUND_BRACKET_CLOSED
 }
 
 struct ParserInfo {
@@ -192,7 +193,7 @@ impl ParserInfo {
 				self.current += 1;
 			}
 			values.push(self.buildExpression(start, self.current)?);
-			match self.peek(0).kind {
+			match self.lookBack(0).kind {
 				COMMA => {self.current += 1}
 				SEMICOLON => {break}
 				_ => {}
@@ -365,8 +366,6 @@ impl ParserInfo {
 
 	fn buildExpression(&mut self, start: usize, end: usize) -> Result<Expression, String> {
 		let mut expr = Expression::new();
-		//let mut pscope: u8 = 0;
-		//let mut qscope: u8 = 0;
 		self.current = start;
 		while self.current < end {
 			let t = self.advance();
@@ -438,44 +437,25 @@ impl ParserInfo {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
-				/*ROUND_BRACKET_OPEN => {
-					pscope += 1;
+				ROUND_BRACKET_OPEN => {
 					expr.push(CHAR {
-						kind: CURLY_BRACKET_OPEN,
-						lexeme: "(".to_string(),
+						kind: ROUND_BRACKET_OPEN,
+						lexeme: String::from("("),
+						line: t.line
+					});
+					self.current -= 1;
+					expr.append(&mut self.buildDelimitedExpression(false)?);
+					expr.push(CHAR {
+						kind: ROUND_BRACKET_CLOSED,
+						lexeme: String::from(")"),
 						line: self.getLine()
-					})
+					});
+					self.current += 2;
+					let mut fname = self.buildIdentifier(true)?;
+					if IsVar(self.current, end, &self.peek(0)) {
+						expr.append(&mut fname);
+					} else {return Err(self.unexpected(t.lexeme.as_str()))}
 				}
-				ROUND_BRACKET_CLOSED => {
-					if pscope == 0 {
-						return Err(self.unexpected(")"))
-					}
-					pscope -= 1;
-					expr.push(CHAR {
-						kind: CURLY_BRACKET_CLOSED,
-						lexeme: ")".to_string(),
-						line: self.getLine()
-					})
-				}
-				SQUARE_BRACKET_OPEN => {
-					qscope += 1;
-					expr.push(CHAR {
-						kind: SQUARE_BRACKET_OPEN,
-						lexeme: "[".to_string(),
-						line: self.getLine()
-					})
-				}
-				SQUARE_BRACKET_CLOSED => {
-					if qscope == 0 {
-						return Err(self.unexpected("]"))
-					}
-					qscope -= 1;
-					expr.push(CHAR {
-						kind: SQUARE_BRACKET_CLOSED,
-						lexeme: "]".to_string(),
-						line: self.getLine()
-					})
-				}*/
 				DOLLAR => {
 					let nt = self.peek(0);
 					let mut num: u8 = 1;
@@ -498,12 +478,6 @@ impl ParserInfo {
 		if expr.len() == 0 {
 			return Err(self.unexpected(self.at(end).lexeme.as_str()))
 		}
-		/*if pscope > 0 {
-			return Err(self.expectedBefore(")", self.at(end - 1).lexeme.as_str()))
-		}
-		if qscope > 0 {
-			return Err(self.expectedBefore(")", self.at(end - 1).lexeme.as_str()))
-		}*/
 		Ok(expr)
 	}
 
@@ -528,20 +502,7 @@ impl ParserInfo {
 					}
 				}
 				SQUARE_BRACKET_OPEN => {
-					let mut qscope = 1u8;
-					let start = self.current;
-					loop {
-						match self.advance().kind {
-							SQUARE_BRACKET_OPEN => {qscope += 1}
-							SQUARE_BRACKET_CLOSED => {
-								qscope -= 1;
-								if qscope == 0 {break}
-							}
-							EOF => {return Err(self.expectedBefore("]", "<eof>"))}
-							_ => {}
-						}
-					}
-					let mut qexpr: &mut Expression = &mut self.buildExpression(start, self.current - 1)?;
+					let mut qexpr: &mut Expression = &mut self.buildDelimitedExpression(true)?;
 					qexpr.push(CHAR {
 						kind: SQUARE_BRACKET_CLOSED,
 						lexeme: String::from("]"),
