@@ -191,8 +191,10 @@ impl ParserInfo {
 			} {
 				self.current += 1;
 			}
+			println!("a {} {}", start, self.current);
 			values.push(self.buildExpression(start, self.current)?);
-			match self.lookBack(0).kind {
+			println!("{:#?}", self.peek(0));
+			match self.peek(0).kind {
 				COMMA => {self.current += 1}
 				SEMICOLON => {break}
 				_ => {}
@@ -331,6 +333,7 @@ impl ParserInfo {
 	}
 
 	fn buildDelimitedExpression(&mut self, square: bool) -> Result<Expression, String> {
+		self.current -= 1;
 		let mut pscope = 0u8;
 		let pstart = self.current + 1;
 		if square {
@@ -364,6 +367,7 @@ impl ParserInfo {
 	}
 
 	fn buildExpression(&mut self, start: usize, end: usize) -> Result<Expression, String> {
+		println!("{} {}", start, end);
 		let mut expr = Expression::new();
 		self.current = start;
 		while self.current < end {
@@ -375,13 +379,6 @@ impl ParserInfo {
 					if IsVar(self.current, end, &self.peek(0)) {
 						expr.append(&mut fname);
 					} else {return Err(self.unexpected(t.lexeme.as_str()))}
-				}
-				DOT => {self.checkIndex(&t, &mut expr)?}
-				METHOD => {
-					self.checkIndex(&t, &mut expr)?;
-					if self.peek(1).kind != ROUND_BRACKET_OPEN {
-						return Err(self.expected("(", &self.peek(1).lexeme))
-					}
 				}
 				CURLY_BRACKET_OPEN => {expr.push(self.buildTable()?)}
 				PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
@@ -442,7 +439,6 @@ impl ParserInfo {
 						lexeme: String::from("("),
 						line: t.line
 					});
-					self.current -= 1;
 					expr.append(&mut self.buildDelimitedExpression(false)?);
 					expr.push(CHAR {
 						kind: ROUND_BRACKET_CLOSED,
@@ -454,6 +450,7 @@ impl ParserInfo {
 					if IsVar(self.current, end, &self.peek(0)) {
 						expr.append(&mut fname);
 					} else {return Err(self.unexpected(t.lexeme.as_str()))}
+					self.current -= 1;
 				}
 				DOLLAR => {
 					let nt = self.peek(0);
