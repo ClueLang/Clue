@@ -54,7 +54,6 @@ pub enum ComplexToken {
 }
 
 fn IsVar(current: usize, end: usize, nt: &Token) -> bool {
-	println!("{} {} {:?}", current, end , nt);
 	current >= end || nt.isOp() || nt.kind == ROUND_BRACKET_CLOSED
 }
 
