@@ -76,7 +76,7 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version a1.0.46");
+		println!("Version a1.0.49");
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);

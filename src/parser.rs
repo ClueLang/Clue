@@ -30,10 +30,7 @@ pub enum ComplexToken {
 		line: u32,
 	},
 
-	CALL {
-		name: Expression,
-		args: Vec<Expression>,
-	},
+	CALL(Vec<Expression>),
 
 	FUNCTION {
 		args: Vec<String>,
@@ -50,7 +47,7 @@ pub enum ComplexToken {
 		metas: Vec<(String, Expression)>
 	},
 
-	PGET (Expression)
+	PGET(Expression)
 }
 
 fn IsVar(current: usize, end: usize, nt: &Token) -> bool {
@@ -133,7 +130,7 @@ impl ParserInfo {
 		true
 	}
 
-	fn buildCall(&mut self, name: Expression) -> Result<ComplexToken, String> {
+	fn buildCall(&mut self) -> Result<ComplexToken, String> {
 		let mut args: Vec<Expression> = Vec::new();
 		let mut start: usize = self.current + 2;
 		let mut pscope: u8 = 0;
@@ -174,10 +171,7 @@ impl ParserInfo {
 			self.current += 1;
 			start = self.current;
 		}
-		Ok(CALL {
-			name: name,
-			args: args,
-		})
+		Ok(CALL(args))
 	}
 
 	fn findExpressions(&mut self) -> Result<Vec<Expression>, String> {
@@ -191,9 +185,7 @@ impl ParserInfo {
 			} {
 				self.current += 1;
 			}
-			println!("a {} {}", start, self.current);
 			values.push(self.buildExpression(start, self.current)?);
-			println!("{:#?}", self.peek(0));
 			match self.peek(0).kind {
 				COMMA => {self.current += 1}
 				SEMICOLON => {break}
@@ -298,18 +290,18 @@ impl ParserInfo {
 		if self.current == end {
 			return Err(self.error(format!("Operator '{}' not expected at the end of expression", t.lexeme)))
 		}
-		let pt: TokenType = self.lookBack(1).kind;
+		//let pt: TokenType = self.lookBack(1).kind;
 		let nt: TokenType = self.peek(0).kind;
-		if match pt {
+		/*if match pt {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | TRUE | FALSE | NIL |
 			ROUND_BRACKET_CLOSED | SQUARE_BRACKET_CLOSED => false,
 			_ => true
 		} {
 			return Err(self.error(format!("Operator '{}' has invalid left hand token", t.lexeme)))
-		}
+		}*/
 		if match nt {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | NIL |
-			ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
+			MINUS | NOT | ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
 			_ => true
 		} {
 			return Err(self.error(format!("Operator '{}' has invalid right hand token", t.lexeme)))
@@ -367,7 +359,6 @@ impl ParserInfo {
 	}
 
 	fn buildExpression(&mut self, start: usize, end: usize) -> Result<Expression, String> {
-		println!("{} {}", start, end);
 		let mut expr = Expression::new();
 		self.current = start;
 		while self.current < end {
@@ -392,7 +383,7 @@ impl ParserInfo {
 				}
 				PROTECTED_GET => {
 					if self.peek(0).kind == ROUND_BRACKET_OPEN {
-						expr.push(PGET (self.buildDelimitedExpression(false)?));
+						expr.push(PGET(self.buildDelimitedExpression(false)?));
 						self.current += 1;
 					} else {
 						return Err(self.unexpected("?>"))
@@ -415,7 +406,7 @@ impl ParserInfo {
 					})
 				}
 				NOT => {
-					self.checkOperator(&t, start, end)?; //todo: fix this little thing
+					self.checkOperator(&t, usize::MAX, end)?;
 					expr.push(CHAR {
 						kind: t.kind,
 						lexeme: String::from("not"),
@@ -447,9 +438,7 @@ impl ParserInfo {
 					});
 					self.current += 2;
 					let mut fname = self.buildIdentifier(true)?;
-					if IsVar(self.current, end, &self.peek(0)) {
-						expr.append(&mut fname);
-					} else {return Err(self.unexpected(t.lexeme.as_str()))}
+					expr.append(&mut fname);
 					self.current -= 1;
 				}
 				DOLLAR => {
@@ -484,6 +473,10 @@ impl ParserInfo {
 			let t = self.advance();
 			match t.kind {
 				IDENTIFIER => {
+					let nt = self.peek(0);
+					if nt.kind == IDENTIFIER {
+						return Err(self.unexpected(&nt.lexeme))
+					}
 					expr.push(VALUE {
 						kind: IDENTIFIER,
 						line: self.getLine(),
@@ -514,10 +507,8 @@ impl ParserInfo {
 				}
 				ROUND_BRACKET_OPEN => {
 					if !dofuncs {return Err(self.error(String::from("You can't call functions here.")))}
-					let mut fname = Expression::new();
-					fname.append(&mut expr);
 					self.current -= 2;
-					expr.push(self.buildCall(fname)?);
+					expr.push(self.buildCall()?);
 					self.current += 1;
 				}
 				_ => {break}
@@ -662,8 +653,9 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						_ => {}
 					}
 				}
-				let fname = i.buildExpression(start, i.current - 1)?;
-				let call = i.buildCall(fname)?;
+				let fname = &mut i.buildExpression(start, i.current - 1)?;
+				let call = i.buildCall()?;
+				i.expr.append(fname);
 				i.expr.push(call);
 				i.current += 1;
 				i.advanceIf(SEMICOLON);
