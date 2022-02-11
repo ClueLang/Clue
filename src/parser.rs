@@ -569,8 +569,23 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.current += 1;
 			}
 			IDENTIFIER => {
-				let expr: Expression = Vec::new();
-
+				let line = i.getLine();
+				let p = i.peek(0);
+				match p.kind {
+					ROUND_BRACKET_OPEN => {
+						i.expr.push(VALUE {
+							value: t.lexeme,
+							kind: IDENTIFIER,
+							line: line
+						});
+						i.current -= 1;
+						let call = i.buildCall()?;
+						i.expr.push(call);
+						i.current += 1;
+						i.advanceIf(SEMICOLON);
+					}
+					_ => {}
+				}
 				/*let line: u32 = i.getLine();
 				let p = i.peek(0);
 				match p.kind {
