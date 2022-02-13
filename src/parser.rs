@@ -199,6 +199,35 @@ impl ParserInfo {
 		let mut values: Vec<(Expression, Expression)> = Vec::new();
 		let mut metas: Vec<(String, Expression)> = Vec::new();
 		loop {
+			if self.advanceIf(CURLY_BRACKET_CLOSED) {break}
+			let start = self.current;
+			let mut qscope = 1u8;
+			let mut iskey = false;
+			while match self.peek(0).kind {
+				CURLY_BRACKET_OPEN => {
+					qscope += 1;
+					true
+				}
+				CURLY_BRACKET_CLOSED => {
+					qscope -= 1;
+					qscope != 0
+				}
+				COMMA => qscope != 1,
+				DEFINE => {
+					iskey = true;
+					false
+				}
+				EOF => {return Err(self.expectedBefore("}", "<eof>"))}
+				_ => true
+			} {
+				self.current += 1;
+			}
+			if !iskey {
+				values.push((Expression::new(), self.buildExpression(start, self.current)?));
+				self.advanceIf(COMMA);
+				continue
+			}
+			self.current = start;
 			let name: Result<Expression, String>;
 			let pn = self.advance();
 			match pn.kind {
@@ -209,9 +238,8 @@ impl ParserInfo {
 						value: pn.lexeme.clone()
 					}]);
 				}
-				CURLY_BRACKET_CLOSED => {break}
 				SQUARE_BRACKET_OPEN => {
-					let mut qscope: u8 = 1;
+					let mut qscope = 1u8;
 					let start = self.current;
 					while match self.advance().kind {
 						SQUARE_BRACKET_OPEN => {qscope += 1; true}
