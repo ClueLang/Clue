@@ -584,7 +584,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					SEMICOLON => {areInit = false},
 					_ => {return Err(i.expected("=", &check.lexeme))}
 				};
-				drop(check);
 				let values: Vec<Expression> = if !areInit {Vec::new()} else {i.findExpressions()?};
 				let mut tuples: Vec<(String, Expression)> = Vec::new();
 				let mut it: usize = 0;
@@ -638,7 +637,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						if check < DEFINE as u8 || check > CONCATENATE as u8 {
 							return Err(i.expected("=", &checkt.lexeme))
 						}
-						drop(check);
 						let values: Vec<Expression> = i.findExpressions()?;
 						if names.len() != values.len() {
 							return Err(i.expectedBefore("<expr>", &i.peek(0).lexeme))
