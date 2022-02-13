@@ -507,6 +507,7 @@ impl ParserInfo {
 				}
 				DOT => {self.checkIndex(&t, &mut expr)?}
 				METHOD => {
+					if !dofuncs {return Err(self.error(String::from("You can't call methods here.")))}
 					self.checkIndex(&t, &mut expr)?;
 					if self.peek(1).kind != ROUND_BRACKET_OPEN {
 						return Err(self.expected("(", &self.peek(1).lexeme))
