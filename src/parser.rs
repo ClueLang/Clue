@@ -584,7 +584,36 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						i.current += 1;
 						i.advanceIf(SEMICOLON);
 					}
-					_ => {}
+					_ => {
+						let mut names: Vec<Expression> = Vec::new();
+						while {
+							names.push(i.buildIdentifier(false)?);
+							i.current += 1;
+							i.lookBack(1).kind == COMMA
+						} {}
+						i.current -= 1;
+						let checkt = i.lookBack(0);
+						let check = checkt.kind.clone() as u8;
+						if check < DEFINE as u8 || check > CONCATENATE as u8 {
+							return Err(i.expected("=", &checkt.lexeme))
+						}
+						drop(check);
+						let values: Vec<Expression> = i.findExpressions()?;
+						if names.len() != values.len() {
+							return Err(i.expectedBefore("<expr>", &i.peek(0).lexeme))
+						}
+						let mut tuples: Vec<(Expression, Expression)> = Vec::new();
+						let mut it: usize = 0;
+						for name in names.iter() {
+							tuples.push((name.clone(), values.get(it).unwrap().clone()));
+							it += 1;
+						}
+						i.expr.push(ALTER {
+							kind: checkt.kind,
+							values: tuples
+						});
+						i.current += 1;
+					}
 				}
 				/*let line: u32 = i.getLine();
 				let p = i.peek(0);
