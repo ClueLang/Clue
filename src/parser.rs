@@ -290,15 +290,7 @@ impl ParserInfo {
 		if self.current == end {
 			return Err(self.error(format!("Operator '{}' not expected at the end of expression", t.lexeme)))
 		}
-		//let pt: TokenType = self.lookBack(1).kind;
 		let nt: TokenType = self.peek(0).kind;
-		/*if match pt {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | TRUE | FALSE | NIL |
-			ROUND_BRACKET_CLOSED | SQUARE_BRACKET_CLOSED => false,
-			_ => true
-		} {
-			return Err(self.error(format!("Operator '{}' has invalid left hand token", t.lexeme)))
-		}*/
 		if match nt {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | NIL |
 			MINUS | NOT | ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
