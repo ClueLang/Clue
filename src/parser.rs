@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 use crate::scanner::Token;
 use crate::scanner::TokenType;
 use crate::scanner::TokenType::*;
@@ -30,8 +32,6 @@ pub enum ComplexToken {
 		line: u32,
 	},
 
-	CALL(Vec<Expression>),
-
 	FUNCTION {
 		args: Vec<String>,
 		code: Expression
@@ -47,7 +47,9 @@ pub enum ComplexToken {
 		metas: Vec<(String, Expression)>
 	},
 
-	PGET(Expression)
+	CALL(Vec<Expression>),
+	PGET(Expression),
+	DO_BLOCK(Expression)
 }
 
 fn IsVar(current: usize, end: usize, nt: &Token) -> bool {
@@ -536,6 +538,25 @@ impl ParserInfo {
 		}
 		Ok(expr)
 	}
+
+	fn buildCodeBlock(&mut self) -> Result<Expression, String> {
+		let mut tokens: Vec<Token> = Vec::new();
+		let mut qscope = 1u8;
+		loop {
+			let t = self.advance();
+			match t.kind {
+				CURLY_BRACKET_OPEN => {qscope += 1}
+				CURLY_BRACKET_CLOSED => {
+					qscope -= 1;
+					if qscope == 0 {break}
+				}
+				EOF => {return Err(self.expectedBefore("}", "<eof>"))}
+				_ => {}
+			}
+			tokens.push(t);
+		}
+		ParseTokens(tokens, self.filename.clone())
+	}
 }
 
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
@@ -658,6 +679,10 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.expr.push(call);
 				i.current += 1;
 				i.advanceIf(SEMICOLON);
+			}
+			CURLY_BRACKET_OPEN => {
+				let block = i.buildCodeBlock()?;
+				i.expr.push(DO_BLOCK(block));
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}
