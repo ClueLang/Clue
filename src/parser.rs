@@ -140,53 +140,24 @@ impl ParserInfo {
 	}
 
 	fn buildCall(&mut self) -> Result<ComplexToken, String> {
-		let mut args: Vec<Expression> = Vec::new();
-		let mut start: usize = self.current + 2;
-		let mut pscope: u8 = 0;
-		let mut ended: bool = false;
-		loop {
-			loop {
-				let t = self.advance();
-				match t.kind {
-					ROUND_BRACKET_OPEN => {pscope += 1}
-					ROUND_BRACKET_CLOSED => {
-						if pscope == 0 {continue}
-						pscope -= 1;
-						if pscope == 0 {
-							ended = true;
-							self.current -= 1;
-							break;
-						}
-					}
-					COMMA => {
-						if pscope > 1 {continue}
-						self.current -= 1;
-						break;
-					}
-					EOF => {return Err(self.expectedBefore(")", "<eof>"))}
-					_ => {}
-				}
+		self.current += 2;
+		let start = self.current;
+		let args = self.findExpressions(1, |t| {
+			match t {
+				COMMA => CHECK_BUILD,
+				ROUND_BRACKET_CLOSED => {
+					CHECK_STOP
+				},
+				_ => CHECK_CONTINUE
 			}
-			if start == self.current {
-				if args.len() > 0 {
-					return Err(self.error(String::from("Invalid empty function argument found")))
-				}
-				break
-			}
-			args.push(self.buildExpression(start, self.current)?);
-			if ended {
-				break;
-			}
-			self.current += 1;
-			start = self.current;
-		}
+		})?;
 		Ok(CALL(args))
 	}
 
-	fn findExpressions(&mut self, check: impl Fn(TokenType) -> CheckResult) -> Result<Vec<Expression>, String> {
+	fn findExpressions(&mut self, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<Vec<Expression>, String> {
 		let mut values: Vec<Expression> = Vec::new();
 		let mut stop = false;
-		let mut pscope = 0u8;
+		let mut pscope = scope;
 		let mut qscope = 0u8;
 		let mut cscope = 0u8;
 		loop {
@@ -212,7 +183,8 @@ impl ParserInfo {
 					EOF => {return Err(self.expectedBefore(";", "<eof>"))}
 					_ => {}
 				}
-				if pscope + qscope + cscope == 0 {
+				let allscope = pscope + qscope + cscope;
+				if allscope <= scope {
 					match check(t) {
 						CHECK_CONTINUE => {}
 						CHECK_BUILD => {
@@ -221,31 +193,21 @@ impl ParserInfo {
 							break;
 						}
 						CHECK_STOP => {
-							values.push(self.buildExpression(start, self.current)?);
-							stop = true;
-							break;
+							let isexpr = self.current > start;
+							if allscope == 0 && isexpr {
+								values.push(self.buildExpression(start, self.current)?);
+								stop = true;
+								break;
+							} else if !isexpr {
+								stop = true;
+								break;
+							}
 						}
 					}
 				}
 				self.current += 1;
 			}
 			if stop {break}
-			/*let start = self.current;
-			while match self.peek(0).kind {
-				COMMA | SEMICOLON => false,
-				EOF => {return Err(self.expectedBefore(";", "<eof>"))}
-				_(tt) => {
-					check(tt)
-				}
-			} {
-				self.current += 1;
-			}
-			values.push(self.buildExpression(start, self.current)?);
-			match self.peek(0).kind {
-				COMMA => {self.current += 1}
-				SEMICOLON => {break}
-				_ => {}
-			}*/
 		}
 		Ok(values)
 	}
@@ -639,7 +601,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					_ => {return Err(i.expected("=", &check.lexeme))}
 				};
 				let values: Vec<Expression> = if !areInit {Vec::new()} else {
-					i.findExpressions(|t| {
+					i.findExpressions(0, |t| {
 						match t {
 							COMMA => CHECK_BUILD,
 							SEMICOLON => CHECK_STOP,
@@ -699,7 +661,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						if check < DEFINE as u8 || check > CONCATENATE as u8 {
 							return Err(i.expected("=", &checkt.lexeme))
 						}
-						let values: Vec<Expression> = i.findExpressions(|t| {
+						let values: Vec<Expression> = i.findExpressions(0, |t| {
 							match t {
 								COMMA => CHECK_BUILD,
 								SEMICOLON => CHECK_STOP,
