@@ -4,6 +4,7 @@ use crate::scanner::Token;
 use crate::scanner::TokenType;
 use crate::scanner::TokenType::*;
 use self::ComplexToken::*;
+use self::CheckResult::*;
 use std::cmp;
 
 type Expression = Vec<ComplexToken>;
@@ -50,6 +51,12 @@ pub enum ComplexToken {
 	CALL(Vec<Expression>),
 	PGET(Expression),
 	DO_BLOCK(Expression)
+}
+
+enum CheckResult {
+	CHECK_CONTINUE,
+	CHECK_BUILD,
+	CHECK_STOP
 }
 
 fn IsVar(current: usize, end: usize, nt: &Token) -> bool {
@@ -176,14 +183,60 @@ impl ParserInfo {
 		Ok(CALL(args))
 	}
 
-	fn findExpressions(&mut self) -> Result<Vec<Expression>, String> {
+	fn findExpressions(&mut self, check: impl Fn(TokenType) -> CheckResult) -> Result<Vec<Expression>, String> {
 		let mut values: Vec<Expression> = Vec::new();
+		let mut stop = false;
+		let mut pscope = 0u8;
+		let mut qscope = 0u8;
+		let mut cscope = 0u8;
 		loop {
 			let start = self.current;
+			loop {
+				let t = self.peek(0).kind;
+				match t {
+					ROUND_BRACKET_OPEN => {pscope += 1}
+					SQUARE_BRACKET_OPEN => {qscope += 1}
+					CURLY_BRACKET_OPEN => {cscope += 1}
+					ROUND_BRACKET_CLOSED => {
+						if pscope == 0 {return Err(self.expectedBefore("(", ")"))}
+						pscope -= 1;
+					}
+					SQUARE_BRACKET_CLOSED => {
+						if qscope == 0 {return Err(self.expectedBefore("[", "]"))}
+						qscope -= 1;
+					}
+					CURLY_BRACKET_CLOSED => {
+						if cscope == 0 {return Err(self.expectedBefore("{", "}"))}
+						cscope -= 1;
+					}
+					EOF => {return Err(self.expectedBefore(";", "<eof>"))}
+					_ => {}
+				}
+				if pscope + qscope + cscope == 0 {
+					match check(t) {
+						CHECK_CONTINUE => {}
+						CHECK_BUILD => {
+							values.push(self.buildExpression(start, self.current)?);
+							self.current += 1;
+							break;
+						}
+						CHECK_STOP => {
+							values.push(self.buildExpression(start, self.current)?);
+							stop = true;
+							break;
+						}
+					}
+				}
+				self.current += 1;
+			}
+			if stop {break}
+			/*let start = self.current;
 			while match self.peek(0).kind {
 				COMMA | SEMICOLON => false,
 				EOF => {return Err(self.expectedBefore(";", "<eof>"))}
-				_ => true
+				_(tt) => {
+					check(tt)
+				}
 			} {
 				self.current += 1;
 			}
@@ -192,7 +245,7 @@ impl ParserInfo {
 				COMMA => {self.current += 1}
 				SEMICOLON => {break}
 				_ => {}
-			}
+			}*/
 		}
 		Ok(values)
 	}
@@ -585,7 +638,15 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					SEMICOLON => {areInit = false},
 					_ => {return Err(i.expected("=", &check.lexeme))}
 				};
-				let values: Vec<Expression> = if !areInit {Vec::new()} else {i.findExpressions()?};
+				let values: Vec<Expression> = if !areInit {Vec::new()} else {
+					i.findExpressions(|t| {
+						match t {
+							COMMA => CHECK_BUILD,
+							SEMICOLON => CHECK_STOP,
+							_ => CHECK_CONTINUE
+						}
+					})?
+				};
 				let mut tuples: Vec<(String, Expression)> = Vec::new();
 				let mut it: usize = 0;
 				for name in names.iter() {
@@ -638,7 +699,13 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						if check < DEFINE as u8 || check > CONCATENATE as u8 {
 							return Err(i.expected("=", &checkt.lexeme))
 						}
-						let values: Vec<Expression> = i.findExpressions()?;
+						let values: Vec<Expression> = i.findExpressions(|t| {
+							match t {
+								COMMA => CHECK_BUILD,
+								SEMICOLON => CHECK_STOP,
+								_ => CHECK_CONTINUE
+							}
+						})?;
 						if names.len() != values.len() {
 							return Err(i.expectedBefore("<expr>", &i.peek(0).lexeme))
 						}
