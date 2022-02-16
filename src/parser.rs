@@ -33,11 +33,6 @@ pub enum ComplexToken {
 		line: u32,
 	},
 
-	FUNCTION {
-		args: Vec<String>,
-		code: Expression
-	},
-
 	PSEUDO {
 		num: u8,
 		line: u32
@@ -46,6 +41,11 @@ pub enum ComplexToken {
 	TABLE {
 		values: Vec<(Expression, Expression)>,
 		metas: Vec<(String, Expression)>
+	},
+
+	IF_STATEMENT {
+		condition: Expression,
+		code: Expression
 	},
 
 	CALL(Vec<Expression>),
@@ -58,6 +58,7 @@ enum CheckResult {
 	CHECK_BUILD,
 	CHECK_STOP,
 	CHECK_BACKSTOP,
+	CHECK_FORCESTOP,
 }
 
 fn IsVar(current: usize, end: usize, nt: &Token) -> bool {
@@ -146,7 +147,7 @@ impl ParserInfo {
 
 	fn buildCall(&mut self) -> Result<ComplexToken, String> {
 		self.current += 2;
-		let args = self.findExpressions(1, |t| {
+		let args = self.findExpressions(1, 0, 0, 1, |t| {
 			match t {
 				COMMA => CHECK_BUILD,
 				ROUND_BRACKET_CLOSED => CHECK_STOP,
@@ -199,12 +200,9 @@ impl ParserInfo {
 		}
 	}*/
 
-	fn findExpressions(&mut self, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<Vec<Expression>, String> {
+	fn findExpressions(&mut self, mut pscope: u8, mut qscope: u8, mut cscope: u8, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<Vec<Expression>, String> {
 		let mut values: Vec<Expression> = Vec::new();
 		let mut stop = false;
-		let mut pscope = scope;
-		let mut qscope = 0u8;
-		let mut cscope = 0u8;
 		loop {
 			let start = self.current;
 			loop {
@@ -260,6 +258,17 @@ impl ParserInfo {
 								break;
 							}
 						}
+						CHECK_FORCESTOP => {
+							if self.current > start {
+								values.push(self.buildExpression(start, self.current)?);
+								self.current += 1;
+								stop = true;
+								break;
+							} else {
+								stop = true;
+								break;
+							}
+						}
 					}
 				}
 				self.current += 1;
@@ -269,8 +278,14 @@ impl ParserInfo {
 		Ok(values)
 	}
 
-	fn findExpression(&mut self, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<Expression, String> {
-		Ok(self.findExpressions(scope, check)?.pop().unwrap())
+	fn findExpression(&mut self, pscope: u8, qscope: u8, cscope: u8, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<Expression, String> {
+		match self.findExpressions(pscope, qscope, cscope, scope, check)?.pop() {
+			Some(expr) => Ok(expr),
+			None => {
+				let t = self.peek(0).lexeme;
+				Err(self.expected("<expr>", &t))
+			}
+		}
 	}
 
 	fn buildTable(&mut self) -> Result<ComplexToken, String> {
@@ -640,7 +655,7 @@ impl ParserInfo {
 			}
 			tokens.push(t);
 		}
-		ParseTokens(tokens, self.filename.clone())
+		if tokens.is_empty() {Ok(Expression::new())} else {ParseTokens(tokens, self.filename.clone())}
 	}
 }
 
@@ -670,7 +685,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					_ => {return Err(i.expected("=", &check.lexeme))}
 				};
 				let values: Vec<Expression> = if !areInit {Vec::new()} else {
-					i.findExpressions(0, |t| {
+					i.findExpressions(0, 0, 0, 0, |t| {
 						match t {
 							COMMA => CHECK_BUILD,
 							SEMICOLON => CHECK_STOP,
@@ -705,7 +720,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				let start = i.current;
 				i.current -= 1;
 				i.testing = true;
-				let testexpr = i.findExpression(0, |t| {
+				let testexpr = i.findExpression(0, 0, 0, 0, |t| {
 					match t {
 						SEMICOLON => CHECK_BACKSTOP,
 						_ => CHECK_CONTINUE,
@@ -714,7 +729,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.testing = false;
 				match testexpr {
 					Ok(mut expr) => {i.expr.append(&mut expr); continue}
-					Err(a) => {i.current = start}
+					Err(_) => {i.current = start}
 				}
 				let mut names: Vec<Expression> = Vec::new();
 				while {
@@ -728,7 +743,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				if check < DEFINE as u8 || check > CONCATENATE as u8 {
 					return Err(i.expected("=", &checkt.lexeme))
 				}
-				let values: Vec<Expression> = i.findExpressions(0, |t| {
+				let values: Vec<Expression> = i.findExpressions(0, 0, 0, 0, |t| {
 					match t {
 						COMMA => CHECK_BUILD,
 						SEMICOLON => CHECK_STOP,
@@ -776,6 +791,16 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			CURLY_BRACKET_OPEN => {
 				let block = i.buildCodeBlock()?;
 				i.expr.push(DO_BLOCK(block));
+			}
+			IF => {
+				let condition = i.findExpression(0, 0, 0, 1, |t| {
+					match t {
+						CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
+						_ => CHECK_CONTINUE
+					}
+				})?;
+				let code = i.buildCodeBlock()?;
+				i.expr.push(IF_STATEMENT {condition, code})
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}
