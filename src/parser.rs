@@ -56,7 +56,8 @@ pub enum ComplexToken {
 enum CheckResult {
 	CHECK_CONTINUE,
 	CHECK_BUILD,
-	CHECK_STOP
+	CHECK_STOP,
+	CHECK_BACKSTOP,
 }
 
 fn IsVar(current: usize, end: usize, nt: &Token) -> bool {
@@ -68,7 +69,8 @@ struct ParserInfo {
 	size: usize,
 	tokens: Vec<Token>,
 	filename: String,
-	expr: Expression
+	expr: Expression,
+	testing: bool
 }
 
 impl ParserInfo {
@@ -78,7 +80,8 @@ impl ParserInfo {
 			size: tokens.len() - 1,
 			tokens: tokens,
 			filename: filename,
-			expr: Vec::new()
+			expr: Vec::new(),
+			testing: false
 		}
 	}
 
@@ -87,7 +90,9 @@ impl ParserInfo {
 	}
 
 	fn error(&self, msg: String) -> String {
-		println!("Error in file \"{}\" at line [{}]!", self.filename, self.getLine());
+		if !self.testing {
+			println!("Error in file \"{}\" at line [{}]!", self.filename, self.getLine());
+		}
 		msg
 	}
 
@@ -141,18 +146,58 @@ impl ParserInfo {
 
 	fn buildCall(&mut self) -> Result<ComplexToken, String> {
 		self.current += 2;
-		let start = self.current;
 		let args = self.findExpressions(1, |t| {
 			match t {
 				COMMA => CHECK_BUILD,
-				ROUND_BRACKET_CLOSED => {
-					CHECK_STOP
-				},
+				ROUND_BRACKET_CLOSED => CHECK_STOP,
 				_ => CHECK_CONTINUE
 			}
 		})?;
 		Ok(CALL(args))
 	}
+
+	/*fn findExpression(&mut self, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<(Expression, bool), String> {
+		let expr: Expression;
+		let mut pscope = scope;
+		let mut qscope = 0u8;
+		let mut cscope = 0u8;
+		let start = self.current;
+		loop {
+			let t = self.peek(0).kind;
+			match t {
+				ROUND_BRACKET_OPEN => {pscope += 1}
+				SQUARE_BRACKET_OPEN => {qscope += 1}
+				CURLY_BRACKET_OPEN => {cscope += 1}
+				ROUND_BRACKET_CLOSED => {
+					if pscope == 0 {return Err(self.expectedBefore("(", ")"))}
+					pscope -= 1;
+				}
+				SQUARE_BRACKET_CLOSED => {
+					if qscope == 0 {return Err(self.expectedBefore("[", "]"))}
+					qscope -= 1;
+				}
+				CURLY_BRACKET_CLOSED => {
+					if cscope == 0 {return Err(self.expectedBefore("{", "}"))}
+					cscope -= 1;
+				}
+				EOF => {return Err(self.expectedBefore(";", "<eof>"))}
+				_ => {}
+			}
+			let allscope = pscope + qscope + cscope;
+			if pscope + qscope + cscope <= scope {
+				let result = check(t);
+				match result {
+					CHECK_CONTINUE => {}
+					CHECK_BUILD => {
+						expr = self.buildExpression(start, self.current)?;
+						self.current += 1;
+						return Ok((expr, false));
+					}
+				}
+			}
+			self.current += 1;
+		}
+	}*/
 
 	fn findExpressions(&mut self, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<Vec<Expression>, String> {
 		let mut values: Vec<Expression> = Vec::new();
@@ -203,6 +248,18 @@ impl ParserInfo {
 								break;
 							}
 						}
+						CHECK_BACKSTOP => {
+							let isexpr = self.current > start;
+							if allscope == 0 && isexpr {
+								values.push(self.buildExpression(start, self.current - 1)?);
+								self.current += 1;
+								stop = true;
+								break;
+							} else if !isexpr {
+								stop = true;
+								break;
+							}
+						}
 					}
 				}
 				self.current += 1;
@@ -210,6 +267,10 @@ impl ParserInfo {
 			if stop {break}
 		}
 		Ok(values)
+	}
+
+	fn findExpression(&mut self, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<Expression, String> {
+		Ok(self.findExpressions(scope, check)?.pop().unwrap())
 	}
 
 	fn buildTable(&mut self) -> Result<ComplexToken, String> {
@@ -337,8 +398,8 @@ impl ParserInfo {
 		}
 		let nt: TokenType = self.peek(0).kind;
 		if match nt {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | NIL |
-			MINUS | NOT | ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE |
+			NIL | NOT | ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
 			_ => true
 		} {
 			return Err(self.error(format!("Operator '{}' has invalid right hand token", t.lexeme)))
@@ -409,9 +470,17 @@ impl ParserInfo {
 					} else {return Err(self.unexpected(t.lexeme.as_str()))}
 				}
 				CURLY_BRACKET_OPEN => {expr.push(self.buildTable()?)}
-				PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
+				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
 				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
 					self.checkOperator(&t, start, end)?;
+					expr.push(CHAR {
+						kind: t.kind,
+						lexeme: t.lexeme,
+						line: self.getLine()
+					})
+				}
+				MINUS => {
+					self.checkOperator(&t, usize::MAX, end)?;
 					expr.push(CHAR {
 						kind: t.kind,
 						lexeme: t.lexeme,
@@ -633,57 +702,53 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.current += 1;
 			}
 			IDENTIFIER => {
-				let line = i.getLine();
-				let p = i.peek(0);
-				match p.kind {
-					ROUND_BRACKET_OPEN => {
-						i.expr.push(VALUE {
-							value: t.lexeme,
-							kind: IDENTIFIER,
-							line: line
-						});
-						i.current -= 1;
-						let call = i.buildCall()?;
-						i.expr.push(call);
-						i.current += 1;
-						i.advanceIf(SEMICOLON);
+				let start = i.current;
+				i.current -= 1;
+				i.testing = true;
+				let testexpr = i.findExpression(0, |t| {
+					match t {
+						SEMICOLON => CHECK_BACKSTOP,
+						_ => CHECK_CONTINUE,
 					}
-					_ => {
-						let mut names: Vec<Expression> = Vec::new();
-						while {
-							names.push(i.buildIdentifier(false)?);
-							i.current += 1;
-							i.lookBack(1).kind == COMMA
-						} {}
-						i.current -= 1;
-						let checkt = i.lookBack(0);
-						let check = checkt.kind.clone() as u8;
-						if check < DEFINE as u8 || check > CONCATENATE as u8 {
-							return Err(i.expected("=", &checkt.lexeme))
-						}
-						let values: Vec<Expression> = i.findExpressions(0, |t| {
-							match t {
-								COMMA => CHECK_BUILD,
-								SEMICOLON => CHECK_STOP,
-								_ => CHECK_CONTINUE
-							}
-						})?;
-						if names.len() != values.len() {
-							return Err(i.expectedBefore("<expr>", &i.peek(0).lexeme))
-						}
-						let mut tuples: Vec<(Expression, Expression)> = Vec::new();
-						let mut it: usize = 0;
-						for name in names.iter() {
-							tuples.push((name.clone(), values.get(it).unwrap().clone()));
-							it += 1;
-						}
-						i.expr.push(ALTER {
-							kind: checkt.kind,
-							values: tuples
-						});
-						i.current += 1;
-					}
+				});
+				i.testing = false;
+				match testexpr {
+					Ok(mut expr) => {i.expr.append(&mut expr); continue}
+					Err(a) => {i.current = start}
 				}
+				let mut names: Vec<Expression> = Vec::new();
+				while {
+					names.push(i.buildIdentifier(false)?);
+					i.current += 1;
+					i.lookBack(1).kind == COMMA
+				} {}
+				i.current -= 1;
+				let checkt = i.lookBack(0);
+				let check = checkt.kind.clone() as u8;
+				if check < DEFINE as u8 || check > CONCATENATE as u8 {
+					return Err(i.expected("=", &checkt.lexeme))
+				}
+				let values: Vec<Expression> = i.findExpressions(0, |t| {
+					match t {
+						COMMA => CHECK_BUILD,
+						SEMICOLON => CHECK_STOP,
+						_ => CHECK_CONTINUE
+					}
+				})?;
+				if names.len() != values.len() {
+					return Err(i.expectedBefore("<expr>", &i.peek(0).lexeme))
+				}
+				let mut tuples: Vec<(Expression, Expression)> = Vec::new();
+				let mut it: usize = 0;
+				for name in names.iter() {
+					tuples.push((name.clone(), values.get(it).unwrap().clone()));
+					it += 1;
+				}
+				i.expr.push(ALTER {
+					kind: checkt.kind,
+					values: tuples
+				});
+				i.current += 1;
 			}
 			ROUND_BRACKET_OPEN => {
 				i.current -= 1;
