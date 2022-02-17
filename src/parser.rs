@@ -48,6 +48,11 @@ pub enum ComplexToken {
 		code: Expression
 	},
 
+	WHILE_LOOP {
+		condition: Expression,
+		code: Expression
+	},
+
 	CALL(Vec<Expression>),
 	PGET(Expression),
 	DO_BLOCK(Expression)
@@ -801,6 +806,16 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				})?;
 				let code = i.buildCodeBlock()?;
 				i.expr.push(IF_STATEMENT {condition, code})
+			}
+			WHILE => {
+				let condition = i.findExpression(0, 0, 0, 1, |t| {
+					match t {
+						CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
+						_ => CHECK_CONTINUE
+					}
+				})?;
+				let code = i.buildCodeBlock()?;
+				i.expr.push(WHILE_LOOP {condition, code})
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}
