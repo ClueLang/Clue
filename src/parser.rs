@@ -9,6 +9,13 @@ use std::cmp;
 
 type Expression = Vec<ComplexToken>;
 
+fn GetCondition(t: TokenType) -> CheckResult {
+	match t {
+		CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
+		_ => CHECK_CONTINUE
+	}
+}
+
 #[derive(Debug, Clone)]
 pub enum ComplexToken {
 	VALUE {
@@ -49,6 +56,11 @@ pub enum ComplexToken {
 	},
 
 	WHILE_LOOP {
+		condition: Expression,
+		code: Expression
+	},
+
+	LOOP_UNTIL {
 		condition: Expression,
 		code: Expression
 	},
@@ -587,7 +599,7 @@ impl ParserInfo {
 			}
 		}
 		if expr.len() == 0 {
-			return Err(self.unexpected(self.at(end).lexeme.as_str()))
+			return Err(self.expected("<expr>", self.at(end).lexeme.as_str()))
 		}
 		Ok(expr)
 	}
@@ -798,24 +810,46 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.expr.push(DO_BLOCK(block));
 			}
 			IF => {
-				let condition = i.findExpression(0, 0, 0, 1, |t| {
-					match t {
-						CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
-						_ => CHECK_CONTINUE
-					}
-				})?;
+				let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
 				let code = i.buildCodeBlock()?;
 				i.expr.push(IF_STATEMENT {condition, code})
 			}
 			WHILE => {
-				let condition = i.findExpression(0, 0, 0, 1, |t| {
-					match t {
-						CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
-						_ => CHECK_CONTINUE
-					}
-				})?;
+				let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
 				let code = i.buildCodeBlock()?;
 				i.expr.push(WHILE_LOOP {condition, code})
+			}
+			LOOP => {
+				match i.advance().kind {
+					CURLY_BRACKET_OPEN => {
+						let code = i.buildCodeBlock()?;
+						if i.peek(0).kind == UNTIL {
+							i.current += 1;
+							let condition = i.findExpression(0, 0, 0, 0, |t| {
+								match t {
+									SEMICOLON => CHECK_FORCESTOP,
+									_ => CHECK_CONTINUE,
+								}
+							})?;
+							i.expr.push(LOOP_UNTIL {condition, code})
+						} else {
+							i.expr.push(WHILE_LOOP {
+								condition: vec![VALUE {
+									value: String::from("true"),
+									kind: TRUE,
+									line: t.line
+								}],
+								code
+							})
+						}
+					}
+					UNTIL => {
+						let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
+						let code = i.buildCodeBlock()?;
+						i.expr.push(LOOP_UNTIL {condition, code})
+					}
+					_ => {return Err(i.unexpected("loop"))}
+				}
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}
