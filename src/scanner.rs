@@ -23,7 +23,7 @@ pub enum TokenType {
 	
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL,
-	UNTIL, LOCAL, FUNCTION, RETURN, THIS, TRUE, FALSE, NIL, LOOP,
+	UNTIL, LOCAL, FN, RETURN, THIS, TRUE, FALSE, NIL, LOOP,
 	
 	EOF
 }
@@ -262,7 +262,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"global" => GLOBAL,
 						"until" => UNTIL,
 						"local" => LOCAL,
-						"fn" | "function" => FUNCTION,
+						"fn" | "function" => FN,
 						"return" => RETURN,
 						"this" => THIS,
 						"true" => TRUE,

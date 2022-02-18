@@ -50,6 +50,12 @@ pub enum ComplexToken {
 		metas: Vec<(String, Expression)>
 	},
 
+	FUNCTION {
+		name: String,
+		args: Vec<String>,
+		code: Expression
+	},
+
 	IF_STATEMENT {
 		condition: Expression,
 		code: Expression
@@ -682,6 +688,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 		let t = i.advance();
 		match t.kind {
 			LOCAL | GLOBAL => {
+
 				let mut names: Vec<String> = Vec::new();
 				loop {
 					let pname = i.advance();
