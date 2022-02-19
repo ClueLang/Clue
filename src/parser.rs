@@ -625,8 +625,13 @@ impl ParserInfo {
 				}
 				FN => {
 					self.assert(ROUND_BRACKET_OPEN, "(")?;
-					let args = self.buildIdentifierList()?;
-					self.assert(ROUND_BRACKET_CLOSED, ")")?;
+					let args: Vec<String>;
+					if !self.advanceIf(ROUND_BRACKET_CLOSED) {
+						args = self.buildIdentifierList()?;
+						self.assert(ROUND_BRACKET_CLOSED, ")")?;
+					} else {
+						args = Vec::new();
+					}
 					self.assert(CURLY_BRACKET_OPEN, "{")?;
 					let code = self.buildCodeBlock()?;
 					expr.push(LAMBDA {args, code});
@@ -738,8 +743,13 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				if i.advanceIf(FN) {
 					let name = i.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
 					i.assert(ROUND_BRACKET_OPEN, "(")?;
-					let args = i.buildIdentifierList()?;
-					i.assert(ROUND_BRACKET_CLOSED, ")")?;
+					let args: Vec<String>;
+					if !i.advanceIf(ROUND_BRACKET_CLOSED) {
+						args = i.buildIdentifierList()?;
+						i.assert(ROUND_BRACKET_CLOSED, ")")?;
+					} else {
+						args = Vec::new();
+					}
 					i.assert(CURLY_BRACKET_OPEN, "{")?;
 					let code = i.buildCodeBlock()?;
 					i.expr.push(FUNCTION {
