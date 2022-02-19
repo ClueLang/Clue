@@ -51,7 +51,13 @@ pub enum ComplexToken {
 	},
 
 	FUNCTION {
+		local: bool,
 		name: String,
+		args: Vec<String>,
+		code: Expression
+	},
+
+	LAMBDA {
 		args: Vec<String>,
 		code: Expression
 	},
@@ -137,7 +143,7 @@ impl ParserInfo {
 	}
 
 	fn at(&self, pos: usize) -> Token {
-		self.tokens[cmp::min(pos, self.size)].clone()
+		self.tokens[cmp::min(pos, self.size)].to_owned()
 	}
 
 	fn advance(&mut self) -> Token {
@@ -166,6 +172,21 @@ impl ParserInfo {
 		if self.peek(0).kind != expected {return false;}
 		self.current += 1;
 		true
+	}
+
+	fn assertAdvance(&mut self, expected: TokenType, error: &str) -> Result<Token, String> {
+		let t = self.advance();
+		if t.kind != expected {
+			return Err(self.expected(error, &t.lexeme))
+		}
+		Ok(t)
+	}
+
+	fn assert(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
+		if !self.advanceIf(expected) {
+			return Err(self.expected(error, &self.peek(0).lexeme))
+		}
+		Ok(())
 	}
 
 	fn buildCall(&mut self) -> Result<ComplexToken, String> {
@@ -664,14 +685,14 @@ impl ParserInfo {
 
 	fn buildCodeBlock(&mut self) -> Result<Expression, String> {
 		let mut tokens: Vec<Token> = Vec::new();
-		let mut qscope = 1u8;
+		let mut cscope = 1u8;
 		loop {
 			let t = self.advance();
 			match t.kind {
-				CURLY_BRACKET_OPEN => {qscope += 1}
+				CURLY_BRACKET_OPEN => {cscope += 1}
 				CURLY_BRACKET_CLOSED => {
-					qscope -= 1;
-					if qscope == 0 {break}
+					cscope -= 1;
+					if cscope == 0 {break}
 				}
 				EOF => {return Err(self.expectedBefore("}", "<eof>"))}
 				_ => {}
@@ -679,6 +700,16 @@ impl ParserInfo {
 			tokens.push(t);
 		}
 		if tokens.is_empty() {Ok(Expression::new())} else {ParseTokens(tokens, self.filename.clone())}
+	}
+
+	fn buildIdentifierList(&mut self) -> Result<Vec<String>, String> {
+		let mut idents: Vec<String> = Vec::new();
+		while {
+			let t = self.assertAdvance(IDENTIFIER, "<name>")?;
+			idents.push(t.lexeme);
+			self.advanceIf(COMMA)
+		} {}
+		Ok(idents)
 	}
 }
 
@@ -688,7 +719,19 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 		let t = i.advance();
 		match t.kind {
 			LOCAL | GLOBAL => {
-
+				if i.advanceIf(FN) {
+					let name = i.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
+					i.assert(ROUND_BRACKET_OPEN, "(")?;
+					let args = i.buildIdentifierList()?;
+					i.assert(ROUND_BRACKET_CLOSED, ")")?;
+					i.assert(CURLY_BRACKET_OPEN, "{")?;
+					let code = i.buildCodeBlock()?;
+					i.expr.push(FUNCTION {
+						local: t.kind == LOCAL,
+						name, args, code
+					});
+					continue
+				}
 				let mut names: Vec<String> = Vec::new();
 				loop {
 					let pname = i.advance();
