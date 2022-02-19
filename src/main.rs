@@ -65,7 +65,12 @@ fn main() -> Result<(), String> {
 USAGE:
 	clue -help		Send this very message
 	clue -version 		Send this transpiler's version
-	clue [Path] [OPTIONS]	Compile any *.clue file found in the given directory
+	clue [PATH] [OPTIONS]	Compile any *.clue file found in the given directory
+
+PATH:
+	The path to the directory where the *.clue files are located.
+	Every directory inside the given directory will be checked too.
+	If the path points to a single *.clue file, only that file will be compiled.
 
 OPTIONS:
 	-blua		Compile into Blua instead of Lua (slightly different rules)
@@ -76,13 +81,16 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version a1.1.57");
+		println!("Version a1.2.58");
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
-	if !path.is_dir() {
+	if path.is_dir() {
+		CompileFolder(path, &args)?;
+	} else if path.is_file() {
+		CompileFile(path, path.file_name().unwrap().to_string_lossy().into_owned(), &args)?;
+	} else {
 		return Err(String::from("The given path doesn't exist"));
 	}
-	CompileFolder(path, &args)?;
 	Ok(())
 }
