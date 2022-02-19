@@ -77,6 +77,20 @@ pub enum ComplexToken {
 		code: Expression
 	},
 
+	FOR_LOOP {
+		iterator: String,
+		start: Expression,
+		end: Expression,
+		alter: Expression,
+		code: Expression
+	},
+
+	FOR_FUNC_LOOP {
+		iterators: Vec<String>,
+		expr: Expression,
+		code: Expression
+	},
+
 	CALL(Vec<Expression>),
 	PGET(Expression),
 	DO_BLOCK(Expression),
@@ -927,6 +941,86 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						i.expr.push(LOOP_UNTIL {condition, code})
 					}
 					_ => {return Err(i.unexpected("loop"))}
+				}
+			}
+			FOR => {
+				if i.peek(1).kind == DEFINE {
+					let iterator = i.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
+					i.current += 1;
+					let start = i.findExpression(0, 0, 0, 0, |t| {
+						match t {
+							COMMA => CHECK_FORCESTOP,
+							_ => CHECK_CONTINUE
+						}
+					})?;
+					let end = i.findExpression(0, 0, 0, 0, |t| {
+						match t {
+							SEMICOLON => CHECK_STOP,
+							COMMA => CHECK_FORCESTOP,
+							_ => CHECK_CONTINUE
+						}
+					})?;
+					let alter = if !i.advanceIf(SEMICOLON) {
+						i.findExpression(0, 0, 0, 0, |t| {
+							match t {
+								SEMICOLON => CHECK_FORCESTOP,
+								_ => CHECK_CONTINUE
+							}
+						})?
+					} else {vec![VALUE {
+						kind: NUMBER,
+						line: i.getLine(),
+						value: String::from("1")
+					}]};
+					i.current += 1;
+					let code = i.buildCodeBlock()?;
+					i.expr.push(FOR_LOOP {iterator, start, end, alter, code})
+				} else {
+					let iterators = i.buildIdentifierList()?;
+					let expr = match i.advance().kind {
+						OF => {
+							let line = i.getLine();
+							let mut expr = vec![VALUE {
+								kind: IDENTIFIER,
+								line,
+								value: String::from("pairs")
+							}, CHAR {
+								kind: ROUND_BRACKET_OPEN,
+								lexeme: String::from("("),
+								line
+							}];
+							expr.append(&mut i.findExpression(0, 0, 0, 1, GetCondition)?);
+							expr.push(CHAR {
+								kind: ROUND_BRACKET_CLOSED,
+								lexeme: String::from(")"),
+								line: i.getLine()
+							});
+							expr
+						}
+						IN => {
+							let line = i.getLine();
+							let mut expr = vec![VALUE {
+								kind: IDENTIFIER,
+								line,
+								value: String::from("ipairs")
+							}, CHAR {
+								kind: ROUND_BRACKET_OPEN,
+								lexeme: String::from("("),
+								line
+							}];
+							expr.append(&mut i.findExpression(0, 0, 0, 1, GetCondition)?);
+							expr.push(CHAR {
+								kind: ROUND_BRACKET_CLOSED,
+								lexeme: String::from(")"),
+								line: i.getLine()
+							});
+							expr
+						}
+						WITH => {i.findExpression(0, 0, 0, 1, GetCondition)?}
+						_ => {return Err(i.expected("of', 'in' or 'with", &i.peek(0).lexeme))}
+					};
+					let code = i.buildCodeBlock()?;
+					i.expr.push(FOR_FUNC_LOOP {iterators, expr, code});
 				}
 			}
 			CONTINUE => {i.expr.push(CONTINUE_LOOP); i.advanceIf(SEMICOLON);}
