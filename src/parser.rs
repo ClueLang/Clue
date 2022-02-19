@@ -622,6 +622,14 @@ impl ParserInfo {
 						return Err(self.unexpected(&nt.lexeme))
 					}
 				}
+				FN => {
+					self.assert(ROUND_BRACKET_OPEN, "(")?;
+					let args = self.buildIdentifierList()?;
+					self.assert(ROUND_BRACKET_CLOSED, ")")?;
+					self.assert(CURLY_BRACKET_OPEN, "{")?;
+					let code = self.buildCodeBlock()?;
+					expr.push(LAMBDA {args, code});
+				}
 				_ => {return Err(self.unexpected(t.lexeme.as_str()))}
 			}
 		}
