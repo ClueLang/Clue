@@ -699,7 +699,14 @@ impl ParserInfo {
 			}
 			tokens.push(t);
 		}
-		if tokens.is_empty() {Ok(Expression::new())} else {ParseTokens(tokens, self.filename.clone())}
+		if tokens.is_empty() {Ok(Expression::new())} else {
+			tokens.push(Token {
+				kind: EOF,
+				lexeme: String::new(),
+				line: self.getLine()
+			});
+			ParseTokens(tokens, self.filename.clone())
+		}
 	}
 
 	fn buildIdentifierList(&mut self) -> Result<Vec<String>, String> {
