@@ -530,6 +530,7 @@ impl ParserInfo {
 				}
 				CURLY_BRACKET_OPEN => {expr.push(self.buildTable()?)}
 				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
+				EQUAL | NOT_EQUAL | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL |
 				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
 					self.checkOperator(&t, start, end)?;
 					expr.push(CHAR {
