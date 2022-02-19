@@ -546,7 +546,7 @@ impl ParserInfo {
 					expr.push(CHAR {
 						kind: t.kind,
 						lexeme: String::from("and"),
-						line: self.getLine()
+						line: t.line
 					})
 				}
 				OR => {
@@ -554,7 +554,7 @@ impl ParserInfo {
 					expr.push(CHAR {
 						kind: t.kind,
 						lexeme: String::from("or"),
-						line: self.getLine()
+						line: t.line
 					})
 				}
 				NOT => {
@@ -562,7 +562,7 @@ impl ParserInfo {
 					expr.push(CHAR {
 						kind: t.kind,
 						lexeme: String::from("not"),
-						line: self.getLine()
+						line: t.line
 					})
 				}
 				NUMBER | STRING | TRUE | FALSE | NIL => {
@@ -570,7 +570,7 @@ impl ParserInfo {
 						expr.push(VALUE {
 							value: t.lexeme,
 							kind: t.kind,
-							line: self.getLine()
+							line: t.line
 						})
 					} else {
 						return Err(self.unexpected(t.lexeme.as_str()))
