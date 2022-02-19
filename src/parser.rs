@@ -217,49 +217,6 @@ impl ParserInfo {
 		Ok(CALL(args))
 	}
 
-	/*fn findExpression(&mut self, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<(Expression, bool), String> {
-		let expr: Expression;
-		let mut pscope = scope;
-		let mut qscope = 0u8;
-		let mut cscope = 0u8;
-		let start = self.current;
-		loop {
-			let t = self.peek(0).kind;
-			match t {
-				ROUND_BRACKET_OPEN => {pscope += 1}
-				SQUARE_BRACKET_OPEN => {qscope += 1}
-				CURLY_BRACKET_OPEN => {cscope += 1}
-				ROUND_BRACKET_CLOSED => {
-					if pscope == 0 {return Err(self.expectedBefore("(", ")"))}
-					pscope -= 1;
-				}
-				SQUARE_BRACKET_CLOSED => {
-					if qscope == 0 {return Err(self.expectedBefore("[", "]"))}
-					qscope -= 1;
-				}
-				CURLY_BRACKET_CLOSED => {
-					if cscope == 0 {return Err(self.expectedBefore("{", "}"))}
-					cscope -= 1;
-				}
-				EOF => {return Err(self.expectedBefore(";", "<end>"))}
-				_ => {}
-			}
-			let allscope = pscope + qscope + cscope;
-			if pscope + qscope + cscope <= scope {
-				let result = check(t);
-				match result {
-					CHECK_CONTINUE => {}
-					CHECK_BUILD => {
-						expr = self.buildExpression(start, self.current)?;
-						self.current += 1;
-						return Ok((expr, false));
-					}
-				}
-			}
-			self.current += 1;
-		}
-	}*/
-
 	fn findExpressions(&mut self, mut pscope: u8, mut qscope: u8, mut cscope: u8, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<Vec<Expression>, String> {
 		let mut values: Vec<Expression> = Vec::new();
 		let mut stop = false;
