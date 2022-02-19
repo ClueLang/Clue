@@ -79,7 +79,9 @@ pub enum ComplexToken {
 
 	CALL(Vec<Expression>),
 	PGET(Expression),
-	DO_BLOCK(Expression)
+	DO_BLOCK(Expression),
+	RETURN_EXPR(Expression),
+	CONTINUE_LOOP, BREAK_LOOP
 }
 
 enum CheckResult {
@@ -926,6 +928,17 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					}
 					_ => {return Err(i.unexpected("loop"))}
 				}
+			}
+			CONTINUE => {i.expr.push(CONTINUE_LOOP); i.advanceIf(SEMICOLON);}
+			BREAK => {i.expr.push(BREAK_LOOP); i.advanceIf(SEMICOLON);}
+			RETURN => {
+				let expr = i.findExpression(0, 0, 0, 0, |t| {
+					match t {
+						SEMICOLON => CHECK_FORCESTOP,
+						_ => CHECK_CONTINUE,
+					}
+				})?;
+				i.expr.push(RETURN_EXPR (expr));
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}
