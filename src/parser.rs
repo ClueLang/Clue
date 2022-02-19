@@ -225,7 +225,7 @@ impl ParserInfo {
 					if cscope == 0 {return Err(self.expectedBefore("{", "}"))}
 					cscope -= 1;
 				}
-				EOF => {return Err(self.expectedBefore(";", "<eof>"))}
+				EOF => {return Err(self.expectedBefore(";", "<end>"))}
 				_ => {}
 			}
 			let allscope = pscope + qscope + cscope;
@@ -267,7 +267,7 @@ impl ParserInfo {
 						if cscope == 0 {return Err(self.expectedBefore("{", "}"))}
 						cscope -= 1;
 					}
-					EOF => {return Err(self.expectedBefore(";", "<eof>"))}
+					EOF => {return Err(self.expectedBefore(";", "<end>"))}
 					_ => {}
 				}
 				let allscope = pscope + qscope + cscope;
@@ -354,7 +354,7 @@ impl ParserInfo {
 					iskey = true;
 					false
 				}
-				EOF => {return Err(self.expectedBefore("}", "<eof>"))}
+				EOF => {return Err(self.expectedBefore("}", "<end>"))}
 				_ => true
 			} {
 				self.current += 1;
@@ -387,7 +387,7 @@ impl ParserInfo {
 								_ => true
 							}
 						}
-						EOF => {return Err(self.expectedBefore("]", "<eof>"))}
+						EOF => {return Err(self.expectedBefore("]", "<end>"))}
 						_ => true
 					} {}
 					name = Ok(self.buildExpression(start, self.current - 1)?);
@@ -434,7 +434,7 @@ impl ParserInfo {
 					cscope -= 1;
 					true
 				}
-				EOF => {return Err(self.expectedBefore("}", "<eof>"))}
+				EOF => {return Err(self.expectedBefore("}", "<end>"))}
 				_ => true
 			} {
 				self.current += 1;
@@ -494,7 +494,7 @@ impl ParserInfo {
 						pscope -= 1;
 						if pscope == 0 {break}
 					}
-					EOF => {return Err(self.expectedBefore("]", "<eof>"))}
+					EOF => {return Err(self.expectedBefore("]", "<end>"))}
 					_ => {}
 				}
 			}
@@ -507,7 +507,7 @@ impl ParserInfo {
 						pscope -= 1;
 						if pscope == 0 {break}
 					}
-					EOF => {return Err(self.expectedBefore(")", "<eof>"))}
+					EOF => {return Err(self.expectedBefore(")", "<end>"))}
 					_ => {}
 				}
 			}
@@ -702,7 +702,7 @@ impl ParserInfo {
 					cscope -= 1;
 					if cscope == 0 {break}
 				}
-				EOF => {return Err(self.expectedBefore("}", "<eof>"))}
+				EOF => {return Err(self.expectedBefore("}", "<end>"))}
 				_ => {}
 			}
 			tokens.push(t);
@@ -859,7 +859,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							pscope -= 1;
 							if pscope == 0 {break}
 						}
-						EOF => {return Err(i.expectedBefore(")", "<eof>"))}
+						EOF => {return Err(i.expectedBefore(")", "<end>"))}
 						_ => {}
 					}
 				}
