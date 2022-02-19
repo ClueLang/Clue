@@ -431,7 +431,7 @@ impl ParserInfo {
 		let nt: TokenType = self.peek(0).kind;
 		if match nt {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE |
-			NIL | NOT | ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
+			NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
 			_ => true
 		} {
 			return Err(self.error(format!("Operator '{}' has invalid right hand token", t.lexeme)))
@@ -518,6 +518,19 @@ impl ParserInfo {
 						kind: t.kind,
 						lexeme: t.lexeme,
 						line: self.getLine()
+					})
+				}
+				HASHTAG => {
+					if match self.peek(0).kind {
+						IDENTIFIER | CURLY_BRACKET_OPEN | ROUND_BRACKET_OPEN => false,
+						_ => true
+					} {
+						return Err(self.expected("<table>", &self.peek(0).lexeme))
+					}
+					expr.push(CHAR {
+						kind: t.kind,
+						lexeme: String::from("#"),
+						line: t.line
 					})
 				}
 				PROTECTED_GET => {
