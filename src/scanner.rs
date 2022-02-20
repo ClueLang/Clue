@@ -176,7 +176,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'.' => {
 				if i.peek() == '.' {
 					i.current += 1;
-					let f: char = i.peekFar(1);
+					let f: char = i.peek();
 					if f == '.' {
 						i.current += 1;
 						i.addToken(TREDOTS);
@@ -210,7 +210,10 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 							i.current += 2;
 						}
 					},
-					'=' => i.addToken(DIVIDE),
+					'=' => {
+						i.current += 1;
+						i.addToken(DIVIDE);
+					},
 					_ => i.addToken(SLASH)
 				}
 			},
