@@ -7,7 +7,7 @@ use self::ComplexToken::*;
 use self::CheckResult::*;
 use std::cmp;
 
-type Expression = Vec<ComplexToken>;
+pub type Expression = Vec<ComplexToken>;
 
 fn GetCondition(t: TokenType) -> CheckResult {
 	match t {
