@@ -20,13 +20,14 @@ fn GetCondition(t: TokenType) -> CheckResult {
 pub enum ComplexToken {
 	SYMBOL {
 		lexeme: String,
-		line: u32
+		line: usize
 	},
 
 	VARIABLE {
 		local: bool,
 		names: Vec<String>,
-		values: Vec<Expression>
+		values: Vec<Expression>,
+		line: usize
 	},
 
 	ALTER {
@@ -36,7 +37,7 @@ pub enum ComplexToken {
 
 	PSEUDO {
 		num: u8,
-		line: u32
+		line: usize
 	},
 
 	TABLE {
@@ -125,7 +126,7 @@ impl ParserInfo {
 		}
 	}
 
-	fn getLine(&self) -> u32 {
+	fn getLine(&self) -> usize {
 		self.at(self.current - 1).line
 	}
 
@@ -777,6 +778,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				}
 				i.expr.push(VARIABLE {
 					local: t.kind == LOCAL,
+					line: t.line,
 					names, values
 				});
 				i.current += 1;

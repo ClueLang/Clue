@@ -33,11 +33,11 @@ pub enum TokenType {
 pub struct Token {
 	pub kind: TokenType,
 	pub lexeme: String,
-	pub line: u32
+	pub line: usize
 }
 
 impl Token {
-	pub fn new(kind: TokenType, lexeme: String, line: u32) -> Token {
+	pub fn new(kind: TokenType, lexeme: String, line: usize) -> Token {
 		Token {
 			kind: kind,
 			lexeme: String::from(lexeme),
@@ -56,7 +56,7 @@ impl Token {
 }
 
 struct CodeInfo {
-	line: u32,
+	line: usize,
 	start: usize,
 	current: usize,
 	size: usize,

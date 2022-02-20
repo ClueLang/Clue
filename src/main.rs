@@ -34,7 +34,7 @@ fn CompileFile(path: &Path, name: String, args: &[String]) -> Result<(), String>
 		println!("{:#?}", ctokens);
 	}
 	let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-	check!(fs::write(compiledname, CompileTokens(ctokens))?.as_str()));
+	check!(fs::write(compiledname, CompileTokens(ctokens)?.as_str()));
 	Ok(())
 }
 
