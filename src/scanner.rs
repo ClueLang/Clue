@@ -228,8 +228,9 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			' ' | '\r' | '\t' => {},
 			'\n' => i.line += 1,
 			'"' => {
+				let mut aline = i.line;
 				while !i.ended() && i.peek() != '"' {
-					if i.peek() == '\n' {i.line += 1};
+					if i.peek() == '\n' {aline += 1};
 					i.current += 1;
 				}
 				if i.ended() {
@@ -239,6 +240,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 					let literal: String = i.substr(i.start + 1, i.current - 1);
 					i.addLiteralToken(STRING, literal);
 				}
+				i.line = aline;
 			}
 			_ => {
 				if c.is_ascii_digit() {
