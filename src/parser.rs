@@ -32,7 +32,9 @@ pub enum ComplexToken {
 
 	ALTER {
 		kind: TokenType,
-		values: Vec<(Expression, Expression)>
+		names: Vec<Expression>,
+		values: Vec<Expression>,
+		line: usize
 	},
 
 	PSEUDO {
@@ -748,13 +750,12 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					i.current += 1;
 				}
 				let check = i.advance();
-				let areInit: bool;
-				match check.kind {
-					DEFINE => {areInit = true},
-					SEMICOLON => {areInit = false},
+				let areinit = match check.kind {
+					DEFINE => true,
+					SEMICOLON => false,
 					_ => {return Err(i.expected("=", &check.lexeme))}
 				};
-				let mut values: Vec<Expression> = if !areInit {Vec::new()} else {
+				let mut values: Vec<Expression> = if !areinit {Vec::new()} else {
 					i.findExpressions(0, 0, 0, 0, |t| {
 						match t {
 							COMMA => CHECK_BUILD,
@@ -781,7 +782,9 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					line: t.line,
 					names, values
 				});
-				i.current += 1;
+				if areinit {
+					i.current += 1;
+				}
 			}
 			IDENTIFIER => {
 				let start = i.current;
@@ -820,15 +823,10 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				if names.len() != values.len() {
 					return Err(i.expectedBefore("<expr>", &i.peek(0).lexeme))
 				}
-				let mut tuples: Vec<(Expression, Expression)> = Vec::new();
-				let mut it: usize = 0;
-				for name in names.iter() {
-					tuples.push((name.clone(), values.get(it).unwrap().clone()));
-					it += 1;
-				}
 				i.expr.push(ALTER {
 					kind: checkt.kind,
-					values: tuples
+					line: t.line,
+					names, values
 				});
 				i.current += 1;
 			}
