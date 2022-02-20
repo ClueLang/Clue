@@ -33,8 +33,10 @@ fn CompileFile(path: &Path, name: String, args: &[String]) -> Result<(), String>
 	if args.contains(&String::from("-struct")) {
 		println!("{:#?}", ctokens);
 	}
-	let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-	check!(fs::write(compiledname, CompileTokens(ctokens)?.as_str()));
+	if !args.contains(&String::from("-dontsave")) {	
+		let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
+		check!(fs::write(compiledname, CompileTokens(ctokens)?.as_str()));
+	}
 	Ok(())
 }
 
@@ -79,7 +81,7 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version a1.2.59");
+		println!("Version a1.2.60");
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
