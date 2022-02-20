@@ -1,7 +1,11 @@
+#![allow(non_upper_case_globals)]
+
 use crate::scanner::TokenType::*;
 use crate::parser::ComplexToken;
 use crate::parser::ComplexToken::*;
 use crate::parser::Expression;
+
+const noPseudos: &Vec<String> = &Vec::new();
 
 fn ReachLine(cline: &mut usize, line: usize) -> String {
 	let mut result = String::new();
@@ -68,7 +72,7 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
 				let iter = names.iter();
 				let mut names: Vec<String> = Vec::new();
 				for name in iter {
-					names.push(CompileExpression(cline, &Vec::new(), name.to_vec()))
+					names.push(CompileExpression(cline, noPseudos, name.to_vec()))
 				}
 				let mut i = 0usize;
 				let values = CompileList(values, &mut |expr| {
