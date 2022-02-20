@@ -38,7 +38,7 @@ pub enum ComplexToken {
 	},
 
 	PSEUDO {
-		num: u8,
+		num: usize,
 		line: usize
 	},
 
@@ -591,10 +591,13 @@ impl ParserInfo {
 				}
 				DOLLAR => {
 					let nt = self.peek(0);
-					let mut num: u8 = 1;
+					let mut num = 1usize;
 					if self.current != end && nt.kind == NUMBER {
 						num = nt.lexeme.parse().unwrap();
 						self.current += 1;
+					}
+					if num == 0 {
+						return Err(self.error(String::from("Pseudo variables cannot point at the 0th name (which does not exist)")))
 					}
 					if IsVar(self.current, end, &self.peek(0)) {
 						expr.push(PSEUDO {

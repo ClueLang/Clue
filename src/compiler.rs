@@ -30,17 +30,20 @@ fn CompileIdentifiers(names: Vec<String>) -> String {
 	CompileList(names, &mut |name| {name})
 }
 
-fn CompileExpressions(cline: &mut usize, values: Vec<Expression>) -> String {
-	CompileList(values, &mut |expr| {CompileExpression(cline, expr)})
+fn CompileExpressions(cline: &mut usize, names: &Vec<String>, values: Vec<Expression>) -> String {
+	CompileList(values, &mut |expr| {CompileExpression(cline, names, expr)})
 }
 
-fn CompileExpression(cline: &mut usize, expr: Expression) -> String {
+fn CompileExpression(cline: &mut usize, names: &Vec<String>, expr: Expression) -> String {
 	let mut result = String::new();
 	for t in expr {
 		match t {
 			SYMBOL {lexeme, line} => {
 				*cline += lexeme.matches("\n").count();
 				result += &format!("{}{} ", ReachLine(cline, line), lexeme);
+			}
+			PSEUDO {num, line} => {
+				result += &format!("{}{} ", ReachLine(cline, line), names.get(num - 1).unwrap_or(&String::from("nil")));
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
@@ -56,8 +59,8 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
 			VARIABLE {local, names, values, line} => {
 				let mut pre = ReachLine(cline, line);
 				if local {pre += "local "}
+				let values = CompileExpressions(cline, &names, values);
 				let names = CompileIdentifiers(names);
-				let values = CompileExpressions(cline, values);
 				result += &format!("{}{} = {};", pre, names, values);
 			}
 			ALTER {kind, names, values, line} => {
@@ -65,7 +68,7 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
 				let iter = names.iter();
 				let mut names: Vec<String> = Vec::new();
 				for name in iter {
-					names.push(CompileExpression(cline, name.to_vec()))
+					names.push(CompileExpression(cline, &vec![String::from("nil")], name.to_vec()))
 				}
 				let mut i = 0usize;
 				let values = CompileList(values, &mut |expr| {
@@ -81,7 +84,7 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
 						EXPONENTIATE => format!("{}^ ", name),
 						CONCATENATE => format!("{}.. ", name),
 						_ => {panic!("Unexpected alter type found")}
-					}) + &CompileExpression(cline, expr)
+					}) + &CompileExpression(cline, &names, expr)
 				});
 				let names = CompileIdentifiers(names);
 				result += &format!("{}{}= {};", pre, names, values);
