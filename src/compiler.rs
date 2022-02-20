@@ -46,7 +46,7 @@ fn CompileExpression(cline: &mut u32, expr: Expression) -> String {
     result
 }
 
-pub fn CompileTokens(ctokens: Vec<ComplexToken>, filename: String) -> Result<String, String> {
+pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
     let mut result = String::new();
     let line = &mut 1u32;
     for t in ctokens.into_iter() {
