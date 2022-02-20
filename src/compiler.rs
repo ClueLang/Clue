@@ -53,9 +53,6 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>, filename: String) -> Result<Str
         match t {
             VARIABLE {local, names, values} => {
                 if local {result += "local "}
-                /*CompileIdentifiers(names);
-                result += " = ";
-                CompileExpressions(values);*/
                 result += &format!("{} = {}", CompileIdentifiers(names), CompileExpressions(line, values));
             }
             _ => {panic!("Unexpected ComplexToken found")}
