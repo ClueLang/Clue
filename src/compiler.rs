@@ -39,7 +39,7 @@ fn CompileExpression(cline: &mut usize, expr: Expression) -> String {
         match t {
             SYMBOL {lexeme, line} => {
                 *cline += lexeme.matches("\n").count();
-                result += &format!("{}{}", ReachLine(cline, line), lexeme);
+                result += &format!("{}{} ", ReachLine(cline, line), lexeme);
             }
             _ => {panic!("Unexpected ComplexToken found")}
         }
