@@ -923,26 +923,23 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							_ => CHECK_CONTINUE
 						}
 					})?;
-					let end = i.findExpression(0, 0, 0, 0, |t| {
+					let end = i.findExpression(0, 0, 0, 1, |t| {
 						match t {
-							SEMICOLON => CHECK_STOP,
+							CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
 							COMMA => CHECK_FORCESTOP,
 							_ => CHECK_CONTINUE
 						}
 					})?;
-					let alter = if !i.advanceIf(SEMICOLON) {
-						i.findExpression(0, 0, 0, 0, |t| {
-							match t {
-								SEMICOLON => CHECK_FORCESTOP,
-								_ => CHECK_CONTINUE
-							}
-						})?
-					} else {vec![VALUE {
-						kind: NUMBER,
-						line: i.getLine(),
-						value: String::from("1")
-					}]};
-					i.current += 1;
+					i.current -= 1;
+					let alter = if i.advance().kind != CURLY_BRACKET_OPEN {
+						i.findExpression(0, 0, 0, 1, GetCondition)?
+					} else {
+						vec![VALUE {
+							kind: NUMBER,
+							line: i.getLine(),
+							value: String::from("1")
+						}]
+					};
 					let code = i.buildCodeBlock()?;
 					i.expr.push(FOR_LOOP {iterator, start, end, alter, code})
 				} else {
