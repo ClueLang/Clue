@@ -11,32 +11,30 @@ macro_rules! check {
 
 mod scanner;
 mod parser;
+mod compiler;
 
 use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
-use scanner::Token;
-use parser::ComplexToken;
+use scanner::*;
+use parser::*;
+use compiler::*;
 
 fn CompileFile(path: &Path, name: String, args: &[String]) -> Result<(), String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
-	let tokens: Vec<Token> = scanner::ScanCode(code, name.clone())?;
-	if args.contains(&"-tokens".to_string()) {
+	let tokens: Vec<Token> = ScanCode(code, name.clone())?;
+	if args.contains(&String::from("-tokens")) {
 		println!("{:#?}", tokens);
 	}
-	let ctokens: Vec<ComplexToken> = parser::ParseTokens(tokens, name.clone())?;
-	/*let compiledname: String = String::from(path.display()
-		.to_string()
-		.strip_suffix(".clue")
-		.unwrap()) + ".lua";
-	let output: File = check!(File::create(compiledname));*/
-	/*for token in tokens.iter() {
-		println!("{} \"{}\" {}", token.kind, token.lexeme, token.line);
-	}*/
-	println!("{:#?}", ctokens);
+	let ctokens: Vec<ComplexToken> = ParseTokens(tokens, name.clone())?;
+	if args.contains(&String::from("-struct")) {
+		println!("{:#?}", ctokens);
+	}
+	let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
+	check!(fs::write(compiledname, CompileTokens(ctokens, name.clone())?.as_str()));
 	Ok(())
 }
 
@@ -58,7 +56,7 @@ fn CompileFolder(path: &Path, args: &[String]) -> Result<(), String> {
 fn main() -> Result<(), String> {
 	let args: Vec<String> = env::args().collect();
 	let codepath;
-	if args.len() == 1 || args.contains(&"-help".to_string()) {
+	if args.len() == 1 || args.contains(&String::from("-help")) {
 		println!(
 "Clue transpiler
 
