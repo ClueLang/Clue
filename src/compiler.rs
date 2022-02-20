@@ -1,3 +1,4 @@
+use crate::scanner::TokenType::*;
 use crate::parser::ComplexToken;
 use crate::parser::ComplexToken::*;
 use crate::parser::Expression;
@@ -58,6 +59,32 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
                 let names = CompileIdentifiers(names);
                 let values = CompileExpressions(cline, values);
                 result += &format!("{}{} = {};", pre, names, values);
+            }
+            ALTER {kind, names, values, line} => {
+                let pre = ReachLine(cline, line);
+                let iter = names.iter();
+                let mut names: Vec<String> = Vec::new();
+                for name in iter {
+                    names.push(CompileExpression(cline, name.to_vec()))
+                }
+                let mut i = 0usize;
+                let values = CompileList(values, &mut |expr| {
+                    let name = names.get(i).unwrap();
+                    i += 1;
+                    (match kind {
+                        DEFINE => String::new(),
+                        DEFINEIF => format!("{}and ", name),
+                        INCREASE => format!("{}+ ", name),
+                        DECREASE => format!("{}- ", name),
+                        MULTIPLY => format!("{}* ", name),
+                        DIVIDE => format!("{}/ ", name),
+                        EXPONENTIATE => format!("{}^ ", name),
+                        CONCATENATE => format!("{}.. ", name),
+                        _ => {panic!("Unexpected alter type found")}
+                    }) + &CompileExpression(cline, expr)
+                });
+                let names = CompileIdentifiers(names);
+                result += &format!("{}{}= {};", pre, names, values);
             }
             _ => {panic!("Unexpected ComplexToken found")}
         }
