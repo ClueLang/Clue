@@ -68,7 +68,7 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
 				let iter = names.iter();
 				let mut names: Vec<String> = Vec::new();
 				for name in iter {
-					names.push(CompileExpression(cline, &vec![String::from("nil")], name.to_vec()))
+					names.push(CompileExpression(cline, &Vec::new(), name.to_vec()))
 				}
 				let mut i = 0usize;
 				let values = CompileList(values, &mut |expr| {
