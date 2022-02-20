@@ -424,7 +424,7 @@ impl ParserInfo {
 		}
 		let nt: TokenType = self.peek(0).kind;
 		if match nt {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE |
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS |
 			NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
 			_ => true
 		} {
