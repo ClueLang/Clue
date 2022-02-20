@@ -60,7 +60,9 @@ fn main() -> Result<(), String> {
 	let codepath;
 	if args.len() == 1 || args.contains(&String::from("-help")) {
 		println!(
-"Clue transpiler
+"Clue transpiler (ALPHA)
+Made by Felix44
+https://github.com/Felix-44/Clue
 
 USAGE:
 	clue -help		Send this very message

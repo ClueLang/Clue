@@ -3,6 +3,7 @@ name = "clue"
 version = "1.2.60"
 edition = "2018"
 build = "build.rs"
+authors = ["Felix44"]
 
 [build-dependencies]
 winres = "0.1"
