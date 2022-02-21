@@ -359,8 +359,9 @@ impl ParserInfo {
 						EOF => {return Err(self.expectedBefore("]", "<end>"))}
 						_ => true
 					} {}
-					name = Ok(self.buildExpression(start, self.current - 1)?);
-					self.current += 1;
+					self.current = start;
+					name = Ok(self.buildIdentifier(false)?);
+					self.current -= 1;
 				}
 				META => {
 					name = Err(String::from(match self.advance().lexeme.as_ref() {

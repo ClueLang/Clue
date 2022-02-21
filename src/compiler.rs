@@ -49,9 +49,24 @@ fn CompileExpression(cline: &mut usize, names: &Vec<String>, expr: Expression) -
 			PSEUDO {num, line} => {
 				result += &format!("{}{}", ReachLine(cline, line), names.get(num - 1).unwrap_or(&String::from("nil")));
 			}
+			TABLE {values, metas} => {
+				let values = CompileList(values, &mut |(name, value)| {
+					let name = CompileExpression(cline, names, name);
+					let value = CompileExpression(cline, names, value);
+					format!("{} = {}", name, value)
+				});
+				if metas.is_empty() {
+					result += &format!("{{{}}}", values)
+				} else {
+					let metas = CompileList(metas, &mut |(name, value)| {
+						let value = CompileExpression(cline, names, value);
+						format!("{} = {}", name, value)
+					});
+					result += &format!("setmetatable({{{}}}, {{{}}})", values, metas)
+				}
+			}
 			CALL(args) => {
 				result += &format!("({})", CompileExpressions(cline, names, args))
-			}
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
