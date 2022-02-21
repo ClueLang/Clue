@@ -47,7 +47,6 @@ fn CompileExpression(cline: &mut usize, names: &Vec<String>, expr: Expression) -
 				result += &format!("{}{}", ReachLine(cline, line), lexeme);
 			}
 			PSEUDO {num, line} => {
-				result += &format!("{}{} ", ReachLine(cline, line), names.get(num - 1).unwrap_or(&String::from("nil")));
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
