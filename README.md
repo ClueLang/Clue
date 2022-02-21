@@ -1,7 +1,9 @@
 # Clue
 Clue is programming language that compiles into Lua code that has a syntax similar to languages like C or Rust.
+
 Clue's syntax tries to be very open and not force any style (with few exceptions).
-For debugging logic errors (for example `1 + nil`) Clue makes sure the output Lua code's lines are the same as the Clue code's everwhere an error could appear,
+
+For debugging logic errors (for example `1 + nil`) Clue makes sure the output Lua code's lines are the same as the Clue code's lines everwhere an error could appear,
 that way you should never have to check the output Lua code (which isn't made to be readable).
 
 Note that Clue is still in early Alpha and lacks many features,
