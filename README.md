@@ -62,7 +62,7 @@ g = g .. [[6]];
 h = h and 7;
 ```
 
-### Psudo variables (`$`)
+### Pseudo variables (`$`)
 The `$` "variable" is a new feature added by Clue, it rappresents the variable we are currently altering:
 ```
 local a = 3;
