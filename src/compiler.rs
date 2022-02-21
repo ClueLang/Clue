@@ -44,7 +44,7 @@ fn CompileExpression(cline: &mut usize, names: &Vec<String>, expr: Expression) -
 		match t {
 			SYMBOL {lexeme, line} => {
 				*cline += lexeme.matches("\n").count();
-				result += &format!("{}{} ", ReachLine(cline, line), lexeme);
+				result += &format!("{}{}", ReachLine(cline, line), lexeme);
 			}
 			PSEUDO {num, line} => {
 				result += &format!("{}{} ", ReachLine(cline, line), names.get(num - 1).unwrap_or(&String::from("nil")));
@@ -80,18 +80,18 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
 					i += 1;
 					(match kind {
 						DEFINE => String::new(),
-						DEFINEIF => format!("{}and ", name),
-						INCREASE => format!("{}+ ", name),
-						DECREASE => format!("{}- ", name),
-						MULTIPLY => format!("{}* ", name),
-						DIVIDE => format!("{}/ ", name),
-						EXPONENTIATE => format!("{}^ ", name),
-						CONCATENATE => format!("{}.. ", name),
+						DEFINEIF => format!("{} and ", name),
+						INCREASE => format!("{} + ", name),
+						DECREASE => format!("{} - ", name),
+						MULTIPLY => format!("{} * ", name),
+						DIVIDE => format!("{} / ", name),
+						EXPONENTIATE => format!("{} ^ ", name),
+						CONCATENATE => format!("{} .. ", name),
 						_ => {panic!("Unexpected alter type found")}
 					}) + &CompileExpression(cline, &names, expr)
 				});
 				let names = CompileIdentifiers(names);
-				result += &format!("{}{}= {};", pre, names, values);
+				result += &format!("{}{} = {};", pre, names, values);
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}

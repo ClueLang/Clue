@@ -536,21 +536,21 @@ impl ParserInfo {
 				AND => {
 					self.checkOperator(&t, start, end)?;
 					expr.push(SYMBOL {
-						lexeme: String::from("and"),
+						lexeme: String::from(" and "),
 						line: t.line
 					})
 				}
 				OR => {
 					self.checkOperator(&t, start, end)?;
 					expr.push(SYMBOL {
-						lexeme: String::from("or"),
+						lexeme: String::from(" or "),
 						line: t.line
 					})
 				}
 				NOT => {
 					self.checkOperator(&t, usize::MAX, end)?;
 					expr.push(SYMBOL {
-						lexeme: String::from("not"),
+						lexeme: String::from(" not "),
 						line: t.line
 					})
 				}
