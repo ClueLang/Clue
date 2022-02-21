@@ -53,7 +53,11 @@ fn CompileExpression(cline: &mut usize, names: &Vec<String>, expr: Expression) -
 				let values = CompileList(values, &mut |(name, value)| {
 					let name = CompileExpression(cline, names, name);
 					let value = CompileExpression(cline, names, value);
-					format!("{} = {}", name, value)
+					if name.is_empty() {
+						format!("{}", value)
+					} else {
+						format!("{} = {}", name, value)
+					}
 				});
 				if metas.is_empty() {
 					result += &format!("{{{}}}", values)
