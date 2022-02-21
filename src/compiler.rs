@@ -83,6 +83,10 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
 	let cline = &mut 1usize;
 	for t in ctokens.into_iter() {
 		match t {
+			SYMBOL {lexeme, line} => {
+				*cline += lexeme.matches("\n").count();
+				result += &format!("{}{}", ReachLine(cline, line), lexeme);
+			}
 			VARIABLE {local, names, values, line} => {
 				let mut pre = ReachLine(cline, line);
 				if local {pre += "local "}
@@ -115,6 +119,9 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
 				});
 				let names = CompileIdentifiers(names);
 				result += &format!("{}{} = {};", pre, names, values);
+			}
+			CALL(args) => {
+				result += &format!("({})", CompileExpressions(cline, noPseudos, args))
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
