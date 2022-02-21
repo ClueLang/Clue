@@ -444,7 +444,7 @@ impl ParserInfo {
 			return Err(self.error(format!("'{}' should be used only when indexing tables.", t.lexeme)))
 		}
 		expr.push(SYMBOL {
-			lexeme: t.lexeme.clone(),
+			lexeme: t.lexeme.clone().chars().next().unwrap().to_string(),
 			line: self.getLine()
 		});
 		Ok(())
