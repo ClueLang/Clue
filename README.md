@@ -133,9 +133,9 @@ Clue's functions work the exact same way as Lua's but with a few differences:
 - The keyword `fn` can be used instead of `function`
 - Global functions have to be defined with the `global` keyword
 - When calling functions with a single argument `()` cannot be omitted (which was possible in Lua, this feature might come back in Clue)
-- Like all other code blocks in Clue `end` is removed and `{}` must be used instead
+- Function arguments can now have default values
 ```
-local function foo(x, y) {
+local function foo(x, y = 3) {
   //code
 }
 

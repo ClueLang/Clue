@@ -8,6 +8,7 @@ use self::CheckResult::*;
 use std::cmp;
 
 pub type Expression = Vec<ComplexToken>;
+pub type FunctionArgs = Vec<(String, Option<Expression>)>;
 
 fn GetCondition(t: TokenType) -> CheckResult {
 	match t {
@@ -49,13 +50,13 @@ pub enum ComplexToken {
 
 	FUNCTION {
 		local: bool,
-		name: String,
-		args: Vec<String>,
+		name: Expression,
+		args: FunctionArgs,
 		code: Expression
 	},
 
 	LAMBDA {
-		args: Vec<String>,
+		args: FunctionArgs,
 		code: Expression
 	},
 
@@ -611,14 +612,9 @@ impl ParserInfo {
 				}
 				FN => {
 					self.assert(ROUND_BRACKET_OPEN, "(")?;
-					let args: Vec<String>;
-					if !self.advanceIf(ROUND_BRACKET_CLOSED) {
-						args = self.buildIdentifierList()?;
-						self.assert(ROUND_BRACKET_CLOSED, ")")?;
-					} else {
-						args = Vec::new();
-					}
-					self.assert(CURLY_BRACKET_OPEN, "{")?;
+					let args: FunctionArgs = if !self.advanceIf(ROUND_BRACKET_CLOSED) {
+						self.buildFunctionArgs()?
+					} else {self.assert(CURLY_BRACKET_OPEN, "{")?; Vec::new()};
 					let code = self.buildCodeBlock()?;
 					expr.push(LAMBDA {args, code});
 				}
@@ -715,6 +711,35 @@ impl ParserInfo {
 		} {}
 		Ok(idents)
 	}
+
+	fn buildFunctionArgs(&mut self) -> Result<FunctionArgs, String> {
+		let mut args: FunctionArgs = Vec::new();
+		while {
+			let name = self.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
+			let t = self.advance();
+			println!("{:?}", t.kind);
+			match t.kind {
+				COMMA => {args.push((name, None)); true}
+				DEFINE => {
+					let default = self.findExpression(1, 0, 0, 1, |t| {
+						match t {
+							COMMA | ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
+							_ => CHECK_CONTINUE
+						}
+					})?;
+					args.push((name, Some(default)));
+					!self.advanceIf(CURLY_BRACKET_OPEN)
+				}
+				ROUND_BRACKET_CLOSED => {
+					args.push((name, None));
+					self.assert(CURLY_BRACKET_OPEN, "{")?;
+					false
+				}
+				_ => {return Err(self.expected(")", &t.lexeme))}
+			}
+		} {}
+		Ok(args)
+	}
 }
 
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
@@ -724,16 +749,37 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 		match t.kind {
 			LOCAL | GLOBAL => {
 				if i.advanceIf(FN) {
-					let name = i.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
-					i.assert(ROUND_BRACKET_OPEN, "(")?;
-					let args: Vec<String>;
-					if !i.advanceIf(ROUND_BRACKET_CLOSED) {
-						args = i.buildIdentifierList()?;
-						i.assert(ROUND_BRACKET_CLOSED, ")")?;
-					} else {
-						args = Vec::new();
-					}
-					i.assert(CURLY_BRACKET_OPEN, "{")?;
+					let name = {
+						let mut expr = Expression::new();
+						loop {
+							let t = i.advance();
+							match t.kind {
+								IDENTIFIER => {
+									let nt = i.peek(0);
+									if nt.kind == IDENTIFIER {
+										return Err(i.unexpected(&nt.lexeme))
+									}
+									expr.push(SYMBOL {
+										line: i.getLine(),
+										lexeme: t.lexeme
+									})
+								}
+								DOT => {i.checkIndex(&t, &mut expr)?}
+								METHOD => {
+									i.checkIndex(&t, &mut expr)?;
+									if i.peek(1).kind != ROUND_BRACKET_OPEN {
+										return Err(i.expected("(", &i.peek(1).lexeme))
+									}
+								}
+								ROUND_BRACKET_OPEN => {break}
+								_ => {return Err(i.expected("(", &t.lexeme))}
+							}
+						}
+						expr
+					};
+					let args: FunctionArgs = if !i.advanceIf(ROUND_BRACKET_CLOSED) {
+						i.buildFunctionArgs()?
+					} else {i.assert(CURLY_BRACKET_OPEN, "{")?; Vec::new()};
 					let code = i.buildCodeBlock()?;
 					i.expr.push(FUNCTION {
 						local: t.kind == LOCAL,
@@ -759,7 +805,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					SEMICOLON => false,
 					_ => {return Err(i.expected("=", &check.lexeme))}
 				};
-				let mut values: Vec<Expression> = if !areinit {Vec::new()} else {
+				let values: Vec<Expression> = if !areinit {Vec::new()} else {
 					i.findExpressions(0, 0, 0, 0, |t| {
 						match t {
 							COMMA => CHECK_BUILD,
