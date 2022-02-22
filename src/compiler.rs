@@ -90,9 +90,13 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
 			VARIABLE {local, names, values, line} => {
 				let mut pre = ReachLine(cline, line);
 				if local {pre += "local "}
-				let values = CompileExpressions(cline, &names, values);
-				let names = CompileIdentifiers(names);
-				result += &format!("{}{} = {};", pre, names, values);
+				if values.is_empty() {
+					result += &format!("{}{};", pre, CompileIdentifiers(names));
+				} else {
+					let values = CompileExpressions(cline, &names, values);
+					let names = CompileIdentifiers(names);
+					result += &format!("{}{} = {};", pre, names, values);
+				}
 			}
 			ALTER {kind, names, values, line} => {
 				let pre = ReachLine(cline, line);

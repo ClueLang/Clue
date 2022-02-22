@@ -51,7 +51,7 @@ h ?= 7;
 ```
 This block of code would be converted to:
 ```lua
-local a, b, c, d, e, f, g, h = nil, nil, nil, nil, nil, nil, nil, nil;
+local a, b, c, d, e, f, g, h;
 a = 0;
 b = b + 1;
 c = c - 2;

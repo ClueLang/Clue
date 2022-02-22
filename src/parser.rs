@@ -768,19 +768,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						}
 					})?
 				};
-				let mut it: usize = 0;
-				for _ in names.iter() {
-					match values.get(it) {
-						Some(_) => {},
-						None => {
-							values.push(vec![SYMBOL {
-								line: i.getLine(),
-								lexeme: String::from("nil")
-							}])
-						}
-					};
-					it += 1;
-				}
 				i.expr.push(VARIABLE {
 					local: t.kind == LOCAL,
 					line: t.line,
