@@ -4,6 +4,7 @@ use crate::scanner::TokenType::*;
 use crate::parser::ComplexToken;
 use crate::parser::ComplexToken::*;
 use crate::parser::Expression;
+use crate::parser::FunctionArgs;
 
 const noPseudos: &Vec<String> = &Vec::new();
 
@@ -38,16 +39,28 @@ fn CompileExpressions(cline: &mut usize, names: &Vec<String>, values: Vec<Expres
 	CompileList(values, &mut |expr| {CompileExpression(cline, names, expr)})
 }
 
+fn CompileFunction(cline: &mut usize, names: &Vec<String>, args: FunctionArgs, code: Expression) -> (String, String) {
+	let mut code = CompileTokens(cline, code);
+	let args = CompileList(args, &mut |(arg, default)| {
+		if let Some(default) = default {
+		let default = CompileExpression(cline, names, default);
+		code = format!("if {} == nil then {} = {} end {}", arg, arg, default, code)
+		}
+		arg
+	});
+	(code, args)
+}
+
 fn CompileExpression(cline: &mut usize, names: &Vec<String>, expr: Expression) -> String {
 	let mut result = String::new();
 	for t in expr {
-		match t {
+		result += &match t {
 			SYMBOL {lexeme, line} => {
 				*cline += lexeme.matches("\n").count();
-				result += &format!("{}{}", ReachLine(cline, line), lexeme);
+				format!("{}{}", ReachLine(cline, line), lexeme)
 			}
 			PSEUDO {num, line} => {
-				result += &format!("{}{}", ReachLine(cline, line), names.get(num - 1).unwrap_or(&String::from("nil")));
+				format!("{}{}", ReachLine(cline, line), names.get(num - 1).unwrap_or(&String::from("nil")))
 			}
 			TABLE {values, metas} => {
 				let values = CompileList(values, &mut |(name, value)| {
@@ -60,17 +73,21 @@ fn CompileExpression(cline: &mut usize, names: &Vec<String>, expr: Expression) -
 					}
 				});
 				if metas.is_empty() {
-					result += &format!("{{{}}}", values)
+					format!("{{{}}}", values)
 				} else {
 					let metas = CompileList(metas, &mut |(name, value)| {
 						let value = CompileExpression(cline, names, value);
 						format!("{} = {}", name, value)
 					});
-					result += &format!("setmetatable({{{}}}, {{{}}})", values, metas)
+					format!("setmetatable({{{}}}, {{{}}})", values, metas)
 				}
 			}
+			LAMBDA {args, code} => {
+				let (code, args) = CompileFunction(cline, names, args, code);
+				format!("function({}){} end", args, code)
+			}
 			CALL(args) => {
-				result += &format!("({})", CompileExpressions(cline, names, args))
+				format!("({})", CompileExpressions(cline, names, args))
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
@@ -78,24 +95,23 @@ fn CompileExpression(cline: &mut usize, names: &Vec<String>, expr: Expression) -
 	result
 }
 
-pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
+pub fn CompileTokens(cline: &mut usize, ctokens: Vec<ComplexToken>) -> String {
 	let mut result = String::new();
-	let cline = &mut 1usize;
 	for t in ctokens.into_iter() {
-		match t {
+		result += &match t {
 			SYMBOL {lexeme, line} => {
 				*cline += lexeme.matches("\n").count();
-				result += &format!("{}{}", ReachLine(cline, line), lexeme);
+				format!("{}{}", ReachLine(cline, line), lexeme)
 			}
 			VARIABLE {local, names, values, line} => {
 				let mut pre = ReachLine(cline, line);
 				if local {pre += "local "}
 				if values.is_empty() {
-					result += &format!("{}{};", pre, CompileIdentifiers(names));
+					format!("{}{};", pre, CompileIdentifiers(names))
 				} else {
 					let values = CompileExpressions(cline, &names, values);
 					let names = CompileIdentifiers(names);
-					result += &format!("{}{} = {};", pre, names, values);
+					format!("{}{} = {};", pre, names, values)
 				}
 			}
 			ALTER {kind, names, values, line} => {
@@ -122,13 +138,20 @@ pub fn CompileTokens(ctokens: Vec<ComplexToken>) -> Result<String, String> {
 					}) + &CompileExpression(cline, &names, expr)
 				});
 				let names = CompileIdentifiers(names);
-				result += &format!("{}{} = {};", pre, names, values);
+				format!("{}{} = {};", pre, names, values)
+			}
+			FUNCTION {local, name, args, code, line} => {
+				let mut pre = ReachLine(cline, line);
+				if local {pre += "local "}
+				let name = CompileExpression(cline, noPseudos, name);
+				let (code, args) = CompileFunction(cline, noPseudos, args, code);
+				format!("{}function {}({}){} end", pre, name, args, code)
 			}
 			CALL(args) => {
-				result += &format!("({})", CompileExpressions(cline, noPseudos, args))
+				format!("({})", CompileExpressions(cline, noPseudos, args))
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
 	}
-	Ok(result)
+	result
 }

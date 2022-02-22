@@ -52,7 +52,8 @@ pub enum ComplexToken {
 		local: bool,
 		name: Expression,
 		args: FunctionArgs,
-		code: Expression
+		code: Expression,
+		line: usize
 	},
 
 	LAMBDA {
@@ -782,6 +783,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					let code = i.buildCodeBlock()?;
 					i.expr.push(FUNCTION {
 						local: t.kind == LOCAL,
+						line: t.line,
 						name, args, code
 					});
 					continue
