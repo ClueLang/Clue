@@ -717,7 +717,6 @@ impl ParserInfo {
 		while {
 			let name = self.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
 			let t = self.advance();
-			println!("{:?}", t.kind);
 			match t.kind {
 				COMMA => {args.push((name, None)); true}
 				DEFINE => {
