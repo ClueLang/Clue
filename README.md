@@ -119,6 +119,7 @@ if (c1 : c2) {
 Since `and` and `or` in Clue can be `?` and `:` this might lead to belive `x ? y : z` would be the same from a C's ternary, **it is not identical**,
 it will be convered to `x and y or z` which is slightly different from C's ternary.
 If this for bothers you you can always use `x && y || z` instead which will be converted to the same thing.
+This feature is temporary and ? : will be used for true ternary in the future
 
 ### `!` (`not`)
 `not` has been replaced by only `!`, and only it will be converted to `not`.
