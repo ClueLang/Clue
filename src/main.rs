@@ -60,7 +60,7 @@ fn main() -> Result<(), String> {
 	let codepath;
 	if args.len() == 1 || args.contains(&String::from("-help")) {
 		println!(
-"Clue transpiler (ALPHA)
+"Clue transpiler (BETA)
 Made by Felix44
 https://github.com/Felix-44/Clue
 
@@ -83,7 +83,7 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version a1.4.66");
+		println!("Version b1.0.67");
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);

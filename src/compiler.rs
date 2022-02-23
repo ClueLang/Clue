@@ -147,6 +147,11 @@ pub fn CompileTokens(cline: &mut usize, ctokens: Vec<ComplexToken>) -> String {
 				let (code, args) = CompileFunction(cline, noPseudos, args, code);
 				format!("{}function {}({}){} end", pre, name, args, code)
 			}
+			IF_STATEMENT {condition, code} => {
+				let condition = CompileExpression(cline, noPseudos, condition);
+				let code = CompileTokens(cline, code);
+				format!("if {} then {} end", condition, code)
+			}
 			CALL(args) => {
 				format!("({})", CompileExpressions(cline, noPseudos, args))
 			}
