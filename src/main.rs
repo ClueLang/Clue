@@ -35,7 +35,7 @@ fn CompileFile(path: &Path, name: String, args: &[String]) -> Result<(), String>
 	}
 	if !args.contains(&String::from("-dontsave")) {	
 		let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-		check!(fs::write(compiledname, CompileTokens(&mut 1, ctokens).as_str()));
+		check!(fs::write(compiledname, CompileTokens(0, ctokens).as_str()));
 	}
 	Ok(())
 }
@@ -83,7 +83,7 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version b1.0.67");
+		println!("Version b1.0.69");
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);

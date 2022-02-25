@@ -10,13 +10,6 @@ use std::cmp;
 pub type Expression = Vec<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<Expression>)>;
 
-fn GetCondition(t: TokenType) -> CheckResult {
-	match t {
-		CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
-		_ => CHECK_CONTINUE
-	}
-}
-
 #[derive(Debug, Clone)]
 pub enum ComplexToken {
 	SYMBOL {
@@ -52,28 +45,30 @@ pub enum ComplexToken {
 		local: bool,
 		name: Expression,
 		args: FunctionArgs,
-		code: Expression,
+		code: CodeBlock,
 		line: usize
 	},
 
 	LAMBDA {
 		args: FunctionArgs,
-		code: Expression
+		code: CodeBlock,
+		line: usize
 	},
 
 	IF_STATEMENT {
 		condition: Expression,
-		code: Expression
+		code: CodeBlock,
+		line: usize
 	},
 
 	WHILE_LOOP {
 		condition: Expression,
-		code: Expression
+		code: CodeBlock
 	},
 
 	LOOP_UNTIL {
 		condition: Expression,
-		code: Expression
+		code: CodeBlock
 	},
 
 	FOR_LOOP {
@@ -81,18 +76,18 @@ pub enum ComplexToken {
 		start: Expression,
 		end: Expression,
 		alter: Expression,
-		code: Expression
+		code: CodeBlock
 	},
 
 	FOR_FUNC_LOOP {
 		iterators: Vec<String>,
 		expr: Expression,
-		code: Expression
+		code: CodeBlock
 	},
 
 	CALL(Vec<Expression>),
 	PGET(Expression),
-	DO_BLOCK(Expression),
+	DO_BLOCK(CodeBlock),
 	RETURN_EXPR(Expression),
 	CONTINUE_LOOP, BREAK_LOOP
 }
@@ -103,10 +98,25 @@ enum CheckResult {
 	CHECK_STOP,
 	CHECK_BACKSTOP,
 	CHECK_FORCESTOP,
+	CHECK_ADVANCESTOP
 }
 
 fn IsVar(current: usize, end: usize, nt: &Token) -> bool {
 	current >= end || nt.isOp() || nt.kind == ROUND_BRACKET_CLOSED
+}
+
+fn GetCondition(t: TokenType) -> CheckResult {
+	match t {
+		CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
+		_ => CHECK_CONTINUE
+	}
+}
+
+#[derive(Clone, Debug)]
+pub struct CodeBlock {
+	pub start: usize,
+	pub code: Expression,
+	pub end: usize
 }
 
 struct ParserInfo {
@@ -274,10 +284,20 @@ impl ParserInfo {
 								break;
 							}
 						}
-						CHECK_FORCESTOP => {
+						CHECK_ADVANCESTOP => {
 							if self.current > start {
 								values.push(self.buildExpression(start, self.current)?);
 								self.current += 1;
+								stop = true;
+								break;
+							} else {
+								stop = true;
+								break;
+							}
+						}
+						CHECK_FORCESTOP => {
+							if self.current > start {
+								values.push(self.buildExpression(start, self.current)?);
 								stop = true;
 								break;
 							} else {
@@ -615,9 +635,9 @@ impl ParserInfo {
 					self.assert(ROUND_BRACKET_OPEN, "(")?;
 					let args: FunctionArgs = if !self.advanceIf(ROUND_BRACKET_CLOSED) {
 						self.buildFunctionArgs()?
-					} else {self.assert(CURLY_BRACKET_OPEN, "{")?; Vec::new()};
+					} else {Vec::new()};
 					let code = self.buildCodeBlock()?;
-					expr.push(LAMBDA {args, code});
+					expr.push(LAMBDA {args, code, line: t.line});
 				}
 				_ => {return Err(self.unexpected(t.lexeme.as_str()))}
 			}
@@ -677,30 +697,33 @@ impl ParserInfo {
 		Ok(expr)
 	}
 
-	fn buildCodeBlock(&mut self) -> Result<Expression, String> {
+	fn buildCodeBlock(&mut self) -> Result<CodeBlock, String> {
+		let start = self.assertAdvance(CURLY_BRACKET_OPEN, "{")?.line;
 		let mut tokens: Vec<Token> = Vec::new();
 		let mut cscope = 1u8;
+		let end: usize;
 		loop {
 			let t = self.advance();
 			match t.kind {
 				CURLY_BRACKET_OPEN => {cscope += 1}
 				CURLY_BRACKET_CLOSED => {
 					cscope -= 1;
-					if cscope == 0 {break}
+					if cscope == 0 {end = t.line; break}
 				}
 				EOF => {return Err(self.expectedBefore("}", "<end>"))}
 				_ => {}
 			}
 			tokens.push(t);
 		}
-		if tokens.is_empty() {Ok(Expression::new())} else {
+		let code = if tokens.is_empty() {Expression::new()} else {
 			tokens.push(Token {
 				kind: EOF,
 				lexeme: String::new(),
 				line: self.getLine()
 			});
-			ParseTokens(tokens, self.filename.clone())
-		}
+			ParseTokens(tokens, self.filename.clone())?
+		};
+		Ok(CodeBlock {start, code, end})
 	}
 
 	fn buildIdentifierList(&mut self) -> Result<Vec<String>, String> {
@@ -723,16 +746,15 @@ impl ParserInfo {
 				DEFINE => {
 					let default = self.findExpression(1, 0, 0, 1, |t| {
 						match t {
-							COMMA | ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
+							COMMA | ROUND_BRACKET_CLOSED => CHECK_ADVANCESTOP,
 							_ => CHECK_CONTINUE
 						}
 					})?;
 					args.push((name, Some(default)));
-					!self.advanceIf(CURLY_BRACKET_OPEN)
+					!self.compare(CURLY_BRACKET_OPEN)
 				}
 				ROUND_BRACKET_CLOSED => {
 					args.push((name, None));
-					self.assert(CURLY_BRACKET_OPEN, "{")?;
 					false
 				}
 				_ => {return Err(self.expected(")", &t.lexeme))}
@@ -779,7 +801,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					};
 					let args: FunctionArgs = if !i.advanceIf(ROUND_BRACKET_CLOSED) {
 						i.buildFunctionArgs()?
-					} else {i.assert(CURLY_BRACKET_OPEN, "{")?; Vec::new()};
+					} else {Vec::new()};
 					let code = i.buildCodeBlock()?;
 					i.expr.push(FUNCTION {
 						local: t.kind == LOCAL,
@@ -892,13 +914,14 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.advanceIf(SEMICOLON);
 			}
 			CURLY_BRACKET_OPEN => {
+				i.current -= 1;
 				let block = i.buildCodeBlock()?;
 				i.expr.push(DO_BLOCK(block));
 			}
 			IF => {
 				let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
 				let code = i.buildCodeBlock()?;
-				i.expr.push(IF_STATEMENT {condition, code})
+				i.expr.push(IF_STATEMENT {condition, code, line: t.line})
 			}
 			WHILE => {
 				let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
@@ -913,7 +936,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							i.current += 1;
 							let condition = i.findExpression(0, 0, 0, 0, |t| {
 								match t {
-									SEMICOLON => CHECK_FORCESTOP,
+									SEMICOLON => CHECK_ADVANCESTOP,
 									_ => CHECK_CONTINUE,
 								}
 							})?;
@@ -942,18 +965,16 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					i.current += 1;
 					let start = i.findExpression(0, 0, 0, 0, |t| {
 						match t {
-							COMMA => CHECK_FORCESTOP,
+							COMMA => CHECK_ADVANCESTOP,
 							_ => CHECK_CONTINUE
 						}
 					})?;
 					let end = i.findExpression(0, 0, 0, 1, |t| {
 						match t {
-							CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
-							COMMA => CHECK_FORCESTOP,
+							COMMA | CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
 							_ => CHECK_CONTINUE
 						}
 					})?;
-					i.current -= 1;
 					let alter = if i.advance().kind != CURLY_BRACKET_OPEN {
 						i.findExpression(0, 0, 0, 1, GetCondition)?
 					} else {
@@ -1011,7 +1032,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			RETURN => {
 				let expr = i.findExpression(0, 0, 0, 0, |t| {
 					match t {
-						SEMICOLON => CHECK_FORCESTOP,
+						SEMICOLON => CHECK_ADVANCESTOP,
 						_ => CHECK_CONTINUE,
 					}
 				})?;
