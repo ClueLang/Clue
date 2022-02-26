@@ -521,11 +521,18 @@ impl ParserInfo {
 				}
 				CURLY_BRACKET_OPEN => {expr.push(self.buildTable()?)}
 				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
-				EQUAL | NOT_EQUAL | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL |
+				EQUAL  | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL |
 				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
 					self.checkOperator(&t, start, end)?;
 					expr.push(SYMBOL {
 						lexeme: t.lexeme,
+						line: t.line
+					})
+				}
+				NOT_EQUAL => {
+					self.checkOperator(&t, start, end)?;
+					expr.push(SYMBOL {
+						lexeme: String::from("~="),
 						line: t.line
 					})
 				}
