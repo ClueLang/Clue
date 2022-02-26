@@ -1,11 +1,15 @@
 #![allow(non_upper_case_globals)]
 
 use crate::scanner::TokenType::*;
-use crate::parser::ComplexToken;
-use crate::parser::ComplexToken::*;
-use crate::parser::Expression;
-use crate::parser::FunctionArgs;
-use crate::parser::CodeBlock;
+use std::iter::Peekable;
+use std::vec::IntoIter;
+use crate::parser::{
+	ComplexToken,
+	ComplexToken::*,
+	Expression,
+	FunctionArgs,
+	CodeBlock
+};
 
 fn Indentate(scope: usize) -> String {
 	let mut result = String::new();
@@ -13,6 +17,13 @@ fn Indentate(scope: usize) -> String {
 		result += "\t";
 	}
 	result
+}
+
+fn IndentateIf(ctokens: &mut Peekable<IntoIter<ComplexToken>>, scope: usize) -> String {
+	match ctokens.peek() {
+		Some(_) => format!("\n{}", Indentate(scope)),
+		None => String::new()
+	}
 }
 
 fn CompileList<T>(list: Vec<T>, tostring: &mut impl FnMut(T) -> String) -> String {
@@ -108,19 +119,21 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 }
 
 pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
-	let mut result = String::new();
-	for t in ctokens.into_iter() {
+	let mut result = Indentate(scope);
+	let ctokens = &mut ctokens.into_iter().peekable();
+	for t in ctokens.clone() {
+		ctokens.next();
 		result += &match t {
 			SYMBOL {lexeme, line: _} => lexeme,
 			VARIABLE {local, names, values, line: _} => {
-				let mut pre = Indentate(scope);
-				if local {pre += "local "}
+				let pre = if local {"local "} else {""};
+				let end = IndentateIf(ctokens, scope);
 				if values.is_empty() {
-					format!("{}{};", pre, CompileIdentifiers(names))
+					format!("{}{};{}", pre, CompileIdentifiers(names), end)
 				} else {
 					let values = CompileExpressions(scope, Some(&names), values);
 					let names = CompileIdentifiers(names);
-					format!("{}{} = {};", pre, names, values)
+					format!("{}{} = {};{}", pre, names, values, end)
 				}
 			}
 			/*ALTER {kind, names, values, line} => {
@@ -149,20 +162,28 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 				let names = CompileIdentifiers(names);
 				format!("{}{} = {};", pre, names, values)
 			}*/
-			/*FUNCTION {local, name, args, code, line} => {
+			FUNCTION /*{local, name, args, code, line} => {
 				let mut pre = ReachLine(cline, scope, line);
 				if local {pre += "local "}
 				let name = CompileExpression(cline, scope, noPseudos, name);
 				let (code, args) = CompileFunction(cline, scope, noPseudos, args, code.code);
 				format!("{}function {}({}){} end", pre, name, args, code)
-			}*/
+			}*/{local, name, args, code, line: _} => {
+				//let (code, args) = CompileFunction(scope, names, args, code);
+				let mut pre1 = Indentate(scope);
+				let pre2 = IndentateIf(ctokens, scope);
+				if local {pre1 += "local "}
+				let name = CompileExpression(scope, None, name);
+				let (code, args) = CompileFunction(scope, None, args, code);
+				format!("{}function {}({}){}{}", pre1, name, args, code, pre2)
+			}
 			IF_STATEMENT {condition, code, line: _} => {
 				let condition = CompileExpression(scope, None, condition);
 				let code = CompileCodeBlock(scope, "then", code);
-				format!("{}if {} {}", Indentate(scope), condition, code)
+				format!("if {} {}{}", condition, code, IndentateIf(ctokens, scope))
 			}
 			CALL(args) => {
-				format!("({})", CompileExpressions(scope, None, args))
+				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
