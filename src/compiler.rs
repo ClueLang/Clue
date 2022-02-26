@@ -162,14 +162,7 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 				let names = CompileIdentifiers(names);
 				format!("{}{} = {};", pre, names, values)
 			}*/
-			FUNCTION /*{local, name, args, code, line} => {
-				let mut pre = ReachLine(cline, scope, line);
-				if local {pre += "local "}
-				let name = CompileExpression(cline, scope, noPseudos, name);
-				let (code, args) = CompileFunction(cline, scope, noPseudos, args, code.code);
-				format!("{}function {}({}){} end", pre, name, args, code)
-			}*/{local, name, args, code, line: _} => {
-				//let (code, args) = CompileFunction(scope, names, args, code);
+			FUNCTION {local, name, args, code, line: _} => {
 				let mut pre1 = Indentate(scope);
 				let pre2 = IndentateIf(ctokens, scope);
 				if local {pre1 += "local "}
