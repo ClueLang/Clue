@@ -7,8 +7,6 @@ use crate::parser::Expression;
 use crate::parser::FunctionArgs;
 use crate::parser::CodeBlock;
 
-const noPseudos: &Vec<String> = &Vec::new();
-
 fn Indentate(scope: usize) -> String {
 	let mut result = String::new();
 	for _ in 0..scope {
@@ -35,11 +33,11 @@ fn CompileIdentifiers(names: Vec<String>) -> String {
 	CompileList(names, &mut |name| {name})
 }
 
-fn CompileExpressions(scope: usize, names: &Vec<String>, values: Vec<Expression>) -> String {
+fn CompileExpressions(scope: usize, names: Option<&Vec<String>>, values: Vec<Expression>) -> String {
 	CompileList(values, &mut |expr| {CompileExpression(scope, names, expr)})
 }
 
-fn CompileFunction(scope: usize, names: &Vec<String>, args: FunctionArgs, code: CodeBlock) -> (String, String) {
+fn CompileFunction(scope: usize, names: Option<&Vec<String>>, args: FunctionArgs, code: CodeBlock) -> (String, String) {
 	let mut code = CompileCodeBlock(scope, "", code);
 	let args = CompileList(args, &mut |(arg, default)| {
 		if let Some(default) = default {
@@ -57,13 +55,16 @@ fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	format!("{}\n{}\n{}end", start, code, Indentate(scope))
 }
 
-fn CompileExpression(mut scope: usize, names: &Vec<String>, expr: Expression) -> String {
+fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
 	let mut result = String::new();
 	for t in expr {
 		result += &match t {
 			SYMBOL {lexeme, line: _} => lexeme,
 			PSEUDO {num, line: _} => {
-				names.get(num - 1).unwrap_or(&String::from("nil")).to_string()
+				match names {
+					Some(names) => names.get(num - 1).unwrap_or(&String::from("nil")).to_string(),
+					None => String::from("nil")
+				}
 			}
 			TABLE {values, metas} => {
 				scope += 1;
@@ -117,7 +118,7 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 				if values.is_empty() {
 					format!("{}{};", pre, CompileIdentifiers(names))
 				} else {
-					let values = CompileExpressions(scope, &names, values);
+					let values = CompileExpressions(scope, Some(&names), values);
 					let names = CompileIdentifiers(names);
 					format!("{}{} = {};", pre, names, values)
 				}
@@ -156,12 +157,12 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 				format!("{}function {}({}){} end", pre, name, args, code)
 			}*/
 			IF_STATEMENT {condition, code, line: _} => {
-				let condition = CompileExpression(scope, noPseudos, condition);
+				let condition = CompileExpression(scope, None, condition);
 				let code = CompileCodeBlock(scope, "then", code);
 				format!("{}if {} {}", Indentate(scope), condition, code)
 			}
 			CALL(args) => {
-				format!("({})", CompileExpressions(scope, noPseudos, args))
+				format!("({})", CompileExpressions(scope, None, args))
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
