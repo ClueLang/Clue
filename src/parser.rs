@@ -934,9 +934,10 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					let alter = if i.advance().kind != CURLY_BRACKET_OPEN {
 						i.findExpression(0, 0, 0, 1, GetCondition)?
 					} else {
+						i.current -= 1;
 						vec![SYMBOL(String::from("1"))]
 					};
-					let code = i.buildCodeBlock()?;
+					let code = i.buildLoopBlock()?;
 					i.expr.push(FOR_LOOP {iterator, start, end, alter, code})
 				} else {
 					let iterators = i.buildIdentifierList()?;
@@ -962,7 +963,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						WITH => {i.findExpression(0, 0, 0, 1, GetCondition)?}
 						_ => {return Err(i.expected("of', 'in' or 'with", &i.peek(0).lexeme))}
 					};
-					let code = i.buildCodeBlock()?;
+					let code = i.buildLoopBlock()?;
 					i.expr.push(FOR_FUNC_LOOP {iterators, expr, code});
 				}
 			}
