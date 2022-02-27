@@ -200,8 +200,14 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 			CALL(args) => {
 				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
 			}
+			RETURN_EXPR(expr) => {
+				format!("return {};", CompileExpression(scope, None, expr))
+			}
 			CONTINUE_LOOP => {
 				String::from("goto continue;") + &IndentateIf(ctokens, scope)
+			}
+			BREAK_LOOP => {
+				String::from("break;") + &IndentateIf(ctokens, scope)
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
