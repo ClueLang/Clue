@@ -1,13 +1,12 @@
 # Clue
 Clue is programming language that compiles into Lua code that has a syntax similar to languages like C or Rust.
 
-Clue's syntax tries to be very open and not force any style (with few exceptions).
+Clue tries to have a mostly open syntax and does not force any coding style.
 
-For debugging logic errors (for example `1 + nil`) Clue makes sure the output Lua code's lines are the same as the Clue code's lines everwhere an error could appear,
-that way you should never have to check the output Lua code (which isn't made to be readable).
+Clue also adds many optional features to help make code smaller and implementing hard things easier and/or with a better syntax
 
-Note that Clue is still in early Alpha and lacks many features,
-these features will have a "(WIP)" after their name to warn that the feature is not yet available or it's not fully implemented
+
+(Note that Clue is still in beta and lacks some important (and not important) features)
 
 ## How to install and use
 1. Download the latest release and save it somewhere
@@ -77,7 +76,7 @@ print(a..b) //will print "Hello world!"
 ```
 The first variable is `$1` the second is `$2` and so on. `$0` is not valid and will cause an error.
 
-## If statements (WIP)
+## If statements
 If statements work the same way as Lua except `then` and `end` are replaced by `{}`:
 ```
 if condition {
@@ -88,6 +87,7 @@ if condition {
   //even more code
 }
 ```
+**WIP: `elsif` and `else` are not yet supported**
 
 ## `and`, `or` and `not`
 The 3 above mentioned keywords do not exist in Clue, they have been replaced by the following:
@@ -103,6 +103,7 @@ if (c1 ? c2) {
   local x = true && 3;
 }
 ```
+**WIP: `?` as `and` is temporary and `?` will later be reused in true ternary**
 
 ### `:`/`||` (`or`)
 `or` too has been replaced by both `:` and `||` and either will be converted to `or`.
@@ -115,11 +116,7 @@ if (c1 : c2) {
   local x = false || 3;
 }
 ```
-**NOTE:**
-Since `and` and `or` in Clue can be `?` and `:` this might lead to belive `x ? y : z` would be the same from a C's ternary, **it is not identical**,
-it will be convered to `x and y or z` which is slightly different from C's ternary.
-If this for bothers you you can always use `x && y || z` instead which will be converted to the same thing.
-This feature is temporary and ? : will be used for true ternary in the future
+**WIP: `:` as `or` is temporary and `:` will later be reused in true ternary**
 
 ### `!` (`not`)
 `not` has been replaced by only `!`, and only it will be converted to `not`.
@@ -129,21 +126,55 @@ print(x); //will print false
 ```
 
 ## Functions (WIP)
-Clue's functions work the exact same way as Lua's but with a few differences:
-- Methods are defined with `::` instead of `:`
-- The keyword `fn` can be used instead of `function`
-- Global functions have to be defined with the `global` keyword
-- When calling functions with a single argument `()` cannot be omitted (which was possible in Lua, this feature might come back in Clue)
-- Function arguments can now have default values
+Clue's functions work the exact same way as Lua's but with some additions:
+
+### Local functions
+These remain the exact same as Lua's:
 ```
-local function foo(x, y = 3) {
-  //code
+local function foo() {/*code*/}
+```
+
+### Global functions
+These must be defined with the `global` keyword:
+```
+global function foo() {/*code*/}
+```
+
+### `fn`
+The `fn` keyword can be used instead of the rather lengthy `function` keyword
+`fn` is especially useful when passing functions as arguments:
+```
+bar(fn() {/*code*/});
+```
+
+### Methods
+Methods work the same way but are defined and called with `::` instead of `:`:
+```
+local t = {};
+global fn t::method() {/*code*/}
+t::method();
+```
+**WIP: Methods must currently be defined with `global function`, this may change (a `method` keyword maybe?)**
+
+### Default values
+A function's arguments can have default values, if that argument is nil it will set to the default value.
+The arguments are checked from last to first:
+```
+local function foo(x = 3, y = 5) {
+    //code
 }
-
-global fn bar() {/*code*/}
-
-foo(1, 2); //the same as Lua
 ```
+will be converted to:
+```lua
+local function foo(x, y)
+	if y == nil then y = 5 end
+	if x == nil then x = 3 end
+	
+end
+```
+
+### `return`
+**WIP: `return` currently has to return an expression, use `return nil;` instead of `return;`**
 
 ## Tables
 Tables themselves are created the same way they are made in Lua, but metatables get a little easier to do with the new `meta` keyword:
@@ -161,7 +192,7 @@ local othertable = {
 };
 ```
 
-## PGet (`?>`) (WIP)
+## PGet (`?>`)
 PGet (Protected Get) works similar to `pcall` but it's used instead to check if an expression would cause an error by returning nil if it does:
 ```
 local t = {};
@@ -173,6 +204,7 @@ Another case where PGet can be used is when you're not sure if a variable is a f
 local foo = 1;
 local bar = ?>(foo()) //foo is not a function so bar becomes nil
 ```
+**WIP: PGet is parsed but not compiled, using it will result in a crash**
 
 ## Loops (WIP)
 Some loops remain unchanged from Lua but there are some important differences and additions:
@@ -227,6 +259,7 @@ loop {
   //code
 } until x;
 ```
+**WIP: The first way of writing loop until loops may be reused for another type of loops in the future**
 
 ### Loop loops
 These loops with a funny name will iterate forever until something external (like `break`) ends the loop:
@@ -248,7 +281,12 @@ for i = 1, 10 {
 ```
 
 ## More coming soon!
-There are still many things that need to be added and some features (like `match` and `switch`) are still in the planning stage.
+There are still many things that need to be added and some features are still in the planning stage.
+The most likely ones to be added in the future are:
+- `switch`
+- `match`
+- `struct`
+- `enum`
 
 For any suggestion or bug you can make a github issue.
 
