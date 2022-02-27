@@ -191,6 +191,12 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 				let end = IndentateIf(ctokens, scope);
 				format!("for {} = {}, {}, {} {}end{}", iterator, start, endexpr, alter, code, end)
 			}
+			FOR_FUNC_LOOP {iterators, expr, code} => {
+				let expr = CompileExpression(scope, Some(&iterators), expr);
+				let iterators = CompileIdentifiers(iterators);
+				let code = CompileCodeBlock(scope, "do", code);
+				format!("for {} in {} {}end{}", iterators, expr, code, IndentateIf(ctokens, scope))
+			}
 			CALL(args) => {
 				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
 			}
