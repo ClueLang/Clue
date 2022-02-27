@@ -551,7 +551,7 @@ impl ParserInfo {
 				}
 				NOT => {
 					self.checkOperator(&t, usize::MAX, end)?;
-					expr.push(SYMBOL(String::from(" not ")))
+					expr.push(SYMBOL(String::from("not ")))
 				}
 				NUMBER | TRUE | FALSE | NIL => {
 					if IsVar(self.current, end, &self.peek(0)) {
