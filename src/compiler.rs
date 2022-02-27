@@ -136,12 +136,12 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 					format!("{}{} = {};{}", pre, names, values, end)
 				}
 			}
-			/*ALTER {kind, names, values, line} => {
-				let pre = ReachLine(cline, scope, line);
+			ALTER {kind, names, values, line: _} => {
+				let pre = Indentate(scope);
 				let iter = names.iter();
 				let mut names: Vec<String> = Vec::new();
 				for name in iter {
-					names.push(CompileExpression(cline, scope, noPseudos, name.to_vec()))
+					names.push(CompileExpression(scope, None, name.to_vec()))
 				}
 				let mut i = 0usize;
 				let values = CompileList(values, &mut |expr| {
@@ -157,11 +157,11 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 						EXPONENTIATE => format!("{} ^ ", name),
 						CONCATENATE => format!("{} .. ", name),
 						_ => {panic!("Unexpected alter type found")}
-					}) + &CompileExpression(cline, scope, &names, expr)
+					}) + &CompileExpression(scope, Some(&names), expr)
 				});
 				let names = CompileIdentifiers(names);
-				format!("{}{} = {};", pre, names, values)
-			}*/
+				format!("{}{} = {};{}", pre, names, values, IndentateIf(ctokens, scope))
+			}
 			FUNCTION {local, name, args, code, line: _} => {
 				let mut pre1 = Indentate(scope);
 				let pre2 = IndentateIf(ctokens, scope);
