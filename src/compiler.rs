@@ -137,7 +137,6 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 				}
 			}
 			ALTER {kind, names, values, line: _} => {
-				let pre = Indentate(scope);
 				let iter = names.iter();
 				let mut names: Vec<String> = Vec::new();
 				for name in iter {
@@ -160,7 +159,7 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 					}) + &CompileExpression(scope, Some(&names), expr)
 				});
 				let names = CompileIdentifiers(names);
-				format!("{}{} = {};{}", pre, names, values, IndentateIf(ctokens, scope))
+				format!("{} = {};{}", names, values, IndentateIf(ctokens, scope))
 			}
 			FUNCTION {local, name, args, code, line: _} => {
 				let mut pre1 = Indentate(scope);
