@@ -63,7 +63,7 @@ fn CompileFunction(scope: usize, names: Option<&Vec<String>>, args: FunctionArgs
 
 fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	let code = CompileTokens(scope + 1, block.code);
-	format!("{}\n{}\n{}end", start, code, Indentate(scope))
+	format!("{}\n{}\n{}", start, code, Indentate(scope))
 }
 
 fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
@@ -107,7 +107,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 			}
 			LAMBDA {args, code, line: _} => {
 				let (code, args) = CompileFunction(scope, names, args, code);
-				format!("function({}){}", args, code)
+				format!("function({}){}end", args, code)
 			}
 			CALL(args) => {
 				format!("({})", CompileExpressions(scope, names, args))
@@ -162,22 +162,26 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 				format!("{} = {};{}", names, values, IndentateIf(ctokens, scope))
 			}
 			FUNCTION {local, name, args, code, line: _} => {
-				let mut pre1 = Indentate(scope);
-				let pre2 = IndentateIf(ctokens, scope);
-				if local {pre1 += "local "}
+				let pre = if local {"local "} else {""};
+				let end = IndentateIf(ctokens, scope);
 				let name = CompileExpression(scope, None, name);
 				let (code, args) = CompileFunction(scope, None, args, code);
-				format!("{}function {}({}){}{}", pre1, name, args, code, pre2)
+				format!("{}function {}({}){}end{}", pre, name, args, code, end)
 			}
 			IF_STATEMENT {condition, code, line: _} => {
 				let condition = CompileExpression(scope, None, condition);
 				let code = CompileCodeBlock(scope, "then", code);
-				format!("if {} {}{}", condition, code, IndentateIf(ctokens, scope))
+				format!("if {} {}end{}", condition, code, IndentateIf(ctokens, scope))
 			}
 			WHILE_LOOP {condition, code} => {
 				let condition = CompileExpression(scope, None, condition);
 				let code = CompileCodeBlock(scope, "do", code);
-				format!("while {} {}{}", condition, code, IndentateIf(ctokens, scope))
+				format!("while {} {}end{}", condition, code, IndentateIf(ctokens, scope))
+			}
+			LOOP_UNTIL {condition, code} => {
+				let condition = CompileExpression(scope, None, condition);
+				let code = CompileCodeBlock(scope, "", code);
+				format!("repeat {}until {}{}", code, condition, IndentateIf(ctokens, scope))
 			}
 			CALL(args) => {
 				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))

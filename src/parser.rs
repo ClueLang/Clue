@@ -889,6 +889,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			LOOP => {
 				match i.advance().kind {
 					CURLY_BRACKET_OPEN => {
+						i.current -= 1;
 						let code = i.buildLoopBlock()?;
 						if i.peek(0).kind == UNTIL {
 							i.current += 1;
