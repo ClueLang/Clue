@@ -70,7 +70,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 	let mut result = String::new();
 	for t in expr {
 		result += &match t {
-			SYMBOL {lexeme, line: _} => lexeme,
+			SYMBOL (lexeme) => lexeme,
 			PSEUDO {num, line: _} => {
 				match names {
 					Some(names) => names.get(num - 1).unwrap_or(&String::from("nil")).to_string(),
@@ -124,7 +124,7 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 	for t in ctokens.clone() {
 		ctokens.next();
 		result += &match t {
-			SYMBOL {lexeme, line: _} => lexeme,
+			SYMBOL (lexeme) => lexeme,
 			VARIABLE {local, names, values, line: _} => {
 				let pre = if local {"local "} else {""};
 				let end = IndentateIf(ctokens, scope);

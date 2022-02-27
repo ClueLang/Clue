@@ -12,11 +12,6 @@ pub type FunctionArgs = Vec<(String, Option<Expression>)>;
 
 #[derive(Debug, Clone)]
 pub enum ComplexToken {
-	SYMBOL {
-		lexeme: String,
-		line: usize
-	},
-
 	VARIABLE {
 		local: bool,
 		names: Vec<String>,
@@ -85,6 +80,7 @@ pub enum ComplexToken {
 		code: CodeBlock
 	},
 
+	SYMBOL(String),
 	CALL(Vec<Expression>),
 	PGET(Expression),
 	DO_BLOCK(CodeBlock),
@@ -361,10 +357,7 @@ impl ParserInfo {
 			let pn = self.advance();
 			match pn.kind {
 				IDENTIFIER => {
-					name = Ok(vec![SYMBOL {
-						line: pn.line,
-						lexeme: pn.lexeme.clone()
-					}]);
+					name = Ok(vec![SYMBOL(pn.lexeme.clone())]);
 				}
 				SQUARE_BRACKET_OPEN => {
 					let mut qscope = 1u8;
@@ -465,10 +458,7 @@ impl ParserInfo {
 		} {
 			return Err(self.error(format!("'{}' should be used only when indexing tables.", t.lexeme)))
 		}
-		expr.push(SYMBOL {
-			lexeme: t.lexeme.clone().chars().next().unwrap().to_string(),
-			line: self.getLine()
-		});
+		expr.push(SYMBOL(t.lexeme.clone().chars().next().unwrap().to_string()));
 		Ok(())
 	}
 
@@ -524,24 +514,15 @@ impl ParserInfo {
 				EQUAL  | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL |
 				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
 					self.checkOperator(&t, start, end)?;
-					expr.push(SYMBOL {
-						lexeme: t.lexeme,
-						line: t.line
-					})
+					expr.push(SYMBOL(t.lexeme))
 				}
 				NOT_EQUAL => {
 					self.checkOperator(&t, start, end)?;
-					expr.push(SYMBOL {
-						lexeme: String::from("~="),
-						line: t.line
-					})
+					expr.push(SYMBOL(String::from("~=")))
 				}
 				MINUS => {
 					self.checkOperator(&t, usize::MAX, end)?;
-					expr.push(SYMBOL {
-						lexeme: t.lexeme,
-						line: t.line
-					})
+					expr.push(SYMBOL(t.lexeme))
 				}
 				HASHTAG => {
 					if match self.peek(0).kind {
@@ -550,10 +531,7 @@ impl ParserInfo {
 					} {
 						return Err(self.expected("<table>", &self.peek(0).lexeme))
 					}
-					expr.push(SYMBOL {
-						lexeme: String::from("#"),
-						line: t.line
-					})
+					expr.push(SYMBOL(String::from("#")))
 				}
 				PROTECTED_GET => {
 					if self.peek(0).kind == ROUND_BRACKET_OPEN {
@@ -565,55 +543,34 @@ impl ParserInfo {
 				}
 				AND => {
 					self.checkOperator(&t, start, end)?;
-					expr.push(SYMBOL {
-						lexeme: String::from(" and "),
-						line: t.line
-					})
+					expr.push(SYMBOL(String::from(" and ")))
 				}
 				OR => {
 					self.checkOperator(&t, start, end)?;
-					expr.push(SYMBOL {
-						lexeme: String::from(" or "),
-						line: t.line
-					})
+					expr.push(SYMBOL(String::from(" or ")))
 				}
 				NOT => {
 					self.checkOperator(&t, usize::MAX, end)?;
-					expr.push(SYMBOL {
-						lexeme: String::from(" not "),
-						line: t.line
-					})
+					expr.push(SYMBOL(String::from(" not ")))
 				}
 				NUMBER | TRUE | FALSE | NIL => {
 					if IsVar(self.current, end, &self.peek(0)) {
-						expr.push(SYMBOL {
-							lexeme: t.lexeme,
-							line: t.line
-						})
+						expr.push(SYMBOL(t.lexeme))
 					} else {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
 				STRING => {
 					if IsVar(self.current, end, &self.peek(0)) {
-						expr.push(SYMBOL {
-							lexeme: format!("[[{}]]", t.lexeme),
-							line: t.line
-						})
+						expr.push(SYMBOL(format!("[[{}]]", t.lexeme)))
 					} else {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
 				ROUND_BRACKET_OPEN => {
-					expr.push(SYMBOL {
-						lexeme: String::from("("),
-						line: t.line
-					});
+					expr.push(SYMBOL(String::from("(")));
 					expr.append(&mut self.buildDelimitedExpression(false)?);
-					expr.push(SYMBOL {
-						lexeme: String::from(")"),
-						line: self.getLine()
-					});
+					expr.push(SYMBOL(String::from(")")));
 					self.current += 2;
 					let mut fname = self.buildIdentifier(true)?;
 					expr.append(&mut fname);
@@ -666,10 +623,7 @@ impl ParserInfo {
 					if nt.kind == IDENTIFIER {
 						return Err(self.unexpected(&nt.lexeme))
 					}
-					expr.push(SYMBOL {
-						line: self.getLine(),
-						lexeme: t.lexeme
-					})
+					expr.push(SYMBOL(t.lexeme))
 				}
 				DOT => {self.checkIndex(&t, &mut expr)?}
 				METHOD => {
@@ -681,14 +635,8 @@ impl ParserInfo {
 				}
 				SQUARE_BRACKET_OPEN => {
 					let mut qexpr: &mut Expression = &mut self.buildDelimitedExpression(true)?;
-					qexpr.push(SYMBOL {
-						lexeme: String::from("]"),
-						line: t.line
-					});
-					qexpr.insert(0, SYMBOL {
-						lexeme: String::from("["),
-						line: t.line
-					});
+					qexpr.push(SYMBOL(String::from("[")));
+					qexpr.insert(0, SYMBOL(String::from("]")));
 					expr.append(&mut qexpr);
 					self.current += 1;
 				}
@@ -735,10 +683,7 @@ impl ParserInfo {
 
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
 		let mut code = self.buildCodeBlock()?;
-		code.code.push(SYMBOL {
-			lexeme: String::from("::continue::"),
-			line: self.getLine()
-		});
+		code.code.push(SYMBOL(String::from("::continue::")));
 		Ok(code)
 	}
 
@@ -797,10 +742,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 									if nt.kind == IDENTIFIER {
 										return Err(i.unexpected(&nt.lexeme))
 									}
-									expr.push(SYMBOL {
-										line: i.getLine(),
-										lexeme: t.lexeme
-									})
+									expr.push(SYMBOL(t.lexeme))
 								}
 								DOT => {i.checkIndex(&t, &mut expr)?}
 								METHOD => {
@@ -959,10 +901,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							i.expr.push(LOOP_UNTIL {condition, code})
 						} else {
 							i.expr.push(WHILE_LOOP {
-								condition: vec![SYMBOL {
-									lexeme: String::from("true"),
-									line: t.line
-								}],
+								condition: vec![SYMBOL(String::from("true"))],
 								code
 							})
 						}
@@ -994,10 +933,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					let alter = if i.advance().kind != CURLY_BRACKET_OPEN {
 						i.findExpression(0, 0, 0, 1, GetCondition)?
 					} else {
-						vec![SYMBOL {
-							line: i.getLine(),
-							lexeme: String::from("1")
-						}]
+						vec![SYMBOL(String::from("1"))]
 					};
 					let code = i.buildCodeBlock()?;
 					i.expr.push(FOR_LOOP {iterator, start, end, alter, code})
@@ -1006,34 +942,22 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					let expr = match i.advance().kind {
 						OF => {
 							let line = i.getLine();
-							let mut expr = vec![SYMBOL {
-								line,
-								lexeme: String::from("pairs")
-							}, SYMBOL {
-								lexeme: String::from("("),
-								line
-							}];
+							let mut expr = vec![
+								SYMBOL(String::from("pairs")), 
+								SYMBOL(String::from("("))
+							];
 							expr.append(&mut i.findExpression(0, 0, 0, 1, GetCondition)?);
-							expr.push(SYMBOL {
-								lexeme: String::from(")"),
-								line: i.getLine()
-							});
+							expr.push(SYMBOL(String::from(")")));
 							expr
 						}
 						IN => {
 							let line = i.getLine();
-							let mut expr = vec![SYMBOL {
-								line,
-								lexeme: String::from("ipairs")
-							}, SYMBOL {
-								lexeme: String::from("("),
-								line
-							}];
+							let mut expr = vec![
+								SYMBOL(String::from("ipairs")), 
+								SYMBOL(String::from("("))
+							];
 							expr.append(&mut i.findExpression(0, 0, 0, 1, GetCondition)?);
-							expr.push(SYMBOL {
-								lexeme: String::from(")"),
-								line: i.getLine()
-							});
+							expr.push(SYMBOL(String::from(")")));
 							expr
 						}
 						WITH => {i.findExpression(0, 0, 0, 1, GetCondition)?}
