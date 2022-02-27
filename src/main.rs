@@ -75,7 +75,6 @@ PATH:
 	If the path points to a single *.clue file, only that file will be compiled.
 
 OPTIONS:
-	-blua		Compile into Blua instead of Lua (slightly different rules)
 	-tokens		Print list of detected tokens in compiled files
 	-struct 	Print syntax structure of the tokens of the compiled files
 	-dontsave	Don't save compiled code");
@@ -83,7 +82,7 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version b1.0.71");
+		println!("Version b1.0.72");
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
