@@ -733,6 +733,15 @@ impl ParserInfo {
 		Ok(CodeBlock {start, code, end})
 	}
 
+	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
+		let mut code = self.buildCodeBlock()?;
+		code.code.push(SYMBOL {
+			lexeme: String::from("::continue::"),
+			line: self.getLine()
+		});
+		Ok(code)
+	}
+
 	fn buildIdentifierList(&mut self) -> Result<Vec<String>, String> {
 		let mut idents: Vec<String> = Vec::new();
 		while {
@@ -932,13 +941,13 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			}
 			WHILE => {
 				let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
-				let code = i.buildCodeBlock()?;
+				let code = i.buildLoopBlock()?;
 				i.expr.push(WHILE_LOOP {condition, code})
 			}
 			LOOP => {
 				match i.advance().kind {
 					CURLY_BRACKET_OPEN => {
-						let code = i.buildCodeBlock()?;
+						let code = i.buildLoopBlock()?;
 						if i.peek(0).kind == UNTIL {
 							i.current += 1;
 							let condition = i.findExpression(0, 0, 0, 0, |t| {
@@ -960,7 +969,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					}
 					UNTIL => {
 						let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
-						let code = i.buildCodeBlock()?;
+						let code = i.buildLoopBlock()?;
 						i.expr.push(LOOP_UNTIL {condition, code})
 					}
 					_ => {return Err(i.unexpected("loop"))}
