@@ -941,7 +941,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					let iterators = i.buildIdentifierList()?;
 					let expr = match i.advance().kind {
 						OF => {
-							let line = i.getLine();
 							let mut expr = vec![
 								SYMBOL(String::from("pairs")), 
 								SYMBOL(String::from("("))
@@ -951,7 +950,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							expr
 						}
 						IN => {
-							let line = i.getLine();
 							let mut expr = vec![
 								SYMBOL(String::from("ipairs")), 
 								SYMBOL(String::from("("))
