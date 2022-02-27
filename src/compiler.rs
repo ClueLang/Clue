@@ -175,6 +175,11 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 				let code = CompileCodeBlock(scope, "then", code);
 				format!("if {} {}{}", condition, code, IndentateIf(ctokens, scope))
 			}
+			WHILE_LOOP {condition, code} => {
+				let condition = CompileExpression(scope, None, condition);
+				let code = CompileCodeBlock(scope, "do", code);
+				format!("while {} {}{}", condition, code, IndentateIf(ctokens, scope))
+			}
 			CALL(args) => {
 				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
 			}
