@@ -24,20 +24,29 @@ use scanner::*;
 use parser::*;
 use compiler::*;
 
-fn CompileFile(path: &Path, name: String) -> Result<(), String> {
-	let mut code: String = String::new();
-	check!(check!(File::open(path)).read_to_string(&mut code));
+fn CompileCode(code: String, name: String) -> Result<String, String> {
 	let tokens: Vec<Token> = ScanCode(code, name.clone())?;
 	if *ENV_TOKENS {
-		println!("{:#?}", tokens);
+		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
 	let ctokens: Vec<ComplexToken> = ParseTokens(tokens, name.clone())?;
 	if *ENV_STRUCT {
-		println!("{:#?}", ctokens);
+		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
-	if !*ENV_DONTSAVE {	
+	let output = CompileTokens(0, ctokens);
+	if *ENV_PRINTOUT {
+		println!("Compiled Lua code of file \"{}\":\n{}", name, output);
+	}
+	Ok(output)
+}
+
+fn CompileFile(path: &Path, name: String) -> Result<(), String> {
+	let mut code: String = String::new();
+	check!(check!(File::open(path)).read_to_string(&mut code));
+	let output = CompileCode(code, name)?;
+	if !*ENV_DONTSAVE {
 		let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-		check!(fs::write(compiledname, CompileTokens(0, ctokens).as_str()));
+		check!(fs::write(compiledname, output.as_str()))
 	}
 	Ok(())
 }
@@ -80,12 +89,19 @@ PATH:
 OPTIONS:
 	-tokens		Print list of detected tokens in compiled files
 	-struct 	Print syntax structure of the tokens of the compiled files
-	-dontsave	Don't save compiled code");
+	-printout	Print output Lua code in the console
+	-dontsave	Don't save compiled code
+	-pathiscode 	Treat PATH not as a path but as Clue code");
 		return Ok(());
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
 		println!("Version b1.1.76");
+		return Ok(());
+	}
+	if *ENV_PATHISCODE {
+		let output = CompileCode(codepath.clone(), String::from("(command line)"))?;
+		println!("{}", output);
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
