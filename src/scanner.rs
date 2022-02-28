@@ -10,7 +10,7 @@ pub enum TokenType {
 	CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR,
 	PLUS, MINUS, STAR, SLASH, PERCENTUAL, CARET,
-	HASHTAG, METHOD, DOT, TWODOTS, TREDOTS,
+	HASHTAG, DOUBLE_COLON, DOT, TWODOTS, TREDOTS,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT,
 	LEFT_SHIFT, RIGHT_SHIFT, PROTECTED_GET,
 	
@@ -23,7 +23,7 @@ pub enum TokenType {
 	
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL,
-	UNTIL, LOCAL, FN, RETURN, THIS, TRUE, FALSE, NIL, LOOP,
+	UNTIL, LOCAL, FN, METHOD, RETURN, THIS, TRUE, FALSE, NIL, LOOP,
 	CONTINUE, BREAK,
 	
 	EOF
@@ -225,7 +225,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'>' => i.matchAndAdd('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
 			'?' => i.matchAndAdd('=', DEFINEIF, '>', PROTECTED_GET, AND),
 			'&' => i.compareAndAdd('&', AND, BIT_AND),
-			':' => i.compareAndAdd(':', METHOD, OR),
+			':' => i.compareAndAdd(':', DOUBLE_COLON, OR),
 			'|' => i.compareAndAdd('|', OR, BIT_OR),
 			'$' => i.addToken(DOLLAR),
 			' ' | '\r' | '\t' => {},
@@ -270,6 +270,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"until" => UNTIL,
 						"local" => LOCAL,
 						"fn" | "function" => FN,
+						"method" => METHOD,
 						"return" => RETURN,
 						"this" => THIS,
 						"true" => TRUE,

@@ -82,7 +82,7 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version b1.0.73");
+		println!("Version b1.1.74");
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);

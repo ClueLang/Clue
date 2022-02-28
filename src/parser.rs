@@ -626,7 +626,7 @@ impl ParserInfo {
 					expr.push(SYMBOL(t.lexeme))
 				}
 				DOT => {self.checkIndex(&t, &mut expr)?}
-				METHOD => {
+				DOUBLE_COLON => {
 					if !dofuncs {return Err(self.error(String::from("You can't call methods here.")))}
 					self.checkIndex(&t, &mut expr)?;
 					if self.peek(1).kind != ROUND_BRACKET_OPEN {
@@ -732,31 +732,8 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 		match t.kind {
 			LOCAL | GLOBAL => {
 				if i.advanceIf(FN) {
-					let name = {
-						let mut expr = Expression::new();
-						loop {
-							let t = i.advance();
-							match t.kind {
-								IDENTIFIER => {
-									let nt = i.peek(0);
-									if nt.kind == IDENTIFIER {
-										return Err(i.unexpected(&nt.lexeme))
-									}
-									expr.push(SYMBOL(t.lexeme))
-								}
-								DOT => {i.checkIndex(&t, &mut expr)?}
-								METHOD => {
-									i.checkIndex(&t, &mut expr)?;
-									if i.peek(1).kind != ROUND_BRACKET_OPEN {
-										return Err(i.expected("(", &i.peek(1).lexeme))
-									}
-								}
-								ROUND_BRACKET_OPEN => {break}
-								_ => {return Err(i.expected("(", &t.lexeme))}
-							}
-						}
-						expr
-					};
+					let name = vec![SYMBOL(i.assertAdvance(IDENTIFIER, "<name>")?.lexeme)];
+					i.assert(ROUND_BRACKET_OPEN, "(")?;
 					let args: FunctionArgs = if !i.advanceIf(ROUND_BRACKET_CLOSED) {
 						i.buildFunctionArgs()?
 					} else {Vec::new()};
@@ -803,6 +780,42 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				if areinit {
 					i.current += 1;
 				}
+			}
+			METHOD => {
+				let name = {
+					let mut expr = Expression::new();
+					loop {
+						let t = i.advance();
+						match t.kind {
+							IDENTIFIER => {
+								let nt = i.peek(0);
+								if nt.kind == IDENTIFIER {
+									return Err(i.unexpected(&nt.lexeme))
+								}
+								expr.push(SYMBOL(t.lexeme))
+							}
+							DOT => {i.checkIndex(&t, &mut expr)?}
+							DOUBLE_COLON => {
+								i.checkIndex(&t, &mut expr)?;
+								if i.peek(1).kind != ROUND_BRACKET_OPEN {
+									return Err(i.expected("(", &i.peek(1).lexeme))
+								}
+							}
+							ROUND_BRACKET_OPEN => {break}
+							_ => {return Err(i.expected("(", &t.lexeme))}
+						}
+					}
+					expr
+				};
+				let args: FunctionArgs = if !i.advanceIf(ROUND_BRACKET_CLOSED) {
+					i.buildFunctionArgs()?
+				} else {Vec::new()};
+				let code = i.buildCodeBlock()?;
+				i.expr.push(FUNCTION {
+					local: t.kind == LOCAL,
+					line: t.line,
+					name, args, code
+				});
 			}
 			IDENTIFIER => {
 				let start = i.current;
@@ -970,12 +983,16 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			CONTINUE => {i.expr.push(CONTINUE_LOOP); i.advanceIf(SEMICOLON);}
 			BREAK => {i.expr.push(BREAK_LOOP); i.advanceIf(SEMICOLON);}
 			RETURN => {
-				let expr = i.findExpression(0, 0, 0, 0, |t| {
-					match t {
-						SEMICOLON => CHECK_ADVANCESTOP,
-						_ => CHECK_CONTINUE,
-					}
-				})?;
+				let expr = if i.advanceIf(SEMICOLON) {
+					vec![SYMBOL(String::from("nil"))]
+				} else {
+					i.findExpression(0, 0, 0, 0, |t| {
+						match t {
+							SEMICOLON => CHECK_ADVANCESTOP,
+							_ => CHECK_CONTINUE,
+						}
+					})?
+				};
 				i.expr.push(RETURN_EXPR (expr));
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
