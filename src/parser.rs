@@ -10,7 +10,7 @@ use std::cmp;
 pub type Expression = Vec<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<Expression>)>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ComplexToken {
 	VARIABLE {
 		local: bool,
@@ -108,7 +108,7 @@ fn GetCondition(t: TokenType) -> CheckResult {
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CodeBlock {
 	pub start: usize,
 	pub code: Expression,
@@ -683,7 +683,9 @@ impl ParserInfo {
 
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
 		let mut code = self.buildCodeBlock()?;
-		code.code.push(SYMBOL(String::from("::continue::")));
+		if code.code.contains(&CONTINUE_LOOP) {
+			code.code.push(SYMBOL(String::from("::continue::")));
+		}
 		Ok(code)
 	}
 
