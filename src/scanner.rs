@@ -253,8 +253,11 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						while i.peek().is_ascii_digit() {i.current += 1}
 					}
 					i.addLiteralToken(NUMBER, i.substr(i.start, i.current));
-				} else if c.is_ascii_alphabetic() {
-					while i.peek().is_ascii_alphanumeric() {i.current += 1}
+				} else if c.is_ascii_alphabetic() || c == '_' {
+					while {
+						let c = i.peek();
+						c.is_ascii_alphanumeric() || c == '_'
+					} {i.current += 1}
 					let string: String = i.substr(i.start, i.current);
 					let kind: TokenType = match string.as_str() {
 						"if" => IF,
