@@ -53,7 +53,7 @@ pub enum ComplexToken {
 	IF_STATEMENT {
 		condition: Expression,
 		code: CodeBlock,
-		line: usize
+		next: Option<Box<ComplexToken>>,
 	},
 
 	WHILE_LOOP {
@@ -723,6 +723,22 @@ impl ParserInfo {
 		} {}
 		Ok(args)
 	}
+
+	fn buildElseIfChain(&mut self) -> Result<ComplexToken, String> {
+		let condition = self.findExpression(0, 0, 0, 1, GetCondition)?;
+		let code = self.buildCodeBlock()?;
+		Ok(IF_STATEMENT {
+			condition, code,
+			next: {
+				let t = self.advance();
+				match t.kind {
+					ELSEIF => Some(Box::new(self.buildElseIfChain()?)),
+					ELSE => Some(Box::new(DO_BLOCK(self.buildCodeBlock()?))),
+					_ => {self.current -= 1; None}
+				}
+			}
+		})
+	}
 }
 
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
@@ -890,9 +906,8 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.expr.push(DO_BLOCK(block));
 			}
 			IF => {
-				let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
-				let code = i.buildCodeBlock()?;
-				i.expr.push(IF_STATEMENT {condition, code, line: t.line})
+				let ctoken = i.buildElseIfChain()?;
+				i.expr.push(ctoken);
 			}
 			WHILE => {
 				let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;

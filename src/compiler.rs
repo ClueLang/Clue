@@ -118,7 +118,20 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 	result
 }
 
-pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
+fn CompileElseIfChain(scope: usize, condition: Expression, code: CodeBlock, next: Option<Box<ComplexToken>>) -> String {
+	let condition = CompileExpression(scope, None, condition);
+	let code = CompileCodeBlock(scope, "then", code);
+	let next = if let Some(next) = next {
+		String::from("else") + &match *next {
+			IF_STATEMENT {condition, code, next} => CompileElseIfChain(scope, condition, code, next),
+			DO_BLOCK(code) => CompileCodeBlock(scope, "", code),
+			_ => {panic!("Unexpected ComplexToken found")}
+		}
+	} else {String::new()};
+	format!("if {} {}{}", condition, code, next)
+}
+
+pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 	let mut result = Indentate(scope);
 	let ctokens = &mut ctokens.into_iter().peekable();
 	for t in ctokens.clone() {
@@ -168,10 +181,9 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 				let (code, args) = CompileFunction(scope, None, args, code);
 				format!("{}function {}({}){}end{}", pre, name, args, code, end)
 			}
-			IF_STATEMENT {condition, code, line: _} => {
-				let condition = CompileExpression(scope, None, condition);
-				let code = CompileCodeBlock(scope, "then", code);
-				format!("if {} {}end{}", condition, code, IndentateIf(ctokens, scope))
+			IF_STATEMENT {condition, code, next} => {
+				let code = CompileElseIfChain(scope, condition, code, next);
+				format!("{}end{}", code, IndentateIf(ctokens, scope))
 			}
 			WHILE_LOOP {condition, code} => {
 				let condition = CompileExpression(scope, None, condition);
@@ -199,6 +211,9 @@ pub fn CompileTokens(scope: usize, ctokens: Vec<ComplexToken>) -> String {
 			}
 			CALL(args) => {
 				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
+			}
+			DO_BLOCK(code) => {
+				format!("{}end{}", CompileCodeBlock(scope, "do", code), IndentateIf(ctokens, scope))
 			}
 			RETURN_EXPR(expr) => {
 				format!("return {};", CompileExpression(scope, None, expr))
