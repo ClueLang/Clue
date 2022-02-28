@@ -158,6 +158,15 @@ impl CodeInfo {
 		println!("Error in file \"{}\" at line [{}]!\nError: \"{}\"\n", self.filename, self.line, message);
 		self.errored = true;
 	}
+
+	fn readNumber(&mut self, check: impl Fn(char) -> bool) {
+		while check(self.peek()) {self.current += 1}
+		if self.peek() == '.' && check(self.peekFar(1)) {
+			self.current += 1;
+			while  check(self.peek()) {self.current += 1}
+		}
+		self.addLiteralToken(NUMBER, self.substr(self.start, self.current));
+	}
 }
 
 pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
@@ -247,12 +256,14 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			}
 			_ => {
 				if c.is_ascii_digit() {
-					while i.peek().is_ascii_digit() {i.current += 1}
-					if i.peek() == '.' && i.peekFar(1).is_ascii_digit() {
+					if c == '0' && i.peek() == 'x' {
 						i.current += 1;
-						while i.peek().is_ascii_digit() {i.current += 1}
+						i.readNumber(|c| {
+							c.is_ascii_digit() || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+						})
+					} else {
+						i.readNumber(|c| {c.is_ascii_digit()});
 					}
-					i.addLiteralToken(NUMBER, i.substr(i.start, i.current));
 				} else if c.is_ascii_alphabetic() || c == '_' {
 					while {
 						let c = i.peek();
