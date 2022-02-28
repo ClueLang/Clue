@@ -635,8 +635,8 @@ impl ParserInfo {
 				}
 				SQUARE_BRACKET_OPEN => {
 					let mut qexpr: &mut Expression = &mut self.buildDelimitedExpression(true)?;
-					qexpr.push(SYMBOL(String::from("[")));
-					qexpr.insert(0, SYMBOL(String::from("]")));
+					qexpr.insert(0, SYMBOL(String::from("[(")));
+					qexpr.push(SYMBOL(String::from(")]")));
 					expr.append(&mut qexpr);
 					self.current += 1;
 				}
