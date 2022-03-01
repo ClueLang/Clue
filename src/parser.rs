@@ -694,7 +694,7 @@ impl ParserInfo {
 
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
 		let mut code = self.buildCodeBlock()?;
-		if !*ENV_CONTINUE && code.code.contains(&CONTINUE_LOOP) {
+		if !*ENV_CONTINUE {
 			code.code.push(SYMBOL(String::from("::continue::")));
 		}
 		Ok(code)
