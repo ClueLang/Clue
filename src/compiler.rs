@@ -1,6 +1,7 @@
 #![allow(non_upper_case_globals)]
 
 use crate::scanner::TokenType::*;
+use crate::options::ENV_CONTINUE;
 use std::iter::Peekable;
 use std::vec::IntoIter;
 use crate::parser::{
@@ -219,7 +220,9 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				format!("return {};", CompileExpression(scope, None, expr))
 			}
 			CONTINUE_LOOP => {
-				String::from("goto continue;") + &IndentateIf(ctokens, scope)
+				//String::from("goto continue;") + &IndentateIf(ctokens, scope)
+				let end = IndentateIf(ctokens, scope);
+				format!("{};{}", if *ENV_CONTINUE {"continue"} else {"goto continue"}, end)
 			}
 			BREAK_LOOP => {
 				String::from("break;") + &IndentateIf(ctokens, scope)

@@ -90,13 +90,15 @@ OPTIONS:
 	-tokens		Print list of detected tokens in compiled files
 	-struct 	Print syntax structure of the tokens of the compiled files
 	-printout	Print output Lua code in the console
+	-nojitbit	Don't use LuaJIT's bit library for bitwise operations
+	-continue	Don't use tags for continue
 	-dontsave	Don't save compiled code
 	-pathiscode 	Treat PATH not as a path but as Clue code");
 		return Ok(());
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version b1.1.76");
+		println!("Version b1.1.77");
 		return Ok(());
 	}
 	if *ENV_PATHISCODE {

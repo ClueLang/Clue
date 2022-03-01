@@ -3,6 +3,10 @@
 use crate::scanner::Token;
 use crate::scanner::TokenType;
 use crate::scanner::TokenType::*;
+use crate::options::{
+	ENV_NOJITBIT,
+	ENV_CONTINUE
+};
 use self::ComplexToken::*;
 use self::CheckResult::*;
 use std::cmp;
@@ -511,10 +515,17 @@ impl ParserInfo {
 				}
 				CURLY_BRACKET_OPEN => {expr.push(self.buildTable()?)}
 				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
-				EQUAL  | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL |
-				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
+				EQUAL  | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL => {
 					self.checkOperator(&t, start, end)?;
 					expr.push(SYMBOL(t.lexeme))
+				}
+				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
+					self.checkOperator(&t, start, end)?;
+					if *ENV_NOJITBIT {
+						expr.push(SYMBOL(t.lexeme))
+					} else {
+						return Err(self.error(String::from("This feature was not implemented yet")))
+					}
 				}
 				NOT_EQUAL => {
 					self.checkOperator(&t, start, end)?;
@@ -683,7 +694,7 @@ impl ParserInfo {
 
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
 		let mut code = self.buildCodeBlock()?;
-		if code.code.contains(&CONTINUE_LOOP) {
+		if !*ENV_CONTINUE && code.code.contains(&CONTINUE_LOOP) {
 			code.code.push(SYMBOL(String::from("::continue::")));
 		}
 		Ok(code)
