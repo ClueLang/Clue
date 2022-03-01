@@ -89,7 +89,6 @@ if condition {
   //even more code
 }
 ```
-**WIP: `elsif` and `else` are not yet supported**
 
 ## `and`, `or` and `not`
 The 3 above mentioned keywords do not exist in Clue, they have been replaced by the following:
@@ -105,7 +104,7 @@ if (c1 ? c2) {
   local x = true && 3;
 }
 ```
-**WIP: `?` as `and` is temporary and `?` will later be reused in true ternary**
+**WIP: `?` as `and` is temporary and `?` will later be reused in true ternary.**
 
 ### `:`/`||` (`or`)
 `or` too has been replaced by both `:` and `||` and either will be converted to `or`.
@@ -118,7 +117,7 @@ if (c1 : c2) {
   local x = false || 3;
 }
 ```
-**WIP: `:` as `or` is temporary and `:` will later be reused in true ternary**
+**WIP: `:` as `or` is temporary and `:` will later be reused in true ternary.**
 
 ### `!` (`not`)
 `not` has been replaced by only `!`, and only it will be converted to `not`.
@@ -127,7 +126,7 @@ local x = !true;
 print(x); //will print false
 ```
 
-## Functions (WIP)
+## Functions
 Clue's functions work the exact same way as Lua's but with some additions:
 
 ### Local functions
@@ -153,10 +152,15 @@ bar(fn() {/*code*/});
 Methods work the same way but are defined and called with `::` instead of `:`:
 ```
 local t = {};
-global fn t::method() {/*code*/}
-t::method();
+global fn t::foo() {/*code*/}
+t::foo();
 ```
-**WIP: Methods must currently be defined with `global function`, this may change (a `method` keyword maybe?)**
+The `method` keyword can be used instead of `global fn`:
+```
+local t = {};
+method t::foo() {/*code*/}
+t::foo();
+```
 
 ### Default values
 A function's arguments can have default values, if that argument is nil it will set to the default value.
@@ -174,9 +178,6 @@ local function foo(x, y)
 	
 end
 ```
-
-### `return`
-**WIP: `return` currently has to return an expression, use `return nil;` instead of `return;`**
 
 ## Tables
 Tables themselves are created the same way they are made in Lua, but metatables get a little easier to do with the new `meta` keyword:
@@ -206,7 +207,7 @@ Another case where PGet can be used is when you're not sure if a variable is a f
 local foo = 1;
 local bar = ?>(foo()) //foo is not a function so bar becomes nil
 ```
-**WIP: PGet is parsed but not compiled, using it will result in a crash**
+**WIP: PGet is parsed but not compiled, using it will result in a crash.**
 
 ## Loops (WIP)
 Some loops remain unchanged from Lua but there are some important differences and additions:
@@ -261,7 +262,7 @@ loop {
   //code
 } until x;
 ```
-**WIP: The first way of writing loop until loops may be reused for another type of loops in the future**
+**WIP: The first way of writing loop until loops may be reused for another type of loops in the future.**
 
 ### Loop loops
 These loops with a funny name will iterate forever until something external (like `break`) ends the loop:
@@ -281,6 +282,38 @@ for i = 1, 10 {
   print(i); //this will print from 1 to 10 except 5
 }
 ```
+Clue will convert continue to `goto continue;` and add `::continue::` at the end of the loop, If the Lua version you're using already has a `continue` keyword you can tell Clue to use it instead by enabling the `-continue` flag:
+```lua
+--without the -continue flag
+for i = 1, 10, 1 do
+	if i==5 then
+		goto continue;
+	end
+	print(i)
+	::continue::
+end
+```
+```lua
+--with the -continue flag
+for i = 1, 10, 1 do
+	if i==5 then
+		continue;
+	end
+	print(i)
+end
+```
+
+## Bitwise operations
+Clue supports bitwise operations:
+- AND -> `&`
+- OR -> `|`
+- XOR -> `^^`
+- NOT -> `~`
+- Left shift -> `<<`
+- Right shift -> `>>`
+When compiling Clue will use LuaJIT's bit library since Lua 5.1 does not support bitwise operations, if the Lua version you're using supports bitwise operations (and uses the same symbols as Clue's) you can tell Clue to convert the operators directly with the `-nojitbit` flag
+**WIP: Clue is not able to use LuaJIT's bit library yet, using bitwise operations without the `-nojitbit` flag will cause an error.** 
+
 
 ## More coming soon!
 There are still many things that need to be added and some features are still in the planning stage.
