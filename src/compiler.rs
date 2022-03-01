@@ -1,5 +1,3 @@
-#![allow(non_upper_case_globals)]
-
 use crate::scanner::TokenType::*;
 use crate::options::ENV_CONTINUE;
 use std::iter::Peekable;
@@ -115,7 +113,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 			}
 			PGET(expr) => {
 				let expr = CompileExpression(scope, None, expr);
-				format!("select(2, xpcall(function() return {} end, function() end))", expr)
+				format!("select(2, xpcall(function() return {} end, _pgetError))", expr)
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
@@ -224,7 +222,6 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				format!("return {};", CompileExpression(scope, None, expr))
 			}
 			CONTINUE_LOOP => {
-				//String::from("goto continue;") + &IndentateIf(ctokens, scope)
 				let end = IndentateIf(ctokens, scope);
 				format!("{};{}", if *ENV_CONTINUE {"continue"} else {"goto continue"}, end)
 			}
