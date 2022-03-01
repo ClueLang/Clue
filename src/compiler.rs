@@ -113,6 +113,10 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 			CALL(args) => {
 				format!("({})", CompileExpressions(scope, names, args))
 			}
+			PGET(expr) => {
+				let expr = CompileExpression(scope, None, expr);
+				format!("select(2, xpcall(function() return {} end, function() end))", expr)
+			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
 	}

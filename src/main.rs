@@ -98,7 +98,7 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version b1.1.77");
+		println!("Version b1.2.78");
 		return Ok(());
 	}
 	if *ENV_PATHISCODE {
