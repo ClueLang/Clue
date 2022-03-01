@@ -209,7 +209,7 @@ local bar = ?>(foo()) //foo is not a function so bar becomes nil
 ```
 **WIP: PGet is parsed but not compiled, using it will result in a crash.**
 
-## Loops (WIP)
+## Loops
 Some loops remain unchanged from Lua but there are some important differences and additions:
 
 ### Numerical for loops
@@ -311,7 +311,8 @@ Clue supports bitwise operations:
 - NOT -> `~`
 - Left shift -> `<<`
 - Right shift -> `>>`
-When compiling Clue will use LuaJIT's bit library since Lua 5.1 does not support bitwise operations, if the Lua version you're using supports bitwise operations (and uses the same symbols as Clue's) you can tell Clue to convert the operators directly with the `-nojitbit` flag
+When compiling Clue will use LuaJIT's bit library since Lua 5.1 does not support bitwise operations, if the Lua version you're using supports bitwise operations (and uses the same symbols as Clue's) you can tell Clue to convert the operators directly with the `-nojitbit` flag.
+
 **WIP: Clue is not able to use LuaJIT's bit library yet, using bitwise operations without the `-nojitbit` flag will cause an error.** 
 
 
