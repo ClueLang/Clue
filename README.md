@@ -142,7 +142,8 @@ global function foo() {/*code*/}
 ```
 
 ### `fn`
-The `fn` keyword can be used instead of the rather lengthy `function` keyword
+The `fn` keyword can be used instead of the rather lengthy `function` keyword.
+
 `fn` is especially useful when passing functions as arguments:
 ```
 bar(fn() {/*code*/});
@@ -164,6 +165,7 @@ t::foo();
 
 ### Default values
 A function's arguments can have default values, if that argument is nil it will set to the default value.
+
 The arguments are checked from last to first:
 ```
 local function foo(x = 3, y = 5) {
