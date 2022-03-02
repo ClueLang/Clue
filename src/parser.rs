@@ -86,6 +86,7 @@ pub enum ComplexToken {
 
 	SYMBOL(String),
 	CALL(Vec<Expression>),
+	EXPR(Expression),
 	PGET(Expression),
 	DO_BLOCK(CodeBlock),
 	RETURN_EXPR(Expression),
@@ -887,24 +888,16 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.current += 1;
 			}
 			ROUND_BRACKET_OPEN => {
-				i.current -= 1;
-				let start = i.current + 1;
-				let mut pscope: u8 = 0;
-				loop {
-					let nt = i.advance().kind;
-					match nt {
-						ROUND_BRACKET_OPEN => {pscope += 1}
-						ROUND_BRACKET_CLOSED => {
-							pscope -= 1;
-							if pscope == 0 {break}
-						}
-						EOF => {return Err(i.expectedBefore(")", "<end>"))}
-						_ => {}
+				i.expr.push(SYMBOL(String::from("(")));
+				let expr = i.findExpression(1, 0, 0, 0, |t| {
+					match t {
+						ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
+						_ => CHECK_CONTINUE
 					}
-				}
-				let fname = &mut i.buildExpression(start, i.current - 1)?;
+				})?;
+				i.expr.push(EXPR(expr));
+				i.expr.push(SYMBOL(String::from(")")));
 				let call = i.buildCall()?;
-				i.expr.append(fname);
 				i.expr.push(call);
 				i.current += 1;
 				i.advanceIf(SEMICOLON);

@@ -215,6 +215,9 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			CALL(args) => {
 				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
 			}
+			EXPR(expr) => {
+				CompileExpression(scope, None, expr)
+			}
 			DO_BLOCK(code) => {
 				format!("{}end{}", CompileCodeBlock(scope, "do", code), IndentateIf(ctokens, scope))
 			}
