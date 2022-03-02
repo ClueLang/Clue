@@ -911,33 +911,29 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				let code = i.buildLoopBlock()?;
 				i.expr.push(WHILE_LOOP {condition, code})
 			}
+			UNTIL => {
+				let mut condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
+				condition.insert(0, SYMBOL(String::from("not (")));
+				condition.push(SYMBOL(String::from(")")));
+				let code = i.buildLoopBlock()?;
+				i.expr.push(WHILE_LOOP {condition, code})
+			}
 			LOOP => {
-				match i.advance().kind {
-					CURLY_BRACKET_OPEN => {
-						i.current -= 1;
-						let code = i.buildLoopBlock()?;
-						if i.peek(0).kind == UNTIL {
-							i.current += 1;
-							let condition = i.findExpression(0, 0, 0, 0, |t| {
-								match t {
-									SEMICOLON => CHECK_ADVANCESTOP,
-									_ => CHECK_CONTINUE,
-								}
-							})?;
-							i.expr.push(LOOP_UNTIL {condition, code})
-						} else {
-							i.expr.push(WHILE_LOOP {
-								condition: vec![SYMBOL(String::from("true"))],
-								code
-							})
+				let code = i.buildLoopBlock()?;
+				if i.peek(0).kind == UNTIL {
+					i.current += 1;
+					let condition = i.findExpression(0, 0, 0, 0, |t| {
+						match t {
+							SEMICOLON => CHECK_ADVANCESTOP,
+							_ => CHECK_CONTINUE,
 						}
-					}
-					UNTIL => {
-						let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
-						let code = i.buildLoopBlock()?;
-						i.expr.push(LOOP_UNTIL {condition, code})
-					}
-					_ => {return Err(i.unexpected("loop"))}
+					})?;
+					i.expr.push(LOOP_UNTIL {condition, code})
+				} else {
+					i.expr.push(WHILE_LOOP {
+						condition: vec![SYMBOL(String::from("true"))],
+						code
+					})
 				}
 			}
 			FOR => {
