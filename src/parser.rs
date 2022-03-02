@@ -466,40 +466,6 @@ impl ParserInfo {
 		Ok(())
 	}
 
-	fn buildDelimitedExpression(&mut self, square: bool) -> Result<Expression, String> {
-		self.current -= 1;
-		let mut pscope = 0u8;
-		let pstart = self.current + 1;
-		if square {
-			loop {
-				let nt = self.advance().kind;
-				match nt {
-					SQUARE_BRACKET_OPEN => {pscope += 1}
-					SQUARE_BRACKET_CLOSED => {
-						pscope -= 1;
-						if pscope == 0 {break}
-					}
-					EOF => {return Err(self.expectedBefore("]", "<end>"))}
-					_ => {}
-				}
-			}
-		} else {
-			loop {
-				let nt = self.advance().kind;
-				match nt {
-					ROUND_BRACKET_OPEN => {pscope += 1}
-					ROUND_BRACKET_CLOSED => {
-						pscope -= 1;
-						if pscope == 0 {break}
-					}
-					EOF => {return Err(self.expectedBefore(")", "<end>"))}
-					_ => {}
-				}
-			}
-		}
-		self.buildExpression(pstart, self.current - 1)
-	}
-
 	fn buildExpression(&mut self, start: usize, end: usize) -> Result<Expression, String> {
 		let mut expr = Expression::new();
 		self.current = start;
