@@ -585,7 +585,12 @@ impl ParserInfo {
 				}
 				ROUND_BRACKET_OPEN => {
 					expr.push(SYMBOL(String::from("(")));
-					expr.append(&mut self.buildDelimitedExpression(false)?);
+					expr.append(&mut self.findExpression(1, 0, 0, 0, |t| {
+						match t {
+							ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
+							_ => CHECK_CONTINUE
+						}
+					})?);
 					expr.push(SYMBOL(String::from(")")));
 					self.current += 2;
 					let mut fname = self.buildIdentifier(true)?;
