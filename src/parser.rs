@@ -456,7 +456,7 @@ impl ParserInfo {
 	}
 
 	fn checkIndex(&self, t: &Token, expr: &mut Expression) -> Result<(), String> {
-		if self.peek(0).kind != IDENTIFIER || match self.lookBack(0).kind {
+		if !self.compare(IDENTIFIER)|| match self.lookBack(0).kind {
 			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
 			_ => false
 		} {
