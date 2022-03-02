@@ -447,7 +447,7 @@ impl ParserInfo {
 		let nt: TokenType = self.peek(0).kind;
 		if match nt {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS |
-			NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN => false,
+			NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN | TREDOTS => false,
 			_ => true
 		} {
 			return Err(self.error(format!("Operator '{}' has invalid right hand token", t.lexeme)))
@@ -535,7 +535,7 @@ impl ParserInfo {
 					self.checkOperator(&t, usize::MAX, end)?;
 					expr.push(SYMBOL(String::from("not ")))
 				}
-				NUMBER | TRUE | FALSE | NIL => {
+				TREDOTS | NUMBER | TRUE | FALSE | NIL => {
 					if IsVar(self.current, end, &self.peek(0)) {
 						expr.push(SYMBOL(t.lexeme))
 					} else {
@@ -697,7 +697,19 @@ impl ParserInfo {
 	fn buildFunctionArgs(&mut self) -> Result<FunctionArgs, String> {
 		let mut args: FunctionArgs = Vec::new();
 		while {
-			let name = self.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
+			let name = {
+				let t = self.advance();
+				match t.kind {
+					IDENTIFIER => t.lexeme,
+					TREDOTS => {
+						if !self.compare(ROUND_BRACKET_CLOSED) {
+							return Err(self.expected(")", &self.peek(0).lexeme))
+						}
+						t.lexeme
+					}
+					_ => {return Err(self.expected("<name>", &t.lexeme))}
+				}
+			};
 			let t = self.advance();
 			match t.kind {
 				COMMA => {args.push((name, None)); true}
