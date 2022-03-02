@@ -695,7 +695,7 @@ impl ParserInfo {
 	}
 
 	fn buildFunctionArgs(&mut self) -> Result<FunctionArgs, String> {
-		let mut args: FunctionArgs = Vec::new();
+		let mut args = FunctionArgs::new();
 		while {
 			let name = {
 				let t = self.advance();
