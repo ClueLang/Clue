@@ -156,7 +156,7 @@ impl ParserInfo {
 	}
 
 	fn expectedBefore(&self, expected: &str, before: &str) -> String {
-		self.error(format!("Expected token '{}' before '{}'", expected, before))
+		self.error(format!("Expected '{}' before '{}'", expected, before))
 	}
 
 	fn unexpected(&self, str: &str) -> String {
