@@ -546,7 +546,7 @@ impl ParserInfo {
 				}
 				PROTECTED_GET => {
 					if self.advanceIf(ROUND_BRACKET_OPEN) {
-						expr.push(PGET(self.findExpression(1, 0, 0, 1, |t| {
+						expr.push(PGET(self.findExpression(1, 0, 0, 0, |t| {
 							match t {
 								ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
 								_ => CHECK_CONTINUE
