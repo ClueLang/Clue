@@ -112,8 +112,25 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 				format!("({})", CompileExpressions(scope, names, args))
 			}
 			PGET(expr) => {
-				let expr = CompileExpression(scope, None, expr);
-				format!("select(2, xpcall(function() return {} end, _pgetError))", expr)
+				let mut result = String::new();
+				let mut checked = String::new();
+				for t in expr {
+					match t.clone() {
+						SYMBOL(lexeme) => {
+							let lexeme = lexeme.as_str();
+							match lexeme {
+								"." => {
+									result += &(checked.clone() + " and ");
+									checked += ".";
+								}
+								_ => {checked += lexeme}
+							}
+						}
+						_ => {}
+					}
+				}
+				result += &checked;
+				format!("({})", result)
 			}
 			_ => {panic!("Unexpected ComplexToken found")}
 		}

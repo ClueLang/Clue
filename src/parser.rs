@@ -208,6 +208,13 @@ impl ParserInfo {
 		Ok(t)
 	}
 
+	fn assertCompare(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
+		if !self.compare(expected) {
+			return Err(self.expected(error, &self.peek(0).lexeme))
+		}
+		Ok(())
+	}
+
 	fn assert(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
 		if !self.advanceIf(expected) {
 			return Err(self.expected(error, &self.peek(0).lexeme))
@@ -322,6 +329,13 @@ impl ParserInfo {
 				let t = self.peek(0).lexeme;
 				Err(self.expected("<expr>", &t))
 			}
+		}
+	}
+
+	fn getExpression(&mut self, pscope: u8, qscope: u8, cscope: u8, scope: u8, check: impl Fn(TokenType) -> CheckResult) -> Result<Expression, String> {
+		match self.findExpressions(pscope, qscope, cscope, scope, check)?.pop() {
+			Some(expr) => Ok(expr),
+			None => Ok(Expression::new())
 		}
 	}
 
@@ -512,17 +526,9 @@ impl ParserInfo {
 					expr.push(SYMBOL(String::from("#")))
 				}
 				PROTECTED_GET => {
-					if self.advanceIf(ROUND_BRACKET_OPEN) {
-						expr.push(PGET(self.findExpression(1, 0, 0, 0, |t| {
-							match t {
-								ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
-								_ => CHECK_CONTINUE
-							}
-						})?));
-						self.current += 1;
-					} else {
-						return Err(self.unexpected("?>"))
-					}
+					self.assert(ROUND_BRACKET_OPEN, "(")?;
+					self.current += 1;
+					expr.push(PGET(self.buildIdentifier(true)?));
 				}
 				AND => {
 					self.checkOperator(&t, start, end)?;
@@ -552,7 +558,7 @@ impl ParserInfo {
 				}
 				ROUND_BRACKET_OPEN => {
 					expr.push(SYMBOL(String::from("(")));
-					expr.append(&mut self.findExpression(1, 0, 0, 0, |t| {
+					expr.append(&mut self.getExpression(1, 0, 0, 0, |t| {
 						match t {
 							ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
 							_ => CHECK_CONTINUE
@@ -703,9 +709,7 @@ impl ParserInfo {
 				match t.kind {
 					IDENTIFIER => t.lexeme,
 					TREDOTS => {
-						if !self.compare(ROUND_BRACKET_CLOSED) {
-							return Err(self.expected(")", &self.peek(0).lexeme))
-						}
+						self.assertCompare(ROUND_BRACKET_CLOSED, ")")?;
 						t.lexeme
 					}
 					_ => {return Err(self.expected("<name>", &t.lexeme))}
@@ -886,6 +890,18 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					names, values
 				});
 				i.current += 1;
+			}
+			PROTECTED_GET => {
+				i.assert(ROUND_BRACKET_OPEN, "(")?;
+				i.current += 1;
+				let ident = i.buildIdentifier(true)?;
+				i.expr.push(EXPR(vec![PGET(ident)]));
+				i.current -= 1;
+				i.assertCompare(ROUND_BRACKET_CLOSED, ")")?;
+				let call = i.buildCall()?;
+				i.expr.push(call);
+				i.current += 1;
+				i.advanceIf(SEMICOLON);
 			}
 			ROUND_BRACKET_OPEN => {
 				i.expr.push(SYMBOL(String::from("(")));
