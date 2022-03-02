@@ -567,11 +567,14 @@ impl ParserInfo {
 					let nt = self.peek(0);
 					let mut num = 1usize;
 					if self.current != end && nt.kind == NUMBER {
-						num = nt.lexeme.parse().unwrap();
+						num = match nt.lexeme.parse() {
+							Ok(n) => n,
+							Err(_) => {return Err(self.error(format!("Pseudo variables cannot point to the {}th variable", nt.lexeme)))}
+						};
 						self.current += 1;
-					}
-					if num == 0 {
-						return Err(self.error(String::from("Pseudo variables cannot point at the 0th name (which does not exist)")))
+						if num == 0 {
+							return Err(self.error(String::from("Pseudo variables cannot point to the 0th variable")))
+						}
 					}
 					if IsVar(self.current, end, &self.peek(0)) {
 						expr.push(PSEUDO {
