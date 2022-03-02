@@ -545,8 +545,13 @@ impl ParserInfo {
 					expr.push(SYMBOL(String::from("#")))
 				}
 				PROTECTED_GET => {
-					if self.peek(0).kind == ROUND_BRACKET_OPEN {
-						expr.push(PGET(self.buildDelimitedExpression(false)?));
+					if self.advanceIf(ROUND_BRACKET_OPEN) {
+						expr.push(PGET(self.findExpression(1, 0, 0, 1, |t| {
+							match t {
+								ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
+								_ => CHECK_CONTINUE
+							}
+						})?));
 						self.current += 1;
 					} else {
 						return Err(self.unexpected("?>"))
