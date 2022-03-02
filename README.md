@@ -150,13 +150,8 @@ bar(fn() {/*code*/});
 ```
 
 ### Methods
-Methods work the same way but are defined and called with `::` instead of `:`:
-```
-local t = {};
-global fn t::foo() {/*code*/}
-t::foo();
-```
-The `method` keyword can be used instead of `global fn`:
+Methods work the same way but are defined and called with `::` instead of `:`.
+To define methods/functions inside tables the `method` keyword has to be used:
 ```
 local t = {};
 method t::foo() {/*code*/}
