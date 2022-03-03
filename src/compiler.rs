@@ -111,24 +111,48 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 			CALL(args) => {
 				format!("({})", CompileExpressions(scope, names, args))
 			}
+			EXPR(expr) => {
+				format!("({})", CompileExpression(scope, names, expr))
+			}
 			PGET(expr) => {
 				let mut result = String::new();
 				let mut checked = String::new();
-				for t in expr {
+				let mut iter = expr.iter().peekable();
+				for t in iter.clone() {
+					iter.next();
 					match t.clone() {
 						SYMBOL(lexeme) => {
 							let lexeme = lexeme.as_str();
+							println!("{}\t{}\t{}", lexeme, checked, result);
 							match lexeme {
-								"." => {
+								":" | "." => {
 									result += &(checked.clone() + " and ");
-									checked += ".";
+									checked += lexeme;
+								}
+								"[" => {
+									result += &(checked.clone() + " and ");
+									let texpr = *(iter.peek().unwrap());
+									let rexpr: String;
+									if let EXPR(expr) = texpr {
+										rexpr = CompileExpression(scope, names, expr.clone());
+									} else {
+										panic!("This message should never appear");
+									}
+									checked += &format!("[({})]", rexpr);
+								}
+								"]" => {
+									//result += &(checked.clone() + " and ");
 								}
 								_ => {checked += lexeme}
 							}
 						}
+						CALL(args) => {
+							checked += &format!("({})", CompileExpressions(scope, names, args))
+						}
 						_ => {}
 					}
 				}
+				println!("{}\t{}", checked, result);
 				result += &checked;
 				format!("({})", result)
 			}

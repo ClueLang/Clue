@@ -557,14 +557,12 @@ impl ParserInfo {
 					}
 				}
 				ROUND_BRACKET_OPEN => {
-					expr.push(SYMBOL(String::from("(")));
-					expr.append(&mut self.getExpression(1, 0, 0, 0, |t| {
+					expr.push(EXPR(self.getExpression(1, 0, 0, 0, |t| {
 						match t {
 							ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
 							_ => CHECK_CONTINUE
 						}
-					})?);
-					expr.push(SYMBOL(String::from(")")));
+					})?));
 					self.current += 2;
 					let mut fname = self.buildIdentifier(true)?;
 					expr.append(&mut fname);
@@ -631,15 +629,15 @@ impl ParserInfo {
 					}
 				}
 				SQUARE_BRACKET_OPEN => {
-					let mut qexpr: &mut Expression = &mut self.findExpression(0, 1, 0, 0, |t| {
+					let qexpr = self.findExpression(0, 1, 0, 0, |t| {
 						match t {
 							SQUARE_BRACKET_CLOSED => CHECK_FORCESTOP,
 							_ => CHECK_CONTINUE
 						}
 					})?;
-					qexpr.insert(0, SYMBOL(String::from("[(")));
-					qexpr.push(SYMBOL(String::from(")]")));
-					expr.append(&mut qexpr);
+					expr.push(SYMBOL(String::from("[")));
+					expr.push(EXPR(qexpr));
+					expr.push(SYMBOL(String::from("]")));
 					self.current += 1;
 				}
 				ROUND_BRACKET_OPEN => {
