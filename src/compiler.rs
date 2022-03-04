@@ -140,9 +140,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 									}
 									checked += &format!("[({})]", rexpr);
 								}
-								"]" => {
-									//result += &(checked.clone() + " and ");
-								}
+								"]" => {}
 								_ => {checked += lexeme}
 							}
 						}
