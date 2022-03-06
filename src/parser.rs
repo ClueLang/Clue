@@ -1,5 +1,6 @@
 #![allow(non_camel_case_types)]
 
+use crate::output;
 use crate::scanner::Token;
 use crate::scanner::TokenType;
 use crate::scanner::TokenType::*;
@@ -111,6 +112,10 @@ fn GetCondition(t: TokenType) -> CheckResult {
 		CURLY_BRACKET_OPEN => CHECK_FORCESTOP,
 		_ => CHECK_CONTINUE
 	}
+}
+
+fn PrependToOutput(string: String) {
+	unsafe {output = string + &output}
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -851,6 +856,19 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				if areinit {
 					i.current += 1;
 				}
+			}
+			STATIC => {
+				let mut result = String::from("local ");
+				let names = i.buildIdentifierList()?;
+				i.advanceIf(SEMICOLON);
+				//for name in names {result += name + }
+				let size = names.len();
+				for i in 0..size {
+					let name = names.get(i).unwrap();
+					result += name;
+					if i + 1 != size {result += ", "}
+				}
+				PrependToOutput(result + "\n")
 			}
 			METHOD => {
 				let name = {
