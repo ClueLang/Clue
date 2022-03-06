@@ -236,7 +236,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 				let kind: TokenType = match i.compare('=') {
 					true => DEFINEIF,
 					false => match i.compare('>') {
-						true => PROTECTED_GET,
+						true => {i.warning("?> is deprecated"); PROTECTED_GET},
 						false => match i.compare('.') {
 							true => SAFEDOT,
 							false => if i.compare(':') && i.compare(':') {
