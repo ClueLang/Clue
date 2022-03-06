@@ -1,7 +1,8 @@
 .clue/
 main.exe
 test/
-main.clue
+main.lua
+*.clue
 src/main.exe
 src/main.pdb
 debug/

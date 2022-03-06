@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
 
 macro_rules! check {
 	($tocheck: expr) => {
@@ -24,7 +25,13 @@ use scanner::*;
 use parser::*;
 use compiler::*;
 
-fn CompileCode(code: String, name: String) -> Result<String, String> {
+pub static mut output: String = String::new();
+
+fn AddToOutput(string: &str) {
+	unsafe {output += string}
+}
+
+fn CompileCode(code: String, name: String, scope: usize) -> Result<String, String> {
 	let tokens: Vec<Token> = ScanCode(code, name.clone())?;
 	if *ENV_TOKENS {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
@@ -33,34 +40,32 @@ fn CompileCode(code: String, name: String) -> Result<String, String> {
 	if *ENV_STRUCT {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
-	let output = CompileTokens(0, ctokens);
+	let code = CompileTokens(scope, ctokens);
 	if *ENV_PRINTOUT {
-		println!("Compiled Lua code of file \"{}\":\n{}", name, output);
+		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
 	}
-	Ok(output)
+	Ok(code)
 }
 
-fn CompileFile(path: &Path, name: String) -> Result<(), String> {
+fn CompileFile(path: &Path, name: String, scope: usize) -> Result<String, String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
-	let output = CompileCode(code, name)?;
-	if !*ENV_DONTSAVE {
-		let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-		check!(fs::write(compiledname, output))
-	}
-	Ok(())
+	Ok(CompileCode(code, name, scope)?)
 }
 
-fn CompileFolder(path: &Path) -> Result<(), String> {
+fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 	for entry in check!(fs::read_dir(path)) {
 		let entry = check!(entry);
 		let name: String = entry.path().file_name().unwrap().to_string_lossy().into_owned();
 		let filePathName: String = path.display().to_string() + "\\" + &name;
 		let filepath: &Path = &Path::new(&filePathName);
+		let rname = rpath.clone() + &name;
 		if filepath.is_dir() {
-			CompileFolder(filepath)?;
+			CompileFolder(filepath, rname + ".")?;
 		} else if filePathName.ends_with(".clue") {
-			CompileFile(filepath, name)?;
+			let code = CompileFile(filepath, name.clone(), 2)?;
+			let rname = rname.strip_suffix(".clue").unwrap();
+			AddToOutput(&format!("[\"{}\"] = function()\n{}\n\tend,\n\t", rname, code));
 		}
 	}
 	Ok(())
@@ -102,15 +107,26 @@ OPTIONS:
 		return Ok(());
 	}
 	if *ENV_PATHISCODE {
-		let output = CompileCode(codepath.clone(), String::from("(command line)"))?;
-		println!("{}", output);
+		let code = CompileCode(codepath.clone(), String::from("(command line)"), 0)?;
+		println!("{}", code);
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
 	if path.is_dir() {
-		CompileFolder(path)?;
+		AddToOutput(include_str!("base.lua"));
+		AddToOutput("modules = {\n\t");
+		CompileFolder(path, String::new())?;
+		AddToOutput("\r}\nmodules.main()");
+		if !*ENV_DONTSAVE {
+			let compiledname = String::from(path.display().to_string()) + "\\main.lua";
+			check!(fs::write(compiledname, unsafe {output.clone()}))
+		}
 	} else if path.is_file() {
-		CompileFile(path, path.file_name().unwrap().to_string_lossy().into_owned())?;
+		let code = CompileFile(path, path.file_name().unwrap().to_string_lossy().into_owned(), 0)?;
+		if !*ENV_DONTSAVE {
+			let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
+			check!(fs::write(compiledname, code))
+		}
 	} else {
 		return Err(String::from("The given path doesn't exist"));
 	}
