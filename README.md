@@ -107,11 +107,11 @@ The first variable is `$1` the second is `$2` and so on. `$0` is not valid and w
 If statements work the same way as Lua except `then` and `end` are replaced by `{}`:
 ```
 if condition {
-  //code
+    //code
 } elseif other {
-  //more code
+    //more code
 } else {
-  //even more code
+    //even more code
 }
 ```
 
@@ -122,11 +122,11 @@ The 3 above mentioned keywords do not exist in Clue, they have been replaced by 
 `and` has been replaced by both `?` and `&&`, you can use either symbol anywhere and it will get converted to `and`.
 ```
 if (c1 && c2) {
-  local x = true ? 3;
+    local x = true ? 3;
 }
 //or you can do...
 if (c1 ? c2) {
-  local x = true && 3;
+    local x = true && 3;
 }
 ```
 **WIP: `?` as `and` is temporary and `?` will later be reused in true ternary.**
@@ -135,11 +135,11 @@ if (c1 ? c2) {
 `or` too has been replaced by both `:` and `||` and either will be converted to `or`.
 ```
 if (c1 || c2) {
-  local x = false : 3;
+    local x = false : 3;
 }
 //or you can do...
 if (c1 : c2) {
-  local x = false || 3;
+    local x = false || 3;
 }
 ```
 **WIP: `:` as `or` is temporary and `:` will later be reused in true ternary.**
@@ -195,8 +195,8 @@ local function foo(x = 3, y = 5) {
 This code will be converted to:
 ```lua
 local function foo(x, y)
-	if y == nil then y = 5 end
-	if x == nil then x = 3 end
+    if y == nil then y = 5 end
+    if x == nil then x = 3 end
 	
 end
 ```
@@ -208,8 +208,8 @@ Tables themselves are created the same way they are made in Lua, but with a few 
 Metatables get a little easier to do with the new `meta` keyword:
 ```
 local mytable = {
-  x = 3,
-  meta index = {b = 5}
+    x = 3,
+    meta index = {b = 5}
 };
 ```
 This table would have a metatable with the `__index` metamethod that points to the table `{b = 5}`.
@@ -217,7 +217,7 @@ This table would have a metatable with the `__index` metamethod that points to t
 All metamethods names are the same as Lua's but without the `__`, except for a few operator related metamethods that can use the operator itself:
 ```
 local othertable = {
-  meta + = fn() {/* ... */}
+    meta + = fn() {/* ... */}
 };
 ```
 
@@ -243,11 +243,11 @@ Some loops remain unchanged from Lua but there are some important differences an
 These loops remain unchanged from Lua:
 ```
 for i = 1, 10 {
-  print(i); //will print from 1 to 10
+    print(i); //will print from 1 to 10
 }
 
 for i = 10, 1, -1 {
-  print(i); //will print from 10 to 1
+    print(i); //will print from 10 to 1
 }
 ```
 
@@ -255,16 +255,16 @@ for i = 10, 1, -1 {
 These loops are slightly changed and now use the keywords `of`, `in` and `with`:
 ```
 for k, v of t {
-  //uses the iterator pairs with the table t
+    //uses the iterator pairs with the table t
 }
 
 for k, v in t {
-  //uses the iterator ipairs with the table t
+    //uses the iterator ipairs with the table t
 }
 
 for k, v with myiter(...) {
-  //uses any custom iterator function with any amount of arguments
-  //it's pretty much Lua's for loop but with a different keyword
+    //uses any custom iterator function with any amount of arguments
+    //it's pretty much Lua's for loop but with a different keyword
 }
 ```
 
@@ -272,7 +272,7 @@ for k, v with myiter(...) {
 These loops remain unchanged from Lua:
 ```
 while condition {
-  //code
+    //code
 }
 ```
 
@@ -280,7 +280,7 @@ while condition {
 These loops are the opposite of a while loop, looping until the condition is true
 ```
 until condition {
-  //code
+    //code
 }
 ```
 (This loop is not Clue's repeat until loop, as the condition is checked at the start of the iteration in this loop)
@@ -289,7 +289,7 @@ until condition {
 Lua's repeat until loops work the same way but with a different keyword:
 ```
 loop {
-  //code
+    //code
 } until x;
 ```
 
@@ -298,8 +298,8 @@ These loops with a funny name will iterate forever until something external (lik
 ```
 local x = 1;
 loop {
-  x += 1;
-  if x == 5 {break} //by the way, break is a rare example where ; can be omitted
+    x += 1;
+    if x == 5 {break} //by the way, break is a rare example where ; can be omitted
 }
 ```
 
@@ -307,28 +307,28 @@ loop {
 `continue` is obviously not a loop itself but it can be used inside them, it works like `break` but instead of ending the loop it skips to the next iteration:
 ```
 for i = 1, 10 {
-  if i == 5 {continue} //like break continue can have the ; omitted
-  print(i); //this will print from 1 to 10 except 5
+    if i == 5 {continue} //like break continue can have the ; omitted
+    print(i); //this will print from 1 to 10 except 5
 }
 ```
 Clue will convert continue to `goto continue;` and add `::continue::` at the end of the loop, If the Lua version you're using already has a `continue` keyword you can tell Clue to use it instead by enabling the `-continue` flag:
 ```lua
 --without the -continue flag
 for i = 1, 10, 1 do
-	if i==5 then
-		goto continue;
-	end
-	print(i)
-	::continue::
+    if i==5 then
+        goto continue;
+    end
+    print(i)
+    ::continue::
 end
 ```
 ```lua
 --with the -continue flag
 for i = 1, 10, 1 do
-	if i==5 then
-		continue;
-	end
-	print(i)
+    if i==5 then
+        continue;
+    end
+    print(i)
 end
 ```
 
