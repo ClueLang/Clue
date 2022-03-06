@@ -229,7 +229,7 @@ y = a?.b.c;
 z = a?.b?.c;
 ```
 This code will be converted to:
-```
+```lua
 x = (a.b and a.b.c);
 y = (a and a.b.c);
 z = (a and a.b and a.b.c);
