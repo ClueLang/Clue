@@ -46,7 +46,7 @@ fn CompileFile(path: &Path, name: String) -> Result<(), String> {
 	let output = CompileCode(code, name)?;
 	if !*ENV_DONTSAVE {
 		let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-		check!(fs::write(compiledname, String::from(include_str!(".\\std.lua")) + &output))
+		check!(fs::write(compiledname, output))
 	}
 	Ok(())
 }
@@ -98,7 +98,7 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version b2.0.84");
+		println!("Version b2.0.85");
 		return Ok(());
 	}
 	if *ENV_PATHISCODE {
