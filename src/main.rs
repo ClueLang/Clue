@@ -114,7 +114,6 @@ OPTIONS:
 	let path: &Path = Path::new(&codepath);
 	if path.is_dir() {
 		AddToOutput(include_str!("base.lua"));
-		AddToOutput("modules = {\n\t");
 		CompileFolder(path, String::new())?;
 		AddToOutput("\r}\nrequire(\"main\")");
 		if !*ENV_DONTSAVE {

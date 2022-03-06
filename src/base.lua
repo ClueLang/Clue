@@ -1,4 +1,4 @@
-local require, modules
+local require, _modules
 do
 	local _require = _G.require
 	local cache = {}
@@ -7,7 +7,7 @@ do
 		if nils[modname] then return end
 		local cached = cache[modname]
 		if cached ~= nil then return cached end
-		cached = modules[modname]
+		cached = _modules[modname]
 		if cached ~= nil then
 			cached = cached();
 			(cached ~= nil and cache or nils)[modname] = cached
@@ -16,3 +16,4 @@ do
 		return _require(modname)
 	end
 end
+_modules = {
