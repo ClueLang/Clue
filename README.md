@@ -7,8 +7,11 @@ Clue tries to have a mostly open syntax and does not force any coding style.
 
 Clue also adds many optional features to help make code smaller and implementing hard things easier and/or with a better syntax
 
+Clue will always output a single file: if more .clue files are compiled at once they will be merged togheter in `main.lua`, the output of these files will be stored as functions inside the table `_modules` (which should not be edited).
 
-(Note that Clue is still in beta and lacks some important (and not important) features)
+If multiple files are compiled Clue will make the Lua code start from `main.clue`, as such that file must be present and it should handle loading the other files.
+
+(Note that Clue is still in beta and lacks some important features)
 
 ## How to install and use
 1. Download the latest release and save it somewhere
@@ -19,6 +22,14 @@ Clue also adds many optional features to help make code smaller and implementing
 - Code blocks are now inside `{}` instead of `then`/`do` and `end`
 - `;` cannot be omitted most of the time.
 - Comments are made with `// ...` or `/* ... */`
+
+## `require`
+The `require` function has been altered to load the functions inside the `_modules` table, It will still act like Lua's (it caches the return value and only calls the function once), so if you know how to use Lua's `require` you know how to use Clue's too.
+
+There are only 2 differences:
+* `.` must be used for directories instead of `\` or `/` (in Lua using the slashes was not intended anyway)
+* If you try to load a file that was not compiled by Clue (not inside `_modules`) it will call Lua's `require` and try to load a `.lua` file instead (this is to allow external lua files/libraries to be used inside Clue code)
+
 
 ## Variables
 ### Locals
@@ -50,7 +61,7 @@ f ^= 5;
 g ..= "6";
 h ?= 7;
 ```
-This block of code would be converted to:
+This code would be converted to:
 ```lua
 local a, b, c, d, e, f, g, h;
 a = 0;
@@ -61,6 +72,20 @@ e = e / 4;
 f = f ^ 5;
 g = g .. [[6]];
 h = h and 7;
+```
+
+### Static variables
+Static variables work similar to global variables, but they are not inserted into \_G (the global environment)
+
+They can be useful when the Lua version you're using is slow with globals or you just don't want to pollute \_G
+
+Note that due to the way Lua handles locals at file scope (yes statics are just that) you may not be able to define more than around 200 statics
+
+To avoid issues with the scope statics must first be declared and then edited (otherwise it might use variables that don't exist at file scope and error):
+```
+static a, b, c; //the ; can be omitted here
+a = 1;
+b = a + 3;
 ```
 
 ### Pseudo variables (`$`)
@@ -167,7 +192,7 @@ local function foo(x = 3, y = 5) {
     //code
 }
 ```
-will be converted to:
+This code will be converted to:
 ```lua
 local function foo(x, y)
 	if y == nil then y = 5 end
@@ -177,7 +202,10 @@ end
 ```
 
 ## Tables
-Tables themselves are created the same way they are made in Lua, but metatables get a little easier to do with the new `meta` keyword:
+Tables themselves are created the same way they are made in Lua, but with a few additions:
+
+### Metatables
+Metatables get a little easier to do with the new `meta` keyword:
 ```
 local mytable = {
   x = 3,
@@ -185,6 +213,7 @@ local mytable = {
 };
 ```
 This table would have a metatable with the `__index` metamethod that points to the table `{b = 5}`.
+
 All metamethods names are the same as Lua's but without the `__`, except for a few operator related metamethods that can use the operator itself:
 ```
 local othertable = {
@@ -192,19 +221,20 @@ local othertable = {
 };
 ```
 
-## PGet (`?>`)
-PGet (Protected Get) works similar to `pcall` but it's used instead to check if an expression would cause an error by returning nil if it does:
+### Conditional indexing
+If you're not sure if you're accessing a table or not you can use `?.` and `?::` to check beforehand:
 ```
-local t = {};
-local e = ?>(t.b.c); //without PGet this would cause an error 
-print(e); //but thanks to PGet this will instead just print nil
+x = a.b?.c;
+y = a?.b.c;
+z = a?.b?.c;
 ```
-Another case where PGet can be used is when you're not sure if a variable is a function:
+This code will be converted to:
 ```
-local foo = 1;
-local bar = ?>(foo()) //foo is not a function so bar becomes nil
+x = (a.b and a.b.c);
+y = (a and a.b.c);
+z = (a and a.b and a.b.c);
 ```
-**WIP: PGet is parsed but not compiled, using it will result in a crash.**
+(Note that it only checks if the variable exists, not if it's actually a table/something that can be indexed)
 
 ## Loops
 Some loops remain unchanged from Lua but there are some important differences and additions:
@@ -246,20 +276,22 @@ while condition {
 }
 ```
 
-### Loop until loops
-Lua's repeat until loops but with a slightly different syntax:
+### Until loops
+These loops are the opposite of a while loop, looping until the condition is true
 ```
-loop until x {
+until condition {
   //code
 }
 ```
-If you instead prefer a syntax closer to Lua's this is valid too:
+(This loop is not Clue's repeat until loop, as the condition is checked at the start of the iteration in this loop)
+
+### Loop until loops
+Lua's repeat until loops work the same way but with a different keyword:
 ```
 loop {
   //code
 } until x;
 ```
-**WIP: The first way of writing loop until loops may be reused for another type of loops in the future.**
 
 ### Loop loops
 These loops with a funny name will iterate forever until something external (like `break`) ends the loop:
