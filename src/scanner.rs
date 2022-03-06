@@ -9,9 +9,9 @@ pub enum TokenType {
 	SQUARE_BRACKET_OPEN, SQUARE_BRACKET_CLOSED,
 	CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR,
-	PLUS, MINUS, STAR, SLASH, PERCENTUAL, CARET,
-	HASHTAG, DOUBLE_COLON, DOT, TWODOTS, TREDOTS,
-	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT,
+	PLUS, MINUS, STAR, SLASH, PERCENTUAL, CARET, HASHTAG,
+	SAFE_DOUBLE_COLON, DOUBLE_COLON, DOT, TWODOTS, TREDOTS,
+	SAFEDOT, BIT_AND, BIT_OR, BIT_XOR, BIT_NOT,
 	LEFT_SHIFT, RIGHT_SHIFT, PROTECTED_GET,
 	
 	//definition and comparison
@@ -232,7 +232,21 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'=' => i.compareAndAdd('=', EQUAL, DEFINE),
 			'<' => i.matchAndAdd('=', SMALLER_EQUAL, '<', LEFT_SHIFT, SMALLER),
 			'>' => i.matchAndAdd('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
-			'?' => i.matchAndAdd('=', DEFINEIF, '>', PROTECTED_GET, AND),
+			'?' => {
+				let kind: TokenType = match i.compare('=') {
+					true => DEFINEIF,
+					false => match i.compare('>') {
+						true => PROTECTED_GET,
+						false => match i.compare('.') {
+							true => SAFEDOT,
+							false => if i.compare(':') && i.compare(':') {
+								SAFE_DOUBLE_COLON
+							} else {AND}
+						}
+					}
+				};
+				i.addToken(kind);
+			}
 			'&' => i.compareAndAdd('&', AND, BIT_AND),
 			':' => i.compareAndAdd(':', DOUBLE_COLON, OR),
 			'|' => i.compareAndAdd('|', OR, BIT_OR),

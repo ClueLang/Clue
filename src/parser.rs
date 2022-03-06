@@ -87,7 +87,7 @@ pub enum ComplexToken {
 	SYMBOL(String),
 	CALL(Vec<Expression>),
 	EXPR(Expression),
-	PGET(Expression),
+	IDENT(Expression),
 	DO_BLOCK(CodeBlock),
 	RETURN_EXPR(Expression),
 	CONTINUE_LOOP, BREAK_LOOP
@@ -394,7 +394,7 @@ impl ParserInfo {
 						_ => true
 					} {}
 					self.current = start;
-					name = Ok(self.buildIdentifier(false)?);
+					name = Ok(self.buildName()?);
 					self.current -= 1;
 				}
 				META => {
@@ -470,14 +470,14 @@ impl ParserInfo {
 		Ok(())
 	}
 
-	fn checkIndex(&self, t: &Token, expr: &mut Expression) -> Result<(), String> {
-		if !self.compare(IDENTIFIER)|| match self.lookBack(0).kind {
+	fn checkIndex(&self, t: &Token, expr: &mut Expression, lexeme: &str) -> Result<(), String> {
+		if !self.compare(IDENTIFIER) || match self.lookBack(0).kind {
 			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
 			_ => false
 		} {
 			return Err(self.error(format!("'{}' should be used only when indexing tables.", t.lexeme)))
 		}
-		expr.push(SYMBOL(t.lexeme.clone().chars().next().unwrap().to_string()));
+		expr.push(SYMBOL(lexeme.to_string()));
 		Ok(())
 	}
 
@@ -488,10 +488,10 @@ impl ParserInfo {
 			let t = self.advance();
 			match t.kind {
 				IDENTIFIER => {
-					let mut fname = self.buildIdentifier(true)?;
+					let fname = self.buildIdentifier(true)?;
 					self.current -= 1;
 					if IsVar(self.current, end, &self.peek(0)) {
-						expr.append(&mut fname);
+						expr.push(fname);
 					} else {return Err(self.unexpected(t.lexeme.as_str()))}
 				}
 				CURLY_BRACKET_OPEN => {expr.push(self.buildTable()?)}
@@ -525,11 +525,11 @@ impl ParserInfo {
 					}
 					expr.push(SYMBOL(String::from("#")))
 				}
-				PROTECTED_GET => {
+				/*PROTECTED_GET => {
 					self.assert(ROUND_BRACKET_OPEN, "(")?;
 					self.current += 1;
 					expr.push(PGET(self.buildIdentifier(true)?));
-				}
+				}*/
 				AND => {
 					self.checkOperator(&t, start, end)?;
 					expr.push(SYMBOL(String::from(" and ")))
@@ -564,8 +564,8 @@ impl ParserInfo {
 						}
 					})?));
 					self.current += 2;
-					let mut fname = self.buildIdentifier(true)?;
-					expr.append(&mut fname);
+					let fname = self.buildIdentifier(true)?;
+					expr.push(fname);
 					self.current -= 1;
 				}
 				DOLLAR => {
@@ -607,7 +607,7 @@ impl ParserInfo {
 		Ok(expr)
 	}
 
-	fn buildIdentifier(&mut self, dofuncs: bool) -> Result<Expression, String> {
+	fn buildName(&mut self) -> Result<Expression, String> {
 		let mut expr = Expression::new();
 		self.current -= 1;
 		loop {
@@ -620,10 +620,53 @@ impl ParserInfo {
 					}
 					expr.push(SYMBOL(t.lexeme))
 				}
-				DOT => {self.checkIndex(&t, &mut expr)?}
+				SAFEDOT => {return Err(self.unexpected("?."))}
+				DOT => {self.checkIndex(&t, &mut expr, ".")?}
+				SAFE_DOUBLE_COLON | DOUBLE_COLON => {return Err(self.error(String::from("You can't call methods here.")))}
+				SQUARE_BRACKET_OPEN => {
+					let qexpr = self.findExpression(0, 1, 0, 0, |t| {
+						match t {
+							SQUARE_BRACKET_CLOSED => CHECK_FORCESTOP,
+							_ => CHECK_CONTINUE
+						}
+					})?;
+					expr.push(SYMBOL(String::from("[")));
+					expr.push(EXPR(qexpr));
+					expr.push(SYMBOL(String::from("]")));
+					self.current += 1;
+				}
+				ROUND_BRACKET_OPEN => {return Err(self.error(String::from("You can't call functions here.")))}
+				_ => {break}
+			}
+		}
+		Ok(expr)
+	}
+
+	fn buildIdentifier(&mut self, dofuncs: bool) -> Result<ComplexToken, String> {
+		let mut expr = Expression::new();
+		self.current -= 1;
+		loop {
+			let t = self.advance();
+			match t.kind {
+				IDENTIFIER => {
+					let nt = self.peek(0);
+					if nt.kind == IDENTIFIER {
+						return Err(self.unexpected(&nt.lexeme))
+					}
+					expr.push(SYMBOL(t.lexeme))
+				}
+				SAFEDOT => {self.checkIndex(&t, &mut expr, "?.")?}
+				DOT => {self.checkIndex(&t, &mut expr, ".")?}
+				SAFE_DOUBLE_COLON => {
+					if !dofuncs {return Err(self.error(String::from("You can't call methods here.")))}
+					self.checkIndex(&t, &mut expr, "?::")?;
+					if self.peek(1).kind != ROUND_BRACKET_OPEN {
+						return Err(self.expected("(", &self.peek(1).lexeme))
+					}
+				}
 				DOUBLE_COLON => {
 					if !dofuncs {return Err(self.error(String::from("You can't call methods here.")))}
-					self.checkIndex(&t, &mut expr)?;
+					self.checkIndex(&t, &mut expr, ":")?;
 					if self.peek(1).kind != ROUND_BRACKET_OPEN {
 						return Err(self.expected("(", &self.peek(1).lexeme))
 					}
@@ -649,7 +692,7 @@ impl ParserInfo {
 				_ => {break}
 			}
 		}
-		Ok(expr)
+		Ok(IDENT(expr))
 	}
 
 	fn buildCodeBlock(&mut self) -> Result<CodeBlock, String> {
@@ -822,9 +865,9 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 								}
 								expr.push(SYMBOL(t.lexeme))
 							}
-							DOT => {i.checkIndex(&t, &mut expr)?}
+							DOT => {i.checkIndex(&t, &mut expr, ".")?}
 							DOUBLE_COLON => {
-								i.checkIndex(&t, &mut expr)?;
+								i.checkIndex(&t, &mut expr, ":")?;
 								if i.peek(1).kind != ROUND_BRACKET_OPEN {
 									return Err(i.expected("(", &i.peek(1).lexeme))
 								}
@@ -862,7 +905,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				}
 				let mut names: Vec<Expression> = Vec::new();
 				while {
-					names.push(i.buildIdentifier(false)?);
+					names.push(i.buildName()?);
 					i.current += 1;
 					i.lookBack(1).kind == COMMA
 				} {}
@@ -889,7 +932,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				});
 				i.current += 1;
 			}
-			PROTECTED_GET => {
+			/*PROTECTED_GET => {
 				i.assert(ROUND_BRACKET_OPEN, "(")?;
 				i.current += 1;
 				let ident = i.buildIdentifier(true)?;
@@ -900,7 +943,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.expr.push(call);
 				i.current += 1;
 				i.advanceIf(SEMICOLON);
-			}
+			}*/
 			ROUND_BRACKET_OPEN => {
 				i.expr.push(SYMBOL(String::from("(")));
 				let expr = i.findExpression(1, 0, 0, 0, |t| {

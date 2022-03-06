@@ -65,6 +65,52 @@ fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	format!("{}\n{}\n{}", start, code, Indentate(scope))
 }
 
+fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
+	let mut result = String::new();
+	let mut checked = String::new();
+	let mut iter = expr.iter().peekable();
+	for t in iter.clone() {
+		iter.next();
+		match t.clone() {
+			SYMBOL(lexeme) => {
+				let lexeme = lexeme.as_str();
+				match lexeme {
+					"?." => {
+						result += &(checked.clone() + " and ");
+						checked += ".";
+					}
+					"?::" => {
+						result += &(checked.clone() + " and ");
+						checked += ":";
+					}
+					"[" => {
+						result += &(checked.clone() + " and ");
+						let texpr = *(iter.peek().unwrap());
+						let rexpr: String;
+						if let EXPR(expr) = texpr {
+							rexpr = CompileExpression(scope, names, expr.clone());
+						} else {
+							panic!("This message should never appear");
+						}
+							checked += &format!("[({})]", rexpr);
+						}
+					"]" => {}
+					_ => {checked += lexeme}
+				}
+			}
+			CALL(args) => {
+				checked += &format!("({})", CompileExpressions(scope, names, args))
+			}
+			_ => {}
+		}
+	}
+	if result.is_empty() {
+		result + &checked
+	} else {
+		format!("({})", result + &checked)
+	}
+}
+
 fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
 	let mut result = String::new();
 	for t in expr {
@@ -114,46 +160,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 			EXPR(expr) => {
 				format!("({})", CompileExpression(scope, names, expr))
 			}
-			PGET(expr) => {
-				let mut result = String::new();
-				let mut checked = String::new();
-				let mut iter = expr.iter().peekable();
-				for t in iter.clone() {
-					iter.next();
-					match t.clone() {
-						SYMBOL(lexeme) => {
-							let lexeme = lexeme.as_str();
-							println!("{}\t{}\t{}", lexeme, checked, result);
-							match lexeme {
-								":" | "." => {
-									result += &(checked.clone() + " and ");
-									checked += lexeme;
-								}
-								"[" => {
-									result += &(checked.clone() + " and ");
-									let texpr = *(iter.peek().unwrap());
-									let rexpr: String;
-									if let EXPR(expr) = texpr {
-										rexpr = CompileExpression(scope, names, expr.clone());
-									} else {
-										panic!("This message should never appear");
-									}
-									checked += &format!("[({})]", rexpr);
-								}
-								"]" => {}
-								_ => {checked += lexeme}
-							}
-						}
-						CALL(args) => {
-							checked += &format!("({})", CompileExpressions(scope, names, args))
-						}
-						_ => {}
-					}
-				}
-				println!("{}\t{}", checked, result);
-				result += &checked;
-				format!("({})", result)
-			}
+			IDENT(expr) => CompileIdentifier(scope, names, expr),
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
 	}
@@ -254,15 +261,12 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			CALL(args) => {
 				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
 			}
-			EXPR(expr) => {
-				CompileExpression(scope, None, expr)
-			}
+			EXPR(expr) => CompileExpression(scope, None, expr),
+			IDENT(expr) => CompileIdentifier(scope, None, expr),
 			DO_BLOCK(code) => {
 				format!("{}end{}", CompileCodeBlock(scope, "do", code), IndentateIf(ctokens, scope))
 			}
-			RETURN_EXPR(expr) => {
-				format!("return {};", CompileExpression(scope, None, expr))
-			}
+			RETURN_EXPR(expr) => format!("return {};", CompileExpression(scope, None, expr)),
 			CONTINUE_LOOP => {
 				let end = IndentateIf(ctokens, scope);
 				format!("{};{}", if *ENV_CONTINUE {"continue"} else {"goto continue"}, end)
