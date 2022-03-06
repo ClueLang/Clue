@@ -116,17 +116,17 @@ OPTIONS:
 		AddToOutput(include_str!("base.lua"));
 		AddToOutput("modules = {\n\t");
 		CompileFolder(path, String::new())?;
-		AddToOutput("\r}\nmodules.main()");
+		AddToOutput("\r}\nrequire(\"main\")");
 		if !*ENV_DONTSAVE {
 			let compiledname = String::from(path.display().to_string()) + "\\main.lua";
-			check!(fs::write(compiledname, unsafe {output.clone()}))
+			check!(fs::write(compiledname, unsafe {&output}))
 		}
 	} else if path.is_file() {
 		let code = CompileFile(path, path.file_name().unwrap().to_string_lossy().into_owned(), 0)?;
 		AddToOutput(&code);
 		if !*ENV_DONTSAVE {
 			let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-			check!(fs::write(compiledname, unsafe {output.clone()}))
+			check!(fs::write(compiledname, unsafe {&output}))
 		}
 	} else {
 		return Err(String::from("The given path doesn't exist"));
