@@ -103,7 +103,7 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version b2.0.85");
+		println!("Version b2.0.86");
 		return Ok(());
 	}
 	if *ENV_PATHISCODE {
@@ -123,9 +123,10 @@ OPTIONS:
 		}
 	} else if path.is_file() {
 		let code = CompileFile(path, path.file_name().unwrap().to_string_lossy().into_owned(), 0)?;
+		AddToOutput(&code);
 		if !*ENV_DONTSAVE {
 			let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-			check!(fs::write(compiledname, code))
+			check!(fs::write(compiledname, unsafe {output.clone()}))
 		}
 	} else {
 		return Err(String::from("The given path doesn't exist"));
