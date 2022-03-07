@@ -155,7 +155,7 @@ impl CodeInfo {
 	}
 
 	fn warning(&mut self, message: &str) {
-		println!("Error in file \"{}\" at line [{}]!\nError: \"{}\"\n", self.filename, self.line, message);
+		println!("Error in file \"{}\" at line {}!\nError: \"{}\"\n", self.filename, self.line, message);
 		self.errored = true;
 	}
 

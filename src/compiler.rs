@@ -1,7 +1,7 @@
 use crate::scanner::TokenType::*;
 use crate::options::ENV_CONTINUE;
 use std::iter::Peekable;
-use std::vec::IntoIter;
+use std::collections::linked_list::IntoIter;
 use crate::parser::{
 	ComplexToken,
 	ComplexToken::*,
@@ -202,7 +202,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let iter = names.iter();
 				let mut names: Vec<String> = Vec::new();
 				for name in iter {
-					names.push(CompileExpression(scope, None, name.to_vec()))
+					names.push(CompileExpression(scope, None, name.clone()))
 				}
 				let mut i = 0usize;
 				let values = CompileList(values, &mut |expr| {

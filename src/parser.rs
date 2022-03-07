@@ -10,9 +10,22 @@ use crate::options::{
 };
 use self::ComplexToken::*;
 use self::CheckResult::*;
+use std::collections::LinkedList;
 use std::cmp;
 
-pub type Expression = Vec<ComplexToken>;
+macro_rules! expression {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut expr = Expression::new();
+            $(
+                expr.push_back($x);
+            )*
+            expr
+        }
+    };
+}
+
+pub type Expression = LinkedList<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<Expression>)>;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -141,7 +154,7 @@ impl ParserInfo {
 			size: tokens.len() - 1,
 			tokens: tokens,
 			filename: filename,
-			expr: Vec::new(),
+			expr: Expression::new(),
 			testing: false
 		}
 	}
@@ -152,7 +165,7 @@ impl ParserInfo {
 
 	fn error(&self, msg: String) -> String {
 		if !self.testing {
-			println!("Error in file \"{}\" at line [{}]!", self.filename, self.getLine());
+			println!("Error in file \"{}\" at line {}!", self.filename, self.getLine());
 		}
 		msg
 	}
@@ -381,7 +394,7 @@ impl ParserInfo {
 			let pn = self.advance();
 			match pn.kind {
 				IDENTIFIER => {
-					name = Ok(vec![SYMBOL(pn.lexeme.clone())]);
+					name = Ok(expression![SYMBOL(pn.lexeme.clone())]);
 				}
 				SQUARE_BRACKET_OPEN => {
 					let mut qscope = 1u8;
@@ -482,7 +495,7 @@ impl ParserInfo {
 		} {
 			return Err(self.error(format!("'{}' should be used only when indexing tables.", t.lexeme)))
 		}
-		expr.push(SYMBOL(lexeme.to_string()));
+		expr.push_back(SYMBOL(lexeme.to_string()));
 		Ok(())
 	}
 
@@ -496,30 +509,30 @@ impl ParserInfo {
 					let fname = self.buildIdentifier(true)?;
 					self.current -= 1;
 					if IsVar(self.current, end, &self.peek(0)) {
-						expr.push(fname);
+						expr.push_back(fname);
 					} else {return Err(self.unexpected(t.lexeme.as_str()))}
 				}
-				CURLY_BRACKET_OPEN => {expr.push(self.buildTable()?)}
+				CURLY_BRACKET_OPEN => {expr.push_back(self.buildTable()?)}
 				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
 				EQUAL  | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL => {
 					self.checkOperator(&t, start, end)?;
-					expr.push(SYMBOL(t.lexeme))
+					expr.push_back(SYMBOL(t.lexeme))
 				}
 				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
 					self.checkOperator(&t, start, end)?;
 					if *ENV_NOJITBIT {
-						expr.push(SYMBOL(t.lexeme))
+						expr.push_back(SYMBOL(t.lexeme))
 					} else {
 						return Err(self.error(String::from("This feature was not implemented yet")))
 					}
 				}
 				NOT_EQUAL => {
 					self.checkOperator(&t, start, end)?;
-					expr.push(SYMBOL(String::from("~=")))
+					expr.push_back(SYMBOL(String::from("~=")))
 				}
 				MINUS => {
 					self.checkOperator(&t, usize::MAX, end)?;
-					expr.push(SYMBOL(t.lexeme))
+					expr.push_back(SYMBOL(t.lexeme))
 				}
 				HASHTAG => {
 					if match self.peek(0).kind {
@@ -528,41 +541,41 @@ impl ParserInfo {
 					} {
 						return Err(self.expected("<table>", &self.peek(0).lexeme))
 					}
-					expr.push(SYMBOL(String::from("#")))
+					expr.push_back(SYMBOL(String::from("#")))
 				}
 				/*PROTECTED_GET => {
 					self.assert(ROUND_BRACKET_OPEN, "(")?;
 					self.current += 1;
-					expr.push(PGET(self.buildIdentifier(true)?));
+					expr.push_back(PGET(self.buildIdentifier(true)?));
 				}*/
 				AND => {
 					self.checkOperator(&t, start, end)?;
-					expr.push(SYMBOL(String::from(" and ")))
+					expr.push_back(SYMBOL(String::from(" and ")))
 				}
 				OR => {
 					self.checkOperator(&t, start, end)?;
-					expr.push(SYMBOL(String::from(" or ")))
+					expr.push_back(SYMBOL(String::from(" or ")))
 				}
 				NOT => {
 					self.checkOperator(&t, usize::MAX, end)?;
-					expr.push(SYMBOL(String::from("not ")))
+					expr.push_back(SYMBOL(String::from("not ")))
 				}
 				TREDOTS | NUMBER | TRUE | FALSE | NIL => {
 					if IsVar(self.current, end, &self.peek(0)) {
-						expr.push(SYMBOL(t.lexeme))
+						expr.push_back(SYMBOL(t.lexeme))
 					} else {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
 				STRING => {
 					if IsVar(self.current, end, &self.peek(0)) {
-						expr.push(SYMBOL(format!("[[{}]]", t.lexeme)))
+						expr.push_back(SYMBOL(format!("[[{}]]", t.lexeme)))
 					} else {
 						return Err(self.unexpected(t.lexeme.as_str()))
 					}
 				}
 				ROUND_BRACKET_OPEN => {
-					expr.push(EXPR(self.getExpression(1, 0, 0, 0, |t| {
+					expr.push_back(EXPR(self.getExpression(1, 0, 0, 0, |t| {
 						match t {
 							ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
 							_ => CHECK_CONTINUE
@@ -570,7 +583,7 @@ impl ParserInfo {
 					})?));
 					self.current += 2;
 					let fname = self.buildIdentifier(true)?;
-					expr.push(fname);
+					expr.push_back(fname);
 					self.current -= 1;
 				}
 				DOLLAR => {
@@ -587,7 +600,7 @@ impl ParserInfo {
 						}
 					}
 					if IsVar(self.current, end, &self.peek(0)) {
-						expr.push(PSEUDO {
+						expr.push_back(PSEUDO {
 							num,
 							line: self.getLine()
 						});
@@ -601,7 +614,7 @@ impl ParserInfo {
 						self.buildFunctionArgs()?
 					} else {Vec::new()};
 					let code = self.buildCodeBlock()?;
-					expr.push(LAMBDA {args, code, line: t.line});
+					expr.push_back(LAMBDA {args, code, line: t.line});
 				}
 				_ => {return Err(self.unexpected(t.lexeme.as_str()))}
 			}
@@ -623,7 +636,7 @@ impl ParserInfo {
 					if nt.kind == IDENTIFIER {
 						return Err(self.unexpected(&nt.lexeme))
 					}
-					expr.push(SYMBOL(t.lexeme))
+					expr.push_back(SYMBOL(t.lexeme))
 				}
 				SAFEDOT => {return Err(self.unexpected("?."))}
 				DOT => {self.checkIndex(&t, &mut expr, ".")?}
@@ -635,9 +648,9 @@ impl ParserInfo {
 							_ => CHECK_CONTINUE
 						}
 					})?;
-					expr.push(SYMBOL(String::from("[")));
-					expr.push(EXPR(qexpr));
-					expr.push(SYMBOL(String::from("]")));
+					expr.push_back(SYMBOL(String::from("[")));
+					expr.push_back(EXPR(qexpr));
+					expr.push_back(SYMBOL(String::from("]")));
 					self.current += 1;
 				}
 				ROUND_BRACKET_OPEN => {return Err(self.error(String::from("You can't call functions here.")))}
@@ -658,7 +671,7 @@ impl ParserInfo {
 					if nt.kind == IDENTIFIER {
 						return Err(self.unexpected(&nt.lexeme))
 					}
-					expr.push(SYMBOL(t.lexeme))
+					expr.push_back(SYMBOL(t.lexeme))
 				}
 				SAFEDOT => {self.checkIndex(&t, &mut expr, "?.")?}
 				DOT => {self.checkIndex(&t, &mut expr, ".")?}
@@ -683,15 +696,15 @@ impl ParserInfo {
 							_ => CHECK_CONTINUE
 						}
 					})?;
-					expr.push(SYMBOL(String::from("[")));
-					expr.push(EXPR(qexpr));
-					expr.push(SYMBOL(String::from("]")));
+					expr.push_back(SYMBOL(String::from("[")));
+					expr.push_back(EXPR(qexpr));
+					expr.push_back(SYMBOL(String::from("]")));
 					self.current += 1;
 				}
 				ROUND_BRACKET_OPEN => {
 					if !dofuncs {return Err(self.error(String::from("You can't call functions here.")))}
 					self.current -= 2;
-					expr.push(self.buildCall()?);
+					expr.push_back(self.buildCall()?);
 					self.current += 1;
 				}
 				_ => {break}
@@ -732,7 +745,7 @@ impl ParserInfo {
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
 		let mut code = self.buildCodeBlock()?;
 		if !*ENV_CONTINUE {
-			code.code.push(SYMBOL(String::from("::continue::")));
+			code.code.push_back(SYMBOL(String::from("::continue::")));
 		}
 		Ok(code)
 	}
@@ -808,13 +821,13 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 		match t.kind {
 			LOCAL | GLOBAL => {
 				if i.advanceIf(FN) {
-					let name = vec![SYMBOL(i.assertAdvance(IDENTIFIER, "<name>")?.lexeme)];
+					let name = expression![SYMBOL(i.assertAdvance(IDENTIFIER, "<name>")?.lexeme)];
 					i.assert(ROUND_BRACKET_OPEN, "(")?;
 					let args: FunctionArgs = if !i.advanceIf(ROUND_BRACKET_CLOSED) {
 						i.buildFunctionArgs()?
 					} else {Vec::new()};
 					let code = i.buildCodeBlock()?;
-					i.expr.push(FUNCTION {
+					i.expr.push_back(FUNCTION {
 						local: t.kind == LOCAL,
 						line: t.line,
 						name, args, code
@@ -848,7 +861,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						}
 					})?
 				};
-				i.expr.push(VARIABLE {
+				i.expr.push_back(VARIABLE {
 					local: t.kind == LOCAL,
 					line: t.line,
 					names, values
@@ -880,7 +893,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 								if nt.kind == IDENTIFIER {
 									return Err(i.unexpected(&nt.lexeme))
 								}
-								expr.push(SYMBOL(t.lexeme))
+								expr.push_back(SYMBOL(t.lexeme))
 							}
 							DOT => {i.checkIndex(&t, &mut expr, ".")?}
 							DOUBLE_COLON => {
@@ -899,7 +912,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					i.buildFunctionArgs()?
 				} else {Vec::new()};
 				let code = i.buildCodeBlock()?;
-				i.expr.push(FUNCTION {
+				i.expr.push_back(FUNCTION {
 					local: t.kind == LOCAL,
 					line: t.line,
 					name, args, code
@@ -942,7 +955,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				if names.len() != values.len() {
 					return Err(i.expectedBefore("<expr>", &i.peek(0).lexeme))
 				}
-				i.expr.push(ALTER {
+				i.expr.push_back(ALTER {
 					kind: checkt.kind,
 					line: t.line,
 					names, values
@@ -953,49 +966,49 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.assert(ROUND_BRACKET_OPEN, "(")?;
 				i.current += 1;
 				let ident = i.buildIdentifier(true)?;
-				i.expr.push(EXPR(vec![PGET(ident)]));
+				i.expr.push_back(EXPR(vec![PGET(ident)]));
 				i.current -= 1;
 				i.assertCompare(ROUND_BRACKET_CLOSED, ")")?;
 				let call = i.buildCall()?;
-				i.expr.push(call);
+				i.expr.push_back(call);
 				i.current += 1;
 				i.advanceIf(SEMICOLON);
 			}*/
 			ROUND_BRACKET_OPEN => {
-				i.expr.push(SYMBOL(String::from("(")));
+				i.expr.push_back(SYMBOL(String::from("(")));
 				let expr = i.findExpression(1, 0, 0, 0, |t| {
 					match t {
 						ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
 						_ => CHECK_CONTINUE
 					}
 				})?;
-				i.expr.push(EXPR(expr));
-				i.expr.push(SYMBOL(String::from(")")));
+				i.expr.push_back(EXPR(expr));
+				i.expr.push_back(SYMBOL(String::from(")")));
 				let call = i.buildCall()?;
-				i.expr.push(call);
+				i.expr.push_back(call);
 				i.current += 1;
 				i.advanceIf(SEMICOLON);
 			}
 			CURLY_BRACKET_OPEN => {
 				i.current -= 1;
 				let block = i.buildCodeBlock()?;
-				i.expr.push(DO_BLOCK(block));
+				i.expr.push_back(DO_BLOCK(block));
 			}
 			IF => {
 				let ctoken = i.buildElseIfChain()?;
-				i.expr.push(ctoken);
+				i.expr.push_back(ctoken);
 			}
 			WHILE => {
 				let condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
 				let code = i.buildLoopBlock()?;
-				i.expr.push(WHILE_LOOP {condition, code})
+				i.expr.push_back(WHILE_LOOP {condition, code})
 			}
 			UNTIL => {
 				let mut condition = i.findExpression(0, 0, 0, 1, GetCondition)?;
-				condition.insert(0, SYMBOL(String::from("not (")));
-				condition.push(SYMBOL(String::from(")")));
+				condition.push_front(SYMBOL(String::from("not (")));
+				condition.push_back(SYMBOL(String::from(")")));
 				let code = i.buildLoopBlock()?;
-				i.expr.push(WHILE_LOOP {condition, code})
+				i.expr.push_back(WHILE_LOOP {condition, code})
 			}
 			LOOP => {
 				let code = i.buildLoopBlock()?;
@@ -1007,10 +1020,10 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							_ => CHECK_CONTINUE,
 						}
 					})?;
-					i.expr.push(LOOP_UNTIL {condition, code})
+					i.expr.push_back(LOOP_UNTIL {condition, code})
 				} else {
-					i.expr.push(WHILE_LOOP {
-						condition: vec![SYMBOL(String::from("true"))],
+					i.expr.push_back(WHILE_LOOP {
+						condition: expression![SYMBOL(String::from("true"))],
 						code
 					})
 				}
@@ -1035,43 +1048,37 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						i.findExpression(0, 0, 0, 1, GetCondition)?
 					} else {
 						i.current -= 1;
-						vec![SYMBOL(String::from("1"))]
+						expression![SYMBOL(String::from("1"))]
 					};
 					let code = i.buildLoopBlock()?;
-					i.expr.push(FOR_LOOP {iterator, start, end, alter, code})
+					i.expr.push_back(FOR_LOOP {iterator, start, end, alter, code})
 				} else {
 					let iterators = i.buildIdentifierList()?;
 					let expr = match i.advance().kind {
 						OF => {
-							let mut expr = vec![
-								SYMBOL(String::from("pairs")), 
-								SYMBOL(String::from("("))
-							];
+							let mut expr = expression![SYMBOL(String::from("pairs("))];
 							expr.append(&mut i.findExpression(0, 0, 0, 1, GetCondition)?);
-							expr.push(SYMBOL(String::from(")")));
+							expr.push_back(SYMBOL(String::from(")")));
 							expr
 						}
 						IN => {
-							let mut expr = vec![
-								SYMBOL(String::from("ipairs")), 
-								SYMBOL(String::from("("))
-							];
+							let mut expr = expression![SYMBOL(String::from("ipairs("))];
 							expr.append(&mut i.findExpression(0, 0, 0, 1, GetCondition)?);
-							expr.push(SYMBOL(String::from(")")));
+							expr.push_back(SYMBOL(String::from(")")));
 							expr
 						}
 						WITH => {i.findExpression(0, 0, 0, 1, GetCondition)?}
 						_ => {return Err(i.expected("of', 'in' or 'with", &i.peek(0).lexeme))}
 					};
 					let code = i.buildLoopBlock()?;
-					i.expr.push(FOR_FUNC_LOOP {iterators, expr, code});
+					i.expr.push_back(FOR_FUNC_LOOP {iterators, expr, code});
 				}
 			}
-			CONTINUE => {i.expr.push(CONTINUE_LOOP); i.advanceIf(SEMICOLON);}
-			BREAK => {i.expr.push(BREAK_LOOP); i.advanceIf(SEMICOLON);}
+			CONTINUE => {i.expr.push_back(CONTINUE_LOOP); i.advanceIf(SEMICOLON);}
+			BREAK => {i.expr.push_back(BREAK_LOOP); i.advanceIf(SEMICOLON);}
 			RETURN => {
 				let expr = if i.advanceIf(SEMICOLON) {
-					vec![SYMBOL(String::from("nil"))]
+					expression![SYMBOL(String::from("nil"))]
 				} else {
 					i.findExpression(0, 0, 0, 0, |t| {
 						match t {
@@ -1080,7 +1087,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						}
 					})?
 				};
-				i.expr.push(RETURN_EXPR (expr));
+				i.expr.push_back(RETURN_EXPR (expr));
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}

@@ -38,7 +38,7 @@ fn CompileCode(code: String, name: String, scope: usize) -> Result<String, Strin
 	if *ENV_TOKENS {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
-	let ctokens: Vec<ComplexToken> = ParseTokens(tokens, name.clone())?;
+	let ctokens = ParseTokens(tokens, name.clone())?;
 	if *ENV_STRUCT {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
