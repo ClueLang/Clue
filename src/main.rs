@@ -103,7 +103,7 @@ OPTIONS:
 	}
 	codepath = &args[1];
 	if codepath == "-version" {
-		println!("Version b2.0.86");
+		println!("Version b2.1.87");
 		return Ok(());
 	}
 	if *ENV_PATHISCODE {
