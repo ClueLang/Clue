@@ -19,6 +19,7 @@ use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
+use std::time::Instant;
 use std::path::Path;
 use options::*;
 use scanner::*;
@@ -32,6 +33,7 @@ fn AddToOutput(string: &str) {
 }
 
 fn CompileCode(code: String, name: String, scope: usize) -> Result<String, String> {
+	let time = Instant::now();
 	let tokens: Vec<Token> = ScanCode(code, name.clone())?;
 	if *ENV_TOKENS {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
@@ -44,6 +46,7 @@ fn CompileCode(code: String, name: String, scope: usize) -> Result<String, Strin
 	if *ENV_PRINTOUT {
 		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
 	}
+	println!("Compiled file \"{}\" in {} seconds!", name, time.elapsed().as_secs_f32());
 	Ok(code)
 }
 
