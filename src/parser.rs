@@ -861,7 +861,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				let mut result = String::from("local ");
 				let names = i.buildIdentifierList()?;
 				i.advanceIf(SEMICOLON);
-				//for name in names {result += name + }
 				let size = names.len();
 				for i in 0..size {
 					let name = names.get(i).unwrap();
