@@ -15,14 +15,16 @@ mod parser;
 mod compiler;
 
 use clap::Parser;
-use std::fs;
-use std::fs::File;
-use std::io::prelude::*;
-use std::time::Instant;
-use std::path::Path;
 use scanner::*;
 use parser::*;
 use compiler::*;
+use std::{
+	io::prelude::*,
+	time::Instant,
+	path::Path,
+	fs::File,
+	fs
+};
 
 pub static mut finaloutput: String = String::new();
 

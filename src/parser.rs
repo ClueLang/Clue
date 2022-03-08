@@ -1,17 +1,23 @@
 #![allow(non_camel_case_types)]
 
-use crate::output;
-use crate::scanner::Token;
-use crate::scanner::TokenType;
-use crate::scanner::TokenType::*;
-use crate::options::{
+use crate::{
+	scanner::{
+		Token,
+		TokenType,
+		TokenType::*
+	},
 	ENV_NOJITBIT,
-	ENV_CONTINUE
+	ENV_CONTINUE,
+	finaloutput
 };
-use self::ComplexToken::*;
-use self::CheckResult::*;
-use std::collections::LinkedList;
-use std::cmp;
+use self::{
+	ComplexToken::*,
+	CheckResult::*
+};
+use std::{
+	collections::LinkedList,
+	cmp
+};
 
 macro_rules! expression {
     ( $( $x:expr ),* ) => {
@@ -128,7 +134,7 @@ fn GetCondition(t: TokenType) -> CheckResult {
 }
 
 fn PrependToOutput(string: String) {
-	unsafe {output = string + &output}
+	unsafe {finaloutput = string + &finaloutput}
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -1,13 +1,18 @@
-use crate::scanner::TokenType::*;
-use crate::options::ENV_CONTINUE;
-use std::iter::Peekable;
-use std::collections::linked_list::IntoIter;
-use crate::parser::{
-	ComplexToken,
-	ComplexToken::*,
-	Expression,
-	FunctionArgs,
-	CodeBlock
+use crate::{
+	scanner::TokenType::*,
+	parser::{
+		ComplexToken,
+		ComplexToken::*,
+		FunctionArgs,
+		CodeBlock,
+		Expression
+	},
+	ENV_CONTINUE,
+	ENV_RAWSETGLOBALS
+};
+use std::{
+	iter::Peekable,
+	collections::linked_list::IntoIter
 };
 
 fn Indentate(scope: usize) -> String {
@@ -188,14 +193,18 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 		result += &match t {
 			SYMBOL (lexeme) => lexeme,
 			VARIABLE {local, names, values, line: _} => {
-				let pre = if local {"local "} else {""};
-				let end = IndentateIf(ctokens, scope);
-				if values.is_empty() {
-					format!("{}{};{}", pre, CompileIdentifiers(names), end)
+				if !local && *ENV_RAWSETGLOBALS {
+					String::new()
 				} else {
-					let values = CompileExpressions(scope, Some(&names), values);
-					let names = CompileIdentifiers(names);
-					format!("{}{} = {};{}", pre, names, values, end)
+					let pre = if local {"local "} else {""};
+					let end = IndentateIf(ctokens, scope);
+					if values.is_empty() {
+						format!("{}{};{}", pre, CompileIdentifiers(names), end)
+					} else {
+						let values = CompileExpressions(scope, Some(&names), values);
+						let names = CompileIdentifiers(names);
+						format!("{}{} = {};{}", pre, names, values, end)
+					}
 				}
 			}
 			ALTER {kind, names, values, line: _} => {
