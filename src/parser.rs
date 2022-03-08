@@ -514,7 +514,7 @@ impl ParserInfo {
 				}
 				CURLY_BRACKET_OPEN => {expr.push_back(self.buildTable()?)}
 				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
-				EQUAL  | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL => {
+				EQUAL | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL => {
 					self.checkOperator(&t, start, end)?;
 					expr.push_back(SYMBOL(t.lexeme))
 				}
