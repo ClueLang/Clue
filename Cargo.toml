@@ -1,6 +1,7 @@
 [package]
 name = "clue"
-version = "2.1.87"
+version = "2.1.89"
+description = "Clue transpiler (BETA)\nMade by Felix44\nhttps://github.com/Felix-44/Clue"
 edition = "2018"
 build = "build.rs"
 authors = ["Felix44"]
@@ -9,3 +10,4 @@ authors = ["Felix44"]
 winres = "0.1"
 
 [dependencies]
+clap = {version = "3.1.6", features = ["derive"]}
