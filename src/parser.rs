@@ -984,7 +984,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.advanceIf(SEMICOLON);
 			}*/
 			ROUND_BRACKET_OPEN => {
-				i.expr.push_back(SYMBOL(String::from("(")));
 				let expr = i.findExpression(1, 0, 0, 0, |t| {
 					match t {
 						ROUND_BRACKET_CLOSED => CHECK_FORCESTOP,
@@ -992,7 +991,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					}
 				})?;
 				i.expr.push_back(EXPR(expr));
-				i.expr.push_back(SYMBOL(String::from(")")));
 				let call = i.buildCall()?;
 				i.expr.push_back(call);
 				i.current += 1;

@@ -188,8 +188,7 @@ fn CompileElseIfChain(scope: usize, condition: Expression, code: CodeBlock, next
 pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 	let mut result = Indentate(scope);
 	let ctokens = &mut ctokens.into_iter().peekable();
-	for t in ctokens.clone() {
-		ctokens.next();
+	while let Some(t) = ctokens.next() {
 		result += &match t {
 			SYMBOL (lexeme) => lexeme,
 			VARIABLE {local, names, values, line: _} => {
@@ -270,8 +269,12 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			CALL(args) => {
 				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
 			}
-			EXPR(expr) => CompileExpression(scope, None, expr),
-			IDENT(expr) => CompileIdentifier(scope, None, expr),
+			EXPR(expr) => {
+				format!("({})", CompileExpression(scope, None, expr))
+			}
+			IDENT(expr) => {
+				format!("{};{}", CompileIdentifier(scope, None, expr), IndentateIf(ctokens, scope))
+			}
 			DO_BLOCK(code) => {
 				format!("{}end{}", CompileCodeBlock(scope, "do", code), IndentateIf(ctokens, scope))
 			}
