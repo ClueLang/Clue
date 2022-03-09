@@ -20,12 +20,10 @@ use std::{
 };
 
 macro_rules! expression {
-    ( $( $x:expr ),* ) => {
+    ($($x: expr),*) => {
         {
             let mut expr = Expression::new();
-            $(
-                expr.push_back($x);
-            )*
+            $(expr.push_back($x);)*
             expr
         }
     };
@@ -499,7 +497,7 @@ impl ParserInfo {
 			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
 			_ => false
 		} {
-			return Err(self.error(format!("'{}' should be used only when indexing tables.", t.lexeme)))
+			return Err(self.error(format!("'{}' should be used only when indexing", t.lexeme)))
 		}
 		expr.push_back(SYMBOL(lexeme.to_string()));
 		Ok(())
@@ -646,7 +644,7 @@ impl ParserInfo {
 				}
 				SAFEDOT => {return Err(self.unexpected("?."))}
 				DOT => {self.checkIndex(&t, &mut expr, ".")?}
-				SAFE_DOUBLE_COLON | DOUBLE_COLON => {return Err(self.error(String::from("You can't call methods here.")))}
+				SAFE_DOUBLE_COLON | DOUBLE_COLON => {return Err(self.error(String::from("You can't call methods here")))}
 				SQUARE_BRACKET_OPEN => {
 					let qexpr = self.findExpression(0, 1, 0, 0, |t| {
 						match t {
@@ -659,7 +657,7 @@ impl ParserInfo {
 					expr.push_back(SYMBOL(String::from("]")));
 					self.current += 1;
 				}
-				ROUND_BRACKET_OPEN => {return Err(self.error(String::from("You can't call functions here.")))}
+				ROUND_BRACKET_OPEN => {return Err(self.error(String::from("You can't call functions here")))}
 				_ => {break}
 			}
 		}
@@ -682,14 +680,14 @@ impl ParserInfo {
 				SAFEDOT => {self.checkIndex(&t, &mut expr, "?.")?}
 				DOT => {self.checkIndex(&t, &mut expr, ".")?}
 				SAFE_DOUBLE_COLON => {
-					if !dofuncs {return Err(self.error(String::from("You can't call methods here.")))}
+					if !dofuncs {return Err(self.error(String::from("You can't call methods here")))}
 					self.checkIndex(&t, &mut expr, "?::")?;
 					if self.peek(1).kind != ROUND_BRACKET_OPEN {
 						return Err(self.expected("(", &self.peek(1).lexeme))
 					}
 				}
 				DOUBLE_COLON => {
-					if !dofuncs {return Err(self.error(String::from("You can't call methods here.")))}
+					if !dofuncs {return Err(self.error(String::from("You can't call methods here")))}
 					self.checkIndex(&t, &mut expr, ":")?;
 					if self.peek(1).kind != ROUND_BRACKET_OPEN {
 						return Err(self.expected("(", &self.peek(1).lexeme))
@@ -708,7 +706,7 @@ impl ParserInfo {
 					self.current += 1;
 				}
 				ROUND_BRACKET_OPEN => {
-					if !dofuncs {return Err(self.error(String::from("You can't call functions here.")))}
+					if !dofuncs {return Err(self.error(String::from("You can't call functions here")))}
 					self.current -= 2;
 					expr.push_back(self.buildCall()?);
 					self.current += 1;
@@ -829,9 +827,9 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				if i.advanceIf(FN) {
 					let name = expression![SYMBOL(i.assertAdvance(IDENTIFIER, "<name>")?.lexeme)];
 					i.assert(ROUND_BRACKET_OPEN, "(")?;
-					let args: FunctionArgs = if !i.advanceIf(ROUND_BRACKET_CLOSED) {
+					let args = if !i.advanceIf(ROUND_BRACKET_CLOSED) {
 						i.buildFunctionArgs()?
-					} else {Vec::new()};
+					} else {FunctionArgs::new()};
 					let code = i.buildCodeBlock()?;
 					i.expr.push_back(FUNCTION {
 						local: t.kind == LOCAL,
@@ -937,7 +935,12 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.testing = false;
 				match testexpr {
 					Ok(mut expr) => {i.expr.append(&mut expr); continue}
-					Err(_) => {i.current = start}
+					Err(msg) => {
+						if &msg == "Expected ';' before '<end>'" {
+							return Err(i.error(msg))
+						}
+						i.current = start
+					}
 				}
 				let mut names: Vec<Expression> = Vec::new();
 				while {

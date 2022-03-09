@@ -46,7 +46,7 @@ pub static ENV_PATHISCODE: &bool = unsafe {&UNSAFE_PATHISCODE};
 pub static ENV_RAWSETGLOBALS: &bool = unsafe {&UNSAFE_RAWSETGLOBALS};
 
 #[derive(Parser)]
-#[clap(about, version = "b2.1.89", long_about = None)]
+#[clap(about, version = "b3.0.90", long_about = None)]
 struct Cli {
 	/// The path to the directory where the *.clue files are located.
 	/// Every directory inside the given directory will be checked too.
