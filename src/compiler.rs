@@ -74,8 +74,7 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 	let mut result = String::new();
 	let mut checked = String::new();
 	let mut iter = expr.iter().peekable();
-	for t in iter.clone() {
-		iter.next();
+	while let Some(t) = iter.next() {
 		match t.clone() {
 			SYMBOL(lexeme) => {
 				let lexeme = lexeme.as_str();
