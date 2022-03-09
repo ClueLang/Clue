@@ -15,7 +15,7 @@ use self::{
 	CheckResult::*
 };
 use std::{
-	collections::LinkedList,
+	collections::{HashMap, LinkedList},
 	cmp
 };
 
