@@ -107,7 +107,7 @@ pub enum ComplexToken {
 	EXPR(Expression),
 	IDENT(Expression),
 	DO_BLOCK(CodeBlock),
-	RETURN_EXPR(Expression),
+	RETURN_EXPR(Option<Expression>),
 	CONTINUE_LOOP, BREAK_LOOP
 }
 
@@ -874,18 +874,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					i.current += 1;
 				}
 			}
-			STATIC => {
-				let mut result = String::from("local ");
-				let names = i.buildIdentifierList()?;
-				i.advanceIf(SEMICOLON);
-				let size = names.len();
-				for i in 0..size {
-					let name = names.get(i).unwrap();
-					result += name;
-					if i + 1 != size {result += ", "}
-				}
-				PrependToOutput(result + "\n")
-			}
 			METHOD => {
 				let name = {
 					let mut expr = Expression::new();
@@ -1083,18 +1071,33 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			}
 			CONTINUE => {i.expr.push_back(CONTINUE_LOOP); i.advanceIf(SEMICOLON);}
 			BREAK => {i.expr.push_back(BREAK_LOOP); i.advanceIf(SEMICOLON);}
+			STATIC => {
+				let mut result = String::from("local ");
+				let names = i.buildIdentifierList()?;
+				i.advanceIf(SEMICOLON);
+				let size = names.len();
+				for i in 0..size {
+					let name = names.get(i).unwrap();
+					result += name;
+					if i + 1 != size {result += ", "}
+				}
+				PrependToOutput(result + "\n")
+			}
+			ENUM => {
+
+			}
 			RETURN => {
 				let expr = if i.advanceIf(SEMICOLON) {
-					expression![SYMBOL(String::from("nil"))]
+					None
 				} else {
-					i.findExpression(0, 0, 0, 0, |t| {
+					Some(i.findExpression(0, 0, 0, 0, |t| {
 						match t {
 							SEMICOLON => CHECK_ADVANCESTOP,
 							_ => CHECK_CONTINUE,
 						}
-					})?
+					})?)
 				};
-				i.expr.push_back(RETURN_EXPR (expr));
+				i.expr.push_back(RETURN_EXPR(expr));
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}

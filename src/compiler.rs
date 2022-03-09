@@ -277,7 +277,13 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			DO_BLOCK(code) => {
 				format!("{}end{}", CompileCodeBlock(scope, "do", code), IndentateIf(ctokens, scope))
 			}
-			RETURN_EXPR(expr) => format!("return {};", CompileExpression(scope, None, expr)),
+			RETURN_EXPR(expr) => {
+				if let Some(expr) = expr {
+					format!("return {};", CompileExpression(scope, None, expr))
+				} else {
+					String::from("return;")
+				}
+			},
 			CONTINUE_LOOP => {
 				let end = IndentateIf(ctokens, scope);
 				format!("{};{}", if arg!(ENV_CONTINUE) {"continue"} else {"goto continue"}, end)
