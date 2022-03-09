@@ -10,6 +10,12 @@ macro_rules! check {
 	};
 }
 
+macro_rules! arg {
+	($name: expr) => {
+		unsafe {$name}
+	};
+}
+
 mod scanner;
 mod parser;
 mod compiler;
@@ -28,22 +34,14 @@ use std::{
 
 pub static mut finaloutput: String = String::new();
 
-static mut UNSAFE_TOKENS: bool = false;
-static mut UNSAFE_STRUCT: bool = false;
-static mut UNSAFE_OUTPUT: bool = false;
-static mut UNSAFE_NOJITBIT: bool = false;
-static mut UNSAFE_CONTINUE: bool = false;
-static mut UNSAFE_DONTSAVE: bool = false;
-static mut UNSAFE_PATHISCODE: bool = false;
-static mut UNSAFE_RAWSETGLOBALS: bool = false;
-pub static ENV_TOKENS: &bool = unsafe {&UNSAFE_TOKENS};
-pub static ENV_STRUCT: &bool = unsafe {&UNSAFE_STRUCT};
-pub static ENV_OUTPUT: &bool = unsafe {&UNSAFE_OUTPUT};
-pub static ENV_NOJITBIT: &bool = unsafe {&UNSAFE_NOJITBIT};
-pub static ENV_CONTINUE: &bool = unsafe {&UNSAFE_CONTINUE};
-pub static ENV_DONTSAVE: &bool = unsafe {&UNSAFE_DONTSAVE};
-pub static ENV_PATHISCODE: &bool = unsafe {&UNSAFE_PATHISCODE};
-pub static ENV_RAWSETGLOBALS: &bool = unsafe {&UNSAFE_RAWSETGLOBALS};
+pub static mut ENV_TOKENS: bool = false;
+pub static mut ENV_STRUCT: bool = false;
+pub static mut ENV_OUTPUT: bool = false;
+pub static mut ENV_NOJITBIT: bool = false;
+pub static mut ENV_CONTINUE: bool = false;
+pub static mut ENV_DONTSAVE: bool = false;
+pub static mut ENV_PATHISCODE: bool = false;
+pub static mut ENV_RAWSETGLOBALS: bool = false;
 
 #[derive(Parser)]
 #[clap(about, version = "b3.0.90", long_about = None)]
@@ -52,6 +50,10 @@ struct Cli {
 	/// Every directory inside the given directory will be checked too.
 	/// If the path points to a single *.clue file, only that file will be compiled.
 	path: String,
+
+	/// The name the output file will have
+	#[clap(default_value = "main")]
+	outputname: String,
 
 	/// Print list of detected tokens in compiled files
 	#[clap(long)]
@@ -93,15 +95,15 @@ fn AddToOutput(string: &str) {
 fn CompileCode(code: String, name: String, scope: usize) -> Result<String, String> {
 	let time = Instant::now();
 	let tokens: Vec<Token> = ScanCode(code, name.clone())?;
-	if *ENV_TOKENS {
+	if arg!(ENV_TOKENS) {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
 	let ctokens = ParseTokens(tokens, name.clone())?;
-	if *ENV_STRUCT {
+	if arg!(ENV_STRUCT) {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
 	let code = CompileTokens(scope, ctokens);
-	if *ENV_OUTPUT {
+	if arg!(ENV_OUTPUT) {
 		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
 	}
 	println!("Compiled file \"{}\" in {} seconds!", name, time.elapsed().as_secs_f32());
@@ -135,17 +137,17 @@ fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 fn main() -> Result<(), String> {
 	let cli = Cli::parse();
     unsafe {
-		UNSAFE_TOKENS = cli.tokens;
-		UNSAFE_STRUCT = cli.r#struct;
-		UNSAFE_OUTPUT = cli.output;
-		UNSAFE_NOJITBIT = cli.nojitbit;
-		UNSAFE_CONTINUE = cli.r#continue;
-		UNSAFE_DONTSAVE = cli.dontsave;
-		UNSAFE_PATHISCODE = cli.pathiscode;
-		UNSAFE_RAWSETGLOBALS = cli.rawsetglobals;
+		ENV_TOKENS = cli.tokens;
+		ENV_STRUCT = cli.r#struct;
+		ENV_OUTPUT = cli.output;
+		ENV_NOJITBIT = cli.nojitbit;
+		ENV_CONTINUE = cli.r#continue;
+		ENV_DONTSAVE = cli.dontsave;
+		ENV_PATHISCODE = cli.pathiscode;
+		ENV_RAWSETGLOBALS = cli.rawsetglobals;
 	}
 	let codepath = &cli.path;
-	if *ENV_PATHISCODE {
+	if arg!(ENV_PATHISCODE) {
 		let code = CompileCode(codepath.clone(), String::from("(command line)"), 0)?;
 		println!("{}", code);
 		return Ok(());
@@ -155,14 +157,15 @@ fn main() -> Result<(), String> {
 		AddToOutput(include_str!("base.lua"));
 		CompileFolder(path, String::new())?;
 		AddToOutput("\r}\nrequire(\"main\")");
-		if !*ENV_DONTSAVE {
-			let compiledname = String::from(path.display().to_string()) + "\\main.lua";
+		if !arg!(ENV_DONTSAVE) {
+			let outputname = &format!("\\{}.lua", cli.outputname);
+			let compiledname = String::from(path.display().to_string()) + outputname;
 			check!(fs::write(compiledname, unsafe {&finaloutput}))
 		}
 	} else if path.is_file() {
 		let code = CompileFile(path, path.file_name().unwrap().to_string_lossy().into_owned(), 0)?;
 		AddToOutput(&code);
-		if !*ENV_DONTSAVE {
+		if !arg!(ENV_DONTSAVE) {
 			let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
 			check!(fs::write(compiledname, unsafe {&finaloutput}))
 		}

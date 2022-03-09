@@ -193,7 +193,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 		result += &match t {
 			SYMBOL (lexeme) => lexeme,
 			VARIABLE {local, names, values, line: _} => {
-				if !local && *ENV_RAWSETGLOBALS {
+				if !local && arg!(ENV_RAWSETGLOBALS) {
 					String::new()
 				} else {
 					let pre = if local {"local "} else {""};
@@ -278,7 +278,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			RETURN_EXPR(expr) => format!("return {};", CompileExpression(scope, None, expr)),
 			CONTINUE_LOOP => {
 				let end = IndentateIf(ctokens, scope);
-				format!("{};{}", if *ENV_CONTINUE {"continue"} else {"goto continue"}, end)
+				format!("{};{}", if arg!(ENV_CONTINUE) {"continue"} else {"goto continue"}, end)
 			}
 			BREAK_LOOP => {
 				String::from("break;") + &IndentateIf(ctokens, scope)

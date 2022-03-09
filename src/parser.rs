@@ -524,7 +524,7 @@ impl ParserInfo {
 				}
 				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
 					self.checkOperator(&t, start, end)?;
-					if *ENV_NOJITBIT {
+					if arg!(ENV_NOJITBIT) {
 						expr.push_back(SYMBOL(t.lexeme))
 					} else {
 						return Err(self.error(String::from("This feature was not implemented yet")))
@@ -748,7 +748,7 @@ impl ParserInfo {
 
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
 		let mut code = self.buildCodeBlock()?;
-		if !*ENV_CONTINUE {
+		if !arg!(ENV_CONTINUE) {
 			code.code.push_back(SYMBOL(String::from("::continue::")));
 		}
 		Ok(code)
