@@ -15,7 +15,7 @@ use self::{
 	CheckResult::*
 };
 use std::{
-	collections::{HashMap, LinkedList},
+	collections::LinkedList,
 	cmp
 };
 
@@ -816,6 +816,45 @@ impl ParserInfo {
 			}
 		})
 	}
+
+	fn buildEnums(&mut self, local: bool) -> Result<Expression, String> {
+		self.current += 1;
+		self.assert(CURLY_BRACKET_OPEN, "{")?;
+		let mut enums = Expression::new();
+		let mut n = 0i16;
+		loop {
+			if self.advanceIf(CURLY_BRACKET_CLOSED) {break}
+			let name = self.assertAdvance(IDENTIFIER, "<name>")?;
+			let t = self.advance();
+			let value = match t.kind {
+				CURLY_BRACKET_CLOSED => {
+					self.current -= 1;
+					n += 1;
+					SYMBOL(n.to_string())
+				},
+				COMMA => {
+					n += 1;
+					SYMBOL(n.to_string())
+				},
+				DEFINE => {
+					let t = self.advance();
+					if t.kind != NUMBER {
+						return Err(self.error(String::from("Enums values should be a non-float number ranging from -32768 to 32767.")))
+					}
+					n = check!(t.lexeme.parse());
+					self.advanceIf(COMMA);
+					SYMBOL(n.to_string())
+				}
+				_ => {return Err(self.expected("}", &t.lexeme))}
+			};
+			enums.push_back(VARIABLE {
+				line: name.line, local,
+				names: vec![name.lexeme],
+				values: vec![expression![value]]
+			});
+		}
+		Ok(enums)
+	}
 }
 
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
@@ -824,54 +863,84 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 		let t = i.advance();
 		match t.kind {
 			LOCAL | GLOBAL => {
-				if i.advanceIf(FN) {
-					let name = expression![SYMBOL(i.assertAdvance(IDENTIFIER, "<name>")?.lexeme)];
-					i.assert(ROUND_BRACKET_OPEN, "(")?;
-					let args = if !i.advanceIf(ROUND_BRACKET_CLOSED) {
-						i.buildFunctionArgs()?
-					} else {FunctionArgs::new()};
-					let code = i.buildCodeBlock()?;
-					i.expr.push_back(FUNCTION {
-						local: t.kind == LOCAL,
-						line: t.line,
-						name, args, code
-					});
-					continue
-				}
-				let mut names: Vec<String> = Vec::new();
-				loop {
-					let pname = i.advance();
-					if pname.kind != IDENTIFIER {
-						return Err(i.expected("<name>", &pname.lexeme));
+				let local = t.kind == LOCAL;
+				match i.peek(0).kind {
+					FN => {
+						i.current += 1;
+						let name = expression![SYMBOL(i.assertAdvance(IDENTIFIER, "<name>")?.lexeme)];
+						i.assert(ROUND_BRACKET_OPEN, "(")?;
+						let args = if !i.advanceIf(ROUND_BRACKET_CLOSED) {
+							i.buildFunctionArgs()?
+						} else {FunctionArgs::new()};
+						let code = i.buildCodeBlock()?;
+						i.expr.push_back(FUNCTION {
+							local, name, args, code,
+							line: t.line,
+						});
 					}
-					names.push(pname.lexeme);
-					if !i.compare(COMMA) {
-						break
+					ENUM => {
+						let enums = &mut i.buildEnums(local)?;
+						i.expr.append(enums);
 					}
-					i.current += 1;
-				}
-				let check = i.advance();
-				let areinit = match check.kind {
-					DEFINE => true,
-					SEMICOLON => false,
-					_ => {return Err(i.expected("=", &check.lexeme))}
-				};
-				let values: Vec<Expression> = if !areinit {Vec::new()} else {
-					i.findExpressions(0, 0, 0, 0, |t| {
-						match t {
-							COMMA => CHECK_BUILD,
-							SEMICOLON => CHECK_STOP,
-							_ => CHECK_CONTINUE
+					_ => {
+						let mut names: Vec<String> = Vec::new();
+						loop {
+							let pname = i.assertAdvance(IDENTIFIER, "<name>")?;
+							names.push(pname.lexeme);
+							if !i.compare(COMMA) {
+								break
+							}
+							i.current += 1;
 						}
-					})?
-				};
-				i.expr.push_back(VARIABLE {
-					local: t.kind == LOCAL,
-					line: t.line,
-					names, values
-				});
-				if areinit {
-					i.current += 1;
+						let check = i.advance();
+						let areinit = match check.kind {
+							DEFINE => true,
+							SEMICOLON => false,
+							_ => {return Err(i.expected("=", &check.lexeme))}
+						};
+						let values: Vec<Expression> = if !areinit {Vec::new()} else {
+							i.findExpressions(0, 0, 0, 0, |t| {
+								match t {
+									COMMA => CHECK_BUILD,
+									SEMICOLON => CHECK_STOP,
+									_ => CHECK_CONTINUE
+								}
+							})?
+						};
+						i.expr.push_back(VARIABLE {
+							local, names, values,
+							line: t.line,
+						});
+						if areinit {
+							i.current += 1;
+						}
+					}
+				}
+			}
+			STATIC => {
+				match i.peek(0).kind {
+					ENUM => {
+						let mut enums = i.buildEnums(true)?.into_iter();
+						while let Some(VARIABLE {mut names, mut values, ..}) = enums.next() {
+							let name = names.pop().unwrap();
+							let value = if let Some(SYMBOL(lexeme)) = values.pop().unwrap().pop_back() {
+								lexeme
+							} else {return Err(String::from("Something unexpected happened"))};
+							PrependToOutput(format!("local {} = {}\n", name, value));
+						}
+					}
+					_ => {
+						let mut result = String::from("local ");
+						let names = i.buildIdentifierList()?;
+						i.advanceIf(SEMICOLON);
+						let size = names.len();
+						for i in 0..size {
+							let name = names.get(i).unwrap();
+							result += name;
+							if i + 1 != size {result += ", "}
+						}
+						PrependToOutput(result + "\n")
+					}
 				}
 			}
 			METHOD => {
@@ -1071,21 +1140,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			}
 			CONTINUE => {i.expr.push_back(CONTINUE_LOOP); i.advanceIf(SEMICOLON);}
 			BREAK => {i.expr.push_back(BREAK_LOOP); i.advanceIf(SEMICOLON);}
-			STATIC => {
-				let mut result = String::from("local ");
-				let names = i.buildIdentifierList()?;
-				i.advanceIf(SEMICOLON);
-				let size = names.len();
-				for i in 0..size {
-					let name = names.get(i).unwrap();
-					result += name;
-					if i + 1 != size {result += ", "}
-				}
-				PrependToOutput(result + "\n")
-			}
-			ENUM => {
-
-			}
 			RETURN => {
 				let expr = if i.advanceIf(SEMICOLON) {
 					None
