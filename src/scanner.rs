@@ -24,7 +24,7 @@ pub enum TokenType {
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL,
 	UNTIL, LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP,
-	STATIC, ENUM, CONTINUE, BREAK,
+	STATIC, ENUM, CONTINUE, BREAK, TRY, CATCH,
 	
 	EOF
 }
@@ -308,6 +308,8 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"enum" => ENUM,
 						"continue" => CONTINUE,
 						"break" => BREAK,
+						"try" => TRY,
+						"catch" => CATCH,
 						_ => IDENTIFIER
 					};
 					i.addToken(kind);
