@@ -44,7 +44,7 @@ pub static mut ENV_PATHISCODE: bool = false;
 pub static mut ENV_RAWSETGLOBALS: bool = false;
 
 #[derive(Parser)]
-#[clap(about, version = "b3.0.91", long_about = None)]
+#[clap(about, version, long_about = None)]
 struct Cli {
 	/// The path to the directory where the *.clue files are located.
 	/// Every directory inside the given directory will be checked too.
