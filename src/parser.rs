@@ -1170,6 +1170,9 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				};
 				i.expr.push_back(TRY_CATCH {totry, error, catch});
 			}
+			FN | ENUM => {
+				return Err(i.error(format!("'{}' must have 'local', 'global' or 'static' beforehand", t.lexeme)))
+			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}
 	}

@@ -1,6 +1,6 @@
 [package]
 name = "clue"
-version = "1.0.92"
+version = "1.0.93"
 description = "C/Rust like programming language that compiles into Lua code (BETA)\nMade by Felix44\nhttps://github.com/Felix-44/Clue"
 edition = "2018"
 build = "build.rs"
