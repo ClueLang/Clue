@@ -297,7 +297,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"global" => GLOBAL,
 						"until" => UNTIL,
 						"local" => LOCAL,
-						"fn" | "function" => FN,
+						"fn" => FN,
 						"method" => METHOD,
 						"return" => RETURN,
 						"true" => TRUE,
