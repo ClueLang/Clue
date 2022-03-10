@@ -120,7 +120,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 	for t in expr {
 		result += &match t {
 			SYMBOL (lexeme) => lexeme,
-			PSEUDO {num, line: _} => {
+			PSEUDO(num) => {
 				match names {
 					Some(names) => names.get(num - 1).unwrap_or(&String::from("nil")).to_string(),
 					None => String::from("nil")

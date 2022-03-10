@@ -48,11 +48,6 @@ pub enum ComplexToken {
 		line: usize
 	},
 
-	PSEUDO {
-		num: usize,
-		line: usize
-	},
-
 	TABLE {
 		values: Vec<(Expression, Expression)>,
 		metas: Vec<(String, Expression)>
@@ -109,6 +104,7 @@ pub enum ComplexToken {
 	},
 
 	SYMBOL(String),
+	PSEUDO(usize),
 	CALL(Vec<Expression>),
 	EXPR(Expression),
 	IDENT(Expression),
@@ -610,10 +606,7 @@ impl ParserInfo {
 						}
 					}
 					if IsVar(self.current, end, &self.peek(0)) {
-						expr.push_back(PSEUDO {
-							num,
-							line: self.getLine()
-						});
+						expr.push_back(PSEUDO(num));
 					} else {
 						return Err(self.unexpected(&nt.lexeme))
 					}
