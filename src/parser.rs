@@ -102,6 +102,12 @@ pub enum ComplexToken {
 		code: CodeBlock
 	},
 
+	TRY_CATCH {
+		totry: CodeBlock,
+		catch: Option<CodeBlock>,
+		error: Option<String>
+	},
+
 	SYMBOL(String),
 	CALL(Vec<Expression>),
 	EXPR(Expression),
@@ -1152,6 +1158,24 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					})?)
 				};
 				i.expr.push_back(RETURN_EXPR(expr));
+			}
+			TRY => {
+				let totry = i.buildCodeBlock()?;
+				let error: Option<String>;
+				let catch = if i.advanceIf(CATCH) {
+					let t = i.advance();
+					if t.kind == IDENTIFIER {
+						error = Some(t.lexeme);
+					} else {
+						error = None;
+						i.current -= 1;
+					}
+					Some(i.buildCodeBlock()?)
+				} else {
+					error = None;
+					None
+				};
+				i.expr.push_back(TRY_CATCH {totry, error, catch});
 			}
 			_ => {return Err(i.unexpected(t.lexeme.as_str()))}
 		}

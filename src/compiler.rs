@@ -265,6 +265,18 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let code = CompileCodeBlock(scope, "do", code);
 				format!("for {} in {} {}end{}", iterators, expr, code, IndentateIf(ctokens, scope))
 			}
+			TRY_CATCH {totry, error, catch} => {
+				let i = IndentateIf(ctokens, scope);
+				let totry = CompileCodeBlock(scope, "function()", totry);
+				if let Some(catch) = catch {
+					let catch = CompileCodeBlock(scope, "if _check then", catch);
+					if let Some(error) = error {
+						format!("local _check, {} = pcall({}end)\n{}end{}", error, totry, catch, i)
+					} else {
+						format!("local _check = pcall({}end)\n{}end{}", totry, catch, i)
+					}
+				} else {format!("pcall({}end){}", totry, i)}
+			}
 			CALL(args) => {
 				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
 			}
