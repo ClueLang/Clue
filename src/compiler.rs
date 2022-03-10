@@ -269,7 +269,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let i = IndentateIf(ctokens, scope);
 				let totry = CompileCodeBlock(scope, "function()", totry);
 				if let Some(catch) = catch {
-					let catch = CompileCodeBlock(scope, "if _check then", catch);
+					let catch = CompileCodeBlock(scope, "if not _check then", catch);
 					if let Some(error) = error {
 						format!("local _check, {} = pcall({}end)\n{}end{}", error, totry, catch, i)
 					} else {
