@@ -126,7 +126,7 @@ fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 		if filepath.is_dir() {
 			CompileFolder(filepath, rname + ".")?;
 		} else if filePathName.ends_with(".clue") {
-			let code = CompileFile(filepath, name.clone(), 2)?;
+			let code = CompileFile(filepath, name, 2)?;
 			let rname = rname.strip_suffix(".clue").unwrap();
 			AddToOutput(&format!("[\"{}\"] = function()\n{}\n\tend,\n\t", rname, code));
 		}
