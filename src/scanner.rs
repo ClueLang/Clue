@@ -75,7 +75,7 @@ impl CodeInfo {
 			current: 0,
 			size: chars.clone().count(),
 			code: chars.collect(),
-			filename: filename,
+			filename,
 			tokens: Vec::new(),
 			errored: false
 		}
