@@ -58,7 +58,6 @@ pub enum ComplexToken {
 		name: Expression,
 		args: FunctionArgs,
 		code: CodeBlock,
-		line: usize
 	},
 
 	LAMBDA {
@@ -872,10 +871,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							i.buildFunctionArgs()?
 						} else {FunctionArgs::new()};
 						let code = i.buildCodeBlock()?;
-						i.expr.push_back(FUNCTION {
-							local, name, args, code,
-							line: t.line,
-						});
+						i.expr.push_back(FUNCTION {local, name, args, code});
 					}
 					ENUM => {
 						let enums = &mut i.buildEnums(local)?;
@@ -973,8 +969,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				} else {Vec::new()};
 				let code = i.buildCodeBlock()?;
 				i.expr.push_back(FUNCTION {
-					local: t.kind == LOCAL,
-					line: t.line,
+					local: false,
 					name, args, code
 				});
 			}

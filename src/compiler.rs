@@ -230,7 +230,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let names = CompileIdentifiers(names);
 				format!("{} = {};{}", names, values, IndentateIf(ctokens, scope))
 			}
-			FUNCTION {local, name, args, code, line: _} => {
+			FUNCTION {local, name, args, code} => {
 				let pre = if local {"local "} else {""};
 				let end = IndentateIf(ctokens, scope);
 				let name = CompileExpression(scope, None, name);
