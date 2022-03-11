@@ -10,10 +10,7 @@ use crate::{
 	ENV_CONTINUE,
 	ENV_RAWSETGLOBALS
 };
-use std::{
-	iter::Peekable,
-	collections::linked_list::IntoIter
-};
+use std::iter::Peekable;
 
 fn Indentate(scope: usize) -> String {
 	let mut result = String::new();
@@ -23,7 +20,7 @@ fn Indentate(scope: usize) -> String {
 	result
 }
 
-fn IndentateIf(ctokens: &mut Peekable<IntoIter<ComplexToken>>, scope: usize) -> String {
+fn IndentateIf<I: std::iter::Iterator>(ctokens: &mut Peekable<I>, scope: usize) -> String {
 	match ctokens.peek() {
 		Some(_) => format!("\n{}", Indentate(scope)),
 		None => String::new()
@@ -73,7 +70,7 @@ fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
 	let mut result = String::new();
 	let mut checked = String::new();
-	let mut iter = expr.iter().peekable();
+	let mut iter = expr.into_iter().peekable();
 	while let Some(t) = iter.next() {
 		match t.clone() {
 			SYMBOL(lexeme) => {
@@ -89,13 +86,12 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 					}
 					"[" => {
 						result += &(checked.clone() + " and ");
-						let texpr = *(iter.peek().unwrap());
-						let rexpr: String;
-						if let EXPR(expr) = texpr {
-							rexpr = CompileExpression(scope, names, expr.clone());
+						let texpr = iter.peek();
+						let rexpr = if let Some(EXPR(expr)) = texpr {
+							CompileExpression(scope, names, expr.clone())
 						} else {
 							panic!("This message should never appear");
-						}
+						};
 							checked += &format!("[({})]", rexpr);
 						}
 					"]" => {}
@@ -192,10 +188,27 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			SYMBOL (lexeme) => lexeme,
 			VARIABLE {local, names, values, line: _} => {
 				if !local && arg!(ENV_RAWSETGLOBALS) {
-					String::new()
+					let mut result = String::new();
+					let mut valuesit = values.iter();
+					let namesit = &mut names.iter().peekable();
+					while let Some(name) = namesit.next() {
+						let value = if let Some(value) = valuesit.next() {
+							CompileExpression(scope, Some(&names), value.clone())
+						} else {String::from("nil")};
+						let end = {
+							let pend = IndentateIf(namesit, scope);
+							if pend != "" {
+								pend
+							} else {
+								IndentateIf(ctokens, scope)
+							}
+						};
+						result += &format!("rawset(_G, \"{}\", {});{}", name, value, end);
+					}
+					result
 				} else {
-					let pre = if local {"local "} else {""};
 					let end = IndentateIf(ctokens, scope);
+					let pre = if local {"local "} else {""};
 					if values.is_empty() {
 						format!("{}{};{}", pre, CompileIdentifiers(names), end)
 					} else {
@@ -206,10 +219,10 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				}
 			}
 			ALTER {kind, names, values, line: _} => {
-				let iter = names.iter();
+				let iter = names.into_iter();
 				let mut names: Vec<String> = Vec::new();
 				for name in iter {
-					names.push(CompileExpression(scope, None, name.clone()))
+					names.push(CompileExpression(scope, None, name))
 				}
 				let mut i = 0usize;
 				let values = CompileList(values, &mut |expr| {
