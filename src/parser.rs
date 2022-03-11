@@ -6,6 +6,7 @@ use crate::{
 		TokenType,
 		TokenType::*
 	},
+	compiler::CompileTokens,
 	ENV_NOJITBIT,
 	ENV_CONTINUE,
 	finaloutput
@@ -853,6 +854,17 @@ impl ParserInfo {
 		}
 		Ok(enums)
 	}
+
+	fn buildFunction(&mut self, local: bool) -> Result<ComplexToken, String> {
+		self.current += 1;
+		let name = expression![SYMBOL(self.assertAdvance(IDENTIFIER, "<name>")?.lexeme)];
+		self.assert(ROUND_BRACKET_OPEN, "(")?;
+		let args = if !self.advanceIf(ROUND_BRACKET_CLOSED) {
+			self.buildFunctionArgs()?
+		} else {FunctionArgs::new()};
+		let code = self.buildCodeBlock()?;
+		Ok(FUNCTION {local, name, args, code})
+	}
 }
 
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
@@ -864,14 +876,8 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				let local = t.kind == LOCAL;
 				match i.peek(0).kind {
 					FN => {
-						i.current += 1;
-						let name = expression![SYMBOL(i.assertAdvance(IDENTIFIER, "<name>")?.lexeme)];
-						i.assert(ROUND_BRACKET_OPEN, "(")?;
-						let args = if !i.advanceIf(ROUND_BRACKET_CLOSED) {
-							i.buildFunctionArgs()?
-						} else {FunctionArgs::new()};
-						let code = i.buildCodeBlock()?;
-						i.expr.push_back(FUNCTION {local, name, args, code});
+						let function = i.buildFunction(local)?;
+						i.expr.push_back(function);
 					}
 					ENUM => {
 						let enums = &mut i.buildEnums(local)?;
@@ -914,6 +920,9 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			}
 			STATIC => {
 				match i.peek(0).kind {
+					FN => {
+						PrependToOutput(CompileTokens(0, expression![i.buildFunction(true)?]) + "\n");
+					}
 					ENUM => {
 						let mut enums = i.buildEnums(true)?.into_iter();
 						while let Some(VARIABLE {mut names, mut values, ..}) = enums.next() {
