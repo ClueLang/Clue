@@ -9,7 +9,11 @@ do
 		cached = _modules[modname]
 		if cached ~= nil then
 			cached = cached();
-			(cached ~= nil and cache or nils)[modname] = cached
+			if cached == nil then
+				nils[modname] = true
+			else
+				cache[modname] = cached
+			end
 			return cached
 		end
 	end
