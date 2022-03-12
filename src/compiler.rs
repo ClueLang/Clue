@@ -84,9 +84,9 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 						result += &(checked.clone() + " and ");
 						checked += ":";
 					}
-					"[" => {
+					"?[" => {
 						result += &(checked.clone() + " and ");
-						let texpr = iter.peek();
+						let texpr = iter.next();
 						let rexpr = if let Some(EXPR(expr)) = texpr {
 							CompileExpression(scope, names, expr.clone())
 						} else {
@@ -97,6 +97,10 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 					"]" => {}
 					_ => {checked += lexeme}
 				}
+			}
+			EXPR(expr) => {
+				let expr = CompileExpression(scope, names, expr);
+				checked += &format!("({})]", expr);
 			}
 			CALL(args) => {
 				checked += &format!("({})", CompileExpressions(scope, names, args))

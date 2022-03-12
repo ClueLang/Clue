@@ -267,7 +267,7 @@ impl ParserInfo {
 				let t = self.peek(0).kind;
 				match t {
 					ROUND_BRACKET_OPEN => {pscope += 1}
-					SQUARE_BRACKET_OPEN => {qscope += 1}
+					SAFE_SQUARE_BRACKET | SQUARE_BRACKET_OPEN => {qscope += 1}
 					CURLY_BRACKET_OPEN => {cscope += 1}
 					ROUND_BRACKET_CLOSED => {
 						if pscope == 0 {return Err(self.expectedBefore("(", ")"))}
@@ -656,6 +656,7 @@ impl ParserInfo {
 					expr.push_back(SYMBOL(String::from("]")));
 					self.current += 1;
 				}
+				SAFE_SQUARE_BRACKET => {return Err(self.unexpected("?["))}
 				ROUND_BRACKET_OPEN => {return Err(self.error(String::from("You can't call functions here")))}
 				_ => {break}
 			}
@@ -700,6 +701,18 @@ impl ParserInfo {
 						}
 					})?;
 					expr.push_back(SYMBOL(String::from("[")));
+					expr.push_back(EXPR(qexpr));
+					expr.push_back(SYMBOL(String::from("]")));
+					self.current += 1;
+				}
+				SAFE_SQUARE_BRACKET => {
+					let qexpr = self.findExpression(0, 1, 0, 0, |t| {
+						match t {
+							SQUARE_BRACKET_CLOSED => CHECK_FORCESTOP,
+							_ => CHECK_CONTINUE
+						}
+					})?;
+					expr.push_back(SYMBOL(String::from("?[")));
 					expr.push_back(EXPR(qexpr));
 					expr.push_back(SYMBOL(String::from("]")));
 					self.current += 1;

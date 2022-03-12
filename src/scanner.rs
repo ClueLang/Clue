@@ -11,8 +11,8 @@ pub enum TokenType {
 	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR,
 	PLUS, MINUS, STAR, SLASH, PERCENTUAL, CARET, HASHTAG,
 	SAFE_DOUBLE_COLON, DOUBLE_COLON, DOT, TWODOTS, TREDOTS,
-	SAFEDOT, BIT_AND, BIT_OR, BIT_XOR, BIT_NOT,
-	LEFT_SHIFT, RIGHT_SHIFT, PROTECTED_GET,
+	SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
+	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
 	
 	//definition and comparison
 	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE, CONCATENATE,
@@ -233,17 +233,16 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'<' => i.matchAndAdd('=', SMALLER_EQUAL, '<', LEFT_SHIFT, SMALLER),
 			'>' => i.matchAndAdd('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
 			'?' => {
-				let kind: TokenType = match i.compare('=') {
-					true => DEFINEIF,
-					false => match i.compare('>') {
-						true => {i.warning("?> is deprecated"); PROTECTED_GET},
-						false => match i.compare('.') {
-							true => SAFEDOT,
-							false => if i.compare(':') && i.compare(':') {
-								SAFE_DOUBLE_COLON
-							} else {AND}
-						}
+				let kind = match i.readNext() {
+					'=' => DEFINEIF,
+					'>' => {i.warning("?> is deprecated"); PROTECTED_GET}
+					'.' => SAFEDOT,
+					':' => {
+						if i.compare(':') {SAFE_DOUBLE_COLON}
+						else {i.current -= 1; continue}
 					}
+					'[' => SAFE_SQUARE_BRACKET,
+					_ => {i.current -= 1; AND}
 				};
 				i.addToken(kind);
 			}
