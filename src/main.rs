@@ -37,7 +37,7 @@ pub static mut finaloutput: String = String::new();
 pub static mut ENV_TOKENS: bool = false;
 pub static mut ENV_STRUCT: bool = false;
 pub static mut ENV_OUTPUT: bool = false;
-pub static mut ENV_NOJITBIT: bool = false;
+pub static mut ENV_JITBIT: Option<String> = None;
 pub static mut ENV_CONTINUE: bool = false;
 pub static mut ENV_DONTSAVE: bool = false;
 pub static mut ENV_PATHISCODE: bool = false;
@@ -52,7 +52,7 @@ struct Cli {
 	path: String,
 
 	/// The name the output file will have
-	#[clap(default_value = "main")]
+	#[clap(default_value = "main", value_name = "OUTPUT FILE NAME")]
 	outputname: String,
 
 	/// Print list of detected tokens in compiled files
@@ -67,9 +67,9 @@ struct Cli {
 	#[clap(long)]
 	output: bool,
 
-	/// Don't use LuaJIT's bit library for bitwise operations
-	#[clap(short, long)]
-	nojitbit: bool,
+	/// Use LuaJIT's bit library for bitwise operations
+	#[clap(short, long, value_name = "VAR NAME")]
+	jitbit: Option<String>,
 
 	/// Don't use tags for continue
 	#[clap(short, long)]
@@ -140,11 +140,14 @@ fn main() -> Result<(), String> {
 		ENV_TOKENS = cli.tokens;
 		ENV_STRUCT = cli.r#struct;
 		ENV_OUTPUT = cli.output;
-		ENV_NOJITBIT = cli.nojitbit;
+		ENV_JITBIT = cli.jitbit;
 		ENV_CONTINUE = cli.r#continue;
 		ENV_DONTSAVE = cli.dontsave;
 		ENV_PATHISCODE = cli.pathiscode;
 		ENV_RAWSETGLOBALS = cli.rawsetglobals;
+	}
+	if let Some(bit) = arg!(&ENV_JITBIT) {
+		AddToOutput(&format!("local {} = require(\"bit\");\n", bit));
 	}
 	let codepath = &cli.path;
 	if arg!(ENV_PATHISCODE) {

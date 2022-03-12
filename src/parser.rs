@@ -7,7 +7,7 @@ use crate::{
 		TokenType::*
 	},
 	compiler::CompileTokens,
-	ENV_NOJITBIT,
+	ENV_JITBIT,
 	ENV_CONTINUE,
 	finaloutput
 };
@@ -487,11 +487,25 @@ impl ParserInfo {
 		}
 		let nt: TokenType = self.peek(0).kind;
 		if match nt {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS |
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS | BIT_NOT |
 			NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | SQUARE_BRACKET_OPEN | TREDOTS => false,
 			_ => true
 		} {
 			return Err(self.error(format!("Operator '{}' has invalid right hand token", t.lexeme)))
+		}
+		Ok(())
+	}
+
+	fn buildBitwiseOp(&mut self, t: Token, start: usize, end: usize, expr: &mut Expression, fname: &str) -> Result<(), String> {
+		self.checkOperator(&t, start, end)?;
+		if let Some(bit) = arg!(&ENV_JITBIT) {
+			let mut arg1 = Expression::new();
+			arg1.append(expr);
+			let arg2 = self.buildExpression(self.current, end)?;
+			expr.push_back(SYMBOL(format!("{}.{}", bit, fname)));
+			expr.push_back(CALL(vec![arg1, arg2]));
+		} else {
+			expr.push_back(SYMBOL(t.lexeme))
 		}
 		Ok(())
 	}
@@ -526,21 +540,28 @@ impl ParserInfo {
 					self.checkOperator(&t, start, end)?;
 					expr.push_back(SYMBOL(t.lexeme))
 				}
-				BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => {
-					self.checkOperator(&t, start, end)?;
-					if arg!(ENV_NOJITBIT) {
-						expr.push_back(SYMBOL(t.lexeme))
-					} else {
-						return Err(self.error(String::from("This feature was not implemented yet")))
-					}
-				}
-				NOT_EQUAL => {
-					self.checkOperator(&t, start, end)?;
-					expr.push_back(SYMBOL(String::from("~=")))
-				}
 				MINUS => {
 					self.checkOperator(&t, usize::MAX, end)?;
 					expr.push_back(SYMBOL(t.lexeme))
+				}
+				BIT_AND => self.buildBitwiseOp(t, start, end, &mut expr, "band")?,
+				BIT_OR => self.buildBitwiseOp(t, start, end, &mut expr, "bor")?,
+				BIT_XOR => self.buildBitwiseOp(t, start, end, &mut expr, "bxor")?,
+				BIT_NOT => {
+					self.checkOperator(&t, usize::MAX, end)?;
+					if let Some(bit) = arg!(&ENV_JITBIT) {
+						let arg = self.buildExpression(self.current, end)?;
+						expr.push_back(SYMBOL(bit.clone() + ".bnot"));
+						expr.push_back(CALL(vec![arg]));
+					} else {
+						expr.push_back(SYMBOL(t.lexeme))
+					}
+				}
+				LEFT_SHIFT => self.buildBitwiseOp(t, start, end, &mut expr, "lshift")?,
+				RIGHT_SHIFT => self.buildBitwiseOp(t, start, end, &mut expr, "rshift")?,
+				NOT_EQUAL => {
+					self.checkOperator(&t, start, end)?;
+					expr.push_back(SYMBOL(String::from("~=")))
 				}
 				HASHTAG => {
 					if match self.peek(0).kind {
