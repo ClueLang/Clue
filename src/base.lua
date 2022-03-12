@@ -1,9 +1,8 @@
-local require, _modules
+local import, _modules
 do
-	local _require = _G.require
 	local cache = {}
 	local nils = {}
-	function require(modname)
+	function import(modname)
 		if nils[modname] then return end
 		local cached = cache[modname]
 		if cached ~= nil then return cached end
@@ -13,7 +12,6 @@ do
 			(cached ~= nil and cache or nils)[modname] = cached
 			return cached
 		end
-		return _require(modname)
 	end
 end
 _modules = {
