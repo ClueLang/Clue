@@ -13,6 +13,7 @@ pub enum TokenType {
 	SAFE_DOUBLE_COLON, DOUBLE_COLON, DOT, TWODOTS, TREDOTS,
 	SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
+	TERNARY_THEN, TERNARY_ELSE,
 	
 	//definition and comparison
 	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE, CONCATENATE,
@@ -49,7 +50,8 @@ impl Token {
 		match self.kind {
 			PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS | AND | OR |
 			EQUAL | NOT_EQUAL | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL |
-			BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT => true,
+			BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT |
+			TERNARY_THEN | TERNARY_ELSE => true,
 			_ => false
 		}
 	}
@@ -242,12 +244,12 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						else {i.current -= 1; continue}
 					}
 					'[' => SAFE_SQUARE_BRACKET,
-					_ => {i.current -= 1; AND}
+					_ => {i.current -= 1; TERNARY_THEN}
 				};
 				i.addToken(kind);
 			}
 			'&' => i.compareAndAdd('&', AND, BIT_AND),
-			':' => i.compareAndAdd(':', DOUBLE_COLON, OR),
+			':' => i.compareAndAdd(':', DOUBLE_COLON, TERNARY_ELSE),
 			'|' => i.compareAndAdd('|', OR, BIT_OR),
 			'$' => i.addToken(DOLLAR),
 			' ' | '\r' | '\t' => {},

@@ -150,7 +150,8 @@ struct ParserInfo {
 	tokens: Vec<Token>,
 	filename: String,
 	expr: Expression,
-	testing: bool
+	testing: bool,
+	ternaryid: u8
 }
 
 impl ParserInfo {
@@ -161,7 +162,8 @@ impl ParserInfo {
 			tokens: tokens,
 			filename: filename,
 			expr: Expression::new(),
-			testing: false
+			testing: false,
+			ternaryid: 0
 		}
 	}
 
@@ -565,6 +567,51 @@ impl ParserInfo {
 				NOT => {
 					self.checkOperator(&t, usize::MAX, end)?;
 					expr.push_back(SYMBOL(String::from("not ")))
+				}
+				TERNARY_THEN => {
+					let mut condition = Expression::new();
+					condition.append(&mut expr);
+					let exprtrue = self.findExpression(0, 0, 0, 0, |t| {
+						match t {
+							TERNARY_ELSE => CHECK_ADVANCESTOP,
+							_ => CHECK_CONTINUE
+						}
+					})?;
+					let t2 = self.lookBack(0);
+					let exprfalse = self.buildExpression(self.current, end)?;
+					let name = format!("_t{}", self.ternaryid);
+					self.expr.push_back(VARIABLE {
+						line: t.line,
+						local: true,
+						names: vec![name.clone()],
+						values: Vec::new()
+					});
+					let name = SYMBOL(name);
+					self.expr.push_back(IF_STATEMENT {
+						condition,
+						code: CodeBlock {
+							start: self.at(start).line,
+							code: expression![ALTER {
+								kind: DEFINE,
+								line: t.line,
+								names: vec![expression![name.clone()]],
+								values: vec![exprtrue]
+							}],
+							end: t2.line
+						},
+						next: Some(Box::new(DO_BLOCK(CodeBlock {
+							start: t2.line,
+							code: expression![ALTER {
+								kind: DEFINE,
+								line: t.line,
+								names: vec![expression![name.clone()]],
+								values: vec![exprfalse]
+							}],
+							end: self.at(end).line
+						})))
+					});
+					expr.push_back(name);
+					self.ternaryid += 1;
 				}
 				TREDOTS | NUMBER | TRUE | FALSE | NIL => {
 					if IsVar(self.current, end, &self.peek(0)) {
