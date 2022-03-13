@@ -736,7 +736,6 @@ impl ParserInfo {
 		self.current -= 1;
 		loop {
 			let t = self.advance();
-			println!("{:?}", t);
 			match t.kind {
 				IDENTIFIER => {
 					let nt = self.peek(0);
