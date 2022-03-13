@@ -56,6 +56,10 @@ struct Cli {
 	#[clap(default_value = "main", value_name = "OUTPUT FILE NAME")]
 	outputname: String,
 
+	/// Print Clue's license
+	#[clap(short = 'L', long, display_order = 1000)]
+	license: bool,
+
 	/// Print list of detected tokens in compiled files
 	#[clap(long)]
 	tokens: bool,
@@ -141,6 +145,10 @@ fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 
 fn main() -> Result<(), String> {
 	let cli = Cli::parse();
+	if cli.license {
+		println!("{}", include_str!("../LICENSE"));
+		return Ok(());
+	}
     unsafe {
 		ENV_TOKENS = cli.tokens;
 		ENV_STRUCT = cli.r#struct;
