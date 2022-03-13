@@ -11,8 +11,6 @@ Clue will always output a single file: if more .clue files are compiled at once 
 
 If multiple files are compiled Clue will make the Lua code start from `main.clue`, as such that file must be present and it should handle loading the other files.
 
-(Note that Clue is still in beta and lacks some important features)
-
 ## How to install and use
 1. Download the latest release and save it somewhere
 2. Add the path to clue.exe in the PATH environment variable
@@ -23,7 +21,7 @@ If multiple files are compiled Clue will make the Lua code start from `main.clue
 - `;` cannot be omitted most of the time.
 - Comments are made with `// ...` or `/* ... */`
 
-(the below documentation is temporary, a proper wiki is being created right now.)
+(the below documentation is temporary and outdated, a proper wiki is being created right now.)
 
 ## `require`
 The `require` function has been altered to load the functions inside the `_modules` table, It will still act like Lua's (it caches the return value and only calls the function once), so if you know how to use Lua's `require` you know how to use Clue's too.
