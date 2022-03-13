@@ -16,7 +16,7 @@ pub enum TokenType {
 	TERNARY_THEN, TERNARY_ELSE,
 	
 	//definition and comparison
-	DEFINE, DEFINEIF, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE, CONCATENATE,
+	DEFINE, DEFINEAND, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE, CONCATENATE,
 	EQUAL, NOT_EQUAL, BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL,
 	
 	//literals
@@ -236,7 +236,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'>' => i.matchAndAdd('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
 			'?' => {
 				let kind = match i.readNext() {
-					'=' => DEFINEIF,
+					'=' => DEFINEAND,
 					'>' => {i.warning("?> is deprecated"); PROTECTED_GET}
 					'.' => SAFEDOT,
 					':' => {

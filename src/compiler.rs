@@ -249,7 +249,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					i += 1;
 					(match kind {
 						DEFINE => String::new(),
-						DEFINEIF => format!("{} and ", name),
+						DEFINEAND => format!("{} and ", name),
 						INCREASE => format!("{} + ", name),
 						DECREASE => format!("{} - ", name),
 						MULTIPLY => format!("{} * ", name),
