@@ -42,6 +42,7 @@ pub static mut ENV_CONTINUE: bool = false;
 pub static mut ENV_DONTSAVE: bool = false;
 pub static mut ENV_PATHISCODE: bool = false;
 pub static mut ENV_RAWSETGLOBALS: bool = false;
+pub static mut ENV_NODEBUGCOMMENTS: bool = false;
 
 #[derive(Parser)]
 #[clap(about, version, long_about = None)]
@@ -86,6 +87,10 @@ struct Cli {
 	/// Use rawset to create globals
 	#[clap(short, long)]
 	rawsetglobals: bool,
+
+	/// Don't include debug comments in the output
+	#[clap(short, long)]
+	nodebugcomments: bool,
 }
 
 fn AddToOutput(string: &str) {
@@ -145,6 +150,7 @@ fn main() -> Result<(), String> {
 		ENV_DONTSAVE = cli.dontsave;
 		ENV_PATHISCODE = cli.pathiscode;
 		ENV_RAWSETGLOBALS = cli.rawsetglobals;
+		ENV_NODEBUGCOMMENTS = cli.nodebugcomments;
 	}
 	if let Some(bit) = arg!(&ENV_JITBIT) {
 		AddToOutput(&format!("local {} = require(\"bit\");\n", bit));
