@@ -3,9 +3,9 @@
 # Clue
 Clue is programming language that compiles into Lua code that has a syntax similar to languages like C or Rust.
 
-Clue tries to have a mostly open syntax and does not force any coding style.
+Clue tries to be almost as simple as Lua (except the syntax) but adds many optional features that can make code look better or make some things (like metatables) easier to code.
 
-Clue also adds many optional features to help make code smaller and implementing hard things easier and/or with a better syntax
+Clue does not compile to a specfic version of Lua: flags can be toggled to alter the output and thus most if not all versions of Lua can be compiled to with Clue.
 
 Clue will always output a single file: if more .clue files are compiled at once they will be merged togheter in `main.lua`, the output of these files will be stored as functions inside the table `_modules` (which should not be edited).
 
