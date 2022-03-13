@@ -8,7 +8,8 @@ use crate::{
 		Expression
 	},
 	ENV_CONTINUE,
-	ENV_RAWSETGLOBALS
+	ENV_RAWSETGLOBALS,
+	ENV_NODEBUGCOMMENTS
 };
 use std::iter::Peekable;
 
@@ -64,7 +65,20 @@ fn CompileFunction(scope: usize, names: Option<&Vec<String>>, args: FunctionArgs
 
 fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	let code = CompileTokens(scope + 1, block.code);
-	format!("{}\n{}\n{}", start, code, Indentate(scope))
+	let pre = Indentate(scope);
+	if arg!(ENV_NODEBUGCOMMENTS) {
+		format!("{}\n{}\n{}", start, code, pre)
+	} else {
+		format!("{}\n{}\t--{}->{}\n{}\n{}", start, pre, block.start, block.end, code, pre)
+	}
+}
+
+fn CompileDebugLine(line: usize) -> String {
+	if arg!(ENV_NODEBUGCOMMENTS) {
+		String::new()
+	} else {
+		format!(" --{}", line)
+	}
 }
 
 fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
@@ -154,17 +168,17 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 					format!("setmetatable({{{}{}}}, {{{}\n{}}})", values, pre2, metas, pre2)
 				}
 			}
-			LAMBDA {args, code, line: _} => {
+			LAMBDA {args, code} => {
 				let (code, args) = CompileFunction(scope, names, args, code);
 				format!("function({}){}end", args, code)
 			}
+			IDENT {expr, ..} => CompileIdentifier(scope, names, expr),
 			CALL(args) => {
 				format!("({})", CompileExpressions(scope, names, args))
 			}
 			EXPR(expr) => {
 				format!("({})", CompileExpression(scope, names, expr))
 			}
-			IDENT(expr) => CompileIdentifier(scope, names, expr),
 			_ => {panic!("Unexpected ComplexToken found")}
 		}
 	}
@@ -190,7 +204,8 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 	while let Some(t) = ctokens.next() {
 		result += &match t {
 			SYMBOL (lexeme) => lexeme,
-			VARIABLE {local, names, values, line: _} => {
+			VARIABLE {local, names, values, line} => {
+				let line = CompileDebugLine(line);
 				if !local && arg!(ENV_RAWSETGLOBALS) {
 					let mut result = String::new();
 					let mut valuesit = values.iter();
@@ -207,22 +222,22 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 								IndentateIf(ctokens, scope)
 							}
 						};
-						result += &format!("rawset(_G, \"{}\", {});{}", name, value, end);
+						result += &format!("rawset(_G, \"{}\", {});{}{}", name, value, line, end);
 					}
 					result
 				} else {
 					let end = IndentateIf(ctokens, scope);
 					let pre = if local {"local "} else {""};
 					if values.is_empty() {
-						format!("{}{};{}", pre, CompileIdentifiers(names), end)
+						format!("{}{};{}{}", pre, CompileIdentifiers(names), line, end)
 					} else {
 						let values = CompileExpressions(scope, Some(&names), values);
 						let names = CompileIdentifiers(names);
-						format!("{}{} = {};{}", pre, names, values, end)
+						format!("{}{} = {};{}{}", pre, names, values, line, end)
 					}
 				}
 			}
-			ALTER {kind, names, values, line: _} => {
+			ALTER {kind, names, values, line} => {
 				let iter = names.into_iter();
 				let mut names: Vec<String> = Vec::new();
 				for name in iter {
@@ -245,7 +260,8 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					}) + &CompileExpression(scope, Some(&names), expr)
 				});
 				let names = CompileIdentifiers(names);
-				format!("{} = {};{}", names, values, IndentateIf(ctokens, scope))
+				let line = CompileDebugLine(line);
+				format!("{} = {};{}{}", names, values, line, IndentateIf(ctokens, scope))
 			}
 			FUNCTION {local, name, args, code} => {
 				let pre = if local {"local "} else {""};
@@ -294,14 +310,16 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					}
 				} else {format!("pcall({}end){}", totry, i)}
 			}
-			CALL(args) => {
-				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
+			IDENT {expr, line} => {
+				let expr = CompileIdentifier(scope, None, expr);
+				let line = CompileDebugLine(line);
+				format!("{};{}{}", expr, line, IndentateIf(ctokens, scope))
 			}
+			/*CALL(args) => {
+				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
+			}*/
 			EXPR(expr) => {
 				format!("({})", CompileExpression(scope, None, expr))
-			}
-			IDENT(expr) => {
-				format!("{};{}", CompileIdentifier(scope, None, expr), IndentateIf(ctokens, scope))
 			}
 			DO_BLOCK(code) => {
 				format!("{}end{}", CompileCodeBlock(scope, "do", code), IndentateIf(ctokens, scope))

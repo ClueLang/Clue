@@ -102,11 +102,15 @@ pub enum ComplexToken {
 		error: Option<String>
 	},
 
+	IDENT {
+		expr: Expression,
+		line: usize
+	},
+
 	SYMBOL(String),
 	PSEUDO(usize),
 	CALL(Vec<Expression>),
 	EXPR(Expression),
-	IDENT(Expression),
 	DO_BLOCK(CodeBlock),
 	RETURN_EXPR(Option<Expression>),
 	CONTINUE_LOOP, BREAK_LOOP
@@ -733,6 +737,7 @@ impl ParserInfo {
 
 	fn buildIdentifier(&mut self) -> Result<ComplexToken, String> {
 		let mut expr = Expression::new();
+		let line = self.getLine();
 		self.current -= 1;
 		loop {
 			let t = self.advance();
@@ -790,7 +795,7 @@ impl ParserInfo {
 				_ => {break}
 			}
 		}
-		Ok(IDENT(expr))
+		Ok(IDENT {expr, line})
 	}
 
 	fn buildCodeBlock(&mut self) -> Result<CodeBlock, String> {
