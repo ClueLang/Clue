@@ -63,8 +63,7 @@ pub enum ComplexToken {
 
 	LAMBDA {
 		args: FunctionArgs,
-		code: CodeBlock,
-		line: usize
+		code: CodeBlock
 	},
 
 	IF_STATEMENT {
@@ -528,7 +527,7 @@ impl ParserInfo {
 			let t = self.advance();
 			match t.kind {
 				IDENTIFIER => {
-					let fname = self.buildIdentifier(true)?;
+					let fname = self.buildIdentifier()?;
 					self.current -= 1;
 					if IsVar(self.current, end, &self.peek(0)) {
 						expr.push_back(fname);
@@ -656,7 +655,7 @@ impl ParserInfo {
 						}
 					})?));
 					self.current += 2;
-					let fname = self.buildIdentifier(true)?;
+					let fname = self.buildIdentifier()?;
 					expr.push_back(fname);
 					self.current -= 1;
 				}
@@ -685,7 +684,7 @@ impl ParserInfo {
 						self.buildFunctionArgs()?
 					} else {Vec::new()};
 					let code = self.buildCodeBlock()?;
-					expr.push_back(LAMBDA {args, code, line: t.line});
+					expr.push_back(LAMBDA {args, code});
 				}
 				_ => {return Err(self.unexpected(t.lexeme.as_str()))}
 			}
@@ -732,11 +731,12 @@ impl ParserInfo {
 		Ok(expr)
 	}
 
-	fn buildIdentifier(&mut self, dofuncs: bool) -> Result<ComplexToken, String> {
+	fn buildIdentifier(&mut self) -> Result<ComplexToken, String> {
 		let mut expr = Expression::new();
 		self.current -= 1;
 		loop {
 			let t = self.advance();
+			println!("{:?}", t);
 			match t.kind {
 				IDENTIFIER => {
 					let nt = self.peek(0);
@@ -748,14 +748,12 @@ impl ParserInfo {
 				SAFEDOT => {self.checkIndex(&t, &mut expr, "?.")?}
 				DOT => {self.checkIndex(&t, &mut expr, ".")?}
 				SAFE_DOUBLE_COLON => {
-					if !dofuncs {return Err(self.error(String::from("You can't call methods here")))}
 					self.checkIndex(&t, &mut expr, "?::")?;
 					if self.peek(1).kind != ROUND_BRACKET_OPEN {
 						return Err(self.expected("(", &self.peek(1).lexeme))
 					}
 				}
 				DOUBLE_COLON => {
-					if !dofuncs {return Err(self.error(String::from("You can't call methods here")))}
 					self.checkIndex(&t, &mut expr, ":")?;
 					if self.peek(1).kind != ROUND_BRACKET_OPEN {
 						return Err(self.expected("(", &self.peek(1).lexeme))
@@ -786,7 +784,6 @@ impl ParserInfo {
 					self.current += 1;
 				}
 				ROUND_BRACKET_OPEN => {
-					if !dofuncs {return Err(self.error(String::from("You can't call functions here")))}
 					self.current -= 2;
 					expr.push_back(self.buildCall()?);
 					self.current += 1;
@@ -1132,7 +1129,8 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					}
 				})?;
 				i.expr.push_back(EXPR(expr));
-				let call = i.buildCall()?;
+				i.current += 2;
+				let call = i.buildIdentifier()?;
 				i.expr.push_back(call);
 				i.current += 1;
 				i.advanceIf(SEMICOLON);
