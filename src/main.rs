@@ -16,6 +16,7 @@ macro_rules! arg {
 	};
 }
 
+mod bar;
 mod scanner;
 mod parser;
 mod compiler;
