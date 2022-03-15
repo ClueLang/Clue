@@ -1,6 +1,7 @@
 #![allow(non_camel_case_types)]
 
 use self::TokenType::*;
+use crate::bar::{StartBar, UpdateBar};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenType {
@@ -71,11 +72,13 @@ struct CodeInfo {
 impl CodeInfo {
 	fn new(code: String, filename: String) -> CodeInfo {
 		let chars = code.chars();
+		let size = chars.clone().count();
+		StartBar("Scanning", size);
 		CodeInfo {
 			line: 1,
 			start: 0,
 			current: 0,
-			size: chars.clone().count(),
+			size,
 			code: chars.collect(),
 			filename,
 			tokens: Vec::new(),
@@ -95,6 +98,7 @@ impl CodeInfo {
 	fn readNext(&mut self) -> char {
 		let prev: char = self.at(self.current);
 		self.current += 1;
+		UpdateBar();
 		prev
 	}
 
@@ -157,7 +161,7 @@ impl CodeInfo {
 	}
 
 	fn warning(&mut self, message: &str) {
-		println!("Error in file \"{}\" at line {}!\nError: \"{}\"\n", self.filename, self.line, message);
+		println!("\nError in file \"{}\" at line {}!\nError: \"{}\"\n", self.filename, self.line, message);
 		self.errored = true;
 	}
 
