@@ -98,7 +98,7 @@ impl CodeInfo {
 	fn readNext(&mut self) -> char {
 		let prev: char = self.at(self.current);
 		self.current += 1;
-		UpdateBar();
+		UpdateBar(6000);
 		unsafe {progressbar = self.current}
 		prev
 	}

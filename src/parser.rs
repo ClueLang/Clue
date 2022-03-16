@@ -200,7 +200,7 @@ impl ParserInfo {
 
 	fn at(&self, pos: usize) -> Token {
 		unsafe {progressbar = self.current;}
-		UpdateBar();
+		UpdateBar(700);
 		self.tokens[cmp::min(pos, self.size)].to_owned()
 	}
 

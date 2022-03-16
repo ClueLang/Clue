@@ -110,7 +110,6 @@ fn CompileCode(code: String, name: String, scope: usize) -> Result<String, Strin
 	if arg!(ENV_STRUCT) {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
-	StartBar("Compiling", 0);
 	let code = CompileTokens(scope, ctokens);
 	if arg!(ENV_OUTPUT) {
 		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
