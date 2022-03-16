@@ -1,6 +1,7 @@
 #![allow(non_camel_case_types)]
 
 use crate::{
+	bar::{UpdateBar, progressbar},
 	scanner::{
 		Token,
 		TokenType,
@@ -176,7 +177,7 @@ impl ParserInfo {
 
 	fn error(&self, msg: String) -> String {
 		if !self.testing {
-			println!("Error in file \"{}\" at line {}!", self.filename, self.getLine());
+			println!("\nError in file \"{}\" at line {}!", self.filename, self.getLine());
 		}
 		msg
 	}
@@ -198,6 +199,8 @@ impl ParserInfo {
 	}
 
 	fn at(&self, pos: usize) -> Token {
+		unsafe {progressbar = self.current;}
+		UpdateBar();
 		self.tokens[cmp::min(pos, self.size)].to_owned()
 	}
 

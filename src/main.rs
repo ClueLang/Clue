@@ -25,6 +25,7 @@ use clap::Parser;
 use scanner::*;
 use parser::*;
 use compiler::*;
+use bar::StartBar;
 use std::{
 	io::prelude::*,
 	time::Instant,
@@ -104,6 +105,7 @@ fn CompileCode(code: String, name: String, scope: usize) -> Result<String, Strin
 	if arg!(ENV_TOKENS) {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
+	StartBar("Parsing ", tokens.len());
 	let ctokens = ParseTokens(tokens, name.clone())?;
 	if arg!(ENV_STRUCT) {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);

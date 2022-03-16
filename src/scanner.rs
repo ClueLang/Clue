@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 
 use self::TokenType::*;
-use crate::bar::{StartBar, UpdateBar};
+use crate::bar::{StartBar, UpdateBar, progressbar};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenType {
@@ -99,6 +99,7 @@ impl CodeInfo {
 		let prev: char = self.at(self.current);
 		self.current += 1;
 		UpdateBar();
+		unsafe {progressbar += 1;}
 		prev
 	}
 
