@@ -11,7 +11,7 @@ use crate::{
 	ENV_RAWSETGLOBALS,
 	ENV_NODEBUGCOMMENTS
 };
-use std::iter::Peekable;
+use std::iter::{Peekable, Iterator};
 
 fn Indentate(scope: usize) -> String {
 	let mut result = String::new();
@@ -21,7 +21,7 @@ fn Indentate(scope: usize) -> String {
 	result
 }
 
-fn IndentateIf<I: std::iter::Iterator>(ctokens: &mut Peekable<I>, scope: usize) -> String {
+fn IndentateIf<T: Iterator>(ctokens: &mut Peekable<T>, scope: usize) -> String {
 	match ctokens.peek() {
 		Some(_) => format!("\n{}", Indentate(scope)),
 		None => String::new()
