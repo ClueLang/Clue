@@ -1,4 +1,5 @@
 use crate::{
+	bar::{UpdateBar, progressbar, maxbar},
 	scanner::TokenType::*,
 	parser::{
 		ComplexToken,
@@ -130,8 +131,11 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 }
 
 fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
+	unsafe {maxbar += expr.len()}
 	let mut result = String::new();
 	for t in expr {
+		UpdateBar();
+		unsafe {progressbar += 1}
 		result += &match t {
 			SYMBOL (lexeme) => lexeme,
 			PSEUDO(num) => {
@@ -199,9 +203,12 @@ fn CompileElseIfChain(scope: usize, condition: Expression, code: CodeBlock, next
 }
 
 pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
+	unsafe {maxbar += ctokens.len()}
 	let mut result = Indentate(scope);
 	let ctokens = &mut ctokens.into_iter().peekable();
 	while let Some(t) = ctokens.next() {
+		UpdateBar();
+		unsafe {progressbar += 1}
 		result += &match t {
 			SYMBOL (lexeme) => lexeme,
 			VARIABLE {local, names, values, line} => {

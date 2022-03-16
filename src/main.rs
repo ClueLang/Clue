@@ -105,11 +105,12 @@ fn CompileCode(code: String, name: String, scope: usize) -> Result<String, Strin
 	if arg!(ENV_TOKENS) {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
-	StartBar("Parsing ", tokens.len());
+	StartBar("Parsing  ", tokens.len());
 	let ctokens = ParseTokens(tokens, name.clone())?;
 	if arg!(ENV_STRUCT) {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
+	StartBar("Compiling", 0);
 	let code = CompileTokens(scope, ctokens);
 	if arg!(ENV_OUTPUT) {
 		println!("Compiled Lua code of file \"{}\":\n{}", name, code);

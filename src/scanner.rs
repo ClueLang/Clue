@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 
-use self::TokenType::*;
 use crate::bar::{StartBar, UpdateBar, progressbar};
+use self::TokenType::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenType {
@@ -73,7 +73,7 @@ impl CodeInfo {
 	fn new(code: String, filename: String) -> CodeInfo {
 		let chars = code.chars();
 		let size = chars.clone().count();
-		StartBar("Scanning", size);
+		StartBar("Scanning ", size);
 		CodeInfo {
 			line: 1,
 			start: 0,
