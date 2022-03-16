@@ -53,10 +53,11 @@ fn CompileExpressions(scope: usize, names: Option<&Vec<String>>, values: Vec<Exp
 fn CompileFunction(scope: usize, names: Option<&Vec<String>>, args: FunctionArgs, code: CodeBlock) -> (String, String) {
 	let mut code = CompileCodeBlock(scope, "", code);
 	let args = CompileList(args, &mut |(arg, default)| {
-		if let Some(default) = default {
+		if let Some((default, line)) = default {
 			let default = CompileExpression(scope, names, default);
 			let pre = Indentate(scope + 1);
-			code = format!("\n{}if {} == nil then {} = {} end{}", pre, arg, arg, default, code)
+			let line = CompileDebugLine(line);
+			code = format!("\n{}if {} == nil then\n{}\t{} = {}{}\n{}end{}", pre, arg, pre, arg, default, line, pre, code)
 		}
 		arg
 	});

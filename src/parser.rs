@@ -31,7 +31,7 @@ macro_rules! expression {
 }
 
 pub type Expression = LinkedList<ComplexToken>;
-pub type FunctionArgs = Vec<(String, Option<Expression>)>;
+pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ComplexToken {
@@ -851,17 +851,17 @@ impl ParserInfo {
 			let name = {
 				let t = self.advance();
 				match t.kind {
-					IDENTIFIER => t.lexeme,
+					IDENTIFIER => t,
 					TREDOTS => {
 						self.assertCompare(ROUND_BRACKET_CLOSED, ")")?;
-						t.lexeme
+						t
 					}
 					_ => {return Err(self.expected("<name>", &t.lexeme))}
 				}
 			};
 			let t = self.advance();
 			match t.kind {
-				COMMA => {args.push((name, None)); true}
+				COMMA => {args.push((name.lexeme, None)); true}
 				DEFINE => {
 					let default = self.findExpression(1, 0, 0, 1, |t| {
 						match t {
@@ -869,11 +869,11 @@ impl ParserInfo {
 							_ => CHECK_CONTINUE
 						}
 					})?;
-					args.push((name, Some(default)));
+					args.push((name.lexeme, Some((default, name.line))));
 					!self.compare(CURLY_BRACKET_OPEN)
 				}
 				ROUND_BRACKET_CLOSED => {
-					args.push((name, None));
+					args.push((name.lexeme, None));
 					false
 				}
 				_ => {return Err(self.expected(")", &t.lexeme))}
