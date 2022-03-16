@@ -91,7 +91,7 @@ impl CodeInfo {
 	}
 
 	fn at(&self, pos: usize) -> char {
-		if pos >= self.size {return 0 as char}
+		if pos >= self.size {return '\0'}
 		self.code[pos]
 	}
 
@@ -112,7 +112,7 @@ impl CodeInfo {
 
 	fn peekFar(&self, pos: usize) -> char {
 		let pos: usize = self.current + pos;
-		if pos >= self.size {return 0 as char;}
+		if pos >= self.size {return '\0'}
 		self.at(pos)
 	}
 
@@ -173,6 +173,22 @@ impl CodeInfo {
 			while  check(self.peek()) {self.current += 1}
 		}
 		self.addLiteralToken(NUMBER, self.substr(self.start, self.current));
+	}
+
+	fn readString(&mut self, strend: char) {
+		let mut aline = self.line;
+		while !self.ended() && self.peek() != strend {
+			if self.peek() == '\n' {aline += 1};
+			self.current += 1;
+		}
+		if self.ended() {
+			self.warning("Unterminated string");
+		} else {
+			self.current += 1;
+			let literal: String = self.substr(self.start + 1, self.current - 1);
+			self.addLiteralToken(STRING, literal);
+		}
+		self.line = aline;
 	}
 }
 
@@ -259,21 +275,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'$' => i.addToken(DOLLAR),
 			' ' | '\r' | '\t' => {},
 			'\n' => i.line += 1,
-			'"' => {
-				let mut aline = i.line;
-				while !i.ended() && i.peek() != '"' {
-					if i.peek() == '\n' {aline += 1};
-					i.current += 1;
-				}
-				if i.ended() {
-					i.warning("Unterminated string");
-				} else {
-					i.current += 1;
-					let literal: String = i.substr(i.start + 1, i.current - 1);
-					i.addLiteralToken(STRING, literal);
-				}
-				i.line = aline;
-			}
+			'"' | '\'' => i.readString(c),
 			_ => {
 				if c.is_ascii_digit() {
 					if c == '0' && i.peek() == 'x' {
