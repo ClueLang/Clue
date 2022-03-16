@@ -175,10 +175,13 @@ fn main() -> Result<(), String> {
 			check!(fs::write(compiledname, unsafe {&finaloutput}))
 		}
 	} else if path.is_file() {
+		let compiledname = match path.display().to_string().strip_suffix(".clue") {
+			Some(name) => String::from(name) + ".lua",
+			None => return Err(String::from("The given file must have the .clue extension"))
+		};
 		let code = CompileFile(path, path.file_name().unwrap().to_string_lossy().into_owned(), 0)?;
 		AddToOutput(&code);
 		if !arg!(ENV_DONTSAVE) {
-			let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
 			check!(fs::write(compiledname, unsafe {&finaloutput}))
 		}
 	} else {

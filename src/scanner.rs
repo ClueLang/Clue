@@ -99,7 +99,7 @@ impl CodeInfo {
 		let prev: char = self.at(self.current);
 		self.current += 1;
 		UpdateBar();
-		unsafe {progressbar += 1;}
+		unsafe {progressbar = self.current}
 		prev
 	}
 

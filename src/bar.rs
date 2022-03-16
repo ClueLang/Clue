@@ -17,6 +17,6 @@ pub fn UpdateBar() {
 		for i in 1..20 {
 			bar += if i * 5 <= tot {"#"} else {" "};
 		}
-		print!("{} [#{}] {}% done.\r", name, bar, tot);
+		print!("{} [#{}] {}{}% done.\r", name, bar, if tot < 10 {' '} else {'\0'}, tot);
 	}
 }
