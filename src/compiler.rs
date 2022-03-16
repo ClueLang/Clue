@@ -247,9 +247,10 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let values = CompileList(values, &mut |expr| {
 					let name = names.get(i).unwrap();
 					i += 1;
-					(match kind {
+					/*(match kind {
 						DEFINE => String::new(),
-						DEFINEAND => format!("{} and ", name),
+						DEFINE_AND => name + " and ",//format!("{} and ", name),
+						DEFINE_OR => format!("{} or ", name),
 						INCREASE => format!("{} + ", name),
 						DECREASE => format!("{} - ", name),
 						MULTIPLY => format!("{} * ", name),
@@ -257,6 +258,22 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 						EXPONENTIATE => format!("{} ^ ", name),
 						CONCATENATE => format!("{} .. ", name),
 						_ => {panic!("Unexpected alter type found")}
+					})*/
+					(if kind == DEFINE {
+						String::new()
+					} else {
+						name.clone() + & match kind {
+							DEFINE_AND => " and ",
+							DEFINE_OR => " or ",
+							INCREASE => " + ",
+							DECREASE => " - ",
+							MULTIPLY => " * ",
+							DIVIDE => " / ",
+							EXPONENTIATE => " ^ ",
+							CONCATENATE => " .. ",
+							MODULATE => " % ",
+							_ => {panic!("Unexpected alter type found")}
+						}
 					}) + &CompileExpression(scope, Some(&names), expr)
 				});
 				let names = CompileIdentifiers(names);

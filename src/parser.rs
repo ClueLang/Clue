@@ -1093,7 +1093,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.current -= 1;
 				let checkt = i.lookBack(0);
 				let check = checkt.kind.clone() as u8;
-				if check < DEFINE as u8 || check > CONCATENATE as u8 {
+				if check < DEFINE as u8 || check > MODULATE as u8 {
 					return Err(i.expected("=", &checkt.lexeme))
 				}
 				let values: Vec<Expression> = i.findExpressions(0, 0, 0, 0, |t| {

@@ -16,7 +16,8 @@ pub enum TokenType {
 	TERNARY_THEN, TERNARY_ELSE,
 	
 	//definition and comparison
-	DEFINE, DEFINEAND, INCREASE, DECREASE, MULTIPLY, DIVIDE, EXPONENTIATE, CONCATENATE,
+	DEFINE, DEFINE_AND, DEFINE_OR, INCREASE, DECREASE, MULTIPLY, DIVIDE,
+	EXPONENTIATE, CONCATENATE, MODULATE,
 	EQUAL, NOT_EQUAL, BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL,
 	
 	//literals
@@ -244,7 +245,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 					_ => i.addToken(SLASH)
 				}
 			},
-			'%' => i.addToken(PERCENTUAL),
+			'%' => i.compareAndAdd('=', MODULATE, PERCENTUAL),
 			'!' => i.compareAndAdd('=', NOT_EQUAL, NOT),
 			'~' => i.addToken(BIT_NOT),
 			'=' => i.compareAndAdd('=', EQUAL, DEFINE),
@@ -252,7 +253,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'>' => i.matchAndAdd('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
 			'?' => {
 				let kind = match i.readNext() {
-					'=' => DEFINEAND,
+					'=' => DEFINE_AND,
 					'>' => {i.warning("?> is deprecated"); PROTECTED_GET}
 					'.' => SAFEDOT,
 					':' => {
@@ -265,7 +266,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 				i.addToken(kind);
 			}
 			'&' => i.compareAndAdd('&', AND, BIT_AND),
-			':' => i.compareAndAdd(':', DOUBLE_COLON, TERNARY_ELSE),
+			':' => i.matchAndAdd(':', DOUBLE_COLON, '=', DEFINE_OR, TERNARY_ELSE),
 			'|' => i.compareAndAdd('|', OR, BIT_OR),
 			'$' => i.addToken(DOLLAR),
 			' ' | '\r' | '\t' => {},
