@@ -57,7 +57,7 @@ struct Cli {
 	#[clap(default_value = "main", value_name = "OUTPUT FILE NAME")]
 	outputname: String,
 
-	/// Print Clue's license
+	/// Print license information
 	#[clap(short = 'L', long, display_order = 1000)]
 	license: bool,
 
