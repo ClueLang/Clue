@@ -54,7 +54,7 @@ fn CompileFunction(scope: usize, names: Option<&Vec<String>>, args: FunctionArgs
 	let mut code = CompileCodeBlock(scope, "", code);
 	let args = CompileList(args, &mut |(arg, default)| {
 		if let Some((default, line)) = default {
-			let default = CompileExpression(scope, names, default);
+			let default = CompileExpression(scope + 2, names, default);
 			let pre = Indentate(scope + 1);
 			let line = CompileDebugLine(line);
 			code = format!("\n{}if {} == nil then\n{}\t{} = {}{}\n{}end{}", pre, arg, pre, arg, default, line, pre, code)
