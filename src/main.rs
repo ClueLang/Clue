@@ -50,11 +50,16 @@ struct Cli {
 	/// The path to the directory where the *.clue files are located.
 	/// Every directory inside the given directory will be checked too.
 	/// If the path points to a single *.clue file, only that file will be compiled.
-	path: String,
+	#[clap(required_unless_present = "license")]
+	path: Option<String>,
 
 	/// The name the output file will have
 	#[clap(default_value = "main", value_name = "OUTPUT FILE NAME")]
 	outputname: String,
+
+	/// Print license information
+	#[clap(short = 'L', long, display_order = 1000)]
+	license: bool,
 
 	/// Print list of detected tokens in compiled files
 	#[clap(long)]
@@ -141,6 +146,10 @@ fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 
 fn main() -> Result<(), String> {
 	let cli = Cli::parse();
+	if cli.license {
+		println!("{}", include_str!("../LICENSE"));
+		return Ok(());
+	}
     unsafe {
 		ENV_TOKENS = cli.tokens;
 		ENV_STRUCT = cli.r#struct;
@@ -155,7 +164,7 @@ fn main() -> Result<(), String> {
 	if let Some(bit) = arg!(&ENV_JITBIT) {
 		AddToOutput(&format!("local {} = require(\"bit\");\n", bit));
 	}
-	let codepath = &cli.path;
+	let codepath = cli.path.unwrap();
 	if arg!(ENV_PATHISCODE) {
 		let code = CompileCode(codepath.clone(), String::from("(command line)"), 0)?;
 		println!("{}", code);
