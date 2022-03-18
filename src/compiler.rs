@@ -143,30 +143,37 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 			}
 			TABLE {values, metas} => {
 				scope += 1;
+				let mut prevline = 0usize;
 				let pre1 = Indentate(scope);
 				let values = if values.is_empty() {
 					String::new()
 				} else {
-					CompileList(values, &mut |(name, value)| {
-					let name = CompileExpression(scope, names, name);
+					CompileList(values, &mut |(name, value, line)| {
 					let value = CompileExpression(scope, names, value);
-					if name.is_empty() {
-						format!("\n{}{}", pre1, value)
+					let l = if prevline != 0 {CompileDebugLine(prevline)} else {String::new()};
+					prevline = line;
+					if let Some(name) = name {
+						let name = CompileExpression(scope, names, name);
+						format!("{}\n{}{} = {}", l, pre1, name, value)
 					} else {
-						format!("\n{}{} = {}", pre1, name, value)
+						format!("{}\n{}{}", l, pre1, value)
 					}
-				}) + "\n"};
+				}) + &CompileDebugLine(prevline) + "\n"};
+				prevline = 0;
 				let pre2 = Indentate(scope - 1);
 				if metas.is_empty() {
 					scope -= 1;
 					format!("{{{}{}}}", values, pre2)
 				} else {
-					let metas = CompileList(metas, &mut |(name, value)| {
+					let metas = CompileList(metas, &mut |(name, value, line)| {
 						let value = CompileExpression(scope, names, value);
-						format!("\n{}{} = {}", pre1, name, value)
+						let l = if prevline != 0 {CompileDebugLine(prevline)} else {String::new()};
+						prevline = line;
+						format!("{}\n{}{} = {}", l, pre1, name, value)
 					});
 					scope -= 1;
-					format!("setmetatable({{{}{}}}, {{{}\n{}}})", values, pre2, metas, pre2)
+					let line = CompileDebugLine(prevline);
+					format!("setmetatable({{{}{}}}, {{{}{}\n{}}})", values, pre2, metas, line, pre2)
 				}
 			}
 			LAMBDA {args, code} => {

@@ -50,8 +50,8 @@ pub enum ComplexToken {
 	},
 
 	TABLE {
-		values: Vec<(Expression, Expression)>,
-		metas: Vec<(String, Expression)>
+		values: Vec<(Option<Expression>, Expression, usize)>,
+		metas: Vec<(String, Expression, usize)>
 	},
 
 	FUNCTION {
@@ -369,8 +369,8 @@ impl ParserInfo {
 	}
 
 	fn buildTable(&mut self) -> Result<ComplexToken, String> {
-		let mut values: Vec<(Expression, Expression)> = Vec::new();
-		let mut metas: Vec<(String, Expression)> = Vec::new();
+		let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
+		let mut metas: Vec<(String, Expression, usize)> = Vec::new();
 		loop {
 			if self.advanceIf(CURLY_BRACKET_CLOSED) {break}
 			let start = self.current;
@@ -396,7 +396,7 @@ impl ParserInfo {
 				self.current += 1;
 			}
 			if !iskey {
-				values.push((Expression::new(), self.buildExpression(start, self.current)?));
+				values.push((None, self.buildExpression(start, self.current)?, self.at(start).line));
 				self.advanceIf(COMMA);
 				continue
 			}
@@ -473,8 +473,8 @@ impl ParserInfo {
 				self.current += 1;
 			}
 			match name {
-				Ok(n) => {values.push((n, self.buildExpression(start, self.current)?))}
-				Err(n) => {metas.push((n, self.buildExpression(start, self.current)?))}
+				Ok(n) => {values.push((Some(n), self.buildExpression(start, self.current)?, pn.line))}
+				Err(n) => {metas.push((n, self.buildExpression(start, self.current)?, pn.line))}
 			}
 			self.advanceIf(COMMA);
 		}
