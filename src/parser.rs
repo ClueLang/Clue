@@ -1103,9 +1103,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						_ => CHECK_CONTINUE
 					}
 				})?;
-				if names.len() != values.len() {
-					return Err(i.expectedBefore("<expr>", &i.peek(0).lexeme))
-				}
 				i.expr.push_back(ALTER {
 					kind: checkt.kind,
 					line: t.line,
