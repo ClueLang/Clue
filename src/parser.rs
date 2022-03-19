@@ -112,7 +112,7 @@ pub enum ComplexToken {
 	CALL(Vec<Expression>),
 	EXPR(Expression),
 	DO_BLOCK(CodeBlock),
-	RETURN_EXPR(Option<Expression>),
+	RETURN_EXPR(Option<Vec<Expression>>),
 	CONTINUE_LOOP, BREAK_LOOP
 }
 
@@ -1227,10 +1227,11 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				let expr = if i.advanceIf(SEMICOLON) {
 					None
 				} else {
-					Some(i.findExpression(0, 0, 0, 0, |t| {
+					Some(i.findExpressions(0, 0, 0, 0, |t| {
 						match t {
+							COMMA => CHECK_BUILD,
 							SEMICOLON => CHECK_ADVANCESTOP,
-							_ => CHECK_CONTINUE,
+							_ => CHECK_CONTINUE
 						}
 					})?)
 				};

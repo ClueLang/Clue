@@ -337,9 +337,9 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			DO_BLOCK(code) => {
 				format!("{}end{}", CompileCodeBlock(scope, "do", code), IndentateIf(ctokens, scope))
 			}
-			RETURN_EXPR(expr) => {
-				if let Some(expr) = expr {
-					format!("return {};", CompileExpression(scope, None, expr))
+			RETURN_EXPR(exprs) => {
+				if let Some(exprs) = exprs {
+					format!("return {};", CompileExpressions(scope, None, exprs))
 				} else {
 					String::from("return;")
 				}
