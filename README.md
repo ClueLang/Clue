@@ -25,8 +25,6 @@ The most likely ones to be added in the future are:
 - `switch`
 - `match`
 - `struct`
-- `%=`
-- The opposite of `?=` (`:=` maybe?)
 
 For any suggestion or bug you can make a github issue.
 
