@@ -174,7 +174,7 @@ fn main() -> Result<(), String> {
 	if path.is_dir() {
 		AddToOutput(include_str!("base.lua"));
 		CompileFolder(path, String::new())?;
-		AddToOutput("\r}\nrequire(\"main\")");
+		AddToOutput("\r}\nimport(\"main\")");
 		if !arg!(ENV_DONTSAVE) {
 			let outputname = &format!("\\{}.lua", cli.outputname);
 			let compiledname = String::from(path.display().to_string()) + outputname;
