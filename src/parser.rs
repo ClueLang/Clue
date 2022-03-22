@@ -433,6 +433,7 @@ impl ParserInfo {
 		let start = self.current;
 		loop {
 			let t = self.advance();
+			println!("{:?}", t);
 			match t.kind {
 				IDENTIFIER => {
 					let fname = self.buildIdentifier()?;
@@ -595,11 +596,7 @@ impl ParserInfo {
 			let t = self.advance();
 			match t.kind {
 				IDENTIFIER => {
-					let nt = self.peek(0);
-					if nt.kind == IDENTIFIER {
-						return Err(self.unexpected(&nt.lexeme))
-					}
-					expr.push_back(SYMBOL(t.lexeme))
+					expr.push_back(SYMBOL(t.lexeme));
 				}
 				SAFEDOT => {return Err(self.unexpected("?."))}
 				DOT => {self.checkIndex(&t, &mut expr, ".")?}
@@ -627,11 +624,7 @@ impl ParserInfo {
 			let t = self.advance();
 			match t.kind {
 				IDENTIFIER => {
-					let nt = self.peek(0);
-					if nt.kind == IDENTIFIER {
-						return Err(self.unexpected(&nt.lexeme))
-					}
-					expr.push_back(SYMBOL(t.lexeme))
+					expr.push_back(SYMBOL(t.lexeme));
 				}
 				SAFEDOT => {self.checkIndex(&t, &mut expr, "?.")?}
 				DOT => {self.checkIndex(&t, &mut expr, ".")?}
@@ -663,6 +656,7 @@ impl ParserInfo {
 				ROUND_BRACKET_OPEN => {
 					self.current -= 2;
 					expr.push_back(self.buildCall()?);
+					if self.checkVal() {break}
 				}
 				_ => {break}
 			}
@@ -944,6 +938,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.testing = false;
 				i.current = start;
 				if let Err(msg) = testexpr {
+					println!("{}", msg);
 					if &msg == "You can't call functions here" {
 						let expr = &mut i.buildExpression(None)?;
 						i.expr.append(expr);
