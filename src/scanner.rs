@@ -46,16 +46,6 @@ impl Token {
 			line: line
 		}
 	}
-
-	pub fn isOp(&self) -> bool {
-		match self.kind {
-			PLUS | MINUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS | AND | OR |
-			EQUAL | NOT_EQUAL | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL |
-			BIT_AND | BIT_OR | BIT_XOR | BIT_NOT | LEFT_SHIFT | RIGHT_SHIFT |
-			TERNARY_THEN | TERNARY_ELSE => true,
-			_ => false
-		}
-	}
 }
 
 struct CodeInfo {
