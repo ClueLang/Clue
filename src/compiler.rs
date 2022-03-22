@@ -316,10 +316,11 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let totry = CompileCodeBlock(scope, "function()", totry);
 				if let Some(catch) = catch {
 					let catch = CompileCodeBlock(scope, "if not _check then", catch);
+					let i2 = Indentate(scope);
 					if let Some(error) = error {
-						format!("local _check, {} = pcall({}end)\n{}end{}", error, totry, catch, i)
+						format!("local _check, {} = pcall({}end)\n{}{}end{}", error, totry, i2, catch, i)
 					} else {
-						format!("local _check = pcall({}end)\n{}end{}", totry, catch, i)
+						format!("local _check = pcall({}end)\n{}{}end{}", totry, i2, catch, i)
 					}
 				} else {format!("pcall({}end){}", totry, i)}
 			}
