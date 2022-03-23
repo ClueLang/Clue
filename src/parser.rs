@@ -844,6 +844,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							let pname = i.assertAdvance(IDENTIFIER, "<name>")?;
 							names.push(pname.lexeme);
 							if !i.compare(COMMA) {
+								i.advanceIf(SEMICOLON);
 								break
 							}
 							i.current += 1;
@@ -860,10 +861,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							local, names, values,
 							line: t.line,
 						});
-						if areinit {
-							i.current += 1; //fix this
-						}
-						i.current -= 2;
+						i.current -= 1;
 					}
 				}
 			}
