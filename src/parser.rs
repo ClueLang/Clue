@@ -607,7 +607,6 @@ impl ParserInfo {
 					expr.push_back(SYMBOL(String::from("[")));
 					expr.push_back(EXPR(qexpr));
 					expr.push_back(SYMBOL(String::from("]")));
-					self.current += 1;
 				}
 				SAFE_SQUARE_BRACKET => {return Err(self.unexpected("?["))}
 				ROUND_BRACKET_OPEN => {return Err(self.error(String::from("You can't call functions here")))}
@@ -652,7 +651,6 @@ impl ParserInfo {
 					expr.push_back(SYMBOL(String::from("?[")));
 					expr.push_back(EXPR(qexpr));
 					expr.push_back(SYMBOL(String::from("]")));
-					self.current += 1;
 				}
 				ROUND_BRACKET_OPEN => {
 					self.current -= 2;
