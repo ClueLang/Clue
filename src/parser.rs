@@ -260,7 +260,7 @@ impl ParserInfo {
 		}
 	}
 
-	fn buildTable(&mut self) -> Result<ComplexToken, String> {
+	fn buildTable(&mut self) -> Result<ComplexToken, String> { //fix this
 		let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
 		let mut metas: Vec<(String, Expression, usize)> = Vec::new();
 		loop {
@@ -268,6 +268,7 @@ impl ParserInfo {
 			let start = self.current;
 			let mut qscope = 1u8;
 			let mut iskey = false;
+			println!("{:?}", self.peek(0));
 			while match self.peek(0).kind {
 				CURLY_BRACKET_OPEN => {
 					qscope += 1;
@@ -433,7 +434,6 @@ impl ParserInfo {
 		let start = self.current;
 		loop {
 			let t = self.advance();
-			println!("{:?}", t);
 			match t.kind {
 				IDENTIFIER => {
 					let fname = self.buildIdentifier()?;
@@ -936,7 +936,6 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.testing = false;
 				i.current = start;
 				if let Err(msg) = testexpr {
-					println!("{}", msg);
 					if &msg == "You can't call functions here" {
 						let expr = &mut i.buildExpression(None)?;
 						i.expr.append(expr);
