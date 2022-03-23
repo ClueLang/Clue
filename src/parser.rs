@@ -861,7 +861,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							line: t.line,
 						});
 						if areinit {
-							i.current += 1;
+							i.current += 1; //fix this
 						}
 						i.current -= 2;
 					}
