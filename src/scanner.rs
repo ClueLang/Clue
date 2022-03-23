@@ -316,6 +316,6 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 	if i.errored {
 		return Err(String::from("Cannot continue until the above errors are fixed"));
 	}
-	i.addLiteralToken(EOF, String::new());
+	i.addLiteralToken(EOF, String::from("<end>"));
 	Ok(i.tokens)
 }
