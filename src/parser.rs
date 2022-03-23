@@ -268,7 +268,6 @@ impl ParserInfo {
 			let start = self.current;
 			let mut qscope = 1u8;
 			let mut iskey = false;
-			println!("{:?}", self.peek(0));
 			while match self.peek(0).kind {
 				CURLY_BRACKET_OPEN => {
 					qscope += 1;
