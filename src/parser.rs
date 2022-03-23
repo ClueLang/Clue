@@ -585,7 +585,7 @@ impl ParserInfo {
 			}
 		}
 		if expr.len() == 0 {
-			return Err(self.expected("<expr>", self.peek(0).lexeme.as_str()))
+			return Err(self.expected("<expr>", self.lookBack(0).lexeme.as_str()))
 		}
 		self.assertEnd(&self.lookBack(0), end, expr)
 	}
