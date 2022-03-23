@@ -1024,9 +1024,10 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					let iterator = i.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
 					i.current += 1;
 					let start = i.buildExpression(Some((COMMA, ",")))?;
-					i.current += 1;
 					let end = i.buildExpression(None)?;
-					let t = i.advance();
+					i.current -= 1;
+					let t = i.advance(); //to fix
+					println!("{:?}", t);
 					let alter = match t.kind {
 						CURLY_BRACKET_OPEN => {
 							i.current -= 1;
