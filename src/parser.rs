@@ -260,7 +260,7 @@ impl ParserInfo {
 		}
 	}
 
-	fn buildTable(&mut self) -> Result<ComplexToken, String> { //fix this
+	fn buildTable(&mut self) -> Result<ComplexToken, String> {
 		let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
 		let mut metas: Vec<(String, Expression, usize)> = Vec::new();
 		loop {
@@ -288,12 +288,13 @@ impl ParserInfo {
 			} {
 				self.current += 1;
 			}
+			self.current = start;
 			if !iskey {
 				values.push((None, self.buildExpression(None)?, self.at(start).line));
+				self.current -= 1;
 				self.advanceIf(COMMA);
 				continue
 			}
-			self.current = start;
 			let name: Result<Expression, String>;
 			let pn = self.advance();
 			match pn.kind {
@@ -370,6 +371,7 @@ impl ParserInfo {
 				Ok(n) => {values.push((Some(n), self.buildExpression(None)?, pn.line))}
 				Err(n) => {metas.push((n, self.buildExpression(None)?, pn.line))}
 			}
+			self.current -= 1;
 			self.advanceIf(COMMA);
 		}
 		Ok(TABLE {values, metas})
