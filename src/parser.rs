@@ -422,7 +422,7 @@ impl ParserInfo {
 	fn checkVal(&mut self) -> bool {
 		match self.peek(0).kind {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE |
-			NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | TREDOTS => {
+			NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | CURLY_BRACKET_OPEN | TREDOTS => {
 				self.current += 1;
 				true
 			},
@@ -1026,8 +1026,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					let start = i.buildExpression(Some((COMMA, ",")))?;
 					let end = i.buildExpression(None)?;
 					i.current -= 1;
-					let t = i.advance(); //to fix
-					println!("{:?}", t);
+					let t = i.advance();
 					let alter = match t.kind {
 						CURLY_BRACKET_OPEN => {
 							i.current -= 1;
