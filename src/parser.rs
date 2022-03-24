@@ -509,6 +509,7 @@ impl ParserInfo {
 					let exprtrue = self.buildExpression(Some((TERNARY_ELSE, ":")))?;
 					let t2 = self.lookBack(0);
 					let exprfalse = self.buildExpression(end)?;
+					self.current -= 1;
 					let name = format!("_t{}", self.ternaryid);
 					self.expr.push_back(VARIABLE {
 						line: t.line,
