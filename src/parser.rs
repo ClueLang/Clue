@@ -574,6 +574,7 @@ impl ParserInfo {
 						}
 					}
 					expr.push_back(PSEUDO(num));
+					if self.checkVal() {break}
 				}
 				FN => {
 					self.assert(ROUND_BRACKET_OPEN, "(")?;
@@ -582,6 +583,7 @@ impl ParserInfo {
 					} else {Vec::new()};
 					let code = self.buildCodeBlock()?;
 					expr.push_back(LAMBDA {args, code});
+					if self.checkVal() {break}
 				}
 				SEMICOLON => {self.current += 1; break}
 				_ => break
