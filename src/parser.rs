@@ -543,6 +543,7 @@ impl ParserInfo {
 					});
 					expr.push_back(name);
 					self.ternaryid += 1;
+					if self.checkVal() {break}
 				}
 				TREDOTS | NUMBER | TRUE | FALSE | NIL => {
 					expr.push_back(SYMBOL(t.lexeme));
