@@ -422,7 +422,7 @@ impl ParserInfo {
 	fn checkVal(&mut self) -> bool {
 		match self.peek(0).kind {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE |
-			NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | CURLY_BRACKET_OPEN | TREDOTS => {
+			NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | TREDOTS => {
 				self.current += 1;
 				true
 			},
@@ -446,7 +446,8 @@ impl ParserInfo {
 					if let Some((kind, ..)) = end {
 						if kind == CURLY_BRACKET_OPEN {break}
 					}
-					expr.push_back(self.buildTable()?)
+					expr.push_back(self.buildTable()?);
+					if self.checkVal() {break}
 				}
 				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS |
 				EQUAL | BIGGER | BIGGER_EQUAL | SMALLER | SMALLER_EQUAL => {
@@ -598,6 +599,7 @@ impl ParserInfo {
 			match t.kind {
 				IDENTIFIER => {
 					expr.push_back(SYMBOL(t.lexeme));
+					if self.checkVal() {break}
 				}
 				SAFEDOT => {return Err(self.unexpected("?."))}
 				DOT => {self.checkIndex(&t, &mut expr, ".")?}
@@ -625,6 +627,7 @@ impl ParserInfo {
 			match t.kind {
 				IDENTIFIER => {
 					expr.push_back(SYMBOL(t.lexeme));
+					if self.checkVal() {break}
 				}
 				SAFEDOT => {self.checkIndex(&t, &mut expr, "?.")?}
 				DOT => {self.checkIndex(&t, &mut expr, ".")?}
