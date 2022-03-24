@@ -990,7 +990,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			ROUND_BRACKET_OPEN => {
 				let expr = i.buildExpression(Some((ROUND_BRACKET_CLOSED, ")")))?;
 				i.expr.push_back(EXPR(expr));
-				i.current += 2;
+				i.current += 1;
 				let call = i.buildIdentifier()?;
 				i.expr.push_back(call);
 				i.current += 1;
