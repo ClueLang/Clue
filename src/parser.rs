@@ -741,11 +741,15 @@ impl ParserInfo {
 				DEFINE => {
 					let default = self.buildExpression(None)?;
 					args.push((name.lexeme, Some((default, name.line))));
-					let ended = self.lookBack(0).kind != CURLY_BRACKET_OPEN;
-					if ended {
-						self.assertCompare(COMMA, ",")?;
+					let notended = self.peek(0).kind != CURLY_BRACKET_OPEN;
+					if notended {
+						match self.lookBack(0).kind {
+							COMMA => {}
+							ROUND_BRACKET_CLOSED => {self.current -= 1}
+							_ => {return Err(self.expected(")", &self.peek(0).lexeme))}
+						}
 					}
-					ended
+					notended
 				}
 				ROUND_BRACKET_CLOSED => {
 					args.push((name.lexeme, None));
