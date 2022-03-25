@@ -7,9 +7,10 @@ use crate::{
 		TokenType::*
 	},
 	compiler::CompileTokens,
+	finaloutput,
 	ENV_JITBIT,
 	ENV_CONTINUE,
-	finaloutput
+	ENV_NODEBUGCOMMENTS
 };
 use self::ComplexToken::*;
 use std::{
@@ -114,10 +115,6 @@ pub enum ComplexToken {
 	CONTINUE_LOOP, BREAK_LOOP
 }
 
-fn PrependToOutput(string: String) {
-	unsafe {finaloutput = string + &finaloutput}
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct CodeBlock {
 	pub start: usize,
@@ -132,7 +129,8 @@ struct ParserInfo {
 	filename: String,
 	expr: Expression,
 	testing: bool,
-	ternaryid: u8
+	ternaryid: u8,
+	statics: String
 }
 
 impl ParserInfo {
@@ -144,7 +142,8 @@ impl ParserInfo {
 			filename: filename,
 			expr: Expression::new(),
 			testing: false,
-			ternaryid: 0
+			ternaryid: 0,
+			statics: String::new()
 		}
 	}
 
@@ -830,10 +829,35 @@ impl ParserInfo {
 		let code = self.buildCodeBlock()?;
 		Ok(FUNCTION {local, name, args, code})
 	}
+
+	fn buildVariables(&mut self, local: bool, line: usize) -> Result<ComplexToken, String> {
+		let mut names: Vec<String> = Vec::new();
+		loop {
+			let pname = self.assertAdvance(IDENTIFIER, "<name>")?;
+			names.push(pname.lexeme);
+			if !self.compare(COMMA) {
+				self.advanceIf(SEMICOLON);
+				break
+			}
+			self.current += 1;
+		}
+		let check = self.advance();
+		let areinit = check.kind == DEFINE;
+		let values: Vec<Expression> = if !areinit {Vec::new()} else {
+			self.findExpressions(COMMA, None)?
+		};
+		self.current -= 1;
+		Ok(VARIABLE {local, names, values, line})
+	}
+
+	fn compileStatic(&mut self, expr: Expression) {
+		let code = CompileTokens(0, expr);
+		self.statics += &(code + "\n");
+	}
 }
 
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
-	let mut i: ParserInfo = ParserInfo::new(tokens, filename);
+	let mut i = ParserInfo::new(tokens, filename);
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind {
@@ -849,58 +873,24 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						i.expr.append(enums);
 					}
 					_ => {
-						let mut names: Vec<String> = Vec::new();
-						loop {
-							let pname = i.assertAdvance(IDENTIFIER, "<name>")?;
-							names.push(pname.lexeme);
-							if !i.compare(COMMA) {
-								i.advanceIf(SEMICOLON);
-								break
-							}
-							i.current += 1;
-						}
-						let check = i.advance();
-						let areinit = match check.kind {
-							DEFINE => true,
-							_ => false
-						};
-						let values: Vec<Expression> = if !areinit {Vec::new()} else {
-							i.findExpressions(COMMA, None)?
-						};
-						i.expr.push_back(VARIABLE {
-							local, names, values,
-							line: t.line,
-						});
-						i.current -= 1;
+						let vars = i.buildVariables(local, t.line)?;
+						i.expr.push_back(vars);
 					}
 				}
 			}
 			STATIC => {
 				match i.peek(0).kind {
 					FN => {
-						PrependToOutput(CompileTokens(0, expression![i.buildFunction(true)?]) + "\n");
+						let function = expression![i.buildFunction(true)?];
+						i.compileStatic(function);
 					}
 					ENUM => {
-						let mut enums = i.buildEnums(true)?.into_iter();
-						while let Some(VARIABLE {mut names, mut values, ..}) = enums.next() {
-							let name = names.pop().unwrap();
-							let value = if let Some(SYMBOL(lexeme)) = values.pop().unwrap().pop_back() {
-								lexeme
-							} else {return Err(String::from("Something unexpected happened"))};
-							PrependToOutput(format!("local {} = {}\n", name, value));
-						}
+						let enums = i.buildEnums(true)?;
+						i.compileStatic(enums);
 					}
 					_ => {
-						let mut result = String::from("local ");
-						let names = i.buildIdentifierList()?;
-						i.advanceIf(SEMICOLON);
-						let size = names.len();
-						for i in 0..size {
-							let name = names.get(i).unwrap();
-							result += name;
-							if i + 1 != size {result += ", "}
-						}
-						PrependToOutput(result + "\n")
+						let vars = expression![i.buildVariables(true, t.line)?];
+						i.compileStatic(vars);
 					}
 				}
 			}
@@ -1103,6 +1093,15 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			}
 			EOF => {break}
 			_ => {return Err(i.expected("<end>", t.lexeme.as_str()))}
+		}
+	}
+	unsafe {
+		if !i.statics.is_empty() {
+			finaloutput = if ENV_NODEBUGCOMMENTS {
+				i.statics
+			} else {
+				format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
+			} + &finaloutput;
 		}
 	}
 	Ok(i.expr)
