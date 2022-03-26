@@ -152,11 +152,39 @@ impl CodeInfo {
 		self.errored = true;
 	}
 
-	fn readNumber(&mut self, check: impl Fn(char) -> bool) {
-		while check(self.peek()) {self.current += 1}
-		if self.peek() == '.' && check(self.peekFar(1)) {
+	fn readNumber(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
+		let start = self.current;
+		while check(&self.peek()) {self.current += 1}
+		if self.peek() == '.' && check(&self.peekFar(1)) {
 			self.current += 1;
-			while  check(self.peek()) {self.current += 1}
+			while check(&self.peek()) {self.current += 1}
+		}
+		if simple {
+			let c = self.peek();
+			if c == 'e' || c == 'E' {
+				let c = self.peekFar(1);
+				if !c.is_ascii_digit() {
+					if c == '-' && self.peekFar(2).is_ascii_digit() {
+						self.current += 1;
+					} else {
+						self.warning("Malformed number");
+					}
+				}
+				self.current += 1;
+				while self.peek().is_ascii_digit() {self.current += 1}
+			}
+		} else if self.current == start {
+			self.warning("Malformed number");
+		}
+		let llcheck = self.substr(self.current, self.current + 2);
+		if llcheck == "LL" {
+			self.current += 2;
+		} else if llcheck == "UL" {
+			if self.peekFar(2) == 'L' {
+				self.current += 3;
+			} else {
+				self.warning("Malformed number");
+			}
 		}
 		self.addLiteralToken(NUMBER, self.substr(self.start, self.current));
 	}
@@ -264,13 +292,26 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'"' | '\'' => i.readString(c),
 			_ => {
 				if c.is_ascii_digit() {
-					if c == '0' && i.peek() == 'x' {
-						i.current += 1;
-						i.readNumber(|c| {
-							c.is_ascii_digit() || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
-						})
+					if c == '0' {
+						match i.peek() {
+							'x' | 'X' => {
+								i.current += 1;
+								i.readNumber(|c| {
+									let c = *c;
+									c.is_ascii_digit() || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+								}, false);
+							}
+							'b' | 'B' => {
+								i.current += 1;
+								i.readNumber(|c| {
+									let c = *c;
+									c == '0' || c == '1'
+								}, false);
+							}
+							_ => i.readNumber(char::is_ascii_digit, true)
+						}
 					} else {
-						i.readNumber(|c| {c.is_ascii_digit()});
+						i.readNumber(char::is_ascii_digit, true);
 					}
 				} else if c.is_ascii_alphabetic() || c == '_' {
 					while {
