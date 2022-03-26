@@ -96,14 +96,10 @@ impl CodeInfo {
 		true
 	}
 
-	fn peekFar(&self, pos: usize) -> char {
+	fn peek(&self, pos: usize) -> char {
 		let pos: usize = self.current + pos;
 		if pos >= self.size {return 0 as char;}
 		self.at(pos)
-	}
-
-	fn peek(&self) -> char {
-		self.peekFar(0)
 	}
 
 	//isNumber: c.is_ascii_digit()
@@ -154,24 +150,24 @@ impl CodeInfo {
 
 	fn readNumber(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
 		let start = self.current;
-		while check(&self.peek()) {self.current += 1}
-		if self.peek() == '.' && check(&self.peekFar(1)) {
+		while check(&self.peek(0)) {self.current += 1}
+		if self.peek(0) == '.' && check(&self.peek(1)) {
 			self.current += 1;
-			while check(&self.peek()) {self.current += 1}
+			while check(&self.peek(0)) {self.current += 1}
 		}
 		if simple {
-			let c = self.peek();
+			let c = self.peek(0);
 			if c == 'e' || c == 'E' {
-				let c = self.peekFar(1);
+				let c = self.peek(1);
 				if !c.is_ascii_digit() {
-					if c == '-' && self.peekFar(2).is_ascii_digit() {
+					if c == '-' && self.peek(2).is_ascii_digit() {
 						self.current += 1;
 					} else {
 						self.warning("Malformed number");
 					}
 				}
 				self.current += 1;
-				while self.peek().is_ascii_digit() {self.current += 1}
+				while self.peek(0).is_ascii_digit() {self.current += 1}
 			}
 		} else if self.current == start {
 			self.warning("Malformed number");
@@ -180,7 +176,7 @@ impl CodeInfo {
 		if llcheck == "LL" {
 			self.current += 2;
 		} else if llcheck == "UL" {
-			if self.peekFar(2) == 'L' {
+			if self.peek(2) == 'L' {
 				self.current += 3;
 			} else {
 				self.warning("Malformed number");
@@ -191,8 +187,8 @@ impl CodeInfo {
 
 	fn readString(&mut self, strend: char) {
 		let mut aline = self.line;
-		while !self.ended() && self.peek() != strend {
-			if self.peek() == '\n' {aline += 1};
+		while !self.ended() && self.peek(0) != strend {
+			if self.peek(0) == '\n' {aline += 1};
 			self.current += 1;
 		}
 		if self.ended() {
@@ -220,9 +216,9 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'}' => i.addToken(CURLY_BRACKET_CLOSED),
 			',' => i.addToken(COMMA),
 			'.' => {
-				if i.peek() == '.' {
+				if i.peek(0) == '.' {
 					i.current += 1;
-					let f: char = i.peek();
+					let f: char = i.peek(0);
 					if f == '.' {
 						i.current += 1;
 						i.addToken(TREDOTS);
@@ -243,11 +239,11 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'^' => i.matchAndAdd('=', EXPONENTIATE, '^', BIT_XOR, CARET),
 			'#' => i.addToken(HASHTAG),
 			'/' => {
-				match i.peek() {
-					'/' => while i.peek() != '\n' && !i.ended() {i.current += 1},
+				match i.peek(0) {
+					'/' => while i.peek(0) != '\n' && !i.ended() {i.current += 1},
 					'*' => {
-						while !i.ended() && !(i.peek() == '*' && i.peekFar(1) == '/') {
-							if i.peek() == '\n' {i.line += 1}
+						while !i.ended() && !(i.peek(0) == '*' && i.peek(1) == '/') {
+							if i.peek(0) == '\n' {i.line += 1}
 							i.current += 1;
 						}
 						if i.ended() {
@@ -293,7 +289,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			_ => {
 				if c.is_ascii_digit() {
 					if c == '0' {
-						match i.peek() {
+						match i.peek(0) {
 							'x' | 'X' => {
 								i.current += 1;
 								i.readNumber(|c| {
@@ -315,7 +311,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 					}
 				} else if c.is_ascii_alphabetic() || c == '_' {
 					while {
-						let c = i.peek();
+						let c = i.peek(0);
 						c.is_ascii_alphanumeric() || c == '_'
 					} {i.current += 1}
 					let string: String = i.substr(i.start, i.current);
