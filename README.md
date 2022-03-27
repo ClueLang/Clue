@@ -12,9 +12,10 @@ Clue does not compile to a specfic version of Lua: flags can be toggled to alter
 3. Add the path to `clue.exe` in the PATH variable
 4. Type `clue` in cmd/PowerShell and it'll explain how to do the rest
 
+(An installer will soon be made to make the process automatic)
+
 ## General syntax differences
 - Code blocks are now inside `{}` instead of `then`/`do`/`repeat` and `end`/`until`
-- `;` cannot be omitted most of the time.
 - Comments are made with `// ...` or `/* ... */`
 
 If you want a complete documentation of every change and addition in Clue check [the wiki](https://github.com/ClueLang/Clue/wiki).
