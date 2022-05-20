@@ -651,12 +651,14 @@ impl ParserInfo {
 					expr.push_back(SYMBOL(String::from("[")));
 					expr.push_back(EXPR(qexpr));
 					expr.push_back(SYMBOL(String::from("]")));
+					if self.checkVal() {break}
 				}
 				SAFE_SQUARE_BRACKET => {
 					let qexpr = self.buildExpression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
 					expr.push_back(SYMBOL(String::from("?[")));
 					expr.push_back(EXPR(qexpr));
 					expr.push_back(SYMBOL(String::from("]")));
+					if self.checkVal() {break}
 				}
 				ROUND_BRACKET_OPEN => {
 					self.current -= 2;
