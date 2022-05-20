@@ -549,7 +549,7 @@ impl ParserInfo {
 					if self.checkVal() {break}
 				}
 				STRING => {
-					expr.push_back(SYMBOL(format!("[[{}]]", t.lexeme)));
+					expr.push_back(SYMBOL(format!("\"{}\"", t.lexeme)));
 					if self.checkVal() {break}
 				}
 				ROUND_BRACKET_OPEN => {

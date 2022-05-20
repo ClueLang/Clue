@@ -195,7 +195,11 @@ impl CodeInfo {
 			self.warning("Unterminated string");
 		} else {
 			self.current += 1;
-			let literal: String = self.substr(self.start + 1, self.current - 1);
+			let mut literal: String = self.substr(self.start + 1, self.current - 1);
+			literal.retain(|c| match c {
+				'\r' | '\n' | '\t' => false,
+				_ => true
+			});
 			self.addLiteralToken(STRING, literal);
 		}
 		self.line = aline;
