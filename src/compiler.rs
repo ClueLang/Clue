@@ -288,6 +288,30 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let code = CompileElseIfChain(scope, condition, code, next);
 				format!("{}end{}", code, IndentateIf(ctokens, scope))
 			}
+			MATCH_BLOCK {value, branches, line} => {
+				let value = CompileExpression(scope, None, value);
+				let line = CompileDebugLine(line);
+				let branches = {
+					let pre = Indentate(scope);
+					let mut result = Indentate(scope);
+					let mut branches = branches.into_iter().peekable();
+					while let Some((conditions, code)) = branches.next() {
+						let condition = CompileList(conditions, "or ", &mut |expr| {
+							let expr = CompileExpression(scope, None, expr);
+							format!("(_match == {}) ", expr)
+						});
+						let code = CompileCodeBlock(scope, "then", code);
+						let end = match branches.peek() {
+							Some(_) => "else",
+							_ => "end"
+						};
+						result += &format!("if {}{}{}{}", condition, code, pre, end)
+					}
+					result
+				};
+				let end = IndentateIf(ctokens, scope);
+				format!("local _match = {};{}\n{}{}", value, line, branches, end)
+			}
 			WHILE_LOOP {condition, code} => {
 				let condition = CompileExpression(scope, None, condition);
 				let code = CompileCodeBlock(scope, "do", code);
