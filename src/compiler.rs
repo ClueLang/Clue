@@ -28,7 +28,7 @@ fn IndentateIf<T: Iterator>(ctokens: &mut Peekable<T>, scope: usize) -> String {
 	}
 }
 
-fn CompileList<T>(list: Vec<T>, tostring: &mut impl FnMut(T) -> String) -> String {
+fn CompileList<T>(list: Vec<T>, separator: &str, tostring: &mut impl FnMut(T) -> String) -> String {
 	let mut result = String::new();
 	let end = list.iter().count();
 	let mut start = 0usize;
@@ -36,23 +36,23 @@ fn CompileList<T>(list: Vec<T>, tostring: &mut impl FnMut(T) -> String) -> Strin
 		result += &(tostring(element));
 		start += 1;
 		if start < end {
-			result += ", "
+			result += separator
 		}
 	}
 	result
 }
 
 fn CompileIdentifiers(names: Vec<String>) -> String {
-	CompileList(names, &mut |name| {name})
+	CompileList(names, ", ", &mut |name| {name})
 }
 
 fn CompileExpressions(scope: usize, names: Option<&Vec<String>>, values: Vec<Expression>) -> String {
-	CompileList(values, &mut |expr| {CompileExpression(scope, names, expr)})
+	CompileList(values, ", ", &mut |expr| {CompileExpression(scope, names, expr)})
 }
 
 fn CompileFunction(scope: usize, names: Option<&Vec<String>>, args: FunctionArgs, code: CodeBlock) -> (String, String) {
 	let mut code = CompileCodeBlock(scope, "", code);
-	let args = CompileList(args, &mut |(arg, default)| {
+	let args = CompileList(args, ", ", &mut |(arg, default)| {
 		if let Some((default, line)) = default {
 			let default = CompileExpression(scope + 2, names, default);
 			let pre = Indentate(scope + 1);
@@ -148,7 +148,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 				let values = if values.is_empty() {
 					String::new()
 				} else {
-					CompileList(values, &mut |(name, value, line)| {
+					CompileList(values, ", ", &mut |(name, value, line)| {
 					let value = CompileExpression(scope, names, value);
 					let l = if prevline != 0 {CompileDebugLine(prevline)} else {String::new()};
 					prevline = line;
@@ -165,7 +165,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 					scope -= 1;
 					format!("{{{}{}}}", values, pre2)
 				} else {
-					let metas = CompileList(metas, &mut |(name, value, line)| {
+					let metas = CompileList(metas, ", ", &mut |(name, value, line)| {
 						let value = CompileExpression(scope, names, value);
 						let l = if prevline != 0 {CompileDebugLine(prevline)} else {String::new()};
 						prevline = line;
@@ -252,7 +252,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					names.push(CompileExpression(scope, None, name))
 				}
 				let mut i = 0usize;
-				let values = CompileList(values, &mut |expr| {
+				let values = CompileList(values, ", ", &mut |expr| {
 					let name = names.get(i).unwrap();
 					i += 1;
 					(if kind == DEFINE {
