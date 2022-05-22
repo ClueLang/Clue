@@ -18,7 +18,7 @@ md $Env:ProgramFiles\Clue -f >$null&&iwr((iwr https://api.github.com/repos/ClueL
 ### Manual insallation
 1. Download the latest release and save it somewhere
 2. Open your system environment variables
-3. Add the path to `clue.exe` in the PATH variable
+3. Add the path to the directory that contains `clue.exe` in the PATH variable
 4. Type `clue` in your cmd/PowerShell to run the compiler, it will explain the rest
 
 ## General syntax differences
