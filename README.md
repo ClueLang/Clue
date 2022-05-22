@@ -6,13 +6,20 @@ Clue tries to be almost as simple as Lua (with only a slightly more advanced syn
 
 Clue does not compile to a specfic version of Lua: flags can be toggled to alter the output to allow most if not all versions or modifications of Lua to be compiled to with Clue.
 
-## How to install and use
+## How to install
+
+### Using PowerShell (admin perms required)
+1. Paste and run the below line in your PowerShell
+```powershell
+md $Env:ProgramFiles\Clue -f >$null&&iwr((iwr https://api.github.com/repos/ClueLang/Clue/releases?per_page=1).Content|ConvertFrom-Json).assets[0].browser_download_url -o "$Env:ProgramFiles\Clue\clue.exe"&&[Environment]::SetEnvironmentVariable('Path',$Env:PATH+";$Env:ProgramFiles\Clue",'Machine')
+```
+2. Type `clue` in your PowerShell to run the compiler, it will explain the rest
+
+### Manual insallation
 1. Download the latest release and save it somewhere
 2. Open your system environment variables
 3. Add the path to `clue.exe` in the PATH variable
-4. Type `clue` in cmd/PowerShell and it'll explain how to do the rest
-
-(An installer will soon be made to make the process automatic)
+4. Type `clue` in your cmd/PowerShell to run the compiler, it will explain the rest
 
 ## General syntax differences
 - Code blocks are now inside `{}` instead of `then`/`do`/`repeat` and `end`/`until`
@@ -23,7 +30,6 @@ If you want a complete documentation of every change and addition in Clue check 
 ## More coming soon!
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
-- `match` (Coming soon!)
 - `macro`
 - `struct`
 
