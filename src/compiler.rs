@@ -292,20 +292,23 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let value = CompileExpression(scope, None, value);
 				let line = CompileDebugLine(line);
 				let branches = {
-					let pre = Indentate(scope);
+					let indent = Indentate(scope);
 					let mut result = Indentate(scope);
 					let mut branches = branches.into_iter().peekable();
 					while let Some((conditions, code)) = branches.next() {
+						let default = conditions.is_empty();
+						let pre = if default {"else"} else {"if"};
 						let condition = CompileList(conditions, "or ", &mut |expr| {
 							let expr = CompileExpression(scope, None, expr);
 							format!("(_match == {}) ", expr)
 						});
-						let code = CompileCodeBlock(scope, "then", code);
+						let code = CompileCodeBlock(scope, if default {""} else {"then"}, code);
 						let end = match branches.peek() {
+							Some((conditions, _)) if conditions.is_empty() => "",
 							Some(_) => "else",
 							_ => "end"
 						};
-						result += &format!("if {}{}{}{}", condition, code, pre, end)
+						result += &format!("{} {}{}{}{}", pre, condition, code, indent, end)
 					}
 					result
 				};
