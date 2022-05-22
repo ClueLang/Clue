@@ -13,7 +13,7 @@ pub enum TokenType {
 	SAFE_DOUBLE_COLON, DOUBLE_COLON, DOT, TWODOTS, TREDOTS,
 	SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
-	TERNARY_THEN, TERNARY_ELSE,
+	TERNARY_THEN, TERNARY_ELSE, ARROW,
 	
 	//definition and comparison
 	DEFINE, DEFINE_AND, DEFINE_OR, INCREASE, DECREASE, MULTIPLY, DIVIDE,
@@ -26,7 +26,7 @@ pub enum TokenType {
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL,
 	UNTIL, LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP,
-	STATIC, ENUM, CONTINUE, BREAK, TRY, CATCH,
+	STATIC, ENUM, CONTINUE, BREAK, TRY, CATCH, MATCH,
 	
 	EOF
 }
@@ -266,7 +266,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'%' => i.compareAndAdd('=', MODULATE, PERCENTUAL),
 			'!' => i.compareAndAdd('=', NOT_EQUAL, NOT),
 			'~' => i.addToken(BIT_NOT),
-			'=' => i.compareAndAdd('=', EQUAL, DEFINE),
+			'=' => i.matchAndAdd('=', EQUAL, '>', ARROW, DEFINE),
 			'<' => i.matchAndAdd('=', SMALLER_EQUAL, '<', LEFT_SHIFT, SMALLER),
 			'>' => i.matchAndAdd('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
 			'?' => {
@@ -345,6 +345,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"break" => BREAK,
 						"try" => TRY,
 						"catch" => CATCH,
+						"match" => MATCH,
 						_ => IDENTIFIER
 					};
 					i.addToken(kind);
