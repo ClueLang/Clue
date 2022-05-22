@@ -71,6 +71,12 @@ pub enum ComplexToken {
 		next: Option<Box<ComplexToken>>,
 	},
 
+	MATCH_BLOCK {
+		value: Expression,
+		branches: Vec<(Vec<Expression>, CodeBlock)>,
+		line: usize
+	},
+
 	WHILE_LOOP {
 		condition: Expression,
 		code: CodeBlock
@@ -996,6 +1002,31 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			IF => {
 				let ctoken = i.buildElseIfChain()?;
 				i.expr.push_back(ctoken);
+			}
+			MATCH => {
+				let value = i.buildExpression(Some((CURLY_BRACKET_OPEN, "{")))?;
+				let mut branches: Vec<(Vec<Expression>, CodeBlock)> = Vec::new();
+				while {
+					let mut conditions: Vec<Expression> = Vec::new();
+					let mut current = Expression::new();
+					let expr = i.buildExpression(Some((ARROW, "=>")))?;
+					for ctoken in expr {
+						match ctoken {
+							SYMBOL(lexeme) if lexeme == " or " => {
+								conditions.push(current.clone());
+								current.clear();
+							}
+							_ => current.push_back(ctoken)
+						}
+					}
+					if !current.is_empty() {
+						conditions.push(current);
+					}
+					let code = i.buildCodeBlock()?;
+					branches.push((conditions, code));
+					!i.advanceIf(CURLY_BRACKET_CLOSED)
+				} {}
+				i.expr.push_back(MATCH_BLOCK {value, branches, line: t.line})
 			}
 			WHILE => {
 				let condition = i.buildExpression(Some((CURLY_BRACKET_OPEN, "{")))?;
