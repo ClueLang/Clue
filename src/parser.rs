@@ -1007,23 +1007,27 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				let value = i.buildExpression(Some((CURLY_BRACKET_OPEN, "{")))?;
 				let mut branches: Vec<(Vec<Expression>, CodeBlock)> = Vec::new();
 				while {
-					let mut conditions: Vec<Expression> = Vec::new();
-					let mut current = Expression::new();
-					let expr = i.buildExpression(Some((ARROW, "=>")))?;
-					for ctoken in expr {
-						match ctoken {
-							SYMBOL(lexeme) if lexeme == " or " => {
-								conditions.push(current.clone());
-								current.clear();
+					if i.advanceIf(DEFAULT) {
+						i.assert(ARROW, "=>")?;
+						branches.push((Vec::new(), i.buildCodeBlock()?));
+					} else {
+						let mut conditions: Vec<Expression> = Vec::new();
+						let mut current = Expression::new();
+						let expr = i.buildExpression(Some((ARROW, "=>")))?;
+						for ctoken in expr {
+							match ctoken {
+								SYMBOL(lexeme) if lexeme == " or " => {
+									conditions.push(current.clone());
+									current.clear();
+								}
+								_ => current.push_back(ctoken)
 							}
-							_ => current.push_back(ctoken)
 						}
+						if !current.is_empty() {
+							conditions.push(current);
+						}
+						branches.push((conditions, i.buildCodeBlock()?));
 					}
-					if !current.is_empty() {
-						conditions.push(current);
-					}
-					let code = i.buildCodeBlock()?;
-					branches.push((conditions, code));
 					!i.advanceIf(CURLY_BRACKET_CLOSED)
 				} {}
 				i.expr.push_back(MATCH_BLOCK {value, branches, line: t.line})
