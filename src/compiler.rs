@@ -149,16 +149,17 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 					String::new()
 				} else {
 					CompileList(values, ", ", &mut |(name, value, line)| {
-					let value = CompileExpression(scope, names, value);
-					let l = if prevline != 0 {CompileDebugLine(prevline)} else {String::new()};
-					prevline = line;
-					if let Some(name) = name {
-						let name = CompileExpression(scope, names, name);
-						format!("{}\n{}{} = {}", l, pre1, name, value)
-					} else {
-						format!("{}\n{}{}", l, pre1, value)
-					}
-				}) + &CompileDebugLine(prevline) + "\n"};
+						let value = CompileExpression(scope, names, value);
+						let l = if prevline != 0 {CompileDebugLine(prevline)} else {String::new()};
+						prevline = line;
+						if let Some(name) = name {
+							let name = CompileExpression(scope, names, name);
+							format!("{}\n{}{} = {}", l, pre1, name, value)
+						} else {
+							format!("{}\n{}{}", l, pre1, value)
+						}
+					}) + &CompileDebugLine(prevline) + "\n"
+				};
 				prevline = 0;
 				let pre2 = Indentate(scope - 1);
 				if metas.is_empty() {
