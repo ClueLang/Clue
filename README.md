@@ -23,8 +23,8 @@ If you want a complete documentation of every change and addition in Clue check 
 ## More coming soon!
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
-- `switch`
-- `match`
+- `match` (Coming soon!)
+- `macro`
 - `struct`
 
 For any suggestion or bug you can make a github issue.
