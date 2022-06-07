@@ -292,7 +292,6 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let value = CompileExpression(scope, None, value);
 				let line = CompileDebugLine(line);
 				let branches = {
-					let indent = Indentate(scope);
 					let mut result = Indentate(scope);
 					let mut branches = branches.into_iter().peekable();
 					while let Some((conditions, code)) = branches.next() {
@@ -308,7 +307,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 							Some(_) => "else",
 							_ => "end"
 						};
-						result += &format!("{} {}{}{}{}", pre, condition, code, indent, end)
+						result += &format!("{} {}{}{}", pre, condition, code, end)
 					}
 					result
 				};
