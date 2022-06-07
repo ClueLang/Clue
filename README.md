@@ -6,6 +6,30 @@ Clue tries to be almost as simple as Lua (with only a slightly more advanced syn
 
 Clue does not compile to a specfic version of Lua: flags can be toggled to alter the output to allow most if not all versions or modifications of Lua to be compiled to with Clue.
 
+## General syntax differences
+- Code blocks are now inside `{}` instead of `then`/`do`/`repeat` and `end`/`until`
+- Comments are made with `// ...` or `/* ... */`
+
+If you want a complete documentation of every change and addition in Clue check [the wiki](https://github.com/ClueLang/Clue/wiki).
+
+## Example code
+```
+print("Hello world!")
+
+local fn add(x, y) {
+    return x + y
+}
+
+global n = 1
+
+while n < 10 {
+    n += add(n, n)
+    if n == 3 {continue}
+    print(n)
+}
+```
+More examples will be added soon
+
 ## How to install
 
 ### Using PowerShell (admin perms required)
@@ -20,12 +44,6 @@ md $Env:ProgramFiles\Clue -f >$null&&iwr((iwr https://api.github.com/repos/ClueL
 2. Open your system environment variables
 3. Add the path to the directory that contains `clue.exe` in the PATH variable
 4. Type `clue` in your cmd/PowerShell to run the compiler, it will explain the rest
-
-## General syntax differences
-- Code blocks are now inside `{}` instead of `then`/`do`/`repeat` and `end`/`until`
-- Comments are made with `// ...` or `/* ... */`
-
-If you want a complete documentation of every change and addition in Clue check [the wiki](https://github.com/ClueLang/Clue/wiki).
 
 ## More coming soon!
 There are still some features that I'm considering adding and others that will be added soon.
