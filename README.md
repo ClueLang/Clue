@@ -29,7 +29,7 @@ while n < 10 {
 }
 ```
 More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki) or you can check [an example program made with LOVE using Clue](https://github.com/ClueLang/Clue-example).
-Mre examples will be added soon.
+More examples will be added soon.
 
 ## How to install
 
