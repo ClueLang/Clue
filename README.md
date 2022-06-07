@@ -28,7 +28,8 @@ while n < 10 {
     print(n)
 }
 ```
-More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki), and even more examples will be added soon.
+More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki) or you can check [an example program made with LOVE using Clue].
+Mre examples will be added soon.
 
 ## How to install
 
