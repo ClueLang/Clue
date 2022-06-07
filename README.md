@@ -28,7 +28,7 @@ while n < 10 {
     print(n)
 }
 ```
-More examples will be added soon
+More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki), and even more examples will be added soon.
 
 ## How to install
 
