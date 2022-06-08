@@ -582,10 +582,11 @@ impl ParserInfo {
 					if self.checkVal() {break}
 				}
 				FN => {
-					self.assert(ROUND_BRACKET_OPEN, "(")?;
-					let args: FunctionArgs = if !self.advanceIf(ROUND_BRACKET_CLOSED) {
-						self.buildFunctionArgs()?
-					} else {Vec::new()};
+					let args: FunctionArgs = if
+						self.advanceIf(ROUND_BRACKET_OPEN)
+						&& !self.advanceIf(ROUND_BRACKET_CLOSED) {
+							self.buildFunctionArgs()?
+						} else {Vec::new()};
 					let code = self.buildCodeBlock()?;
 					expr.push_back(LAMBDA {args, code});
 					if self.checkVal() {break}
