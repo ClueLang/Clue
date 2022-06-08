@@ -374,7 +374,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			},
 			CONTINUE_LOOP => {
 				let end = IndentateIf(ctokens, scope);
-				format!("{};{}", if arg!(ENV_CONTINUE) {"continue"} else {"goto continue"}, end)
+				format!("{};{}", if arg!(ENV_CONTINUE) {"goto continue"} else {"continue"}, end)
 			}
 			BREAK_LOOP => {
 				String::from("break;") + &IndentateIf(ctokens, scope)
