@@ -782,7 +782,7 @@ impl ParserInfo {
 				let t = self.advance();
 				match t.kind {
 					ELSEIF => Some(Box::new(self.buildElseIfChain()?)),
-					ELSE => {Some(Box::new(DO_BLOCK(self.buildCodeBlock()?)))},
+					ELSE => Some(Box::new(DO_BLOCK(self.buildCodeBlock()?))),
 					_ => {self.current -= 1; None}
 				}
 			}
