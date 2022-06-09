@@ -1009,8 +1009,13 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				let mut branches: Vec<(Vec<Expression>, CodeBlock)> = Vec::new();
 				while {
 					if i.advanceIf(DEFAULT) {
+						if branches.is_empty() {
+							return Err(i.error(String::from("A match block can't have the default case as it's first case, it must be the last")))
+						}
 						i.assert(ARROW, "=>")?;
 						branches.push((Vec::new(), i.buildCodeBlock()?));
+						i.assert(CURLY_BRACKET_CLOSED, "{")?;
+						false
 					} else {
 						let mut conditions: Vec<Expression> = Vec::new();
 						let mut current = Expression::new();
@@ -1028,8 +1033,8 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							conditions.push(current);
 						}
 						branches.push((conditions, i.buildCodeBlock()?));
+						!i.advanceIf(CURLY_BRACKET_CLOSED)
 					}
-					!i.advanceIf(CURLY_BRACKET_CLOSED)
 				} {}
 				i.expr.push_back(MATCH_BLOCK {value, branches, line: t.line})
 			}
