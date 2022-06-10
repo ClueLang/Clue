@@ -153,13 +153,14 @@ impl ParserInfo {
 		}
 	}
 
-	fn test<T>(&mut self, func: impl FnOnce(&mut ParserInfo) -> T) -> T {
+	fn test<T>(&mut self, func: impl FnOnce(&mut ParserInfo) -> T) -> (T, usize) {
 		let start = self.current - 1;
 		self.testing = true;
 		let result = func(self);
 		self.testing = false;
+		let reached = self.current;
 		self.current = start;
-		result
+		(result, reached)
 	} 
 
 	fn getLine(&self) -> usize {
@@ -948,7 +949,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				});
 			}
 			IDENTIFIER => {
-				let testexpr = i.test(|i| i.buildName());
+				let testexpr = i.test(|i| i.buildName()).0;
 				if let Err(msg) = testexpr {
 					if &msg == "You can't call functions here" {
 						let expr = &mut i.buildExpression(None)?;
