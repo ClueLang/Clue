@@ -472,7 +472,7 @@ impl ParserInfo {
 				}
 				MINUS => {
 					self.checkOperator(&t, false)?;
-					expr.push_back(SYMBOL(t.lexeme))
+					expr.push_back(SYMBOL(if self.lookBack(1).kind == MINUS {format!(" {}", t.lexeme)} else {t.lexeme}))
 				}
 				BIT_AND => self.buildBitwiseOp(t, &mut expr, "band", end)?,
 				BIT_OR => self.buildBitwiseOp(t, &mut expr, "bor", end)?,
