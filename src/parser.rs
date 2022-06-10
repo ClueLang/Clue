@@ -136,7 +136,7 @@ struct ParserInfo {
 	filename: String,
 	expr: Expression,
 	testing: bool,
-	ternaryid: u8,
+	localid: u8,
 	statics: String
 }
 
@@ -149,7 +149,7 @@ impl ParserInfo {
 			filename: filename,
 			expr: Expression::new(),
 			testing: false,
-			ternaryid: 0,
+			localid: 0,
 			statics: String::new()
 		}
 	}
@@ -526,7 +526,7 @@ impl ParserInfo {
 					let t2 = self.lookBack(0);
 					let exprfalse = self.buildExpression(end)?;
 					self.current -= 1;
-					let name = format!("_t{}", self.ternaryid);
+					let name = format!("_t{}", self.localid);
 					self.expr.push_back(VARIABLE {
 						line: t.line,
 						local: true,
@@ -558,7 +558,7 @@ impl ParserInfo {
 						})))
 					});
 					expr.push_back(name);
-					self.ternaryid += 1;
+					self.localid += 1;
 					if self.checkVal() {break}
 				}
 				TREDOTS | NUMBER | TRUE | FALSE | NIL => {
