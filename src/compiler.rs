@@ -288,32 +288,40 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let code = CompileElseIfChain(scope, condition, code, next);
 				format!("{}end{}", code, IndentateIf(ctokens, scope))
 			}
-			MATCH_BLOCK {value, branches, line} => {
+			MATCH_BLOCK {name, value, branches, line} => {
 				let value = CompileExpression(scope, None, value);
 				let line = CompileDebugLine(line);
 				let branches = {
-					let indent = Indentate(scope);
 					let mut result = Indentate(scope);
 					let mut branches = branches.into_iter().peekable();
-					while let Some((conditions, code)) = branches.next() {
-						let default = conditions.is_empty();
+					while let Some((conditions, extraif, code)) = branches.next() {
+						let empty = conditions.is_empty();
+						let default = empty && extraif == None;
 						let pre = if default {"else"} else {"if"};
-						let condition = CompileList(conditions, "or ", &mut |expr| {
-							let expr = CompileExpression(scope, None, expr);
-							format!("(_match == {}) ", expr)
-						});
+						let condition = {
+							let mut condition = CompileList(conditions, "or ", &mut |expr| {
+								let expr = CompileExpression(scope, None, expr);
+								format!("({} == {}) ", name, expr)
+							});
+							if let Some(extraif) = extraif {
+								condition.pop();
+								let extraif = CompileExpression(scope, None, extraif);
+								if empty {extraif + " "}
+								else {format!("({}) and {} ", condition, extraif)}
+							} else {condition}
+						};
 						let code = CompileCodeBlock(scope, if default {""} else {"then"}, code);
 						let end = match branches.peek() {
-							Some((conditions, _)) if conditions.is_empty() => "",
+							Some((conditions, extraif, _)) if conditions.is_empty() && matches!(extraif, None) => "",
 							Some(_) => "else",
 							_ => "end"
 						};
-						result += &format!("{} {}{}{}{}", pre, condition, code, indent, end)
+						result += &format!("{} {}{}{}", pre, condition, code, end)
 					}
 					result
 				};
 				let end = IndentateIf(ctokens, scope);
-				format!("local _match = {};{}\n{}{}", value, line, branches, end)
+				format!("local {} = {};{}\n{}{}", name, value, line, branches, end)
 			}
 			WHILE_LOOP {condition, code} => {
 				let condition = CompileExpression(scope, None, condition);
@@ -375,7 +383,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			},
 			CONTINUE_LOOP => {
 				let end = IndentateIf(ctokens, scope);
-				format!("{};{}", if arg!(ENV_CONTINUE) {"continue"} else {"goto continue"}, end)
+				format!("{};{}", if arg!(ENV_CONTINUE) {"goto continue"} else {"continue"}, end)
 			}
 			BREAK_LOOP => {
 				String::from("break;") + &IndentateIf(ctokens, scope)

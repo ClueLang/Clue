@@ -77,7 +77,7 @@ struct Cli {
 	#[clap(short, long, value_name = "VAR NAME")]
 	jitbit: Option<String>,
 
-	/// Don't use tags for continue
+	/// Use tags and goto for continue
 	#[clap(short, long)]
 	r#continue: bool,
 
