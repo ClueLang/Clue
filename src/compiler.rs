@@ -294,16 +294,25 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let branches = {
 					let mut result = Indentate(scope);
 					let mut branches = branches.into_iter().peekable();
-					while let Some((conditions, code)) = branches.next() {
-						let default = conditions.is_empty();
+					while let Some((conditions, extraif, code)) = branches.next() {
+						let empty = conditions.is_empty();
+						let default = empty && extraif == None;
 						let pre = if default {"else"} else {"if"};
-						let condition = CompileList(conditions, "or ", &mut |expr| {
-							let expr = CompileExpression(scope, None, expr);
-							format!("(_match == {}) ", expr)
-						});
+						let condition = {
+							let mut condition = CompileList(conditions, "or ", &mut |expr| {
+								let expr = CompileExpression(scope, None, expr);
+								format!("(_match == {}) ", expr)
+							});
+							if let Some(extraif) = extraif {
+								condition.pop();
+								let extraif = CompileExpression(scope, None, extraif);
+								if empty {extraif + " "}
+								else {format!("({}) and {} ", condition, extraif)}
+							} else {condition}
+						};
 						let code = CompileCodeBlock(scope, if default {""} else {"then"}, code);
 						let end = match branches.peek() {
-							Some((conditions, _)) if conditions.is_empty() => "",
+							Some((conditions, extraif, _)) if conditions.is_empty() && matches!(extraif, None) => "",
 							Some(_) => "else",
 							_ => "end"
 						};

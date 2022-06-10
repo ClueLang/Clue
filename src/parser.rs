@@ -31,6 +31,7 @@ macro_rules! expression {
 pub type Expression = LinkedList<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
 type OptionalEnd = Option<(TokenType, &'static str)>;
+type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ComplexToken {
@@ -73,7 +74,7 @@ pub enum ComplexToken {
 
 	MATCH_BLOCK {
 		value: Expression,
-		branches: Vec<(Vec<Expression>, CodeBlock)>,
+		branches: Vec<MatchCase>,
 		line: usize
 	},
 
@@ -873,6 +874,31 @@ impl ParserInfo {
 		let code = CompileTokens(0, expr);
 		self.statics += &(code + "\n");
 	}
+
+	fn buildMatchCase(&mut self, pexpr: Option<Expression>) -> Result<MatchCase, String> {
+		let mut conditions: Vec<Expression> = Vec::new();
+		let mut current = Expression::new();
+		let (expr, extraif) = match pexpr {
+			Some(expr) => (expr, None),
+			None => {
+				self.current += 1;
+				(self.buildExpression(Some((IF, "if")))?, Some(self.buildExpression(Some((ARROW, "=>")))?))
+			}
+		};
+		for ctoken in expr {
+			match ctoken {
+				SYMBOL(lexeme) if lexeme == " or " => {
+					conditions.push(current.clone());
+					current.clear();
+				}
+				_ => current.push_back(ctoken)
+			}
+		}
+		if !current.is_empty() {
+			conditions.push(current);
+		}
+		Ok((conditions, extraif, self.buildCodeBlock()?))
+	}
 }
 
 pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
@@ -1012,33 +1038,33 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			}
 			MATCH => {
 				let value = i.buildExpression(Some((CURLY_BRACKET_OPEN, "{")))?;
-				let mut branches: Vec<(Vec<Expression>, CodeBlock)> = Vec::new();
+				let mut branches: Vec<MatchCase> = Vec::new();
 				while {
 					if i.advanceIf(DEFAULT) {
-						if branches.is_empty() {
-							return Err(i.error(String::from("A match block can't have the default case as it's first case, it must be the last")))
-						}
-						i.assert(ARROW, "=>")?;
-						branches.push((Vec::new(), i.buildCodeBlock()?));
-						i.assert(CURLY_BRACKET_CLOSED, "{")?;
-						false
-					} else {
-						let mut conditions: Vec<Expression> = Vec::new();
-						let mut current = Expression::new();
-						let expr = i.buildExpression(Some((ARROW, "=>")))?;
-						for ctoken in expr {
-							match ctoken {
-								SYMBOL(lexeme) if lexeme == " or " => {
-									conditions.push(current.clone());
-									current.clear();
-								}
-								_ => current.push_back(ctoken)
+						let t = i.advance();
+						match t.kind {
+							ARROW => {
+								if branches.is_empty() {return Err(i.error(String::from(
+									"The default case (with no extra if) of a match block must be the last case, not the first"
+								)))}
+								branches.push((Vec::new(), None, i.buildCodeBlock()?));
+								i.assert(CURLY_BRACKET_CLOSED, "}")?;
+								false
 							}
+							IF => {
+								let extraif = i.buildExpression(Some((ARROW, "=>")))?;
+								branches.push((Vec::new(), Some(extraif), i.buildCodeBlock()?));
+								!i.advanceIf(CURLY_BRACKET_CLOSED)
+							}
+							_ => return Err(i.expected("=>", &t.lexeme))
 						}
-						if !current.is_empty() {
-							conditions.push(current);
-						}
-						branches.push((conditions, i.buildCodeBlock()?));
+					} else {
+						let (testexpr, reached) = i.test(|i| i.buildExpression(Some((ARROW, "=>"))));
+						branches.push(match testexpr {
+							Err(msg) if msg == "Expected '=>', got 'if'" => i.buildMatchCase(None)?,
+							Ok(expr) => {i.current = reached; i.buildMatchCase(Some(expr))?}
+							Err(err) => return Err(i.error(err))
+						});
 						!i.advanceIf(CURLY_BRACKET_CLOSED)
 					}
 				} {}
