@@ -136,7 +136,7 @@ struct ParserInfo {
 	tokens: Vec<Token>,
 	filename: String,
 	expr: Expression,
-	testing: bool,
+	testing: Option<usize>,
 	localid: u8,
 	statics: String
 }
@@ -149,7 +149,7 @@ impl ParserInfo {
 			tokens: tokens,
 			filename: filename,
 			expr: Expression::new(),
-			testing: false,
+			testing: None,
 			localid: 0,
 			statics: String::new()
 		}
@@ -157,35 +157,36 @@ impl ParserInfo {
 
 	fn test<T>(&mut self, func: impl FnOnce(&mut ParserInfo) -> T) -> (T, usize) {
 		let start = self.current - 1;
-		self.testing = true;
+		self.testing = Some(0);
 		let result = func(self);
-		self.testing = false;
+		self.testing = match self.testing {
+			Some(line) if line > 0 => self.testing,
+			_ => None
+		};
 		let reached = self.current;
 		self.current = start;
 		(result, reached)
-	} 
-
-	fn getLine(&self) -> usize {
-		self.at(self.current - 1).line
 	}
 
-	fn error(&self, msg: String) -> String {
-		if !self.testing {
-			println!("Error in file \"{}\" at line {}!", self.filename, self.getLine());
+	fn error(&mut self, msg: impl Into<String>, line: usize) -> String {
+		if let Some(0) = self.testing {
+			self.testing = Some(line);
+		} else {
+			println!("Error in file \"{}\" at line {}!", self.filename, line);
 		}
-		msg
+		msg.into()
 	}
 
-	fn expected(&self, expected: &str, got: &str) -> String {
-		self.error(format!("Expected '{}', got '{}'", expected, got))
+	fn expected(&mut self, expected: &str, got: &str, line: usize) -> String {
+		self.error(format!("Expected '{}', got '{}'", expected, got), line)
 	}
 
-	fn expectedBefore(&self, expected: &str, before: &str) -> String {
-		self.error(format!("Expected '{}' before '{}'", expected, before))
+	fn expectedBefore(&mut self, expected: &str, before: &str, line: usize) -> String {
+		self.error(format!("Expected '{}' before '{}'", expected, before), line)
 	}
 
-	fn unexpected(&self, str: &str) -> String {
-		self.error(format!("Unexpected token '{}'", str))
+	fn unexpected(&mut self, str: &str, line: usize) -> String {
+		self.error(format!("Unexpected token '{}'", str), line)
 	}
 
 	fn ended(&self) -> bool {
@@ -227,14 +228,15 @@ impl ParserInfo {
 	fn assertAdvance(&mut self, expected: TokenType, error: &str) -> Result<Token, String> {
 		let t = self.advance();
 		if t.kind != expected {
-			return Err(self.expected(error, &t.lexeme))
+			return Err(self.expected(error, &t.lexeme, t.line))
 		}
 		Ok(t)
 	}
 
 	fn assertCompare(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
 		if !self.compare(expected) {
-			return Err(self.expected(error, &self.peek(0).lexeme))
+			let t = self.peek(0);
+			return Err(self.expected(error, &t.lexeme, t.line))
 		}
 		Ok(())
 	}
@@ -242,7 +244,7 @@ impl ParserInfo {
 	fn assertEnd<T>(&mut self, tocheck: &Token, end: OptionalEnd, iftrue: T) -> Result<T, String> {
 		if let Some((kind, lexeme)) = end {
 			if tocheck.kind != kind {
-				return Err(self.expected(lexeme, tocheck.lexeme.as_str()))
+				return Err(self.expected(lexeme, &tocheck.lexeme, tocheck.line))
 			}
 		}
 		Ok(iftrue)
@@ -250,7 +252,8 @@ impl ParserInfo {
 
 	fn assert(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
 		if !self.advanceIf(expected) {
-			return Err(self.expected(error, &self.peek(0).lexeme))
+			let t = self.peek(0);
+			return Err(self.expected(error, &t.lexeme, t.line))
 		}
 		Ok(())
 	}
@@ -299,7 +302,7 @@ impl ParserInfo {
 					iskey = true;
 					false
 				}
-				EOF => {return Err(self.expectedBefore("}", "<end>"))}
+				EOF => {return Err(self.expectedBefore("}", "<end>", self.peek(0).line))}
 				_ => true
 			} {
 				self.current += 1;
@@ -329,7 +332,7 @@ impl ParserInfo {
 								_ => true
 							}
 						}
-						EOF => {return Err(self.expectedBefore("]", "<end>"))}
+						EOF => {return Err(self.expectedBefore("]", "<end>", self.peek(0).line))}
 						_ => true
 					} {}
 					self.current = start;
@@ -357,13 +360,17 @@ impl ParserInfo {
 						"eq" | "equal" | "==" => "__eq",
 						"lt" | "less_than" | "<" => "__lt",
 						"le" | "less_than_equal" | "<=" => "__le",
-						_ => {return Err(self.expected("<meta name>", &self.lookBack(0).lexeme))}
+						_ => {
+							let t = self.peek(0);
+							return Err(self.expected("<meta name>", &t.lexeme, t.line))
+						}
 					}))
 				}
-				_ => {return Err(self.expected("<name>", &pn.lexeme))}
+				_ => {return Err(self.expected("<name>", &pn.lexeme, pn.line))}
 			}
 			if !self.advanceIf(DEFINE) {
-				return Err(self.expected("=", &self.peek(0).lexeme))
+				let t = self.peek(0);
+				return Err(self.expected("=", &t.lexeme, t.line))
 			}
 			let start = self.current;
 			let mut cscope = 0u8;
@@ -373,11 +380,11 @@ impl ParserInfo {
 				}
 				ROUND_BRACKET_OPEN => {cscope += 1; true}
 				ROUND_BRACKET_CLOSED => {
-					if cscope == 0 {return Err(self.expectedBefore("(", ")"))}
+					if cscope == 0 {return Err(self.expectedBefore("(", ")", self.peek(0).line))}
 					cscope -= 1;
 					true
 				}
-				EOF => {return Err(self.expectedBefore("}", "<end>"))}
+				EOF => {return Err(self.expectedBefore("}", "<end>", self.peek(0).line))}
 				_ => true
 			} {
 				self.current += 1;
@@ -393,20 +400,20 @@ impl ParserInfo {
 		Ok(TABLE {values, metas})
 	}
 
-	fn checkOperator(&self, t: &Token, checkback: bool) -> Result<(), String> {
+	fn checkOperator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
 		if match self.peek(0).kind {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS | BIT_NOT |
 			NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | TREDOTS => false,
 			_ => true
 		} {
-			return Err(self.error(format!("Operator '{}' has invalid right hand token", t.lexeme)))
+			return Err(self.error(format!("Operator '{}' has invalid right hand token", t.lexeme), t.line))
 		}
 		if checkback && match self.lookBack(1).kind {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | TRUE | FALSE |
 			NIL | ROUND_BRACKET_CLOSED | SQUARE_BRACKET_CLOSED | TREDOTS => false,
 			_ => true
 		} {
-			return Err(self.error(format!("Operator '{}' has invalid left hand token", t.lexeme)))
+			return Err(self.error(format!("Operator '{}' has invalid left hand token", t.lexeme), t.line))
 		}
 		Ok(())
 	}
@@ -425,12 +432,12 @@ impl ParserInfo {
 		Ok(())
 	}
 
-	fn checkIndex(&self, t: &Token, expr: &mut Expression, lexeme: &str) -> Result<(), String> {
+	fn checkIndex(&mut self, t: &Token, expr: &mut Expression, lexeme: &str) -> Result<(), String> {
 		if !self.compare(IDENTIFIER) || match self.lookBack(0).kind {
 			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
 			_ => false
 		} {
-			return Err(self.error(format!("'{}' should be used only when indexing", t.lexeme)))
+			return Err(self.error(format!("'{}' should be used only when indexing", t.lexeme), self.peek(0).line))
 		}
 		expr.push_back(SYMBOL(lexeme.to_string()));
 		Ok(())
@@ -499,7 +506,8 @@ impl ParserInfo {
 						IDENTIFIER | CURLY_BRACKET_OPEN | ROUND_BRACKET_OPEN => false,
 						_ => true
 					} {
-						return Err(self.expected("<table>", &self.peek(0).lexeme))
+						let t = self.peek(0);
+						return Err(self.expected("<table>", &t.lexeme, t.line))
 					}
 					expr.push_back(SYMBOL(String::from("#")))
 				}
@@ -525,9 +533,9 @@ impl ParserInfo {
 					let ident = SYMBOL(name.clone());
 					self.localid += 1;
 					let ctoken = self.buildMatchBlock(name, &|i| {
-						let start = i.getLine();
+						let start = i.peek(0).line;
 						let expr = i.buildExpression(None)?;
-						let end = i.getLine();
+						let end = i.lookBack(1).line;
 						if match i.lookBack(0).kind {
 							CURLY_BRACKET_CLOSED | DEFAULT => true,
 							_ => false
@@ -608,11 +616,13 @@ impl ParserInfo {
 					if nt.kind == NUMBER {
 						num = match nt.lexeme.parse() {
 							Ok(n) => n,
-							Err(_) => {return Err(self.error(format!("Pseudo variables cannot point to the {}th variable", nt.lexeme)))}
+							Err(_) => {
+								return Err(self.error(format!("Pseudo variables cannot point to the {}th variable", nt.lexeme), nt.line))
+							}
 						};
 						self.current += 1;
 						if num == 0 {
-							return Err(self.error(String::from("Pseudo variables cannot point to the 0th variable")))
+							return Err(self.error("Pseudo variables cannot point to the 0th variable", nt.line))
 						}
 					}
 					expr.push_back(PSEUDO(num));
@@ -633,7 +643,7 @@ impl ParserInfo {
 			}
 		};
 		if expr.len() == 0 {
-			return Err(self.expected("<expr>", &last.lexeme))
+			return Err(self.expected("<expr>", &last.lexeme, last.line))
 		}
 		self.assertEnd(&self.lookBack(0), end, expr)
 	}
@@ -648,17 +658,17 @@ impl ParserInfo {
 					expr.push_back(SYMBOL(t.lexeme));
 					if self.checkVal() {break}
 				}
-				SAFEDOT => {return Err(self.unexpected("?."))}
+				SAFEDOT => {return Err(self.unexpected("?.", t.line))}
 				DOT => {self.checkIndex(&t, &mut expr, ".")?}
-				SAFE_DOUBLE_COLON | DOUBLE_COLON => {return Err(self.error(String::from("You can't call functions here")))}
+				SAFE_DOUBLE_COLON | DOUBLE_COLON => {return Err(self.error("You can't call functions here", t.line))}
 				SQUARE_BRACKET_OPEN => {
 					let qexpr = self.buildExpression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
 					expr.push_back(SYMBOL(String::from("[")));
 					expr.push_back(EXPR(qexpr));
 					expr.push_back(SYMBOL(String::from("]")));
 				}
-				SAFE_SQUARE_BRACKET => {return Err(self.unexpected("?["))}
-				ROUND_BRACKET_OPEN => {return Err(self.error(String::from("You can't call functions here")))}
+				SAFE_SQUARE_BRACKET => {return Err(self.unexpected("?[", t.line))}
+				ROUND_BRACKET_OPEN => {return Err(self.error("You can't call functions here", t.line))}
 				_ => {break}
 			}
 		}
@@ -667,7 +677,7 @@ impl ParserInfo {
 
 	fn buildIdentifier(&mut self) -> Result<ComplexToken, String> {
 		let mut expr = Expression::new();
-		let line = self.getLine();
+		let line = self.lookBack(0).line;
 		self.current -= 1;
 		loop {
 			let t = self.advance();
@@ -681,13 +691,15 @@ impl ParserInfo {
 				SAFE_DOUBLE_COLON => {
 					self.checkIndex(&t, &mut expr, "?::")?;
 					if self.peek(1).kind != ROUND_BRACKET_OPEN {
-						return Err(self.expected("(", &self.peek(1).lexeme))
+						let t = self.peek(1);
+						return Err(self.expected("(", &t.lexeme, t.line))
 					}
 				}
 				DOUBLE_COLON => {
 					self.checkIndex(&t, &mut expr, ":")?;
 					if self.peek(1).kind != ROUND_BRACKET_OPEN {
-						return Err(self.expected("(", &self.peek(1).lexeme))
+						let t = self.peek(1);
+						return Err(self.expected("(", &t.lexeme, t.line))
 					}
 				}
 				SQUARE_BRACKET_OPEN => {
@@ -736,17 +748,13 @@ impl ParserInfo {
 					cscope -= 1;
 					if cscope == 0 {end = t.line; break}
 				}
-				EOF => {return Err(self.expectedBefore("}", "<end>"))}
+				EOF => {return Err(self.expectedBefore("}", "<end>", t.line))}
 				_ => {}
 			}
 			tokens.push(t);
 		}
 		let code = if tokens.is_empty() {Expression::new()} else {
-			tokens.push(Token {
-				kind: EOF,
-				lexeme: String::new(),
-				line: self.getLine()
-			});
+			tokens.push(self.tokens.last().unwrap().clone());
 			ParseTokens(tokens, self.filename.clone())?
 		};
 		Ok(CodeBlock {start, code, end})
@@ -781,7 +789,7 @@ impl ParserInfo {
 						self.assertCompare(ROUND_BRACKET_CLOSED, ")")?;
 						t
 					}
-					_ => {return Err(self.expected("<name>", &t.lexeme))}
+					_ => {return Err(self.expected("<name>", &t.lexeme, t.line))}
 				}
 			};
 			let t = self.advance();
@@ -795,7 +803,10 @@ impl ParserInfo {
 						match self.lookBack(0).kind {
 							COMMA => {}
 							ROUND_BRACKET_CLOSED => {self.current -= 1}
-							_ => {return Err(self.expected(")", &self.peek(0).lexeme))}
+							_ => {
+								let t = self.peek(0);
+								return Err(self.expected(")", &t.lexeme, t.line))
+							}
 						}
 					}
 					notended
@@ -804,7 +815,7 @@ impl ParserInfo {
 					args.push((name.lexeme, None));
 					false
 				}
-				_ => {return Err(self.expected(")", &t.lexeme))}
+				_ => {return Err(self.expected(")", &t.lexeme, t.line))}
 			}
 		} {}
 		Ok(args)
@@ -848,13 +859,13 @@ impl ParserInfo {
 				DEFINE => {
 					let t = self.advance();
 					if t.kind != NUMBER {
-						return Err(self.error(String::from("Enums values should be a non-float number ranging from -32768 to 32767.")))
+						return Err(self.error("Enums values should be a non-float number ranging from -32768 to 32767.", t.line))
 					}
 					n = check!(t.lexeme.parse());
 					self.advanceIf(COMMA);
 					SYMBOL(n.to_string())
 				}
-				_ => {return Err(self.expected("}", &t.lexeme))}
+				_ => {return Err(self.expected("}", &t.lexeme, t.line))}
 			};
 			enums.push_back(VARIABLE {
 				line: name.line, local,
@@ -927,7 +938,7 @@ impl ParserInfo {
 	}
 
 	fn buildMatchBlock(&mut self, name: String, func: &impl Fn(&mut ParserInfo) -> Result<CodeBlock, String>) -> Result<ComplexToken, String> {
-		let line = self.getLine();
+		let line = self.peek(0).line;
 		let value = self.buildExpression(Some((CURLY_BRACKET_OPEN, "{")))?;
 		let mut branches: Vec<MatchCase> = Vec::new();
 		while {
@@ -935,9 +946,9 @@ impl ParserInfo {
 				let t = self.advance();
 				match t.kind {
 					ARROW => {
-						if branches.is_empty() {return Err(self.error(String::from(
-							"The default case (with no extra if) of a match block must be the last case, not the first"
-						)))}
+						if branches.is_empty() {return Err(self.error(
+							"The default case (with no extra if) of a match block must be the last case, not the first",
+						t.line))}
 						branches.push((Vec::new(), None, func(self)?));
 						self.assert(CURLY_BRACKET_CLOSED, "}")?;
 						false
@@ -947,14 +958,14 @@ impl ParserInfo {
 						branches.push((Vec::new(), Some(extraif), func(self)?));
 						!self.advanceIf(CURLY_BRACKET_CLOSED)
 					}
-					_ => return Err(self.expected("=>", &t.lexeme))
+					_ => return Err(self.expected("=>", &t.lexeme, t.line))
 				}
 			} else {
 				let (testexpr, reached) = self.test(|i| i.buildExpression(Some((ARROW, "=>"))));
 				branches.push(match testexpr {
 					Err(msg) if msg == "Expected '=>', got 'if'" => self.buildMatchCase(None, func)?,
 					Ok(expr) => {self.current = reached; self.buildMatchCase(Some(expr), func)?}
-					Err(msg) => return Err(self.error(msg))
+					Err(msg) => return Err(self.error(msg, self.testing.unwrap()))
 				});
 				!self.advanceIf(CURLY_BRACKET_CLOSED)
 			}
@@ -1010,19 +1021,20 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							IDENTIFIER => {
 								let nt = i.peek(0);
 								if nt.kind == IDENTIFIER {
-									return Err(i.unexpected(&nt.lexeme))
+									return Err(i.unexpected(&nt.lexeme, nt.line))
 								}
 								expr.push_back(SYMBOL(t.lexeme))
 							}
 							DOT => {i.checkIndex(&t, &mut expr, ".")?}
 							DOUBLE_COLON => {
 								i.checkIndex(&t, &mut expr, ":")?;
-								if i.peek(1).kind != ROUND_BRACKET_OPEN {
-									return Err(i.expected("(", &i.peek(1).lexeme))
+								let t = i.peek(1);
+								if t.kind != ROUND_BRACKET_OPEN {
+									return Err(i.expected("(", &t.lexeme, t.line))
 								}
 							}
 							ROUND_BRACKET_OPEN => {break}
-							_ => {return Err(i.expected("(", &t.lexeme))}
+							_ => {return Err(i.expected("(", &t.lexeme, t.line))}
 						}
 					}
 					expr
@@ -1045,7 +1057,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 						i.current -= 1;
 						continue;
 					}
-					return Err(i.error(msg))
+					return Err(i.error(msg, i.testing.unwrap()))
 				}
 				i.current += 1;
 				let mut names: Vec<Expression> = Vec::new();
@@ -1058,7 +1070,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				let checkt = i.lookBack(0);
 				let check = checkt.kind.clone() as u8;
 				if check < DEFINE as u8 || check > MODULATE as u8 {
-					return Err(i.expected("=", &checkt.lexeme))
+					return Err(i.expected("=", &checkt.lexeme, checkt.line))
 				}
 				let values: Vec<Expression> = i.findExpressions(COMMA, None)?;
 				i.expr.push_back(ALTER {
@@ -1141,7 +1153,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							expression![SYMBOL(String::from("1"))]
 						}
 						COMMA => i.buildExpression(Some((CURLY_BRACKET_OPEN, "{")))?,
-						_ => {return Err(i.expected(",", &t.lexeme))}
+						_ => {return Err(i.expected(",", &t.lexeme, t.line))}
 					};
 					let code = i.buildLoopBlock()?;
 					i.expr.push_back(FOR_LOOP {iterator, start, end, alter, code})
@@ -1161,7 +1173,10 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 							expr
 						}
 						WITH => {i.buildExpression(Some((CURLY_BRACKET_OPEN, "{")))?}
-						_ => {return Err(i.expected("of', 'in' or 'with", &i.peek(0).lexeme))}
+						_ => {
+							let t = i.peek(0);
+							return Err(i.expected("of', 'in' or 'with", &t.lexeme, t.line))
+						}
 					};
 					let code = i.buildLoopBlock()?;
 					i.expr.push_back(FOR_FUNC_LOOP {iterators, expr, code});
@@ -1196,10 +1211,10 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.expr.push_back(TRY_CATCH {totry, error, catch});
 			}
 			FN | ENUM => {
-				return Err(i.error(format!("'{}' must have 'local', 'global' or 'static' beforehand", t.lexeme)))
+				return Err(i.error(format!("'{}' must have 'local', 'global' or 'static' beforehand", t.lexeme), t.line))
 			}
 			EOF => {break}
-			_ => {return Err(i.expected("<end>", t.lexeme.as_str()))}
+			_ => {return Err(i.expected("<end>", &t.lexeme, t.line))}
 		}
 	}
 	unsafe {
