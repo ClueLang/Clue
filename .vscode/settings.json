@@ -1,0 +1,6 @@
+{
+    "yaml.schemas": {
+        "https://json.schemastore.org/github-workflow.json": "file:///Users/thomastheocharis/Documents/Code/Clue/.github/workflows/build.yml",
+        "https://json.schemastore.org/github-action.json": "file:///Users/thomastheocharis/Documents/Code/Clue/actions/linux-musl.yml"
+    }
+}
