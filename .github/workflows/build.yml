@@ -1,0 +1,216 @@
+name: Build
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      CRATE_NAME: clue
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          default: true
+          override: true
+          toolchain: nightly
+          target: "i686-pc-windows-msvc"
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - name: Build the binary
+        run: |
+          rustup target add aarch64-pc-windows-msvc
+          cargo build -Zmultitarget --target=x86_64-pc-windows-msvc --target=i686-pc-windows-msvc --target=aarch64-pc-windows-msvc --release -vv
+          cd target\x86_64-pc-windows-msvc\release && tar -cavf "$env:CRATE_NAME-x86_64-pc-windows-msvc.zip" "$env:CRATE_NAME.exe"  && cd ../../..
+          cd target\i686-pc-windows-msvc\release && tar -cavf "$env:CRATE_NAME-i686-pc-windows-msvc.zip" "$env:CRATE_NAME.exe"  && cd ../../..
+          cd target\aarch64-pc-windows-msvc\release && tar -cavf "$env:CRATE_NAME-aarch64-pc-windows-msvc.zip" "$env:CRATE_NAME.exe"  && cd ../../..
+      - name: Upload clue-x86_64-pc-windows-msvc
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-x86_64-pc-windows-msvc.zip
+          path: target\x86_64-pc-windows-msvc\release\${{ env.CRATE_NAME }}-x86_64-pc-windows-msvc.zip
+      - name: Upload clue-i686-pc-windows-msvc
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-i686-pc-windows-msvc.zip
+          path: target\i686-pc-windows-msvc\release\${{ env.CRATE_NAME }}-i686-pc-windows-msvc.zip
+      - name: Upload clue-aarch64-pc-windows-msvc
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-aarch64-pc-windows-msvc.zip
+          path: target\aarch64-pc-windows-msvc\release\${{ env.CRATE_NAME }}-aarch64-pc-windows-msvc.zip
+
+      - name: Publish in release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target\x86_64-pc-windows-msvc\release\${{ env.CRATE_NAME }}-x86_64-pc-windows-msvc.zip
+            target\i686-pc-windows-msvc\release\${{ env.CRATE_NAME }}-i686-pc-windows-msvc.zip
+            target\aarch64-pc-windows-msvc\release\${{ env.CRATE_NAME }}-aarch64-pc-windows-msvc.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+  build-macos:
+    runs-on: macos-latest
+    env:
+      CRATE_NAME: "clue"
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          default: true
+          override: true
+          toolchain: nightly
+          target: "aarch64-apple-darwin"
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - name: Build the binary
+        run: |
+          cargo build --release -Zmultitarget --target=x86_64-apple-darwin --target=aarch64-apple-darwin -vv
+          cd target/x86_64-apple-darwin/release/ && tar -cvf "$CRATE_NAME-x86_64-apple-darwin.tar.gz" "$CRATE_NAME"  && cd ../../..
+          cd target/aarch64-apple-darwin/release/ && tar -cvf "$CRATE_NAME-aarch64-apple-darwin.tar.gz" "$CRATE_NAME" && cd ../../..
+      - name: Upload clue-x86_64-apple-darwin.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-x86_64-apple-darwin.tar.gz
+          path: target/x86_64-apple-darwin/release/${{ env.CRATE_NAME }}-x86_64-apple-darwin.tar.gz
+      - name: Upload aarch64-apple-darwin.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-aarch64-apple-darwin.tar.gz
+          path: target/aarch64-apple-darwin/release/${{ env.CRATE_NAME }}-aarch64-apple-darwin.tar.gz
+
+      - name: Publish in release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/x86_64-apple-darwin/release/${{ env.CRATE_NAME }}-x86_64-apple-darwin.tar.gz
+            target/aarch64-apple-darwin/release/${{ env.CRATE_NAME }}-aarch64-apple-darwin.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+  build-gnu-linux:
+    runs-on: ubuntu-latest
+    env:
+      CRATE_NAME: "clue"
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          default: true
+          override: true
+          toolchain: nightly
+          target: i686-unknown-linux-gnu
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - name: Build the binary
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+          rustup target add armv7-unknown-linux-gnueabi
+          rustup target add armv7-unknown-linux-gnueabihf
+          sudo apt update && sudo apt install -y -qq gcc-i686-linux-gnu gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi gcc-arm-linux-gnueabihf
+          mkdir -p .cargo
+          echo '[target.i686-unknown-linux-gnu]'>>.cargo/config
+          echo 'linker = "i686-linux-gnu-gcc"'>>.cargo/config
+          echo '[target.aarch64-unknown-linux-gnu]'>>.cargo/config
+          echo 'linker = "aarch64-linux-gnu-gcc"'>>.cargo/config
+          echo '[target.armv7-unknown-linux-gnueabi]' >>.cargo/config
+          echo 'linker = "arm-linux-gnueabi-gcc"' >>.cargo/config
+          echo '[target.armv7-unknown-linux-gnueabihf]' >>.cargo/config
+          echo 'linker = "arm-linux-gnueabihf-gcc"' >>.cargo/config
+          cargo build -Zmultitarget --target=x86_64-unknown-linux-gnu \
+                --target=i686-unknown-linux-gnu \
+                --target=aarch64-unknown-linux-gnu \
+                --target=aarch64-unknown-linux-gnu \
+                --target=armv7-unknown-linux-gnueabi \
+                --target=armv7-unknown-linux-gnueabihf \
+                --release -vv
+          cd target/x86_64-unknown-linux-gnu/release/ && tar -cvf "$CRATE_NAME-x86_64-unknown-linux-gnu.tar.gz" "$CRATE_NAME" && cd ../../..
+          cd target/aarch64-unknown-linux-gnu/release/ && tar -cvf $CRATE_NAME-aarch64-unknown-linux-gnu.tar.gz "$CRATE_NAME" && cd ../../..
+          cd target/i686-unknown-linux-gnu/release/ && tar -cvf "$CRATE_NAME-i686-unknown-linux-gnu.tar.gz" "$CRATE_NAME" && cd ../../..
+          cd target/armv7-unknown-linux-gnueabi/release/ && tar -cvf "$CRATE_NAME-armv7-unknown-linux-gnueabi.tar.gz" "$CRATE_NAME"  && cd ../../..
+          cd target/armv7-unknown-linux-gnueabihf/release/ && tar -cvf "$CRATE_NAME-armv7-unknown-linux-gnueabihf.tar.gz" "$CRATE_NAME"  && cd ../../..
+      - name: Upload clue-x86_64-unknown-linux-gnu.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-x86_64-unknown-linux-gnu.tar.gz
+          path: target/x86_64-unknown-linux-gnu/release/${{ env.CRATE_NAME }}-x86_64-unknown-linux-gnu.tar.gz
+      - name: Upload aarch64-unknown-linux-gnu.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-aarch64-unknown-linux-gnu.tar.gz
+          path: target/aarch64-unknown-linux-gnu/release/${{ env.CRATE_NAME }}-aarch64-unknown-linux-gnu.tar.gz
+      - name: Upload i686-unknown-linux-gnu.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-i686-unknown-linux-gnu.tar.gz
+          path: target/i686-unknown-linux-gnu/release/${{ env.CRATE_NAME }}-i686-unknown-linux-gnu.tar.gz
+      - name: Upload armv7-unknown-linux-gnueabi.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-armv7-unknown-linux-gnueabi.tar.gz
+          path: target/armv7-unknown-linux-gnueabi/release/${{ env.CRATE_NAME }}-armv7-unknown-linux-gnueabi.tar.gz
+      - name: Upload armv7-unknown-linux-gnueabihf.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-armv7-unknown-linux-gnueabihf.tar.gz
+          path: target/armv7-unknown-linux-gnueabihf/release/${{ env.CRATE_NAME }}-armv7-unknown-linux-gnueabihf.tar.gz
+      - name: Publish in release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/x86_64-unknown-linux-gnu/release/${{ env.CRATE_NAME }}-x86_64-unknown-linux-gnu.tar.gz
+            target/i686-unknown-linux-gnu/release/${{ env.CRATE_NAME }}-i686-unknown-linux-gnu.tar.gz
+            target/aarch64-unknown-linux-gnu/release/${{ env.CRATE_NAME }}-aarch64-unknown-linux-gnu.tar.gz
+            target/armv7-unknown-linux-gnueabi/release/${{ env.CRATE_NAME }}-armv7-unknown-linux-gnueabi.tar.gz
+            target/armv7-unknown-linux-gnueabihf/release/${{ env.CRATE_NAME }}-armv7-unknown-linux-gnueabihf.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+  build-musl-linux:
+    runs-on: ubuntu-latest
+    env:
+      CRATE_NAME: "clue"
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Build the binary
+        uses: ./actions/linux-musl
+        with:
+          name: clue
+      - name: Upload clue-x86_64-unknown-linux-musl.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-x86_64-unknown-linux-musl.tar.gz
+          path: target/x86_64-unknown-linux-musl/release/${{ env.CRATE_NAME }}-x86_64-unknown-linux-musl.tar.gz
+      - name: Upload aarch64-unknown-linux-musl.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-aarch64-unknown-linux-musl.tar.gz
+          path: target/aarch64-unknown-linux-musl/release/${{ env.CRATE_NAME }}-aarch64-unknown-linux-musl.tar.gz
+      - name: Upload i686-unknown-linux-musl.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-i686-unknown-linux-musl.tar.gz
+          path: target/i686-unknown-linux-musl/release/${{ env.CRATE_NAME }}-i686-unknown-linux-musl.tar.gz
+      - name: Upload clue-armv7-unknown-linux-musleabi.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-armv7-unknown-linux-musleabi.tar.gz
+          path: target/armv7-unknown-linux-musleabi/release/${{ env.CRATE_NAME }}-armv7-unknown-linux-musleabi.tar.gz
+      - name: Upload clue-armv7-unknown-linux-musleabihf.tar.gz
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.CRATE_NAME }}-armv7-unknown-linux-musleabihf.tar.gz
+          path: target/armv7-unknown-linux-musleabihf/release/${{ env.CRATE_NAME }}-armv7-unknown-linux-musleabihf.tar.gz
+      - name: Publish in release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/x86_64-unknown-linux-musl/release/${{ env.CRATE_NAME }}-x86_64-unknown-linux-musl.tar.gz
+            target/i686-unknown-linux-musl/release/${{ env.CRATE_NAME }}-i686-unknown-linux-musl.tar.gz
+            target/aarch64-unknown-linux-musl/release/${{ env.CRATE_NAME }}-aarch64-unknown-linux-musl.tar.gz
+            target/armv7-unknown-linux-musleabi/release/${{ env.CRATE_NAME }}-armv7-unknown-linux-musleabi.tar.gz
+            target/armv7-unknown-linux-musleabihf/release/${{ env.CRATE_NAME }}-armv7-unknown-linux-musleabihf.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
