@@ -9,12 +9,9 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8cb2ceb4-f1eb-451f-89d0-b42b81153e50" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/Clue.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/discord.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
+    <list default="true" id="8cb2ceb4-f1eb-451f-89d0-b42b81153e50" name="Changes" comment="Fixed bug where it wasn't possible to compile multiple files in Linux">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/scanner.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/scanner.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -51,10 +48,44 @@
     "cidr.known.project.marker": "true",
     "nodejs_package_manager_path": "npm",
     "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
-    "settings.editor.selected.configurable": "language.rust.cargo.check"
+    "settings.editor.selected.configurable": "language.rust.rustfmt"
   }
 }]]></component>
-  <component name="RunManager" selected="Cargo.Install">
+  <component name="RunManager" selected="Cargo.Fmt">
+    <configuration name="Clippy" type="CargoCommandRunConfiguration" factoryName="Cargo Command" nameIsGenerated="true">
+      <option name="command" value="clippy" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="emulateTerminal" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Fmt" type="CargoCommandRunConfiguration" factoryName="Cargo Command" nameIsGenerated="true">
+      <option name="command" value="fmt" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="emulateTerminal" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Install" type="CargoCommandRunConfiguration" factoryName="Cargo Command" nameIsGenerated="true">
       <option name="command" value="install --path ." />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
@@ -92,11 +123,17 @@
     <list>
       <item itemvalue="Cargo.Run" />
       <item itemvalue="Cargo.Install" />
+      <item itemvalue="Cargo.Clippy" />
+      <item itemvalue="Cargo.Fmt" />
     </list>
   </component>
   <component name="RustProjectSettings">
     <option name="runExternalLinterOnTheFly" value="true" />
     <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
+  </component>
+  <component name="RustfmtProjectSettings">
+    <option name="runRustfmtOnSave" value="true" />
+    <option name="useRustfmt" value="true" />
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
@@ -106,8 +143,16 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1655300350524</updated>
-      <workItem from="1655300355425" duration="407000" />
+      <workItem from="1655300355425" duration="1194000" />
     </task>
+    <task id="LOCAL-00001" summary="Fixed bug where it wasn't possible to compile multiple files in Linux">
+      <created>1655300896120</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1655300896120</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -123,6 +168,10 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Fixed bug where it wasn't possible to compile multiple files in Linux" />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed bug where it wasn't possible to compile multiple files in Linux" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
