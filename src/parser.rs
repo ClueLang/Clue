@@ -138,8 +138,8 @@ impl ParserInfo {
         ParserInfo {
             current: 0,
             size: tokens.len() - 1,
-            tokens: tokens,
-            filename: filename,
+            tokens,
+            filename,
             expr: Expression::new(),
             testing: None,
             localid: 0,
@@ -336,10 +336,7 @@ impl ParserInfo {
                         }
                         SQUARE_BRACKET_CLOSED => {
                             qscope -= 1;
-                            match qscope {
-                                0 => false,
-                                _ => true,
-                            }
+                            !matches!(qscope, 0)
                         }
                         EOF => return Err(self.expectedBefore("]", "<end>", self.peek(0).line)),
                         _ => true,
@@ -384,13 +381,7 @@ impl ParserInfo {
             let start = self.current;
             let mut cscope = 0u8;
             while match self.peek(0).kind {
-                COMMA | CURLY_BRACKET_CLOSED => {
-                    if cscope == 0 {
-                        false
-                    } else {
-                        true
-                    }
-                }
+                COMMA | CURLY_BRACKET_CLOSED => cscope != 0,
                 ROUND_BRACKET_OPEN => {
                     cscope += 1;
                     true
@@ -419,30 +410,42 @@ impl ParserInfo {
     }
 
     fn checkOperator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
-        if match self.peek(0).kind {
-            NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS
-            | BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | TREDOTS => false,
-            _ => true,
-        } {
+        if !matches!(
+            self.peek(0).kind,
+            NUMBER
+                | IDENTIFIER
+                | STRING
+                | DOLLAR
+                | PROTECTED_GET
+                | TRUE
+                | FALSE
+                | MINUS
+                | BIT_NOT
+                | NIL
+                | NOT
+                | HASHTAG
+                | ROUND_BRACKET_OPEN
+                | TREDOTS
+        ) {
             return Err(self.error(
                 format!("Operator '{}' has invalid right hand token", t.lexeme),
                 t.line,
             ));
         }
         if checkback
-            && match self.lookBack(1).kind {
+            && !matches!(
+                self.lookBack(1).kind,
                 NUMBER
-                | IDENTIFIER
-                | STRING
-                | DOLLAR
-                | TRUE
-                | FALSE
-                | NIL
-                | ROUND_BRACKET_CLOSED
-                | SQUARE_BRACKET_CLOSED
-                | TREDOTS => false,
-                _ => true,
-            }
+                    | IDENTIFIER
+                    | STRING
+                    | DOLLAR
+                    | TRUE
+                    | FALSE
+                    | NIL
+                    | ROUND_BRACKET_CLOSED
+                    | SQUARE_BRACKET_CLOSED
+                    | TREDOTS
+            )
         {
             return Err(self.error(
                 format!("Operator '{}' has invalid left hand token", t.lexeme),
@@ -474,10 +477,7 @@ impl ParserInfo {
 
     fn checkIndex(&mut self, t: &Token, expr: &mut Expression, lexeme: &str) -> Result<(), String> {
         if !self.compare(IDENTIFIER)
-            || match self.lookBack(0).kind {
-                IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
-                _ => false,
-            }
+            || matches!(self.lookBack(0).kind, IDENTIFIER | SQUARE_BRACKET_CLOSED)
         {
             return Err(self.error(
                 format!("'{}' should be used only when indexing", t.lexeme),
@@ -557,10 +557,10 @@ impl ParserInfo {
                     expr.push_back(SYMBOL(String::from("~=")))
                 }
                 HASHTAG => {
-                    if match self.peek(0).kind {
-                        IDENTIFIER | CURLY_BRACKET_OPEN | ROUND_BRACKET_OPEN => false,
-                        _ => true,
-                    } {
+                    if !matches!(
+                        self.peek(0).kind,
+                        IDENTIFIER | CURLY_BRACKET_OPEN | ROUND_BRACKET_OPEN
+                    ) {
                         let t = self.peek(0);
                         return Err(self.expected("<table>", &t.lexeme, t.line));
                     }
@@ -591,10 +591,7 @@ impl ParserInfo {
                         let start = i.peek(0).line;
                         let expr = i.buildExpression(None)?;
                         let end = i.lookBack(1).line;
-                        if match i.lookBack(0).kind {
-                            CURLY_BRACKET_CLOSED | DEFAULT => true,
-                            _ => false,
-                        } {
+                        if matches!(i.lookBack(0).kind, CURLY_BRACKET_CLOSED | DEFAULT) {
                             i.current -= 1
                         }
                         Ok(CodeBlock {
@@ -726,7 +723,7 @@ impl ParserInfo {
                 _ => break t,
             }
         };
-        if expr.len() == 0 {
+        if expr.is_empty() {
             return Err(self.expected("<expr>", &last.lexeme, last.line));
         }
         self.assertEnd(&self.lookBack(0), end, expr)
@@ -1220,7 +1217,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
                 } {}
                 i.current -= 1;
                 let checkt = i.lookBack(0);
-                let check = checkt.kind.clone() as u8;
+                let check = checkt.kind as u8;
                 if check < DEFINE as u8 || check > MODULATE as u8 {
                     return Err(i.expected("=", &checkt.lexeme, checkt.line));
                 }
