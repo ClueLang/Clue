@@ -130,7 +130,7 @@ fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 	for entry in check!(fs::read_dir(path)) {
 		let entry = check!(entry);
 		let name: String = entry.path().file_name().unwrap().to_string_lossy().into_owned();
-		let filePathName: String = path.display().to_string() + "\\" + &name;
+		let filePathName: String = format!("{}/{}", path.display(), name);
 		let filepath: &Path = &Path::new(&filePathName);
 		let rname = rpath.clone() + &name;
 		if filepath.is_dir() {
@@ -176,8 +176,12 @@ fn main() -> Result<(), String> {
 		CompileFolder(path, String::new())?;
 		AddToOutput("\r}\nimport(\"main\")");
 		if !arg!(ENV_DONTSAVE) {
-			let outputname = &format!("\\{}.lua", cli.outputname);
-			let compiledname = String::from(path.display().to_string()) + outputname;
+			let outputname = format!("{}.lua", cli.outputname);
+			let compiledname = if path.display().to_string().ends_with('/') || path.display().to_string().ends_with('\\') {
+				format!("{}{}", path.display(), outputname)
+			} else {
+				format!("{}/{}", path.display(), outputname)
+			};
 			check!(fs::write(compiledname, unsafe {&finaloutput}))
 		}
 	} else if path.is_file() {
