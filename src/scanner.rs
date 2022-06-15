@@ -219,10 +219,10 @@ impl CodeInfo {
 		self.addToken(kind);
 	}
 
-	fn warning(&mut self, message: &str) {
+	fn warning(&mut self, message: impl Into<String>) {
 		println!(
 			"Error in file \"{}\" at line {}!\nError: \"{}\"\n",
-			self.filename, self.line, message
+			self.filename, self.line, message.into()
 		);
 		self.errored = true;
 	}
@@ -290,6 +290,11 @@ impl CodeInfo {
 			self.addLiteralToken(STRING, literal);
 		}
 		self.line = aline;
+	}
+
+	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
+		self.warning(format!("'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}", keyword, msg));
+		IDENTIFIER
 	}
 }
 
@@ -458,7 +463,15 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"catch" => CATCH,
 						"match" => MATCH,
 						"default" => DEFAULT,
-						_ => IDENTIFIER,
+						"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
+						"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
+						"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),
+						"do" => i.reserved("do", "'do ... end' blocks in Clue are made like this: '{{ ... }}'"),
+						"end" => i.reserved("end", "code blocks in Clue are closed with '}}'"),
+						"function" => i.reserved("function", "functions in Clue are defined with the 'fn' keyword"),
+						"repeat" => i.reserved("repeat", "'repeat ... until x' loops in Clue are made like this: 'loop {{ ... }} until x'"),
+						"then" => i.reserved("then", "code blocks in Clue are opened with '{{'"),
+						_ => IDENTIFIER
 					};
 					i.addToken(kind);
 				} else {
