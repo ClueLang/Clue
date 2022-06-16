@@ -7,13 +7,13 @@ use std::{cmp, collections::LinkedList};
 use crate::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 
 macro_rules! expression {
-    ($($x: expr),*) => {
-        {
-            let mut expr = Expression::new();
-            $(expr.push_back($x);)*
-            expr
-        }
-    };
+	($($x: expr),*) => {
+		{
+			let mut expr = Expression::new();
+			$(expr.push_back($x);)*
+			expr
+		}
+	};
 }
 
 pub type Expression = LinkedList<ComplexToken>;
@@ -596,11 +596,11 @@ impl ParserInfo {
 						}
 						Ok(CodeBlock {
 							code: expression![ALTER {
-                                kind: DEFINE,
-                                names: vec![expression![ident.clone()]],
-                                values: vec![expr],
-                                line: end
-                            }],
+								kind: DEFINE,
+								names: vec![expression![ident.clone()]],
+								values: vec![expr],
+								line: end
+							}],
 							start,
 							end,
 						})
@@ -628,21 +628,21 @@ impl ParserInfo {
 						code: CodeBlock {
 							start: self.at(start).line,
 							code: expression![ALTER {
-                                kind: DEFINE,
-                                line: t.line,
-                                names: vec![expression![name.clone()]],
-                                values: vec![exprtrue]
-                            }],
+								kind: DEFINE,
+								line: t.line,
+								names: vec![expression![name.clone()]],
+								values: vec![exprtrue]
+							}],
 							end: t2.line,
 						},
 						next: Some(Box::new(DO_BLOCK(CodeBlock {
 							start: t2.line,
 							code: expression![ALTER {
-                                kind: DEFINE,
-                                line: t.line,
-                                names: vec![expression![name.clone()]],
-                                values: vec![exprfalse]
-                            }],
+								kind: DEFINE,
+								line: t.line,
+								names: vec![expression![name.clone()]],
+								values: vec![exprfalse]
+							}],
 							end: self.at(self.current).line,
 						}))),
 					});

@@ -2,18 +2,18 @@
 #![allow(non_upper_case_globals)]
 
 macro_rules! check {
-    ($tocheck: expr) => {
-        match $tocheck {
-            Ok(t) => t,
-            Err(e) => return Err(e.to_string()),
-        }
-    };
+	($tocheck: expr) => {
+		match $tocheck {
+			Ok(t) => t,
+			Err(e) => return Err(e.to_string()),
+		}
+	};
 }
 
 macro_rules! arg {
-    ($name: expr) => {
-        unsafe { $name }
-    };
+	($name: expr) => {
+		unsafe { $name }
+	};
 }
 
 mod compiler;
