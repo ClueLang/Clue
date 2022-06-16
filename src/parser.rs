@@ -1,19 +1,10 @@
 #![allow(non_camel_case_types)]
 
 use self::ComplexToken::*;
-use crate::{
-	compiler::CompileTokens,
-	finaloutput,
-	ENV_JITBIT,
-	ENV_CONTINUE,
-	ENV_DEBUGCOMMENTS
-};
-use self::ComplexToken::*;
-use std::{
-	collections::LinkedList,
-	cmp
-};
+use crate::{compiler::CompileTokens, finaloutput, ENV_JITBIT, ENV_CONTINUE, ENV_DEBUGCOMMENTS, TokenType, Token};
+use crate::TokenType::*;
 use std::{cmp, collections::LinkedList};
+use crate::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 
 macro_rules! expression {
     ($($x: expr),*) => {
