@@ -2,35 +2,29 @@
 #![allow(non_upper_case_globals)]
 
 macro_rules! check {
-	($tocheck: expr) => {
-		match $tocheck {
-			Ok(t) => t,
-			Err(e) => return Err(e.to_string())
-		}
-	};
+    ($tocheck: expr) => {
+        match $tocheck {
+            Ok(t) => t,
+            Err(e) => return Err(e.to_string()),
+        }
+    };
 }
 
 macro_rules! arg {
-	($name: expr) => {
-		unsafe {$name}
-	};
+    ($name: expr) => {
+        unsafe { $name }
+    };
 }
 
-mod scanner;
-mod parser;
 mod compiler;
+mod parser;
+mod scanner;
 
 use clap::Parser;
-use scanner::*;
-use parser::*;
 use compiler::*;
-use std::{
-	io::prelude::*,
-	time::Instant,
-	path::Path,
-	fs::File,
-	fs
-};
+use parser::*;
+use scanner::*;
+use std::{fs, fs::File, io::prelude::*, path::Path, time::Instant};
 
 pub static mut finaloutput: String = String::new();
 
@@ -99,7 +93,7 @@ struct Cli {
 }
 
 fn AddToOutput(string: &str) {
-	unsafe {finaloutput += string}
+	unsafe { finaloutput += string }
 }
 
 fn CompileCode(code: String, name: String, scope: usize) -> Result<String, String> {
@@ -116,7 +110,11 @@ fn CompileCode(code: String, name: String, scope: usize) -> Result<String, Strin
 	if arg!(ENV_OUTPUT) {
 		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
 	}
-	println!("Compiled file \"{}\" in {} seconds!", name, time.elapsed().as_secs_f32());
+	println!(
+		"Compiled file \"{}\" in {} seconds!",
+		name,
+		time.elapsed().as_secs_f32()
+	);
 	Ok(code)
 }
 
@@ -129,7 +127,12 @@ fn CompileFile(path: &Path, name: String, scope: usize) -> Result<String, String
 fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 	for entry in check!(fs::read_dir(path)) {
 		let entry = check!(entry);
-		let name: String = entry.path().file_name().unwrap().to_string_lossy().into_owned();
+		let name: String = entry
+			.path()
+			.file_name()
+			.unwrap()
+			.to_string_lossy()
+			.into_owned();
 		let filePathName: String = format!("{}/{}", path.display(), name);
 		let filepath: &Path = &Path::new(&filePathName);
 		let rname = rpath.clone() + &name;
@@ -138,7 +141,10 @@ fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 		} else if filePathName.ends_with(".clue") {
 			let code = CompileFile(filepath, name, 2)?;
 			let rname = rname.strip_suffix(".clue").unwrap();
-			AddToOutput(&format!("[\"{}\"] = function()\n{}\n\tend,\n\t", rname, code));
+			AddToOutput(&format!(
+				"[\"{}\"] = function()\n{}\n\tend,\n\t",
+				rname, code
+			));
 		}
 	}
 	Ok(())
@@ -150,7 +156,7 @@ fn main() -> Result<(), String> {
 		println!("{}", include_str!("../LICENSE"));
 		return Ok(());
 	}
-    unsafe {
+	unsafe {
 		ENV_TOKENS = cli.tokens;
 		ENV_STRUCT = cli.r#struct;
 		ENV_OUTPUT = cli.output;
@@ -177,19 +183,26 @@ fn main() -> Result<(), String> {
 		AddToOutput("\r}\nimport(\"main\")");
 		if !arg!(ENV_DONTSAVE) {
 			let outputname = &format!("{}.lua", cli.outputname);
-			let compiledname = if path.display().to_string().ends_with('/') || path.display().to_string().ends_with('\\') {
+			let compiledname = if path.display().to_string().ends_with('/')
+				|| path.display().to_string().ends_with('\\')
+			{
 				format!("{}{}", path.display(), outputname)
 			} else {
 				format!("{}/{}", path.display(), outputname)
 			};
-			check!(fs::write(compiledname, unsafe {&finaloutput}))
+			check!(fs::write(compiledname, unsafe { &finaloutput }))
 		}
 	} else if path.is_file() {
-		let code = CompileFile(path, path.file_name().unwrap().to_string_lossy().into_owned(), 0)?;
+		let code = CompileFile(
+			path,
+			path.file_name().unwrap().to_string_lossy().into_owned(),
+			0,
+		)?;
 		AddToOutput(&code);
 		if !arg!(ENV_DONTSAVE) {
-			let compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-			check!(fs::write(compiledname, unsafe {&finaloutput}))
+			let compiledname =
+				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
+			check!(fs::write(compiledname, unsafe { &finaloutput }))
 		}
 	} else {
 		return Err(String::from("The given path doesn't exist"));

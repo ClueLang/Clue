@@ -5,37 +5,35 @@ use self::TokenType::*;
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenType {
 	//symbols
-	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED,
-	SQUARE_BRACKET_OPEN, SQUARE_BRACKET_CLOSED,
-	CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
-	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR,
-	PLUS, MINUS, STAR, SLASH, PERCENTUAL, CARET, HASHTAG,
-	SAFE_DOUBLE_COLON, DOUBLE_COLON, DOT, TWODOTS, TREDOTS,
-	SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
+	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED, SQUARE_BRACKET_OPEN,
+	SQUARE_BRACKET_CLOSED, CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
+	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR, PLUS, MINUS, STAR, SLASH,
+	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON,
+	DOT, TWODOTS, TREDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
 	TERNARY_THEN, TERNARY_ELSE, ARROW,
-	
+
 	//definition and comparison
 	DEFINE, DEFINE_AND, DEFINE_OR, INCREASE, DECREASE, MULTIPLY, DIVIDE,
-	EXPONENTIATE, CONCATENATE, MODULATE,
-	EQUAL, NOT_EQUAL, BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL,
-	
+	EXPONENTIATE, CONCATENATE, MODULATE, EQUAL, NOT_EQUAL,
+	BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL,
+
 	//literals
 	IDENTIFIER, NUMBER, STRING,
-	
+
 	//keywords
-	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL,
-	UNTIL, LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP,
-	STATIC, ENUM, CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT,
-	
-	EOF
+	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, UNTIL,
+	LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP, STATIC, ENUM,
+	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT,
+
+	EOF,
 }
 
 #[derive(Clone, Debug)]
 pub struct Token {
 	pub kind: TokenType,
 	pub lexeme: String,
-	pub line: usize
+	pub line: usize,
 }
 
 impl Token {
@@ -43,7 +41,7 @@ impl Token {
 		Token {
 			kind: kind,
 			lexeme: String::from(lexeme),
-			line: line
+			line: line,
 		}
 	}
 }
@@ -70,7 +68,7 @@ impl CodeInfo {
 			code: chars.collect(),
 			filename,
 			tokens: Vec::new(),
-			errored: false
+			errored: false,
 		}
 	}
 
@@ -79,7 +77,9 @@ impl CodeInfo {
 	}
 
 	fn at(&self, pos: usize) -> char {
-		if pos >= self.size {return 0 as char}
+		if pos >= self.size {
+			return 0 as char;
+		}
 		self.code[pos]
 	}
 
@@ -90,15 +90,21 @@ impl CodeInfo {
 	}
 
 	fn compare(&mut self, expected: char) -> bool {
-		if self.ended() {return false;}
-		if self.at(self.current) != expected {return false;}
+		if self.ended() {
+			return false;
+		}
+		if self.at(self.current) != expected {
+			return false;
+		}
 		self.current = self.current + 1;
 		true
 	}
 
 	fn peek(&self, pos: usize) -> char {
 		let pos: usize = self.current + pos;
-		if pos >= self.size {return 0 as char;}
+		if pos >= self.size {
+			return 0 as char;
+		}
 		self.at(pos)
 	}
 
@@ -109,7 +115,9 @@ impl CodeInfo {
 	fn substr(&self, start: usize, end: usize) -> String {
 		let mut result: String = String::new();
 		for i in start..end {
-			if i >= self.size {break}
+			if i >= self.size {
+				break;
+			}
 			result.push(self.at(i));
 		}
 		result
@@ -127,7 +135,7 @@ impl CodeInfo {
 	fn compareAndAdd(&mut self, c: char, kt: TokenType, kf: TokenType) {
 		let kind: TokenType = match self.compare(c) {
 			true => kt,
-			false => kf
+			false => kf,
 		};
 		self.addToken(kind);
 	}
@@ -137,23 +145,30 @@ impl CodeInfo {
 			true => k1,
 			false => match self.compare(c2) {
 				true => k2,
-				false => kd
-			}
+				false => kd,
+			},
 		};
 		self.addToken(kind);
 	}
 
 	fn warning(&mut self, message: impl Into<String>) {
-		println!("Error in file \"{}\" at line {}!\nError: \"{}\"\n", self.filename, self.line, message.into());
+		println!(
+			"Error in file \"{}\" at line {}!\nError: \"{}\"\n",
+			self.filename, self.line, message.into()
+		);
 		self.errored = true;
 	}
 
 	fn readNumber(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
 		let start = self.current;
-		while check(&self.peek(0)) {self.current += 1}
+		while check(&self.peek(0)) {
+			self.current += 1
+		}
 		if self.peek(0) == '.' && check(&self.peek(1)) {
 			self.current += 1;
-			while check(&self.peek(0)) {self.current += 1}
+			while check(&self.peek(0)) {
+				self.current += 1
+			}
 		}
 		if simple {
 			let c = self.peek(0);
@@ -167,7 +182,9 @@ impl CodeInfo {
 					}
 				}
 				self.current += 1;
-				while self.peek(0).is_ascii_digit() {self.current += 1}
+				while self.peek(0).is_ascii_digit() {
+					self.current += 1
+				}
 			}
 		} else if self.current == start {
 			self.warning("Malformed number");
@@ -188,7 +205,9 @@ impl CodeInfo {
 	fn readString(&mut self, strend: char) {
 		let mut aline = self.line;
 		while !self.ended() && self.peek(0) != strend {
-			if self.peek(0) == '\n' {aline += 1};
+			if self.peek(0) == '\n' {
+				aline += 1
+			};
 			self.current += 1;
 		}
 		if self.ended() {
@@ -198,7 +217,7 @@ impl CodeInfo {
 			let mut literal: String = self.substr(self.start + 1, self.current - 1);
 			literal.retain(|c| match c {
 				'\r' | '\n' | '\t' => false,
-				_ => true
+				_ => true,
 			});
 			self.addLiteralToken(STRING, literal);
 		}
@@ -240,33 +259,37 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 				} else {
 					i.addToken(DOT);
 				}
-			},
+			}
 			';' => i.addToken(SEMICOLON),
 			'+' => i.compareAndAdd('=', INCREASE, PLUS),
 			'-' => i.compareAndAdd('=', DECREASE, MINUS),
 			'*' => i.compareAndAdd('=', MULTIPLY, STAR),
 			'^' => i.matchAndAdd('=', EXPONENTIATE, '^', BIT_XOR, CARET),
 			'#' => i.addToken(HASHTAG),
-			'/' => {
-				match i.peek(0) {
-					'/' => while i.peek(0) != '\n' && !i.ended() {i.current += 1},
-					'*' => {
-						while !i.ended() && !(i.peek(0) == '*' && i.peek(1) == '/') {
-							if i.peek(0) == '\n' {i.line += 1}
-							i.current += 1;
-						}
-						if i.ended() {
-							i.warning("Unterminated comment");
-						} else {
-							i.current += 2;
-						}
-					},
-					'=' => {
-						i.current += 1;
-						i.addToken(DIVIDE);
-					},
-					_ => i.addToken(SLASH)
+			'/' => match i.peek(0) {
+				'/' => {
+					while i.peek(0) != '\n' && !i.ended() {
+						i.current += 1
+					}
 				}
+				'*' => {
+					while !i.ended() && !(i.peek(0) == '*' && i.peek(1) == '/') {
+						if i.peek(0) == '\n' {
+							i.line += 1
+						}
+						i.current += 1;
+					}
+					if i.ended() {
+						i.warning("Unterminated comment");
+					} else {
+						i.current += 2;
+					}
+				}
+				'=' => {
+					i.current += 1;
+					i.addToken(DIVIDE);
+				}
+				_ => i.addToken(SLASH),
 			},
 			'%' => i.compareAndAdd('=', MODULATE, PERCENTUAL),
 			'!' => i.compareAndAdd('=', NOT_EQUAL, NOT),
@@ -277,14 +300,24 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			'?' => {
 				let kind = match i.readNext() {
 					'=' => DEFINE_AND,
-					'>' => {i.warning("?> is deprecated"); PROTECTED_GET}
+					'>' => {
+						i.warning("?> is deprecated");
+						PROTECTED_GET
+					}
 					'.' => SAFEDOT,
 					':' => {
-						if i.compare(':') {SAFE_DOUBLE_COLON}
-						else {i.current -= 1; continue}
+						if i.compare(':') {
+							SAFE_DOUBLE_COLON
+						} else {
+							i.current -= 1;
+							continue;
+						}
 					}
 					'[' => SAFE_SQUARE_BRACKET,
-					_ => {i.current -= 1; TERNARY_THEN}
+					_ => {
+						i.current -= 1;
+						TERNARY_THEN
+					}
 				};
 				i.addToken(kind);
 			}
@@ -292,7 +325,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			':' => i.matchAndAdd(':', DOUBLE_COLON, '=', DEFINE_OR, TERNARY_ELSE),
 			'|' => i.compareAndAdd('|', OR, BIT_OR),
 			'$' => i.addToken(DOLLAR),
-			' ' | '\r' | '\t' => {},
+			' ' | '\r' | '\t' => {}
 			'\n' => i.line += 1,
 			'"' | '\'' => i.readString(c),
 			_ => {
@@ -301,19 +334,27 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						match i.peek(0) {
 							'x' | 'X' => {
 								i.current += 1;
-								i.readNumber(|c| {
-									let c = *c;
-									c.is_ascii_digit() || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
-								}, false);
+								i.readNumber(
+									|c| {
+										let c = *c;
+										c.is_ascii_digit()
+											|| (c >= 'a' && c <= 'f')
+											|| (c >= 'A' && c <= 'F')
+									},
+									false,
+								);
 							}
 							'b' | 'B' => {
 								i.current += 1;
-								i.readNumber(|c| {
-									let c = *c;
-									c == '0' || c == '1'
-								}, false);
+								i.readNumber(
+									|c| {
+										let c = *c;
+										c == '0' || c == '1'
+									},
+									false,
+								);
 							}
-							_ => i.readNumber(char::is_ascii_digit, true)
+							_ => i.readNumber(char::is_ascii_digit, true),
 						}
 					} else {
 						i.readNumber(char::is_ascii_digit, true);
@@ -322,7 +363,9 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 					while {
 						let c = i.peek(0);
 						c.is_ascii_alphanumeric() || c == '_'
-					} {i.current += 1}
+					} {
+						i.current += 1
+					}
 					let string: String = i.substr(i.start, i.current);
 					let kind: TokenType = match string.as_str() {
 						"if" => IF,
@@ -370,7 +413,9 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 		}
 	}
 	if i.errored {
-		return Err(String::from("Cannot continue until the above errors are fixed"));
+		return Err(String::from(
+			"Cannot continue until the above errors are fixed",
+		));
 	}
 	i.addLiteralToken(EOF, String::from("<end>"));
 	Ok(i.tokens)
