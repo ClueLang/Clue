@@ -4,8 +4,14 @@ use self::ComplexToken::*;
 use crate::{
 	compiler::CompileTokens,
 	finaloutput,
-	scanner::{Token, TokenType, TokenType::*},
-	ENV_CONTINUE, ENV_JITBIT, ENV_NODEBUGCOMMENTS,
+	ENV_JITBIT,
+	ENV_CONTINUE,
+	ENV_DEBUGCOMMENTS
+};
+use self::ComplexToken::*;
+use std::{
+	collections::LinkedList,
+	cmp
 };
 use std::{cmp, collections::LinkedList};
 
@@ -1399,10 +1405,10 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 	}
 	unsafe {
 		if !i.statics.is_empty() {
-			finaloutput = if ENV_NODEBUGCOMMENTS {
-				i.statics
-			} else {
+			finaloutput = if ENV_DEBUGCOMMENTS {
 				format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
+			} else {
+				i.statics
 			} + &finaloutput;
 		}
 	}
