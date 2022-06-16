@@ -42,7 +42,7 @@ pub static mut ENV_CONTINUE: bool = false;
 pub static mut ENV_DONTSAVE: bool = false;
 pub static mut ENV_PATHISCODE: bool = false;
 pub static mut ENV_RAWSETGLOBALS: bool = false;
-pub static mut ENV_NODEBUGCOMMENTS: bool = false;
+pub static mut ENV_DEBUGCOMMENTS: bool = false;
 
 #[derive(Parser)]
 #[clap(about, version, long_about = None)]
@@ -82,7 +82,7 @@ struct Cli {
 	r#continue: bool,
 
 	/// Don't save compiled code
-	#[clap(short, long)]
+	#[clap(short = 'D', long)]
 	dontsave: bool,
 
 	/// Treat PATH not as a path but as Clue code
@@ -93,9 +93,9 @@ struct Cli {
 	#[clap(short, long)]
 	rawsetglobals: bool,
 
-	/// Don't include debug comments in the output
+	/// Include debug comments in the output
 	#[clap(short, long)]
-	nodebugcomments: bool,
+	debugcomments: bool,
 }
 
 fn AddToOutput(string: &str) {
@@ -159,7 +159,7 @@ fn main() -> Result<(), String> {
 		ENV_DONTSAVE = cli.dontsave;
 		ENV_PATHISCODE = cli.pathiscode;
 		ENV_RAWSETGLOBALS = cli.rawsetglobals;
-		ENV_NODEBUGCOMMENTS = cli.nodebugcomments;
+		ENV_DEBUGCOMMENTS = cli.debugcomments;
 	}
 	if let Some(bit) = arg!(&ENV_JITBIT) {
 		AddToOutput(&format!("local {} = require(\"bit\");\n", bit));

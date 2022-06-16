@@ -10,7 +10,7 @@ use crate::{
 	finaloutput,
 	ENV_JITBIT,
 	ENV_CONTINUE,
-	ENV_NODEBUGCOMMENTS
+	ENV_DEBUGCOMMENTS
 };
 use self::ComplexToken::*;
 use std::{
@@ -1219,10 +1219,10 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 	}
 	unsafe {
 		if !i.statics.is_empty() {
-			finaloutput = if ENV_NODEBUGCOMMENTS {
-				i.statics
-			} else {
+			finaloutput = if ENV_DEBUGCOMMENTS {
 				format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
+			} else {
+				i.statics
 			} + &finaloutput;
 		}
 	}

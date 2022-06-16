@@ -9,7 +9,7 @@ use crate::{
 	},
 	ENV_CONTINUE,
 	ENV_RAWSETGLOBALS,
-	ENV_NODEBUGCOMMENTS
+	ENV_DEBUGCOMMENTS
 };
 use std::iter::{Peekable, Iterator};
 
@@ -67,18 +67,18 @@ fn CompileFunction(scope: usize, names: Option<&Vec<String>>, args: FunctionArgs
 fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	let code = CompileTokens(scope + 1, block.code);
 	let pre = Indentate(scope);
-	if arg!(ENV_NODEBUGCOMMENTS) {
-		format!("{}\n{}\n{}", start, code, pre)
-	} else {
+	if arg!(ENV_DEBUGCOMMENTS) {
 		format!("{}\n{}\t--{}->{}\n{}\n{}", start, pre, block.start, block.end, code, pre)
+	} else {
+		format!("{}\n{}\n{}", start, code, pre)
 	}
 }
 
 fn CompileDebugLine(line: usize) -> String {
-	if arg!(ENV_NODEBUGCOMMENTS) {
-		String::new()
-	} else {
+	if arg!(ENV_DEBUGCOMMENTS) {
 		format!(" --{}", line)
+	} else {
+		String::new()
 	}
 }
 
