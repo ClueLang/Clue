@@ -1,16 +1,9 @@
 use crate::{
+	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
-	parser::{
-		ComplexToken,
-		ComplexToken::*,
-		FunctionArgs,
-		CodeBlock,
-		Expression
-	},
-	ENV_CONTINUE,
-	ENV_RAWSETGLOBALS,
-	ENV_DEBUGCOMMENTS
+	ENV_CONTINUE, ENV_DEBUGCOMMENTS, ENV_RAWSETGLOBALS,
 };
+use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
 
 fn Indentate(scope: usize) -> String {
@@ -30,7 +23,7 @@ fn IndentateIf<T: Iterator>(ctokens: &mut Peekable<T>, scope: usize) -> String {
 
 fn CompileList<T>(list: Vec<T>, separator: &str, tostring: &mut impl FnMut(T) -> String) -> String {
 	let mut result = String::new();
-	let end = list.iter().count();
+	let end = list.len();
 	let mut start = 0usize;
 	for element in list {
 		result += &(tostring(element));
@@ -82,7 +75,10 @@ fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	let code = CompileTokens(scope + 1, block.code);
 	let pre = Indentate(scope);
 	if arg!(ENV_DEBUGCOMMENTS) {
-		format!("{}\n{}\t--{}->{}\n{}\n{}", start, pre, block.start, block.end, code, pre)
+		format!(
+			"{}\n{}\t--{}->{}\n{}\n{}",
+			start, pre, block.start, block.end, code, pre
+		)
 	} else {
 		format!("{}\n{}\n{}", start, code, pre)
 	}
@@ -121,7 +117,7 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 						} else {
 							panic!("This message should never appear");
 						};
-						checked += &format!("[({})]", rexpr);
+						write!(checked, "[({})]", rexpr).expect("");
 					}
 					"]" => {}
 					_ => checked += lexeme,
@@ -129,9 +125,11 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 			}
 			EXPR(expr) => {
 				let expr = CompileExpression(scope, names, expr);
-				checked += &format!("({})]", expr);
+				write!(checked, "({})]", expr).expect("");
 			}
-			CALL(args) => checked += &format!("({})", CompileExpressions(scope, names, args)),
+			CALL(args) => {
+				write!(checked, "({})", CompileExpressions(scope, names, args)).expect("")
+			}
 			_ => {}
 		}
 	}
@@ -232,16 +230,16 @@ fn CompileElseIfChain(
 	let next = if let Some(next) = next {
 		String::from("else")
 			+ &match *next {
-			IF_STATEMENT {
-				condition,
-				code,
-				next,
-			} => CompileElseIfChain(scope, condition, code, next),
-			DO_BLOCK(code) => CompileCodeBlock(scope, "", code),
-			_ => {
-				panic!("Unexpected ComplexToken found")
+				IF_STATEMENT {
+					condition,
+					code,
+					next,
+				} => CompileElseIfChain(scope, condition, code, next),
+				DO_BLOCK(code) => CompileCodeBlock(scope, "", code),
+				_ => {
+					panic!("Unexpected ComplexToken found")
+				}
 			}
-		}
 	} else {
 		String::new()
 	};
@@ -273,13 +271,18 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 						};
 						let end = {
 							let pend = IndentateIf(namesit, scope);
-							if pend != "" {
+							if !pend.is_empty() {
 								pend
 							} else {
 								IndentateIf(ctokens, scope)
 							}
 						};
-						result += &format!("rawset(_G, \"{}\", {});{}{}", name, value, line, end);
+						write!(
+							result,
+							"rawset(_G, \"{}\", {});{}{}",
+							name, value, line, end
+						)
+						.expect("");
 					}
 					result
 				} else {
@@ -313,20 +316,20 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 						String::new()
 					} else {
 						name.clone()
-							+ &match kind {
-							DEFINE_AND => " and ",
-							DEFINE_OR => " or ",
-							INCREASE => " + ",
-							DECREASE => " - ",
-							MULTIPLY => " * ",
-							DIVIDE => " / ",
-							EXPONENTIATE => " ^ ",
-							CONCATENATE => " .. ",
-							MODULATE => " % ",
-							_ => {
-								panic!("Unexpected alter type found")
+							+ match kind {
+								DEFINE_AND => " and ",
+								DEFINE_OR => " or ",
+								INCREASE => " + ",
+								DECREASE => " - ",
+								MULTIPLY => " * ",
+								DIVIDE => " / ",
+								EXPONENTIATE => " ^ ",
+								CONCATENATE => " .. ",
+								MODULATE => " % ",
+								_ => {
+									panic!("Unexpected alter type found")
+								}
 							}
-						}
 					}) + &CompileExpression(scope, Some(&names), expr)
 				});
 				let names = CompileIdentifiers(names);
@@ -394,14 +397,14 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 						let code = CompileCodeBlock(scope, if default { "" } else { "then" }, code);
 						let end = match branches.peek() {
 							Some((conditions, extraif, _))
-							if conditions.is_empty() && matches!(extraif, None) =>
-								{
-									""
-								}
+								if conditions.is_empty() && matches!(extraif, None) =>
+							{
+								""
+							}
 							Some(_) => "else",
 							_ => "end",
 						};
-						result += &format!("{} {}{}{}", pre, condition, code, end)
+						write!(result, "{} {}{}{}", pre, condition, code, end).expect("");
 					}
 					result
 				};
