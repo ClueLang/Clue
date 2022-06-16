@@ -57,6 +57,7 @@ The most likely ones to be added in the future are:
 - `struct`
 
 For any suggestion or bug you can make a github issue.
+If you need help with the language itself, you can check out the new [Discord server](https://discord.gg/EQsnWpqN3C).
 
 I hope Clue will be useful to you :)
 
