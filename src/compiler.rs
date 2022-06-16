@@ -117,7 +117,8 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 						} else {
 							panic!("This message should never appear");
 						};
-						write!(checked, "[({})]", rexpr).expect("");
+						write!(checked, "[({})]", rexpr)
+							.expect("something really unexpected happened");
 					}
 					"]" => {}
 					_ => checked += lexeme,
@@ -125,11 +126,10 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 			}
 			EXPR(expr) => {
 				let expr = CompileExpression(scope, names, expr);
-				write!(checked, "({})]", expr).expect("");
+				write!(checked, "({})]", expr).expect("something really unexpected happened");
 			}
-			CALL(args) => {
-				write!(checked, "({})", CompileExpressions(scope, names, args)).expect("")
-			}
+			CALL(args) => write!(checked, "({})", CompileExpressions(scope, names, args))
+				.expect("something really unexpected happened"),
 			_ => {}
 		}
 	}
@@ -282,7 +282,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 							"rawset(_G, \"{}\", {});{}{}",
 							name, value, line, end
 						)
-						.expect("");
+						.expect("something really unexpected happened");
 					}
 					result
 				} else {
@@ -404,7 +404,8 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 							Some(_) => "else",
 							_ => "end",
 						};
-						write!(result, "{} {}{}{}", pre, condition, code, end).expect("");
+						write!(result, "{} {}{}{}", pre, condition, code, end)
+							.expect("something really unexpected happened");
 					}
 					result
 				};
