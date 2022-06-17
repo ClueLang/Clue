@@ -1,13 +1,12 @@
 #![allow(non_camel_case_types)]
 
-use self::ComplexToken::*;
-use crate::TokenType::*;
-use crate::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
-use crate::{
-	compiler::CompileTokens, finaloutput, Token, TokenType, ENV_CONTINUE, ENV_DEBUGCOMMENTS,
-	ENV_JITBIT,
-};
 use std::{cmp, collections::LinkedList};
+
+use crate::scanner::TokenType::*;
+use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
+use crate::{check, compiler::CompileTokens, scanner::Token, scanner::TokenType, ENV_DATA};
+
+use self::ComplexToken::*;
 
 macro_rules! expression {
 	($($x: expr),*) => {
@@ -451,7 +450,7 @@ impl ParserInfo {
 		end: OptionalEnd,
 	) -> Result<(), String> {
 		self.checkOperator(&t, true)?;
-		if let Some(bit) = arg!(&ENV_JITBIT) {
+		if let Some(bit) = ENV_DATA.read().expect("Can't lock env_data").env_jitbit() {
 			let mut arg1 = Expression::new();
 			arg1.append(expr);
 			let arg2 = self.buildExpression(end)?;
@@ -530,7 +529,7 @@ impl ParserInfo {
 				BIT_XOR => self.buildBitwiseOp(t, &mut expr, "bxor", end)?,
 				BIT_NOT => {
 					self.checkOperator(&t, false)?;
-					if let Some(bit) = arg!(&ENV_JITBIT) {
+					if let Some(bit) = ENV_DATA.read().expect("Can't lock env_data").env_jitbit() {
 						let arg = self.buildExpression(end)?;
 						expr.push_back(SYMBOL(bit.clone() + ".bnot"));
 						expr.push_back(CALL(vec![arg]));
@@ -850,7 +849,7 @@ impl ParserInfo {
 
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
 		let mut code = self.buildCodeBlock()?;
-		if arg!(ENV_CONTINUE) {
+		if ENV_DATA.read().expect("Can't lock env_data").env_continue() {
 			code.code.push_back(SYMBOL(String::from("::continue::")));
 		}
 		Ok(code)
@@ -1382,14 +1381,27 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			_ => return Err(i.expected("<end>", &t.lexeme, t.line)),
 		}
 	}
-	unsafe {
-		if !i.statics.is_empty() {
-			finaloutput = if ENV_DEBUGCOMMENTS {
-				format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
-			} else {
-				i.statics
-			} + &finaloutput;
+
+	if !i.statics.is_empty() {
+		if ENV_DATA
+			.read()
+			.expect("Can't lock env_data")
+			.env_debugcomments()
+		{
+			ENV_DATA
+				.write()
+				.expect("Can't lock env_data")
+				.add_output_code(format!(
+					"--statics defined in \"{}\":\n{}\n",
+					i.filename, i.statics
+				));
+		} else {
+			ENV_DATA
+				.write()
+				.expect("Can't lock env_data")
+				.add_output_code(i.statics);
 		}
 	}
+
 	Ok(i.expr)
 }

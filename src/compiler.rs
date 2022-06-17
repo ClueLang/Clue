@@ -1,10 +1,11 @@
+use std::fmt::Write;
+use std::iter::{Iterator, Peekable};
+
 use crate::{
 	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
-	ENV_CONTINUE, ENV_DEBUGCOMMENTS, ENV_RAWSETGLOBALS,
+	ENV_DATA,
 };
-use std::fmt::Write;
-use std::iter::{Iterator, Peekable};
 
 fn Indentate(scope: usize) -> String {
 	let mut result = String::new();
@@ -74,7 +75,11 @@ fn CompileFunction(
 fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	let code = CompileTokens(scope + 1, block.code);
 	let pre = Indentate(scope);
-	if arg!(ENV_DEBUGCOMMENTS) {
+	if ENV_DATA
+		.read()
+		.expect("Can't lock env_data")
+		.env_debugcomments()
+	{
 		format!(
 			"{}\n{}\t--{}->{}\n{}\n{}",
 			start, pre, block.start, block.end, code, pre
@@ -85,7 +90,11 @@ fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 }
 
 fn CompileDebugLine(line: usize) -> String {
-	if arg!(ENV_DEBUGCOMMENTS) {
+	if ENV_DATA
+		.read()
+		.expect("Can't lock env_data")
+		.env_debugcomments()
+	{
 		format!(" --{}", line)
 	} else {
 		String::new()
@@ -259,7 +268,12 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				line,
 			} => {
 				let line = CompileDebugLine(line);
-				if !local && arg!(ENV_RAWSETGLOBALS) {
+				if !local
+					&& ENV_DATA
+						.read()
+						.expect("Can't lock env_data")
+						.env_rawsetglobals()
+				{
 					let mut result = String::new();
 					let mut valuesit = values.iter();
 					let namesit = &mut names.iter().peekable();
@@ -519,7 +533,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let end = IndentateIf(ctokens, scope);
 				format!(
 					"{};{}",
-					if arg!(ENV_CONTINUE) {
+					if ENV_DATA.read().expect("Can't lock env_data").env_continue() {
 						"goto continue"
 					} else {
 						"continue"

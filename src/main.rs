@@ -1,42 +1,14 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
-macro_rules! check {
-	($tocheck: expr) => {
-		match $tocheck {
-			Ok(t) => t,
-			Err(e) => return Err(e.to_string()),
-		}
-	};
-}
-
-macro_rules! arg {
-	($name: expr) => {
-		unsafe { $name }
-	};
-}
-
-mod compiler;
-mod parser;
-mod scanner;
-
-use clap::Parser;
-use compiler::*;
-use parser::*;
-use scanner::*;
 use std::{fs, fs::File, io::prelude::*, path::Path, time::Instant};
 
-pub static mut finaloutput: String = String::new();
+use clap::Parser;
 
-pub static mut ENV_TOKENS: bool = false;
-pub static mut ENV_STRUCT: bool = false;
-pub static mut ENV_OUTPUT: bool = false;
-pub static mut ENV_JITBIT: Option<String> = None;
-pub static mut ENV_CONTINUE: bool = false;
-pub static mut ENV_DONTSAVE: bool = false;
-pub static mut ENV_PATHISCODE: bool = false;
-pub static mut ENV_RAWSETGLOBALS: bool = false;
-pub static mut ENV_DEBUGCOMMENTS: bool = false;
+use clue::compiler::*;
+use clue::parser::*;
+use clue::scanner::*;
+use clue::{check, ENV_DATA};
 
 #[derive(Parser)]
 #[clap(about, version, long_about = None)]
@@ -93,21 +65,24 @@ struct Cli {
 }
 
 fn AddToOutput(string: &str) {
-	unsafe { finaloutput += string }
+	ENV_DATA
+		.write()
+		.expect("Can't lock env_data")
+		.add_output_code(String::from(string));
 }
 
 fn CompileCode(code: String, name: String, scope: usize) -> Result<String, String> {
 	let time = Instant::now();
 	let tokens: Vec<Token> = ScanCode(code, name.clone())?;
-	if arg!(ENV_TOKENS) {
+	if ENV_DATA.read().expect("Can't lock env_data").env_tokens() {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
 	let ctokens = ParseTokens(tokens, name.clone())?;
-	if arg!(ENV_STRUCT) {
+	if ENV_DATA.read().expect("Can't lock env_data").env_struct() {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
 	let code = CompileTokens(scope, ctokens);
-	if arg!(ENV_OUTPUT) {
+	if ENV_DATA.read().expect("Can't lock env_data").env_output() {
 		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
 	}
 	println!(
@@ -156,22 +131,26 @@ fn main() -> Result<(), String> {
 		println!("{}", include_str!("../LICENSE"));
 		return Ok(());
 	}
-	unsafe {
-		ENV_TOKENS = cli.tokens;
-		ENV_STRUCT = cli.r#struct;
-		ENV_OUTPUT = cli.output;
-		ENV_JITBIT = cli.jitbit;
-		ENV_CONTINUE = cli.r#continue;
-		ENV_DONTSAVE = cli.dontsave;
-		ENV_PATHISCODE = cli.pathiscode;
-		ENV_RAWSETGLOBALS = cli.rawsetglobals;
-		ENV_DEBUGCOMMENTS = cli.debugcomments;
-	}
-	if let Some(bit) = arg!(&ENV_JITBIT) {
+	ENV_DATA.write().expect("Can't lock env_data").set_data(
+		cli.tokens,
+		cli.r#struct,
+		cli.output,
+		cli.jitbit,
+		cli.r#continue,
+		cli.dontsave,
+		cli.pathiscode,
+		cli.rawsetglobals,
+		cli.debugcomments,
+	);
+	if let Some(bit) = &ENV_DATA.read().expect("Can't lock env_data").env_jitbit() {
 		AddToOutput(&format!("local {} = require(\"bit\");\n", bit));
 	}
 	let codepath = cli.path.unwrap();
-	if arg!(ENV_PATHISCODE) {
+	if ENV_DATA
+		.read()
+		.expect("Can't lock env_data")
+		.env_pathiscode()
+	{
 		let code = CompileCode(codepath, String::from("(command line)"), 0)?;
 		println!("{}", code);
 		return Ok(());
@@ -181,7 +160,7 @@ fn main() -> Result<(), String> {
 		AddToOutput(include_str!("base.lua"));
 		CompileFolder(path, String::new())?;
 		AddToOutput("\r}\nimport(\"main\")");
-		if !arg!(ENV_DONTSAVE) {
+		if !ENV_DATA.read().expect("Can't lock env_data").env_dontsave() {
 			let outputname = &format!("{}.lua", cli.outputname);
 			let compiledname = if path.display().to_string().ends_with('/')
 				|| path.display().to_string().ends_with('\\')
@@ -190,7 +169,10 @@ fn main() -> Result<(), String> {
 			} else {
 				format!("{}/{}", path.display(), outputname)
 			};
-			check!(fs::write(compiledname, unsafe { &finaloutput }))
+			check!(fs::write(
+				compiledname,
+				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
+			))
 		}
 	} else if path.is_file() {
 		let code = CompileFile(
@@ -199,10 +181,13 @@ fn main() -> Result<(), String> {
 			0,
 		)?;
 		AddToOutput(&code);
-		if !arg!(ENV_DONTSAVE) {
+		if !ENV_DATA.read().expect("Can't lock env_data").env_dontsave() {
 			let compiledname =
 				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-			check!(fs::write(compiledname, unsafe { &finaloutput }))
+			check!(fs::write(
+				compiledname,
+				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
+			))
 		}
 	} else {
 		return Err(String::from("The given path doesn't exist"));
