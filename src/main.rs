@@ -121,7 +121,7 @@ fn CompileCode(code: String, name: String, scope: usize) -> Result<String, Strin
 fn CompileFile(path: &Path, name: String, scope: usize) -> Result<String, String> {
 	let mut code: String = String::new();
 	check!(check!(File::open(path)).read_to_string(&mut code));
-	CompileCode(code, name, scope)
+	Ok(CompileCode(code, name, scope)?)
 }
 
 fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
@@ -134,7 +134,7 @@ fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 			.to_string_lossy()
 			.into_owned();
 		let filePathName: String = format!("{}/{}", path.display(), name);
-		let filepath: &Path = Path::new(&filePathName);
+		let filepath: &Path = &Path::new(&filePathName);
 		let rname = rpath.clone() + &name;
 		if filepath.is_dir() {
 			CompileFolder(filepath, rname + ".")?;
@@ -172,7 +172,7 @@ fn main() -> Result<(), String> {
 	}
 	let codepath = cli.path.unwrap();
 	if arg!(ENV_PATHISCODE) {
-		let code = CompileCode(codepath, String::from("(command line)"), 0)?;
+		let code = CompileCode(codepath.clone(), String::from("(command line)"), 0)?;
 		println!("{}", code);
 		return Ok(());
 	}
