@@ -1,13 +1,10 @@
 #![allow(non_camel_case_types)]
 
 use self::ComplexToken::*;
+use crate::{compiler::CompileTokens, finaloutput, ENV_JITBIT, ENV_CONTINUE, ENV_DEBUGCOMMENTS, TokenType, Token};
 use crate::TokenType::*;
-use crate::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
-use crate::{
-	compiler::CompileTokens, finaloutput, Token, TokenType, ENV_CONTINUE, ENV_DEBUGCOMMENTS,
-	ENV_JITBIT,
-};
 use std::{cmp, collections::LinkedList};
+use crate::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 
 macro_rules! expression {
 	($($x: expr),*) => {
@@ -138,8 +135,8 @@ impl ParserInfo {
 		ParserInfo {
 			current: 0,
 			size: tokens.len() - 1,
-			tokens,
-			filename,
+			tokens: tokens,
+			filename: filename,
 			expr: Expression::new(),
 			testing: None,
 			localid: 0,
@@ -336,7 +333,10 @@ impl ParserInfo {
 						}
 						SQUARE_BRACKET_CLOSED => {
 							qscope -= 1;
-							!matches!(qscope, 0)
+							match qscope {
+								0 => false,
+								_ => true,
+							}
 						}
 						EOF => return Err(self.expectedBefore("]", "<end>", self.peek(0).line)),
 						_ => true,
@@ -381,7 +381,13 @@ impl ParserInfo {
 			let start = self.current;
 			let mut cscope = 0u8;
 			while match self.peek(0).kind {
-				COMMA | CURLY_BRACKET_CLOSED => cscope == 0,
+				COMMA | CURLY_BRACKET_CLOSED => {
+					if cscope == 0 {
+						false
+					} else {
+						true
+					}
+				}
 				ROUND_BRACKET_OPEN => {
 					cscope += 1;
 					true
@@ -410,31 +416,31 @@ impl ParserInfo {
 	}
 
 	fn checkOperator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
-		if !matches!(
-			self.peek(0).kind,
-			NUMBER
-				| IDENTIFIER | STRING
-				| DOLLAR | PROTECTED_GET
-				| TRUE | FALSE | MINUS
-				| BIT_NOT | NIL | NOT
-				| HASHTAG | ROUND_BRACKET_OPEN
-				| TREDOTS
-		) {
+		if match self.peek(0).kind {
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS
+			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | TREDOTS => false,
+			_ => true,
+		} {
 			return Err(self.error(
 				format!("Operator '{}' has invalid right hand token", t.lexeme),
 				t.line,
 			));
 		}
 		if checkback
-			&& !matches!(
-				self.lookBack(1).kind,
-				NUMBER
-					| IDENTIFIER | STRING
-					| DOLLAR | TRUE | FALSE
-					| NIL | ROUND_BRACKET_CLOSED
-					| SQUARE_BRACKET_CLOSED
-					| TREDOTS
-			) {
+			&& match self.lookBack(1).kind {
+			NUMBER
+			| IDENTIFIER
+			| STRING
+			| DOLLAR
+			| TRUE
+			| FALSE
+			| NIL
+			| ROUND_BRACKET_CLOSED
+			| SQUARE_BRACKET_CLOSED
+			| TREDOTS => false,
+			_ => true,
+		}
+		{
 			return Err(self.error(
 				format!("Operator '{}' has invalid left hand token", t.lexeme),
 				t.line,
@@ -465,7 +471,10 @@ impl ParserInfo {
 
 	fn checkIndex(&mut self, t: &Token, expr: &mut Expression, lexeme: &str) -> Result<(), String> {
 		if !self.compare(IDENTIFIER)
-			|| matches!(self.lookBack(0).kind, IDENTIFIER | SQUARE_BRACKET_CLOSED)
+			|| match self.lookBack(0).kind {
+			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
+			_ => false,
+		}
 		{
 			return Err(self.error(
 				format!("'{}' should be used only when indexing", t.lexeme),
@@ -545,10 +554,10 @@ impl ParserInfo {
 					expr.push_back(SYMBOL(String::from("~=")))
 				}
 				HASHTAG => {
-					if !matches!(
-						self.peek(0).kind,
-						IDENTIFIER | CURLY_BRACKET_OPEN | ROUND_BRACKET_OPEN
-					) {
+					if match self.peek(0).kind {
+						IDENTIFIER | CURLY_BRACKET_OPEN | ROUND_BRACKET_OPEN => false,
+						_ => true,
+					} {
 						let t = self.peek(0);
 						return Err(self.expected("<table>", &t.lexeme, t.line));
 					}
@@ -579,7 +588,10 @@ impl ParserInfo {
 						let start = i.peek(0).line;
 						let expr = i.buildExpression(None)?;
 						let end = i.lookBack(1).line;
-						if matches!(i.lookBack(0).kind, CURLY_BRACKET_CLOSED | DEFAULT) {
+						if match i.lookBack(0).kind {
+							CURLY_BRACKET_CLOSED | DEFAULT => true,
+							_ => false,
+						} {
 							i.current -= 1
 						}
 						Ok(CodeBlock {
@@ -711,7 +723,7 @@ impl ParserInfo {
 				_ => break t,
 			}
 		};
-		if expr.is_empty() {
+		if expr.len() == 0 {
 			return Err(self.expected("<expr>", &last.lexeme, last.line));
 		}
 		self.assertEnd(&self.lookBack(0), end, expr)
@@ -1205,7 +1217,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				} {}
 				i.current -= 1;
 				let checkt = i.lookBack(0);
-				let check = checkt.kind as u8;
+				let check = checkt.kind.clone() as u8;
 				if check < DEFINE as u8 || check > MODULATE as u8 {
 					return Err(i.expected("=", &checkt.lexeme, checkt.line));
 				}

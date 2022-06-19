@@ -3,7 +3,6 @@ use crate::{
 	scanner::TokenType::*,
 	ENV_CONTINUE, ENV_DEBUGCOMMENTS, ENV_RAWSETGLOBALS,
 };
-use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
 
 fn Indentate(scope: usize) -> String {
@@ -23,7 +22,7 @@ fn IndentateIf<T: Iterator>(ctokens: &mut Peekable<T>, scope: usize) -> String {
 
 fn CompileList<T>(list: Vec<T>, separator: &str, tostring: &mut impl FnMut(T) -> String) -> String {
 	let mut result = String::new();
-	let end = list.len();
+	let end = list.iter().count();
 	let mut start = 0usize;
 	for element in list {
 		result += &(tostring(element));
@@ -117,8 +116,7 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 						} else {
 							panic!("This message should never appear");
 						};
-						write!(checked, "[({})]", rexpr)
-							.expect("something really unexpected happened");
+						checked += &format!("[({})]", rexpr);
 					}
 					"]" => {}
 					_ => checked += lexeme,
@@ -126,10 +124,9 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 			}
 			EXPR(expr) => {
 				let expr = CompileExpression(scope, names, expr);
-				write!(checked, "({})]", expr).expect("something really unexpected happened");
+				checked += &format!("({})]", expr);
 			}
-			CALL(args) => write!(checked, "({})", CompileExpressions(scope, names, args))
-				.expect("something really unexpected happened"),
+			CALL(args) => checked += &format!("({})", CompileExpressions(scope, names, args)),
 			_ => {}
 		}
 	}
@@ -271,18 +268,13 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 						};
 						let end = {
 							let pend = IndentateIf(namesit, scope);
-							if !pend.is_empty() {
+							if pend != "" {
 								pend
 							} else {
 								IndentateIf(ctokens, scope)
 							}
 						};
-						write!(
-							result,
-							"rawset(_G, \"{}\", {});{}{}",
-							name, value, line, end
-						)
-						.expect("something really unexpected happened");
+						result += &format!("rawset(_G, \"{}\", {});{}{}", name, value, line, end);
 					}
 					result
 				} else {
@@ -316,7 +308,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 						String::new()
 					} else {
 						name.clone()
-							+ match kind {
+							+ &match kind {
 								DEFINE_AND => " and ",
 								DEFINE_OR => " or ",
 								INCREASE => " + ",
@@ -404,8 +396,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 							Some(_) => "else",
 							_ => "end",
 						};
-						write!(result, "{} {}{}{}", pre, condition, code, end)
-							.expect("something really unexpected happened");
+						result += &format!("{} {}{}{}", pre, condition, code, end)
 					}
 					result
 				};
