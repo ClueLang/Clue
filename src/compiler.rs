@@ -3,7 +3,7 @@ use std::iter::{Iterator, Peekable};
 use crate::{
 	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
-	ENV_DATA, arg
+	ENV_DATA, flag
 };
 
 fn indentate(scope: usize) -> String {
@@ -74,7 +74,7 @@ fn compile_function(
 fn compile_code_block(scope: usize, start: &str, block: CodeBlock) -> String {
 	let code = compile_tokens(scope + 1, block.code);
 	let pre = indentate(scope);
-	if arg!(env_debugcomments) {
+	if flag!(env_debugcomments) {
 		format!(
 			"{}\n{}\t--{}->{}\n{}\n{}",
 			start, pre, block.start, block.end, code, pre
@@ -85,7 +85,7 @@ fn compile_code_block(scope: usize, start: &str, block: CodeBlock) -> String {
 }
 
 fn compile_debug_line(line: usize) -> String {
-	if arg!(env_debugcomments) {
+	if flag!(env_debugcomments) {
 		format!(" --{}", line)
 	} else {
 		String::new()
@@ -245,7 +245,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 			SYMBOL(lexeme) => lexeme,
 			VARIABLE {local, names, values, line} => {
 				let line = compile_debug_line(line);
-				if !local && arg!(env_rawsetglobals) {
+				if !local && flag!(env_rawsetglobals) {
 					let mut result = String::new();
 					let mut valuesit = values.iter();
 					let namesit = &mut names.iter().peekable();
@@ -500,7 +500,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				let end = indentate_if(ctokens, scope);
 				format!(
 					"{};{}",
-					if arg!(env_continue) {
+					if flag!(env_continue) {
 						"goto continue"
 					} else {
 						"continue"

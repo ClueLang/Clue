@@ -1,5 +1,12 @@
 use std::fmt::Write;
 
+#[macro_export]
+macro_rules! flag {
+	($arg: ident) => {
+		ENV_DATA.read().expect("Can't lock env_data").$arg()
+	};
+}
+
 pub struct EnvData {
 	env_tokens: bool,
 	env_struct: bool,
@@ -91,11 +98,4 @@ impl Default for EnvData {
 	fn default() -> Self {
 		Self::new()
 	}
-}
-
-#[macro_export]
-macro_rules! arg {
-	($arg: ident) => {
-		ENV_DATA.read().expect("Can't lock env_data").$arg()
-	};
 }

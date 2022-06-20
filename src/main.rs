@@ -1,5 +1,5 @@
 use clap::Parser;
-use clue::{arg, check, compiler::*, parser::*, scanner::*, ENV_DATA};
+use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA};
 use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
 
 #[derive(Parser)]
@@ -66,15 +66,15 @@ fn add_to_output(string: &str) {
 fn compile_code(code: String, name: String, scope: usize) -> Result<String, String> {
 	let time = Instant::now();
 	let tokens: Vec<Token> = scan_code(code, name.clone())?;
-	if arg!(env_tokens) {
+	if flag!(env_tokens) {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
 	let ctokens = ParseTokens(tokens, name.clone())?;
-	if arg!(env_struct) {
+	if flag!(env_struct) {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
 	let code = compile_tokens(scope, ctokens);
-	if arg!(env_output) {
+	if flag!(env_output) {
 		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
 	}
 	println!(
@@ -140,11 +140,11 @@ fn main() -> Result<(), String> {
 		cli.rawsetglobals,
 		cli.debugcomments,
 	);
-	if let Some(bit) = &arg!(env_jitbit) {
+	if let Some(bit) = &flag!(env_jitbit) {
 		add_to_output(&format!("local {} = require(\"bit\");\n", bit));
 	}
 	let codepath = cli.path.unwrap();
-	if arg!(env_pathiscode) {
+	if flag!(env_pathiscode) {
 		let code = compile_code(codepath, String::from("(command line)"), 0)?;
 		println!("{}", code);
 		return Ok(());
@@ -154,7 +154,7 @@ fn main() -> Result<(), String> {
 		add_to_output(include_str!("base.lua"));
 		compile_folder(&codepath, String::new())?;
 		add_to_output("\r}\nimport(\"main\")");
-		if !arg!(env_dontsave) {
+		if !flag!(env_dontsave) {
 			let outputname = &format!("{}.lua", cli.outputname);
 			let compiledname = if path.display().to_string().ends_with('/')
 				|| path.display().to_string().ends_with('\\')
@@ -175,7 +175,7 @@ fn main() -> Result<(), String> {
 			0,
 		)?;
 		add_to_output(&code);
-		if !arg!(env_dontsave) {
+		if !flag!(env_dontsave) {
 			let compiledname =
 				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
 			check!(fs::write(
