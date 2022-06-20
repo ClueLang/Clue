@@ -2,7 +2,7 @@
 main.exe
 test/
 main.lua
-*.clue
+main.clue
 src/main.exe
 src/main.pdb
 debug/
