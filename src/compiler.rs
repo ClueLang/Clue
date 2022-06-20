@@ -1,9 +1,11 @@
+use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
 
 use crate::{
+	flag,
 	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
-	ENV_DATA, flag
+	ENV_DATA,
 };
 
 fn indentate(scope: usize) -> String {
@@ -21,9 +23,13 @@ fn indentate_if<T: Iterator>(ctokens: &mut Peekable<T>, scope: usize) -> String 
 	}
 }
 
-fn compile_list<T>(list: Vec<T>, separator: &str, tostring: &mut impl FnMut(T) -> String) -> String {
+fn compile_list<T>(
+	list: Vec<T>,
+	separator: &str,
+	tostring: &mut impl FnMut(T) -> String,
+) -> String {
 	let mut result = String::new();
-	let end = list.iter().count();
+	let end = list.len();
 	let mut start = 0usize;
 	for element in list {
 		result += &(tostring(element));
@@ -117,7 +123,8 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 						} else {
 							panic!("This message should never appear");
 						};
-						checked += &format!("[({})]", rexpr);
+						write!(checked, "[({})]", rexpr)
+							.expect("something really unexpected happened");
 					}
 					"]" => {}
 					_ => checked += lexeme,
@@ -125,9 +132,10 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 			}
 			EXPR(expr) => {
 				let expr = compile_expression(scope, names, expr);
-				checked += &format!("({})]", expr);
+				write!(checked, "({})]", expr).expect("something really unexpected happened");
 			}
-			CALL(args) => checked += &format!("({})", compile_expressions(scope, names, args)),
+			CALL(args) => write!(checked, "({})", compile_expressions(scope, names, args))
+				.expect("something really unexpected happened"),
 			_ => {}
 		}
 	}
@@ -150,7 +158,11 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 					.to_string(),
 				None => String::from("nil"),
 			},
-			TABLE {values, metas, metatable} => {
+			TABLE {
+				values,
+				metas,
+				metatable,
+			} => {
 				scope += 1;
 				let mut prevline = 0usize;
 				let pre1 = indentate(scope);
@@ -230,10 +242,15 @@ fn compile_elseif_chain(
 	let condition = compile_expression(scope, None, condition);
 	let code = compile_code_block(scope, "then", code);
 	let next = if let Some(next) = next {
-		String::from("else") + &match *next {
-			IF_STATEMENT {condition, code, next} => compile_elseif_chain(scope, condition, code, next),
-			DO_BLOCK(code) => compile_code_block(scope, "", code),
-			_ => panic!("Unexpected ComplexToken found")
+		String::from("else")
+			+ &match *next {
+				IF_STATEMENT {
+					condition,
+					code,
+					next,
+				} => compile_elseif_chain(scope, condition, code, next),
+				DO_BLOCK(code) => compile_code_block(scope, "", code),
+				_ => panic!("Unexpected ComplexToken found"),
 			}
 	} else {
 		String::new()
@@ -247,7 +264,8 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 	while let Some(t) = ctokens.next() {
 		result += &match t {
 			SYMBOL(lexeme) => lexeme,
-			VARIABLE {local, names, values, line} => {
+			#[rustfmt::skip]
+			VARIABLE { local,names, values, line, } => {
 				let line = compile_debug_line(line);
 				if !local && flag!(env_rawsetglobals) {
 					let mut result = String::new();
@@ -267,7 +285,12 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 								indentate_if(ctokens, scope)
 							}
 						};
-						result += &format!("rawset(_G, \"{}\", {});{}{}", name, value, line, end);
+						write!(
+							result,
+							"rawset(_G, \"{}\", {});{}{}",
+							name, value, line, end
+						)
+						.expect("something really unexpected happened");
 					}
 					result
 				} else {
@@ -304,7 +327,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					(if kind == DEFINE {
 						String::new()
 					} else {
-						name + &match kind {
+						name + match kind {
 							DEFINE_AND => " and ",
 							DEFINE_OR => " or ",
 							INCREASE => " + ",
@@ -314,7 +337,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 							EXPONENTIATE => " ^ ",
 							CONCATENATE => " .. ",
 							MODULATE => " % ",
-							_ => panic!("Unexpected alter type found")
+							_ => panic!("Unexpected alter type found"),
 						}
 					}) + &compile_expression(scope, Some(&names), expr)
 				});
@@ -380,17 +403,19 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 								condition
 							}
 						};
-						let code = compile_code_block(scope, if default { "" } else { "then" }, code);
+						let code =
+							compile_code_block(scope, if default { "" } else { "then" }, code);
 						let end = match branches.peek() {
 							Some((conditions, extraif, _))
-							if conditions.is_empty() && matches!(extraif, None) =>
-								{
-									""
-								}
+								if conditions.is_empty() && matches!(extraif, None) =>
+							{
+								""
+							}
 							Some(_) => "else",
 							_ => "end",
 						};
-						result += &format!("{} {}{}{}", pre, condition, code, end)
+						write!(result, "{} {}{}{}", pre, condition, code, end)
+							.expect("something really unexpected happened");
 					}
 					result
 				};

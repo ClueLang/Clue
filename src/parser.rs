@@ -3,7 +3,7 @@
 use self::ComplexToken::*;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
-use crate::{flag, check, compiler::compile_tokens, scanner::Token, scanner::TokenType, ENV_DATA};
+use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
 use std::{cmp, collections::LinkedList};
 
 macro_rules! expression {
@@ -40,7 +40,7 @@ pub enum ComplexToken {
 	TABLE {
 		values: Vec<(Option<Expression>, Expression, usize)>,
 		metas: Vec<(String, Expression, usize)>,
-		metatable: Option<String>
+		metatable: Option<String>,
 	},
 
 	FUNCTION {
@@ -136,8 +136,8 @@ impl ParserInfo {
 		ParserInfo {
 			current: 0,
 			size: tokens.len() - 1,
-			tokens: tokens,
-			filename: filename,
+			tokens,
+			filename,
 			expr: Expression::new(),
 			testing: None,
 			localid: 0,
@@ -339,10 +339,7 @@ impl ParserInfo {
 						}
 						SQUARE_BRACKET_CLOSED => {
 							qscope -= 1;
-							match qscope {
-								0 => false,
-								_ => true,
-							}
+							!matches!(qscope, 0)
 						}
 						EOF => return Err(self.expected_before("]", "<end>", self.peek(0).line)),
 						_ => true,
@@ -357,17 +354,17 @@ impl ParserInfo {
 							return Err(self.error(
 								"An external metatable cannot be used if the table already set its own metamethods",
 								pn.line
-							))
+							));
 						}
 						metatable = Some(self.assert_advance(IDENTIFIER, "<name>")?.lexeme);
 						self.advance_if(COMMA);
-						continue
+						continue;
 					} else {
-						if let Some(_) = metatable {
+						if metatable.is_some() {
 							return Err(self.error(
 								"Metamethods cannot be set if the table already ueses an external metatable",
 								pn.line
-							))
+							));
 						}
 						name = Err(String::from(match self.advance().lexeme.as_ref() {
 							"index" => "__index",
@@ -405,13 +402,7 @@ impl ParserInfo {
 			let start = self.current;
 			let mut cscope = 0u8;
 			while match self.peek(0).kind {
-				COMMA | CURLY_BRACKET_CLOSED => {
-					if cscope == 0 {
-						false
-					} else {
-						true
-					}
-				}
+				COMMA | CURLY_BRACKET_CLOSED => cscope != 0,
 				ROUND_BRACKET_OPEN => {
 					cscope += 1;
 					true
@@ -436,34 +427,39 @@ impl ParserInfo {
 			self.current -= 1;
 			self.advance_if(COMMA);
 		}
-		Ok(TABLE {values, metas, metatable})
+		Ok(TABLE {
+			values,
+			metas,
+			metatable,
+		})
 	}
 
 	fn check_operator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
-		if match self.peek(0).kind {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS
-			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | THREEDOTS => false,
-			_ => true,
-		} {
+		if !matches!(
+			self.peek(0).kind,
+			NUMBER
+				| IDENTIFIER | STRING
+				| DOLLAR | PROTECTED_GET
+				| TRUE | FALSE | MINUS
+				| BIT_NOT | NIL | NOT
+				| HASHTAG | ROUND_BRACKET_OPEN
+				| THREEDOTS
+		) {
 			return Err(self.error(
 				format!("Operator '{}' has invalid right hand token", t.lexeme),
 				t.line,
 			));
 		}
 		if checkback
-			&& match self.look_back(1).kind {
+			&& !matches!(
+				self.look_back(1).kind,
 				NUMBER
-				| IDENTIFIER
-				| STRING
-				| DOLLAR
-				| TRUE
-				| FALSE
-				| NIL
-				| ROUND_BRACKET_CLOSED
-				| SQUARE_BRACKET_CLOSED
-				| THREEDOTS => false,
-				_ => true,
-			} {
+					| IDENTIFIER | STRING
+					| DOLLAR | TRUE | FALSE
+					| NIL | ROUND_BRACKET_CLOSED
+					| SQUARE_BRACKET_CLOSED
+					| THREEDOTS
+			) {
 			return Err(self.error(
 				format!("Operator '{}' has invalid left hand token", t.lexeme),
 				t.line,
@@ -498,10 +494,9 @@ impl ParserInfo {
 		expr: &mut Expression,
 		lexeme: &str,
 	) -> Result<(), String> {
-		if !self.compare(IDENTIFIER) || match self.look_back(0).kind {
-			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
-			_ => false,
-		} {
+		if !self.compare(IDENTIFIER)
+			|| matches!(self.look_back(0).kind, IDENTIFIER | SQUARE_BRACKET_CLOSED)
+		{
 			return Err(self.error(
 				format!("'{}' should be used only when indexing", t.lexeme),
 				self.peek(0).line,
@@ -580,10 +575,10 @@ impl ParserInfo {
 					expr.push_back(SYMBOL(String::from("~=")))
 				}
 				HASHTAG => {
-					if match self.peek(0).kind {
-						IDENTIFIER | CURLY_BRACKET_OPEN | ROUND_BRACKET_OPEN => false,
-						_ => true,
-					} {
+					if !matches!(
+						self.peek(0).kind,
+						IDENTIFIER | CURLY_BRACKET_OPEN | ROUND_BRACKET_OPEN
+					) {
 						let t = self.peek(0);
 						return Err(self.expected("<table>", &t.lexeme, t.line));
 					}
@@ -614,10 +609,7 @@ impl ParserInfo {
 						let start = i.peek(0).line;
 						let expr = i.build_expression(None)?;
 						let end = i.look_back(1).line;
-						if match i.look_back(0).kind {
-							CURLY_BRACKET_CLOSED | DEFAULT => true,
-							_ => false,
-						} {
+						if matches!(i.look_back(0).kind, CURLY_BRACKET_CLOSED | DEFAULT) {
 							i.current -= 1
 						}
 						Ok(CodeBlock {
@@ -749,7 +741,7 @@ impl ParserInfo {
 				_ => break t,
 			}
 		};
-		if expr.len() == 0 {
+		if expr.is_empty() {
 			return Err(self.expected("<expr>", &last.lexeme, last.line));
 		}
 		self.assert_end(&self.look_back(0), end, expr)
