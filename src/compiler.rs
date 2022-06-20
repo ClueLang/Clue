@@ -149,7 +149,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 					.to_string(),
 				None => String::from("nil"),
 			},
-			TABLE { values, metas } => {
+			TABLE {values, metas, metatable} => {
 				scope += 1;
 				let mut prevline = 0usize;
 				let pre1 = Indentate(scope);
@@ -177,7 +177,11 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 				let pre2 = Indentate(scope - 1);
 				if metas.is_empty() {
 					scope -= 1;
-					format!("{{{}{}}}", values, pre2)
+					if let Some(metatable) = metatable {
+						format!("setmetatable({{{}{}}}, {})", values, pre2, metatable)
+					} else {
+						format!("{{{}{}}}", values, pre2)
+					}
 				} else {
 					let metas = CompileList(metas, ", ", &mut |(name, value, line)| {
 						let value = CompileExpression(scope, names, value);
