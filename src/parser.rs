@@ -1,10 +1,10 @@
 #![allow(non_camel_case_types)]
 
-use std::{cmp, collections::LinkedList};
+use self::ComplexToken::*;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
-use crate::{check, compiler::compile_tokens, scanner::Token, scanner::TokenType, ENV_DATA, arg};
-use self::ComplexToken::*;
+use crate::{arg, check, compiler::compile_tokens, scanner::Token, scanner::TokenType, ENV_DATA};
+use std::{cmp, collections::LinkedList};
 
 macro_rules! expression {
 	($($x: expr),*) => {
@@ -428,19 +428,18 @@ impl ParserInfo {
 		}
 		if checkback
 			&& match self.look_back(1).kind {
-			NUMBER
-			| IDENTIFIER
-			| STRING
-			| DOLLAR
-			| TRUE
-			| FALSE
-			| NIL
-			| ROUND_BRACKET_CLOSED
-			| SQUARE_BRACKET_CLOSED
-			| THREEDOTS => false,
-			_ => true,
-		}
-		{
+				NUMBER
+				| IDENTIFIER
+				| STRING
+				| DOLLAR
+				| TRUE
+				| FALSE
+				| NIL
+				| ROUND_BRACKET_CLOSED
+				| SQUARE_BRACKET_CLOSED
+				| THREEDOTS => false,
+				_ => true,
+			} {
 			return Err(self.error(
 				format!("Operator '{}' has invalid left hand token", t.lexeme),
 				t.line,
@@ -469,7 +468,12 @@ impl ParserInfo {
 		Ok(())
 	}
 
-	fn check_index(&mut self, t: &Token, expr: &mut Expression, lexeme: &str) -> Result<(), String> {
+	fn check_index(
+		&mut self,
+		t: &Token,
+		expr: &mut Expression,
+		lexeme: &str,
+	) -> Result<(), String> {
 		if !self.compare(IDENTIFIER) || match self.look_back(0).kind {
 			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
 			_ => false,
@@ -1264,7 +1268,8 @@ impl ParserInfo {
 	}
 
 	fn parse_token_match(&mut self) -> Result<(), String> {
-		let ctoken = self.build_match_block(String::from("_match"), &ParserInfo::build_code_block)?;
+		let ctoken =
+			self.build_match_block(String::from("_match"), &ParserInfo::build_code_block)?;
 		self.expr.push_back(ctoken);
 
 		Ok(())
