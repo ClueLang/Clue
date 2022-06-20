@@ -1,6 +1,10 @@
-use std::{fs, fs::File, io::prelude::*, path::Path, time::Instant};
 use clap::Parser;
-use clue::{compiler::*,parser::*,scanner::*,check, ENV_DATA, arg};
+use clue::{arg, check, compiler::*, parser::*, scanner::*, ENV_DATA};
+use std::fs;
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
+use std::time::Instant;
 
 #[derive(Parser)]
 #[clap(about, version, long_about = None)]
@@ -181,4 +185,15 @@ fn main() -> Result<(), String> {
 		return Err(String::from("The given path doesn't exist"));
 	}
 	Ok(())
+}
+
+#[cfg(test)]
+mod test {
+	use crate::compile_folder;
+	use std::path::Path;
+
+	#[test]
+	fn compilation_success() {
+		compile_folder(Path::new("examples/"), String::new()).unwrap();
+	}
 }
