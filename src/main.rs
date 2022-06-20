@@ -1,6 +1,6 @@
-use std::{fs, fs::File, io::prelude::*, path::Path, time::Instant, ffi::OsStr, fmt::Display};
 use clap::Parser;
 use clue::{arg, check, compiler::*, parser::*, scanner::*, ENV_DATA};
+use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
 
 #[derive(Parser)]
 #[clap(about, version, long_about = None)]
@@ -87,40 +87,40 @@ fn compile_code(code: String, name: String, scope: usize) -> Result<String, Stri
 
 fn compile_file<P: AsRef<Path>>(path: P, name: String, scope: usize) -> Result<String, String>
 where
-    P: AsRef<OsStr> + Display,
+	P: AsRef<OsStr> + Display,
 {
-    let mut code: String = String::new();
-    check!(check!(File::open(path)).read_to_string(&mut code));
-    compile_code(code, name, scope)
+	let mut code: String = String::new();
+	check!(check!(File::open(path)).read_to_string(&mut code));
+	compile_code(code, name, scope)
 }
 
 fn compile_folder<P: AsRef<Path>>(path: P, rpath: String) -> Result<(), String>
 where
-    P: AsRef<OsStr> + Display,
+	P: AsRef<OsStr> + Display,
 {
-    for entry in check!(fs::read_dir(&path)) {
-        let entry = check!(entry);
-        let name: String = entry
-            .path()
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
-        let filepath_name: String = format!("{}/{}", path, name);
-        let filepath: &Path = Path::new(&filepath_name);
-        let rname = rpath.clone() + &name;
-        if filepath.is_dir() {
-            compile_folder(filepath_name, rname + ".")?;
-        } else if filepath_name.ends_with(".clue") {
-            let code = compile_file(filepath_name, name, 2)?;
-            let rname = rname.strip_suffix(".clue").unwrap();
-            add_to_output(&format!(
-                "[\"{}\"] = function()\n{}\n\tend,\n\t",
-                rname, code
-            ));
-        }
-    }
-    Ok(())
+	for entry in check!(fs::read_dir(&path)) {
+		let entry = check!(entry);
+		let name: String = entry
+			.path()
+			.file_name()
+			.unwrap()
+			.to_string_lossy()
+			.into_owned();
+		let filepath_name: String = format!("{}/{}", path, name);
+		let filepath: &Path = Path::new(&filepath_name);
+		let rname = rpath.clone() + &name;
+		if filepath.is_dir() {
+			compile_folder(filepath_name, rname + ".")?;
+		} else if filepath_name.ends_with(".clue") {
+			let code = compile_file(filepath_name, name, 2)?;
+			let rname = rname.strip_suffix(".clue").unwrap();
+			add_to_output(&format!(
+				"[\"{}\"] = function()\n{}\n\tend,\n\t",
+				rname, code
+			));
+		}
+	}
+	Ok(())
 }
 
 fn main() -> Result<(), String> {
@@ -151,39 +151,39 @@ fn main() -> Result<(), String> {
 	}
 	let path: &Path = Path::new(&codepath);
 	if path.is_dir() {
-        add_to_output(include_str!("base.lua"));
-        compile_folder(&codepath, String::new())?;
-        add_to_output("\r}\nimport(\"main\")");
-        if !arg!(env_dontsave) {
-            let outputname = &format!("{}.lua", cli.outputname);
-            let compiledname = if path.display().to_string().ends_with('/')
-                || path.display().to_string().ends_with('\\')
-            {
-                format!("{}{}", path.display(), outputname)
-            } else {
-                format!("{}/{}", path.display(), outputname)
-            };
-            check!(fs::write(
-                compiledname,
-                ENV_DATA.read().expect("Can't lock env_data").ouput_code()
-            ))
-        }
-    } else if path.is_file() {
-        let code = compile_file(
-            &codepath,
-            path.file_name().unwrap().to_string_lossy().into_owned(),
-            0,
-        )?;
-        add_to_output(&code);
-        if !arg!(env_dontsave) {
-            let compiledname =
-                String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-            check!(fs::write(
-                compiledname,
-                ENV_DATA.read().expect("Can't lock env_data").ouput_code()
-            ))
-        }
-    } else {
+		add_to_output(include_str!("base.lua"));
+		compile_folder(&codepath, String::new())?;
+		add_to_output("\r}\nimport(\"main\")");
+		if !arg!(env_dontsave) {
+			let outputname = &format!("{}.lua", cli.outputname);
+			let compiledname = if path.display().to_string().ends_with('/')
+				|| path.display().to_string().ends_with('\\')
+			{
+				format!("{}{}", path.display(), outputname)
+			} else {
+				format!("{}/{}", path.display(), outputname)
+			};
+			check!(fs::write(
+				compiledname,
+				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
+			))
+		}
+	} else if path.is_file() {
+		let code = compile_file(
+			&codepath,
+			path.file_name().unwrap().to_string_lossy().into_owned(),
+			0,
+		)?;
+		add_to_output(&code);
+		if !arg!(env_dontsave) {
+			let compiledname =
+				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
+			check!(fs::write(
+				compiledname,
+				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
+			))
+		}
+	} else {
 		return Err(String::from("The given path doesn't exist"));
 	}
 	Ok(())
@@ -192,10 +192,9 @@ fn main() -> Result<(), String> {
 #[cfg(test)]
 mod test {
 	use crate::compile_folder;
-	use std::path::Path;
 
 	#[test]
 	fn compilation_success() {
-		compile_folder(Path::new("examples/"), String::new()).unwrap();
+		compile_folder("examples/", String::new()).unwrap();
 	}
 }
