@@ -40,6 +40,7 @@ pub enum ComplexToken {
 	TABLE {
 		values: Vec<(Option<Expression>, Expression, usize)>,
 		metas: Vec<(String, Expression, usize)>,
+		metatable: Option<String>
 	},
 
 	FUNCTION {
@@ -284,6 +285,7 @@ impl ParserInfo {
 	fn build_table(&mut self) -> Result<ComplexToken, String> {
 		let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
 		let mut metas: Vec<(String, Expression, usize)> = Vec::new();
+		let mut metatable: Option<String> = None;
 		loop {
 			if self.advance_if(CURLY_BRACKET_CLOSED) {
 				break;
@@ -304,6 +306,10 @@ impl ParserInfo {
 				DEFINE => {
 					iskey = true;
 					false
+				}
+				META if self.peek(1).kind == WITH => {
+					iskey = true;
+					true
 				}
 				EOF => return Err(self.expected_before("}", "<end>", self.peek(0).line)),
 				_ => true,
@@ -346,31 +352,49 @@ impl ParserInfo {
 					self.current -= 1;
 				}
 				META => {
-					name = Err(String::from(match self.advance().lexeme.as_ref() {
-						"index" => "__index",
-						"newindex" => "__newindex",
-						"mode" => "__mode",
-						"call" => "__call",
-						"metatable" => "__metatable",
-						"tostring" => "__tostring",
-						"gc" => "__gc",
-						"name" => "__name",
-						"unm" | "unary" => "__unm",
-						"add" | "+" => "__add",
-						"sub" | "-" => "__sub",
-						"mul" | "*" => "__mul",
-						"div" | "/" => "__div",
-						"mod" | "%" => "__mod",
-						"pow" | "^" => "__pow",
-						"concat" | ".." => "__concat",
-						"eq" | "equal" | "==" => "__eq",
-						"lt" | "less_than" | "<" => "__lt",
-						"le" | "less_than_equal" | "<=" => "__le",
-						_ => {
-							let t = self.peek(0);
-							return Err(self.expected("<meta name>", &t.lexeme, t.line));
+					if self.advance_if(WITH) {
+						if !metas.is_empty() {
+							return Err(self.error(
+								"An external metatable cannot be used if the table already set its own metamethods",
+								pn.line
+							))
 						}
-					}))
+						metatable = Some(self.assert_advance(IDENTIFIER, "<name>")?.lexeme);
+						self.advance_if(COMMA);
+						continue
+					} else {
+						if let Some(_) = metatable {
+							return Err(self.error(
+								"Metamethods cannot be set if the table already ueses an external metatable",
+								pn.line
+							))
+						}
+						name = Err(String::from(match self.advance().lexeme.as_ref() {
+							"index" => "__index",
+							"newindex" => "__newindex",
+							"mode" => "__mode",
+							"call" => "__call",
+							"metatable" => "__metatable",
+							"tostring" => "__tostring",
+							"gc" => "__gc",
+							"name" => "__name",
+							"unm" | "unary" => "__unm",
+							"add" | "+" => "__add",
+							"sub" | "-" => "__sub",
+							"mul" | "*" => "__mul",
+							"div" | "/" => "__div",
+							"mod" | "%" => "__mod",
+							"pow" | "^" => "__pow",
+							"concat" | ".." => "__concat",
+							"eq" | "equal" | "==" => "__eq",
+							"lt" | "less_than" | "<" => "__lt",
+							"le" | "less_than_equal" | "<=" => "__le",
+							_ => {
+								let t = self.peek(0);
+								return Err(self.expected("<meta name>", &t.lexeme, t.line));
+							}
+						}))
+					}
 				}
 				_ => return Err(self.expected("<name>", &pn.lexeme, pn.line)),
 			}
@@ -412,7 +436,7 @@ impl ParserInfo {
 			self.current -= 1;
 			self.advance_if(COMMA);
 		}
-		Ok(TABLE { values, metas })
+		Ok(TABLE {values, metas, metatable})
 	}
 
 	fn check_operator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
