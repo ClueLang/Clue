@@ -4,7 +4,6 @@ use std::{cmp, collections::LinkedList};
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{check, compiler::compile_tokens, scanner::Token, scanner::TokenType, ENV_DATA, arg};
-
 use self::ComplexToken::*;
 
 macro_rules! expression {
@@ -419,7 +418,7 @@ impl ParserInfo {
 	fn check_operator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
 		if match self.peek(0).kind {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS
-			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | TREDOTS => false,
+			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | THREEDOTS => false,
 			_ => true,
 		} {
 			return Err(self.error(
@@ -438,7 +437,7 @@ impl ParserInfo {
 			| NIL
 			| ROUND_BRACKET_CLOSED
 			| SQUARE_BRACKET_CLOSED
-			| TREDOTS => false,
+			| THREEDOTS => false,
 			_ => true,
 		}
 		{
@@ -472,7 +471,7 @@ impl ParserInfo {
 
 	fn check_index(&mut self, t: &Token, expr: &mut Expression, lexeme: &str) -> Result<(), String> {
 		if !self.compare(IDENTIFIER)
-			|| match self.look_back(0).kind {
+			|| match self.lookBack(0).kind {
 			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
 			_ => false,
 		}
@@ -489,7 +488,7 @@ impl ParserInfo {
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | NIL | NOT
-			| HASHTAG | CURLY_BRACKET_OPEN | TREDOTS => {
+			| HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
 			}
@@ -653,7 +652,7 @@ impl ParserInfo {
 						break t;
 					}
 				}
-				TREDOTS | NUMBER | TRUE | FALSE | NIL => {
+				THREEDOTS | NUMBER | TRUE | FALSE | NIL => {
 					expr.push_back(SYMBOL(t.lexeme.clone()));
 					if self.check_val() {
 						break t;
@@ -886,7 +885,7 @@ impl ParserInfo {
 				let t = self.advance();
 				match t.kind {
 					IDENTIFIER => t,
-					TREDOTS => {
+					THREEDOTS => {
 						self.assert_compare(ROUND_BRACKET_CLOSED, ")")?;
 						t
 					}
