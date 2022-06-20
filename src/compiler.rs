@@ -3,7 +3,7 @@ use std::iter::{Iterator, Peekable};
 use crate::{
 	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
-	ENV_DATA,
+	ENV_DATA, arg
 };
 
 fn indentate(scope: usize) -> String {
@@ -74,11 +74,7 @@ fn compile_function(
 fn compile_code_block(scope: usize, start: &str, block: CodeBlock) -> String {
 	let code = compile_tokens(scope + 1, block.code);
 	let pre = indentate(scope);
-	if ENV_DATA
-		.read()
-		.expect("Can't lock env_data")
-		.env_debugcomments()
-	{
+	if arg!(env_debugcomments) {
 		format!(
 			"{}\n{}\t--{}->{}\n{}\n{}",
 			start, pre, block.start, block.end, code, pre
@@ -89,11 +85,7 @@ fn compile_code_block(scope: usize, start: &str, block: CodeBlock) -> String {
 }
 
 fn compile_debug_line(line: usize) -> String {
-	if ENV_DATA
-		.read()
-		.expect("Can't lock env_data")
-		.env_debugcomments()
-	{
+	if arg!(env_debugcomments) {
 		format!(" --{}", line)
 	} else {
 		String::new()
@@ -251,19 +243,9 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 	while let Some(t) = ctokens.next() {
 		result += &match t {
 			SYMBOL(lexeme) => lexeme,
-			VARIABLE {
-				local,
-				names,
-				values,
-				line,
-			} => {
+			VARIABLE {local, names, values, line} => {
 				let line = compile_debug_line(line);
-				if !local
-					&& ENV_DATA
-						.read()
-						.expect("Can't lock env_data")
-						.env_rawsetglobals()
-				{
+				if !local && arg!(env_rawsetglobals) {
 					let mut result = String::new();
 					let mut valuesit = values.iter();
 					let namesit = &mut names.iter().peekable();
@@ -515,7 +497,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				let end = indentate_if(ctokens, scope);
 				format!(
 					"{};{}",
-					if ENV_DATA.read().expect("Can't lock env_data").env_continue() {
+					if arg!(env_continue) {
 						"goto continue"
 					} else {
 						"continue"

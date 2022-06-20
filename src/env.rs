@@ -92,3 +92,10 @@ impl Default for EnvData {
 		Self::new()
 	}
 }
+
+#[macro_export]
+macro_rules! arg {
+	($arg: ident) => {
+		ENV_DATA.read().expect("Can't lock env_data").$arg()
+	};
+}

@@ -3,7 +3,7 @@
 use std::{cmp, collections::LinkedList};
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
-use crate::{check, compiler::compile_tokens, scanner::Token, scanner::TokenType, ENV_DATA};
+use crate::{check, compiler::compile_tokens, scanner::Token, scanner::TokenType, ENV_DATA, arg};
 
 use self::ComplexToken::*;
 
@@ -458,7 +458,7 @@ impl ParserInfo {
 		end: OptionalEnd,
 	) -> Result<(), String> {
 		self.check_operator(&t, true)?;
-		if let Some(bit) = ENV_DATA.read().expect("Can't lock env_data").env_jitbit() {
+		if let Some(bit) = arg!(env_jitbit) {
 			let mut arg1 = Expression::new();
 			arg1.append(expr);
 			let arg2 = self.build_expression(end)?;
@@ -540,7 +540,7 @@ impl ParserInfo {
 				BIT_XOR => self.build_bitwise_op(t, &mut expr, "bxor", end)?,
 				BIT_NOT => {
 					self.check_operator(&t, false)?;
-					if let Some(bit) = ENV_DATA.read().expect("Can't lock env_data").env_jitbit() {
+					if let Some(bit) = arg!(env_jitbit) {
 						let arg = self.build_expression(end)?;
 						expr.push_back(SYMBOL(bit.clone() + ".bnot"));
 						expr.push_back(CALL(vec![arg]));
@@ -863,7 +863,7 @@ impl ParserInfo {
 
 	fn build_loop_block(&mut self) -> Result<CodeBlock, String> {
 		let mut code = self.build_code_block()?;
-		if ENV_DATA.read().expect("Can't lock env_data").env_continue() {
+		if arg!(env_continue) {
 			code.code.push_back(SYMBOL(String::from("::continue::")));
 		}
 		Ok(code)
@@ -1452,11 +1452,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 	}
 
 	if !i.statics.is_empty() {
-		if ENV_DATA
-			.read()
-			.expect("Can't lock env_data")
-			.env_debugcomments()
-		{
+		if arg!(env_debugcomments) {
 			ENV_DATA
 				.write()
 				.expect("Can't lock env_data")
