@@ -307,7 +307,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 							CONCATENATE => " .. ",
 							MODULATE => " % ",
 							_ => panic!("Unexpected alter type found")
-							}
+						}
 					}) + &compile_expression(scope, Some(&names), expr)
 				});
 				let names = compile_identifiers(names);

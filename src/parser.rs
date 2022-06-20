@@ -470,12 +470,10 @@ impl ParserInfo {
 	}
 
 	fn check_index(&mut self, t: &Token, expr: &mut Expression, lexeme: &str) -> Result<(), String> {
-		if !self.compare(IDENTIFIER)
-			|| match self.lookBack(0).kind {
+		if !self.compare(IDENTIFIER) || match self.look_back(0).kind {
 			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
 			_ => false,
-		}
-		{
+		} {
 			return Err(self.error(
 				format!("'{}' should be used only when indexing", t.lexeme),
 				self.peek(0).line,
