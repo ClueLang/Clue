@@ -418,7 +418,7 @@ impl ParserInfo {
 	fn checkOperator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
 		if match self.peek(0).kind {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS
-			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | TREDOTS => false,
+			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | THREEDOTS => false,
 			_ => true,
 		} {
 			return Err(self.error(
@@ -437,7 +437,7 @@ impl ParserInfo {
 			| NIL
 			| ROUND_BRACKET_CLOSED
 			| SQUARE_BRACKET_CLOSED
-			| TREDOTS => false,
+			| THREEDOTS => false,
 			_ => true,
 		}
 		{
@@ -488,7 +488,7 @@ impl ParserInfo {
 	fn checkVal(&mut self) -> bool {
 		match self.peek(0).kind {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | NIL | NOT
-			| HASHTAG | CURLY_BRACKET_OPEN | TREDOTS | MATCH => {
+			| HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
 			}
@@ -652,7 +652,7 @@ impl ParserInfo {
 						break t;
 					}
 				}
-				TREDOTS | NUMBER | TRUE | FALSE | NIL => {
+				THREEDOTS | NUMBER | TRUE | FALSE | NIL => {
 					expr.push_back(SYMBOL(t.lexeme.clone()));
 					if self.checkVal() {
 						break t;
@@ -885,7 +885,7 @@ impl ParserInfo {
 				let t = self.advance();
 				match t.kind {
 					IDENTIFIER => t,
-					TREDOTS => {
+					THREEDOTS => {
 						self.assertCompare(ROUND_BRACKET_CLOSED, ")")?;
 						t
 					}

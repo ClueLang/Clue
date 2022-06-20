@@ -9,7 +9,7 @@ pub enum TokenType {
 	SQUARE_BRACKET_CLOSED, CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR, PLUS, MINUS, STAR, SLASH,
 	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON,
-	DOT, TWODOTS, TREDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
+	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
 	TERNARY_THEN, TERNARY_ELSE, ARROW,
 
@@ -249,7 +249,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 					let f: char = i.peek(0);
 					if f == '.' {
 						i.current += 1;
-						i.addToken(TREDOTS);
+						i.addToken(THREEDOTS);
 					} else if f == '=' {
 						i.current += 1;
 						i.addToken(CONCATENATE);
