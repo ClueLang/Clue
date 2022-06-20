@@ -264,12 +264,8 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 	while let Some(t) = ctokens.next() {
 		result += &match t {
 			SYMBOL(lexeme) => lexeme,
-			VARIABLE {
-				local,
-				names,
-				values,
-				line,
-			} => {
+			#[rustfmt::skip]
+			VARIABLE { local,names, values, line, } => {
 				let line = compile_debug_line(line);
 				if !local && flag!(env_rawsetglobals) {
 					let mut result = String::new();
