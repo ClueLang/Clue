@@ -1,0 +1,23 @@
+name: Build
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Install rust toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          default: true
+          override: true
+          toolchain: nightly
+          target: "i686-pc-windows-msvc"
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - name: Test dev build
+        run: cargo test
+      - name: Test release build
+        run: cargo test --release
