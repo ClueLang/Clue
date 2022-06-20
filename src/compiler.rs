@@ -302,26 +302,29 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				}
 				let mut i = 0usize;
 				let values = CompileList(values, ", ", &mut |expr| {
-					let name = names.get(i).unwrap();
+					let name = if let Some(name) = names.get(i) {
+						name.clone()
+					} else {
+						String::from("nil")
+					};
 					i += 1;
 					(if kind == DEFINE {
 						String::new()
 					} else {
-						name.clone()
-							+ &match kind {
-								DEFINE_AND => " and ",
-								DEFINE_OR => " or ",
-								INCREASE => " + ",
-								DECREASE => " - ",
-								MULTIPLY => " * ",
-								DIVIDE => " / ",
-								EXPONENTIATE => " ^ ",
-								CONCATENATE => " .. ",
-								MODULATE => " % ",
-								_ => {
-									panic!("Unexpected alter type found")
-								}
+						name + &match kind {
+							DEFINE_AND => " and ",
+							DEFINE_OR => " or ",
+							INCREASE => " + ",
+							DECREASE => " - ",
+							MULTIPLY => " * ",
+							DIVIDE => " / ",
+							EXPONENTIATE => " ^ ",
+							CONCATENATE => " .. ",
+							MODULATE => " % ",
+							_ => {
+								panic!("Unexpected alter type found")
 							}
+						}
 					}) + &CompileExpression(scope, Some(&names), expr)
 				});
 				let names = CompileIdentifiers(names);
