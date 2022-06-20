@@ -11,4 +11,3 @@ Cargo.lock
 **/*.rs.bk
 *.pdb
 .dccache
-examples/main.lua
