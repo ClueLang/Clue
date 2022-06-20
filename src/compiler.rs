@@ -291,12 +291,16 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				}
 				let mut i = 0usize;
 				let values = compile_list(values, ", ", &mut |expr| {
-					let name = names.get(i).unwrap();
+					let name = if let Some(name) = names.get(i) {
+						name.clone()
+					} else {
+						String::from("nil")
+					};
 					i += 1;
 					(if kind == DEFINE {
 						String::new()
 					} else {
-						name.clone() + &match kind {
+						name + &match kind {
 							DEFINE_AND => " and ",
 							DEFINE_OR => " or ",
 							INCREASE => " + ",
