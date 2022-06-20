@@ -296,8 +296,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					(if kind == DEFINE {
 						String::new()
 					} else {
-						name.clone()
-							+ &match kind {
+						name.clone() + &match kind {
 							DEFINE_AND => " and ",
 							DEFINE_OR => " or ",
 							INCREASE => " + ",
