@@ -24,7 +24,7 @@ pub enum TokenType {
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, UNTIL,
 	LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP, STATIC, ENUM,
-	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT,
+	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT, MACRO,
 
 	EOF,
 }
@@ -366,7 +366,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 					} {
 						i.current += 1
 					}
-					let string: String = i.substr(i.start, i.current);
+					let string = i.substr(i.start, i.current);
 					let kind: TokenType = match string.as_str() {
 						"if" => IF,
 						"elseif" => ELSEIF,
@@ -395,6 +395,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"catch" => CATCH,
 						"match" => MATCH,
 						"default" => DEFAULT,
+						"macro" => MACRO,
 						"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
 						"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
 						"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),
