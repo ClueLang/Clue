@@ -8,7 +8,7 @@ pub enum TokenType {
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED, SQUARE_BRACKET_OPEN,
 	SQUARE_BRACKET_CLOSED, CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR, PLUS, MINUS, STAR, SLASH,
-	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON,
+	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON, AT,
 	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
 	TERNARY_THEN, TERNARY_ELSE, ARROW,
@@ -224,6 +224,16 @@ impl CodeInfo {
 		self.line = aline;
 	}
 
+	fn readIdentifier(&mut self) -> String {
+		while {
+			let c = self.peek(0);
+			c.is_ascii_alphanumeric() || c == '_'
+		} {
+			self.current += 1
+		}
+		self.substr(self.start, self.current)
+	}
+
 	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
 		self.warning(format!("'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}", keyword, msg));
 		IDENTIFIER
@@ -325,6 +335,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			':' => i.matchAndAdd(':', DOUBLE_COLON, '=', DEFINE_OR, TERNARY_ELSE),
 			'|' => i.compareAndAdd('|', OR, BIT_OR),
 			'$' => i.addToken(DOLLAR),
+			'@' => i.addToken(AT),
 			' ' | '\r' | '\t' => {}
 			'\n' => i.line += 1,
 			'"' | '\'' => i.readString(c),
@@ -360,14 +371,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						i.readNumber(char::is_ascii_digit, true);
 					}
 				} else if c.is_ascii_alphabetic() || c == '_' {
-					while {
-						let c = i.peek(0);
-						c.is_ascii_alphanumeric() || c == '_'
-					} {
-						i.current += 1
-					}
-					let string = i.substr(i.start, i.current);
-					let kind: TokenType = match string.as_str() {
+					let kind: TokenType = match i.readIdentifier().as_str() {
 						"if" => IF,
 						"elseif" => ELSEIF,
 						"else" => ELSE,
