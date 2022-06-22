@@ -403,11 +403,11 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
 						"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
 						"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),
-						"do" => i.reserved("do", "'do ... end' blocks in Clue are made like this: '{{ ... }}'"),
-						"end" => i.reserved("end", "code blocks in Clue are closed with '}}'"),
+						"do" => i.reserved("do", "'do ... end' blocks in Clue are made like this: '{ ... }'"),
+						"end" => i.reserved("end", "code blocks in Clue are closed with '}'"),
 						"function" => i.reserved("function", "functions in Clue are defined with the 'fn' keyword"),
-						"repeat" => i.reserved("repeat", "'repeat ... until x' loops in Clue are made like this: 'loop {{ ... }} until x'"),
-						"then" => i.reserved("then", "code blocks in Clue are opened with '{{'"),
+						"repeat" => i.reserved("repeat", "'repeat ... until x' loops in Clue are made like this: 'loop { ... } until x'"),
+						"then" => i.reserved("then", "code blocks in Clue are opened with '{'"),
 						_ => IDENTIFIER
 					};
 					i.addToken(kind);
