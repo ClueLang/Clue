@@ -4,7 +4,7 @@ use self::ComplexToken::*;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
-use std::{cmp, collections::LinkedList};
+use std::{cmp, collections::{LinkedList, HashMap}};
 
 macro_rules! expression {
 	($($x: expr),*) => {
@@ -103,6 +103,11 @@ pub enum ComplexToken {
 		line: usize,
 	},
 
+	MACRO_CALL {
+		expr: Expression,
+		args: Vec<Expression>
+	},
+
 	SYMBOL(String),
 	PSEUDO(usize),
 	CALL(Vec<Expression>),
@@ -129,6 +134,7 @@ struct ParserInfo {
 	testing: Option<usize>,
 	localid: u8,
 	statics: String,
+	macros: HashMap<String, Expression>
 }
 
 impl ParserInfo {
@@ -142,6 +148,7 @@ impl ParserInfo {
 			testing: None,
 			localid: 0,
 			statics: String::new(),
+			macros: HashMap::new()
 		}
 	}
 
@@ -256,14 +263,13 @@ impl ParserInfo {
 		Ok(())
 	}
 
-	fn build_call(&mut self) -> Result<ComplexToken, String> {
-		self.current += 2;
+	fn build_call(&mut self) -> Result<Vec<Expression>, String> {
 		let args: Vec<Expression> = if self.advance_if(ROUND_BRACKET_CLOSED) {
 			Vec::new()
 		} else {
 			self.find_expressions(COMMA, Some((ROUND_BRACKET_CLOSED, ")")))?
 		};
-		Ok(CALL(args))
+		Ok(args)
 	}
 
 	fn find_expressions(
@@ -443,7 +449,7 @@ impl ParserInfo {
 				| TRUE | FALSE | MINUS
 				| BIT_NOT | NIL | NOT
 				| HASHTAG | ROUND_BRACKET_OPEN
-				| THREEDOTS
+				| THREEDOTS | AT
 		) {
 			return Err(self.error(
 				format!("Operator '{}' has invalid right hand token", t.lexeme),
@@ -527,6 +533,27 @@ impl ParserInfo {
 					let fname = self.build_identifier()?;
 					self.current -= 1;
 					expr.push_back(fname);
+					if self.check_val() {
+						break t;
+					}
+				}
+				AT => {
+					let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme;
+					let code = self.macros.get_mut(&name);
+					let macroexpr = if let Some(macroexpr) = code {
+						macroexpr.clone()
+					} else {
+						return Err(self.error(
+							format!("The macro {} is not defined", name),
+							t.line
+						))
+					};
+					let args = if self.advance_if(ROUND_BRACKET_OPEN) {
+						self.build_call()?
+					} else {
+						Vec::new()
+					};
+					expr.push_back(MACRO_CALL {expr: macroexpr, args});
 					if self.check_val() {
 						break t;
 					}
@@ -828,8 +855,7 @@ impl ParserInfo {
 					}
 				}
 				ROUND_BRACKET_OPEN => {
-					self.current -= 2;
-					expr.push_back(self.build_call()?);
+					expr.push_back(CALL(self.build_call()?));
 					if self.check_val() {
 						break;
 					}
@@ -837,7 +863,7 @@ impl ParserInfo {
 				_ => break,
 			}
 		}
-		Ok(IDENT { expr, line })
+		Ok(IDENT {expr, line})
 	}
 
 	fn build_code_block(&mut self) -> Result<CodeBlock, String> {
@@ -1431,6 +1457,14 @@ impl ParserInfo {
 		Ok(())
 	}
 
+	fn parse_token_macro(&mut self) -> Result<(), String> {
+		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme;
+		let code = self.build_expression(None)?;
+		self.current -= 1;
+		self.macros.insert(name, code);
+		Ok(())
+	}
+
 	fn parse_token_fn_enum(&mut self, t: &Token) -> Result<(), String> {
 		Err(self.error(
 			format!(
@@ -1463,6 +1497,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			BREAK => i.parse_token_break()?,
 			RETURN => i.parse_token_return()?,
 			TRY => i.parse_token_try()?,
+			MACRO => i.parse_token_macro()?,
 			FN | ENUM => i.parse_token_fn_enum(&t)?,
 			EOF => break,
 			_ => return Err(i.expected("<end>", &t.lexeme, t.line)),

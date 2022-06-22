@@ -150,6 +150,17 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 	let mut result = String::new();
 	for t in expr {
 		result += &match t {
+			MACRO_CALL {expr, args} => {
+				let args = {
+					let mut strings: Vec<String> = Vec::new();
+					for arg in args {
+						strings.push(compile_expression(scope, names, arg))
+					}
+					strings
+				};
+				let expr = compile_expression(scope, Some(&args), expr);
+				format!("({})", expr)
+			}
 			SYMBOL(lexeme) => lexeme,
 			PSEUDO(num) => match names {
 				Some(names) => names
@@ -214,17 +225,13 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 					)
 				}
 			}
-			LAMBDA { args, code } => {
+			LAMBDA {args, code} => {
 				let (code, args) = compile_function(scope, names, args, code);
 				format!("function({}){}end", args, code)
 			}
-			IDENT { expr, .. } => compile_identifier(scope, names, expr),
-			CALL(args) => {
-				format!("({})", compile_expressions(scope, names, args))
-			}
-			EXPR(expr) => {
-				format!("({})", compile_expression(scope, names, expr))
-			}
+			IDENT {expr, ..} => compile_identifier(scope, names, expr),
+			CALL(args) => format!("({})", compile_expressions(scope, names, args)),
+			EXPR(expr) => format!("({})", compile_expression(scope, names, expr)),
 			_ => {
 				panic!("Unexpected ComplexToken found")
 			}

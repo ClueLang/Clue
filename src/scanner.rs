@@ -9,7 +9,7 @@ pub enum TokenType {
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED, SQUARE_BRACKET_OPEN,
 	SQUARE_BRACKET_CLOSED, CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR, PLUS, MINUS, STAR, SLASH,
-	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON,
+	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON, AT,
 	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
 	TERNARY_THEN, TERNARY_ELSE, ARROW,
@@ -25,7 +25,7 @@ pub enum TokenType {
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, UNTIL,
 	LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP, STATIC, ENUM,
-	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT,
+	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT, MACRO,
 
 	EOF,
 }
@@ -220,6 +220,16 @@ impl CodeInfo {
 		self.line = aline;
 	}
 
+	fn readIdentifier(&mut self) -> String {
+		while {
+			let c = self.peek(0);
+			c.is_ascii_alphanumeric() || c == '_'
+		} {
+			self.current += 1
+		}
+		self.substr(self.start, self.current)
+	}
+
 	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
 		self.warning(format!(
 			"'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}",
@@ -324,6 +334,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 			':' => i.match_and_add(':', DOUBLE_COLON, '=', DEFINE_OR, TERNARY_ELSE),
 			'|' => i.compare_and_add('|', OR, BIT_OR),
 			'$' => i.add_token(DOLLAR),
+			'@' => i.add_token(AT),
 			' ' | '\r' | '\t' => {}
 			'\n' => i.line += 1,
 			'"' | '\'' => i.read_string(c),
@@ -358,14 +369,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 						i.read_number(char::is_ascii_digit, true);
 					}
 				} else if c.is_ascii_alphabetic() || c == '_' {
-					while {
-						let c = i.peek(0);
-						c.is_ascii_alphanumeric() || c == '_'
-					} {
-						i.current += 1
-					}
-					let string: String = i.substr(i.start, i.current);
-					let kind: TokenType = match string.as_str() {
+					let kind: TokenType = match i.readIdentifier().as_str() {
 						"if" => IF,
 						"elseif" => ELSEIF,
 						"else" => ELSE,
@@ -393,6 +397,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"catch" => CATCH,
 						"match" => MATCH,
 						"default" => DEFAULT,
+						"macro" => MACRO,
 						"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
 						"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
 						"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),
