@@ -545,7 +545,6 @@ impl ParserInfo {
 					let code = self.macros.get_mut(&name);
 					let macroexpr = if let Some(macroexpr) = code {
 						macroexpr.clone()
-						//expr.push_back(MACRO_CALL {expr: macroexpr, args: Vec::new()})
 					} else {
 						return Err(self.error(
 							format!("The macro {} is not defined", name),
@@ -557,7 +556,10 @@ impl ParserInfo {
 					} else {
 						Vec::new()
 					};
-					expr.push_back(MACRO_CALL {expr: macroexpr, args})
+					expr.push_back(MACRO_CALL {expr: macroexpr, args});
+					if self.checkVal() {
+						break t;
+					}
 				}
 				CURLY_BRACKET_OPEN => {
 					if let Some((kind, ..)) = end {
@@ -1432,6 +1434,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			MACRO => {
 				let name = i.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
 				let code = i.buildExpression(None)?;
+				i.current -= 1;
 				i.macros.insert(name, code);
 			}
 			FN | ENUM => {
