@@ -3,7 +3,7 @@
 use self::ComplexToken::*;
 use crate::{compiler::CompileTokens, finaloutput, ENV_JITBIT, ENV_CONTINUE, ENV_DEBUGCOMMENTS, TokenType, Token};
 use crate::TokenType::*;
-use std::{cmp, collections::LinkedList};
+use std::{cmp, collections::{LinkedList, HashMap}};
 use crate::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 
 macro_rules! expression {
@@ -103,6 +103,11 @@ pub enum ComplexToken {
 		line: usize,
 	},
 
+	MACRO_CALL {
+		expr: Expression,
+		args: Vec<Expression>
+	},
+
 	SYMBOL(String),
 	PSEUDO(usize),
 	CALL(Vec<Expression>),
@@ -129,6 +134,7 @@ struct ParserInfo {
 	testing: Option<usize>,
 	localid: u8,
 	statics: String,
+	macros: HashMap<String, Expression>
 }
 
 impl ParserInfo {
@@ -142,6 +148,7 @@ impl ParserInfo {
 			testing: None,
 			localid: 0,
 			statics: String::new(),
+			macros: HashMap::new()
 		}
 	}
 
@@ -256,13 +263,13 @@ impl ParserInfo {
 		Ok(())
 	}
 
-	fn buildCall(&mut self) -> Result<ComplexToken, String> {
+	fn buildCall(&mut self) -> Result<Vec<Expression>, String> {
 		let args: Vec<Expression> = if self.advanceIf(ROUND_BRACKET_CLOSED) {
 			Vec::new()
 		} else {
 			self.findExpressions(COMMA, Some((ROUND_BRACKET_CLOSED, ")")))?
 		};
-		Ok(CALL(args))
+		Ok(args)
 	}
 
 	fn findExpressions(
@@ -441,7 +448,7 @@ impl ParserInfo {
 	fn checkOperator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
 		if match self.peek(0).kind {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS
-			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | THREEDOTS => false,
+			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT | THREEDOTS => false,
 			_ => true,
 		} {
 			return Err(self.error(
@@ -532,6 +539,25 @@ impl ParserInfo {
 					if self.checkVal() {
 						break t;
 					}
+				}
+				AT => {
+					let name = self.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
+					let code = self.macros.get_mut(&name);
+					let macroexpr = if let Some(macroexpr) = code {
+						macroexpr.clone()
+						//expr.push_back(MACRO_CALL {expr: macroexpr, args: Vec::new()})
+					} else {
+						return Err(self.error(
+							format!("The macro {} is not defined", name),
+							t.line
+						))
+					};
+					let args = if self.advanceIf(ROUND_BRACKET_OPEN) {
+						self.buildCall()?
+					} else {
+						Vec::new()
+					};
+					expr.push_back(MACRO_CALL {expr: macroexpr, args})
 				}
 				CURLY_BRACKET_OPEN => {
 					if let Some((kind, ..)) = end {
@@ -833,7 +859,7 @@ impl ParserInfo {
 					}
 				}
 				ROUND_BRACKET_OPEN => {
-					expr.push_back(self.buildCall()?);
+					expr.push_back(CALL(self.buildCall()?));
 					if self.checkVal() {
 						break;
 					}
@@ -1402,6 +1428,11 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 					error,
 					catch,
 				});
+			}
+			MACRO => {
+				let name = i.assertAdvance(IDENTIFIER, "<name>")?.lexeme;
+				let code = i.buildExpression(None)?;
+				i.macros.insert(name, code);
 			}
 			FN | ENUM => {
 				return Err(i.error(
