@@ -257,7 +257,6 @@ impl ParserInfo {
 	}
 
 	fn buildCall(&mut self) -> Result<ComplexToken, String> {
-		self.current += 2;
 		let args: Vec<Expression> = if self.advanceIf(ROUND_BRACKET_CLOSED) {
 			Vec::new()
 		} else {
@@ -834,7 +833,6 @@ impl ParserInfo {
 					}
 				}
 				ROUND_BRACKET_OPEN => {
-					self.current -= 2;
 					expr.push_back(self.buildCall()?);
 					if self.checkVal() {
 						break;
