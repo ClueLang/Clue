@@ -52,8 +52,9 @@ md $Env:ProgramFiles\Clue -f >$null&&iwr((iwr https://api.github.com/repos/ClueL
 ## More coming soon!
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
-- `macro`
+- more advanced macros
 - `struct`
+- types (coming in 3.0)
 
 For any suggestion or bug you can make a github issue.
 If you need help with the language itself, you can check out the new [Discord server](https://discord.gg/EQsnWpqN3C).
