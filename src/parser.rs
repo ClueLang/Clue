@@ -1250,13 +1250,17 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 			IDENTIFIER => {
 				let testexpr = i.test(|i| i.buildName()).0;
 				if let Err(msg) = testexpr {
-					if &msg == "You can't call functions here" {
-						let expr = &mut i.buildExpression(None)?;
-						i.expr.append(expr);
-						i.current -= 1;
-						continue;
+					match msg.as_str() {
+						"You can't call functions here"
+						| "Unexpected token '?.'"
+						| "Unexpected token '?['" => {
+							let expr = &mut i.buildExpression(None)?;
+							i.expr.append(expr);
+							i.current -= 1;
+							continue;
+						}
+						_ => return Err(i.error(msg, i.testing.unwrap())),
 					}
-					return Err(i.error(msg, i.testing.unwrap()));
 				}
 				i.current += 1;
 				let mut names: Vec<Expression> = Vec::new();
