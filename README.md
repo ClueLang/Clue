@@ -40,7 +40,7 @@ md $Env:ProgramFiles\Clue -f >$null&&iwr((iwr https://api.github.com/repos/ClueL
 2. Type `clue` in your PowerShell to run the compiler, it will explain the rest
 
 ### Linux (cargo required)
-1. Paste and run this command in the console: `git clone https://github.com/ClueLang/Clue.git && cd clue && cargo install --path .`
+1. Paste and run this command in the console: `git clone https://github.com/ClueLang/Clue.git && cd Clue && cargo install --path .`
 2. Type `clue` in the console to run the compiler, it will explain the rest
 
 ### Manual insallation
