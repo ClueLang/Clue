@@ -1407,7 +1407,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				i.advanceIf(SEMICOLON);
 			}
 			RETURN => {
-				let expr = if i.advanceIf(SEMICOLON) {
+				let expr = if i.ended() || i.advanceIf(SEMICOLON) {
 					None
 				} else {
 					Some(i.findExpressions(COMMA, None)?)
