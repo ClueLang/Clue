@@ -1336,6 +1336,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 				if i.peek(0).kind == UNTIL {
 					i.current += 1;
 					let condition = i.buildExpression(None)?;
+					i.current -= 1;
 					i.expr.push_back(LOOP_UNTIL { condition, code })
 				} else {
 					i.expr.push_back(WHILE_LOOP {
