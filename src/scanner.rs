@@ -51,6 +51,7 @@ struct CodeInfo {
 	code: Vec<char>,
 	filename: String,
 	tokens: Vec<Token>,
+	last: TokenType,
 	errored: bool,
 }
 
@@ -65,6 +66,7 @@ impl CodeInfo {
 			code: chars.collect(),
 			filename,
 			tokens: Vec::new(),
+			last: EOF,
 			errored: false,
 		}
 	}
@@ -126,6 +128,7 @@ impl CodeInfo {
 
 	fn add_token(&mut self, kind: TokenType) {
 		let lexeme: String = self.substr(self.start, self.current);
+		self.last = kind;
 		self.tokens.push(Token::new(kind, lexeme, self.line));
 	}
 
@@ -370,34 +373,6 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 					}
 				} else if c.is_ascii_alphabetic() || c == '_' {
 					let kind: TokenType = match i.readIdentifier().as_str() {
-						"if" => IF,
-						"elseif" => ELSEIF,
-						"else" => ELSE,
-						"for" => FOR,
-						"of" => OF,
-						"in" => IN,
-						"with" => WITH,
-						"while" => WHILE,
-						"meta" => META,
-						"global" => GLOBAL,
-						"until" => UNTIL,
-						"local" => LOCAL,
-						"fn" => FN,
-						"method" => METHOD,
-						"return" => RETURN,
-						"true" => TRUE,
-						"false" => FALSE,
-						"nil" => NIL,
-						"loop" => LOOP,
-						"static" => STATIC,
-						"enum" => ENUM,
-						"continue" => CONTINUE,
-						"break" => BREAK,
-						"try" => TRY,
-						"catch" => CATCH,
-						"match" => MATCH,
-						"default" => DEFAULT,
-						"macro" => MACRO,
 						"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
 						"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
 						"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),
@@ -406,6 +381,38 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"function" => i.reserved("function", "functions in Clue are defined with the 'fn' keyword"),
 						"repeat" => i.reserved("repeat", "'repeat ... until x' loops in Clue are made like this: 'loop { ... } until x'"),
 						"then" => i.reserved("then", "code blocks in Clue are opened with '{'"),
+						"if" => IF,
+						"elseif" => ELSEIF,
+						"else" => ELSE,
+						"for" => FOR,
+						"in" => IN,
+						"while" => WHILE,
+						"until" => UNTIL,
+						"local" => LOCAL,
+						"return" => RETURN,
+						"true" => TRUE,
+						"false" => FALSE,
+						"nil" => NIL,
+						"break" => BREAK,
+						_ if match i.last {
+							DOT | SAFEDOT | DOUBLE_COLON | SAFE_DOUBLE_COLON => true,
+							_ => false
+						} => IDENTIFIER,
+						"of" => OF,
+						"with" => WITH,
+						"meta" => META,
+						"global" => GLOBAL,
+						"fn" => FN,
+						"method" => METHOD,
+						"loop" => LOOP,
+						"static" => STATIC,
+						"enum" => ENUM,
+						"continue" => CONTINUE,
+						"try" => TRY,
+						"catch" => CATCH,
+						"match" => MATCH,
+						"default" => DEFAULT,
+						"macro" => MACRO,
 						_ => IDENTIFIER
 					};
 					i.add_token(kind);

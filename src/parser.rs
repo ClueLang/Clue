@@ -1249,13 +1249,17 @@ impl ParserInfo {
 	fn parse_token_identifier(&mut self, t: &Token) -> Result<(), String> {
 		let testexpr = self.test(|i| i.build_name()).0;
 		if let Err(msg) = testexpr {
-			if &msg == "You can't call functions here" {
-				let expr = &mut self.build_expression(None)?;
-				self.expr.append(expr);
-				self.current -= 1;
-				return Ok(());
+			match msg.as_str() {
+				"You can't call functions here"
+				| "Unexpected token '?.'"
+				| "Unexpected token '?['" => {
+					let expr = &mut self.build_expression(None)?;
+					self.expr.append(expr);
+					self.current -= 1;
+					return Ok(())
+				}
+				_ => return Err(self.error(msg, self.testing.unwrap())),
 			}
-			return Err(self.error(msg, self.testing.unwrap()));
 		}
 		self.current += 1;
 		let mut names: Vec<Expression> = Vec::new();
@@ -1340,6 +1344,7 @@ impl ParserInfo {
 		if self.peek(0).kind == UNTIL {
 			self.current += 1;
 			let condition = self.build_expression(None)?;
+			self.current -= 1;
 			self.expr.push_back(LOOP_UNTIL { condition, code })
 		} else {
 			self.expr.push_back(WHILE_LOOP {
@@ -1422,7 +1427,7 @@ impl ParserInfo {
 	}
 
 	fn parse_token_return(&mut self) -> Result<(), String> {
-		let expr = if self.advance_if(SEMICOLON) {
+		let expr = if self.ended() || self.advance_if(SEMICOLON) {
 			None
 		} else {
 			Some(self.find_expressions(COMMA, None)?)
