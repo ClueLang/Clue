@@ -2,7 +2,8 @@
 
 use self::TokenType::*;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[rustfmt::skip]
 pub enum TokenType {
 	//symbols
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED, SQUARE_BRACKET_OPEN,
@@ -38,11 +39,7 @@ pub struct Token {
 
 impl Token {
 	pub fn new(kind: TokenType, lexeme: String, line: usize) -> Token {
-		Token {
-			kind: kind,
-			lexeme: String::from(lexeme),
-			line: line,
-		}
+		Token { kind, lexeme, line }
 	}
 }
 
@@ -85,7 +82,7 @@ impl CodeInfo {
 		self.code[pos]
 	}
 
-	fn readNext(&mut self) -> char {
+	fn advance(&mut self) -> char {
 		let prev: char = self.at(self.current);
 		self.current += 1;
 		prev
@@ -98,7 +95,7 @@ impl CodeInfo {
 		if self.at(self.current) != expected {
 			return false;
 		}
-		self.current = self.current + 1;
+		self.current += 1;
 		true
 	}
 
@@ -125,25 +122,25 @@ impl CodeInfo {
 		result
 	}
 
-	fn addLiteralToken(&mut self, kind: TokenType, literal: String) {
+	fn add_literal_token(&mut self, kind: TokenType, literal: String) {
 		self.tokens.push(Token::new(kind, literal, self.line));
 	}
 
-	fn addToken(&mut self, kind: TokenType) {
+	fn add_token(&mut self, kind: TokenType) {
 		let lexeme: String = self.substr(self.start, self.current);
 		self.last = kind;
 		self.tokens.push(Token::new(kind, lexeme, self.line));
 	}
 
-	fn compareAndAdd(&mut self, c: char, kt: TokenType, kf: TokenType) {
+	fn compare_and_add(&mut self, c: char, kt: TokenType, kf: TokenType) {
 		let kind: TokenType = match self.compare(c) {
 			true => kt,
 			false => kf,
 		};
-		self.addToken(kind);
+		self.add_token(kind);
 	}
 
-	fn matchAndAdd(&mut self, c1: char, k1: TokenType, c2: char, k2: TokenType, kd: TokenType) {
+	fn match_and_add(&mut self, c1: char, k1: TokenType, c2: char, k2: TokenType, kd: TokenType) {
 		let kind: TokenType = match self.compare(c1) {
 			true => k1,
 			false => match self.compare(c2) {
@@ -151,18 +148,20 @@ impl CodeInfo {
 				false => kd,
 			},
 		};
-		self.addToken(kind);
+		self.add_token(kind);
 	}
 
 	fn warning(&mut self, message: impl Into<String>) {
 		println!(
 			"Error in file \"{}\" at line {}!\nError: \"{}\"\n",
-			self.filename, self.line, message.into()
+			self.filename,
+			self.line,
+			message.into()
 		);
 		self.errored = true;
 	}
 
-	fn readNumber(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
+	fn read_number(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
 		let start = self.current;
 		while check(&self.peek(0)) {
 			self.current += 1
@@ -202,10 +201,10 @@ impl CodeInfo {
 				self.warning("Malformed number");
 			}
 		}
-		self.addLiteralToken(NUMBER, self.substr(self.start, self.current));
+		self.add_literal_token(NUMBER, self.substr(self.start, self.current));
 	}
 
-	fn readString(&mut self, strend: char) {
+	fn read_string(&mut self, strend: char) {
 		let mut aline = self.line;
 		while !self.ended() && self.peek(0) != strend {
 			if self.peek(0) == '\n' {
@@ -218,11 +217,8 @@ impl CodeInfo {
 		} else {
 			self.current += 1;
 			let mut literal: String = self.substr(self.start + 1, self.current - 1);
-			literal.retain(|c| match c {
-				'\r' | '\n' | '\t' => false,
-				_ => true,
-			});
-			self.addLiteralToken(STRING, literal);
+			literal.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
+			self.add_literal_token(STRING, literal);
 		}
 		self.line = aline;
 	}
@@ -238,47 +234,50 @@ impl CodeInfo {
 	}
 
 	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
-		self.warning(format!("'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}", keyword, msg));
+		self.warning(format!(
+			"'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}",
+			keyword, msg
+		));
 		IDENTIFIER
 	}
 }
 
-pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
+pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() {
 		i.start = i.current;
-		let c: char = i.readNext();
+		let c: char = i.advance();
 		match c {
-			'(' => i.addToken(ROUND_BRACKET_OPEN),
-			')' => i.addToken(ROUND_BRACKET_CLOSED),
-			'[' => i.addToken(SQUARE_BRACKET_OPEN),
-			']' => i.addToken(SQUARE_BRACKET_CLOSED),
-			'{' => i.addToken(CURLY_BRACKET_OPEN),
-			'}' => i.addToken(CURLY_BRACKET_CLOSED),
-			',' => i.addToken(COMMA),
+			'(' => i.add_token(ROUND_BRACKET_OPEN),
+			')' => i.add_token(ROUND_BRACKET_CLOSED),
+			'[' => i.add_token(SQUARE_BRACKET_OPEN),
+			']' => i.add_token(SQUARE_BRACKET_CLOSED),
+			'{' => i.add_token(CURLY_BRACKET_OPEN),
+			'}' => i.add_token(CURLY_BRACKET_CLOSED),
+			',' => i.add_token(COMMA),
 			'.' => {
 				if i.peek(0) == '.' {
 					i.current += 1;
 					let f: char = i.peek(0);
 					if f == '.' {
 						i.current += 1;
-						i.addToken(THREEDOTS);
+						i.add_token(THREEDOTS);
 					} else if f == '=' {
 						i.current += 1;
-						i.addToken(CONCATENATE);
+						i.add_token(CONCATENATE);
 					} else {
-						i.addToken(TWODOTS);
+						i.add_token(TWODOTS);
 					}
 				} else {
-					i.addToken(DOT);
+					i.add_token(DOT);
 				}
 			}
-			';' => i.addToken(SEMICOLON),
-			'+' => i.compareAndAdd('=', INCREASE, PLUS),
-			'-' => i.compareAndAdd('=', DECREASE, MINUS),
-			'*' => i.compareAndAdd('=', MULTIPLY, STAR),
-			'^' => i.matchAndAdd('=', EXPONENTIATE, '^', BIT_XOR, CARET),
-			'#' => i.addToken(HASHTAG),
+			';' => i.add_token(SEMICOLON),
+			'+' => i.compare_and_add('=', INCREASE, PLUS),
+			'-' => i.compare_and_add('=', DECREASE, MINUS),
+			'*' => i.compare_and_add('=', MULTIPLY, STAR),
+			'^' => i.match_and_add('=', EXPONENTIATE, '^', BIT_XOR, CARET),
+			'#' => i.add_token(HASHTAG),
 			'/' => match i.peek(0) {
 				'/' => {
 					while i.peek(0) != '\n' && !i.ended() {
@@ -286,7 +285,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 					}
 				}
 				'*' => {
-					while !i.ended() && !(i.peek(0) == '*' && i.peek(1) == '/') {
+					while !(i.ended() || i.peek(0) == '*' && i.peek(1) == '/') {
 						if i.peek(0) == '\n' {
 							i.line += 1
 						}
@@ -300,18 +299,18 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 				}
 				'=' => {
 					i.current += 1;
-					i.addToken(DIVIDE);
+					i.add_token(DIVIDE);
 				}
-				_ => i.addToken(SLASH),
+				_ => i.add_token(SLASH),
 			},
-			'%' => i.compareAndAdd('=', MODULATE, PERCENTUAL),
-			'!' => i.compareAndAdd('=', NOT_EQUAL, NOT),
-			'~' => i.addToken(BIT_NOT),
-			'=' => i.matchAndAdd('=', EQUAL, '>', ARROW, DEFINE),
-			'<' => i.matchAndAdd('=', SMALLER_EQUAL, '<', LEFT_SHIFT, SMALLER),
-			'>' => i.matchAndAdd('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
+			'%' => i.compare_and_add('=', MODULATE, PERCENTUAL),
+			'!' => i.compare_and_add('=', NOT_EQUAL, NOT),
+			'~' => i.add_token(BIT_NOT),
+			'=' => i.match_and_add('=', EQUAL, '>', ARROW, DEFINE),
+			'<' => i.match_and_add('=', SMALLER_EQUAL, '<', LEFT_SHIFT, SMALLER),
+			'>' => i.match_and_add('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
 			'?' => {
-				let kind = match i.readNext() {
+				let kind = match i.advance() {
 					'=' => DEFINE_AND,
 					'>' => {
 						i.warning("?> is deprecated");
@@ -332,35 +331,34 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						TERNARY_THEN
 					}
 				};
-				i.addToken(kind);
+				i.add_token(kind);
 			}
-			'&' => i.compareAndAdd('&', AND, BIT_AND),
-			':' => i.matchAndAdd(':', DOUBLE_COLON, '=', DEFINE_OR, TERNARY_ELSE),
-			'|' => i.compareAndAdd('|', OR, BIT_OR),
-			'$' => i.addToken(DOLLAR),
-			'@' => i.addToken(AT),
+			'&' => i.compare_and_add('&', AND, BIT_AND),
+			':' => i.match_and_add(':', DOUBLE_COLON, '=', DEFINE_OR, TERNARY_ELSE),
+			'|' => i.compare_and_add('|', OR, BIT_OR),
+			'$' => i.add_token(DOLLAR),
+			'@' => i.add_token(AT),
 			' ' | '\r' | '\t' => {}
 			'\n' => i.line += 1,
-			'"' | '\'' => i.readString(c),
+			'"' | '\'' => i.read_string(c),
 			_ => {
 				if c.is_ascii_digit() {
 					if c == '0' {
 						match i.peek(0) {
 							'x' | 'X' => {
 								i.current += 1;
-								i.readNumber(
+								i.read_number(
 									|c| {
 										let c = *c;
 										c.is_ascii_digit()
-											|| (c >= 'a' && c <= 'f')
-											|| (c >= 'A' && c <= 'F')
+											|| ('a'..='f').contains(&c) || ('A'..='F').contains(&c)
 									},
 									false,
 								);
 							}
 							'b' | 'B' => {
 								i.current += 1;
-								i.readNumber(
+								i.read_number(
 									|c| {
 										let c = *c;
 										c == '0' || c == '1'
@@ -368,10 +366,10 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 									false,
 								);
 							}
-							_ => i.readNumber(char::is_ascii_digit, true),
+							_ => i.read_number(char::is_ascii_digit, true),
 						}
 					} else {
-						i.readNumber(char::is_ascii_digit, true);
+						i.read_number(char::is_ascii_digit, true);
 					}
 				} else if c.is_ascii_alphabetic() || c == '_' {
 					let kind: TokenType = match i.readIdentifier().as_str() {
@@ -418,7 +416,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"struct" => STRUCT,
 						_ => IDENTIFIER
 					};
-					i.addToken(kind);
+					i.add_token(kind);
 				} else {
 					i.warning(format!("Unexpected character '{}'", c).as_str());
 				}
@@ -430,6 +428,6 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			"Cannot continue until the above errors are fixed",
 		));
 	}
-	i.addLiteralToken(EOF, String::from("<end>"));
+	i.add_literal_token(EOF, String::from("<end>"));
 	Ok(i.tokens)
 }

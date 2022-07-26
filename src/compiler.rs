@@ -1,11 +1,14 @@
-use crate::{
-	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
-	scanner::TokenType::*,
-	ENV_CONTINUE, ENV_DEBUGCOMMENTS, ENV_RAWSETGLOBALS,
-};
+use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
 
-fn Indentate(scope: usize) -> String {
+use crate::{
+	flag,
+	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
+	scanner::TokenType::*,
+	ENV_DATA,
+};
+
+fn indentate(scope: usize) -> String {
 	let mut result = String::new();
 	for _ in 0..scope {
 		result += "\t";
@@ -13,16 +16,20 @@ fn Indentate(scope: usize) -> String {
 	result
 }
 
-fn IndentateIf<T: Iterator>(ctokens: &mut Peekable<T>, scope: usize) -> String {
+fn indentate_if<T: Iterator>(ctokens: &mut Peekable<T>, scope: usize) -> String {
 	match ctokens.peek() {
-		Some(_) => format!("\n{}", Indentate(scope)),
+		Some(_) => format!("\n{}", indentate(scope)),
 		None => String::new(),
 	}
 }
 
-fn CompileList<T>(list: Vec<T>, separator: &str, tostring: &mut impl FnMut(T) -> String) -> String {
+fn compile_list<T>(
+	list: Vec<T>,
+	separator: &str,
+	tostring: &mut impl FnMut(T) -> String,
+) -> String {
 	let mut result = String::new();
-	let end = list.iter().count();
+	let end = list.len();
 	let mut start = 0usize;
 	for element in list {
 		result += &(tostring(element));
@@ -34,32 +41,32 @@ fn CompileList<T>(list: Vec<T>, separator: &str, tostring: &mut impl FnMut(T) ->
 	result
 }
 
-fn CompileIdentifiers(names: Vec<String>) -> String {
-	CompileList(names, ", ", &mut |name| name)
+fn compile_identifiers(names: Vec<String>) -> String {
+	compile_list(names, ", ", &mut |name| name)
 }
 
-fn CompileExpressions(
+fn compile_expressions(
 	scope: usize,
 	names: Option<&Vec<String>>,
 	values: Vec<Expression>,
 ) -> String {
-	CompileList(values, ", ", &mut |expr| {
-		CompileExpression(scope, names, expr)
+	compile_list(values, ", ", &mut |expr| {
+		compile_expression(scope, names, expr)
 	})
 }
 
-fn CompileFunction(
+fn compile_function(
 	scope: usize,
 	names: Option<&Vec<String>>,
 	args: FunctionArgs,
 	code: CodeBlock,
 ) -> (String, String) {
-	let mut code = CompileCodeBlock(scope, "", code);
-	let args = CompileList(args, ", ", &mut |(arg, default)| {
+	let mut code = compile_code_block(scope, "", code);
+	let args = compile_list(args, ", ", &mut |(arg, default)| {
 		if let Some((default, line)) = default {
-			let default = CompileExpression(scope + 2, names, default);
-			let pre = Indentate(scope + 1);
-			let line = CompileDebugLine(line);
+			let default = compile_expression(scope + 2, names, default);
+			let pre = indentate(scope + 1);
+			let line = compile_debug_line(line);
 			code = format!(
 				"\n{}if {} == nil then\n{}\t{} = {}{}\n{}end{}",
 				pre, arg, pre, arg, default, line, pre, code
@@ -70,10 +77,10 @@ fn CompileFunction(
 	(code, args)
 }
 
-fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
-	let code = CompileTokens(scope + 1, block.code);
-	let pre = Indentate(scope);
-	if arg!(ENV_DEBUGCOMMENTS) {
+fn compile_code_block(scope: usize, start: &str, block: CodeBlock) -> String {
+	let code = compile_tokens(scope + 1, block.code);
+	let pre = indentate(scope);
+	if flag!(env_debugcomments) {
 		format!(
 			"{}\n{}\t--{}->{}\n{}\n{}",
 			start, pre, block.start, block.end, code, pre
@@ -83,15 +90,15 @@ fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	}
 }
 
-fn CompileDebugLine(line: usize) -> String {
-	if arg!(ENV_DEBUGCOMMENTS) {
+fn compile_debug_line(line: usize) -> String {
+	if flag!(env_debugcomments) {
 		format!(" --{}", line)
 	} else {
 		String::new()
 	}
 }
 
-fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
+fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
 	let mut result = String::new();
 	let mut checked = String::new();
 	let mut iter = expr.into_iter().peekable();
@@ -112,21 +119,23 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 						result += &(checked.clone() + " and ");
 						let texpr = iter.next();
 						let rexpr = if let Some(EXPR(expr)) = texpr {
-							CompileExpression(scope, names, expr.clone())
+							compile_expression(scope, names, expr.clone())
 						} else {
 							panic!("This message should never appear");
 						};
-						checked += &format!("[({})]", rexpr);
+						write!(checked, "[({})]", rexpr)
+							.expect("something really unexpected happened");
 					}
 					"]" => {}
 					_ => checked += lexeme,
 				}
 			}
 			EXPR(expr) => {
-				let expr = CompileExpression(scope, names, expr);
-				checked += &format!("({})]", expr);
+				let expr = compile_expression(scope, names, expr);
+				write!(checked, "({})]", expr).expect("something really unexpected happened");
 			}
-			CALL(args) => checked += &format!("({})", CompileExpressions(scope, names, args)),
+			CALL(args) => write!(checked, "({})", compile_expressions(scope, names, args))
+				.expect("something really unexpected happened"),
 			_ => {}
 		}
 	}
@@ -137,7 +146,7 @@ fn CompileIdentifier(scope: usize, names: Option<&Vec<String>>, expr: Expression
 	}
 }
 
-fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
+fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
 	let mut result = String::new();
 	for t in expr {
 		result += &match t {
@@ -145,11 +154,11 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 				let args = {
 					let mut strings: Vec<String> = Vec::new();
 					for arg in args {
-						strings.push(CompileExpression(scope, names, arg))
+						strings.push(compile_expression(scope, names, arg))
 					}
 					strings
 				};
-				let expr = CompileExpression(scope, Some(&args), expr);
+				let expr = compile_expression(scope, Some(&args), expr);
 				format!("({})", expr)
 			}
 			SYMBOL(lexeme) => lexeme,
@@ -160,32 +169,36 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 					.to_string(),
 				None => String::from("nil"),
 			},
-			TABLE {values, metas, metatable} => {
+			TABLE {
+				values,
+				metas,
+				metatable,
+			} => {
 				scope += 1;
 				let mut prevline = 0usize;
-				let pre1 = Indentate(scope);
+				let pre1 = indentate(scope);
 				let values = if values.is_empty() {
 					String::new()
 				} else {
-					CompileList(values, ", ", &mut |(name, value, line)| {
-						let value = CompileExpression(scope, names, value);
+					compile_list(values, ", ", &mut |(name, value, line)| {
+						let value = compile_expression(scope, names, value);
 						let l = if prevline != 0 {
-							CompileDebugLine(prevline)
+							compile_debug_line(prevline)
 						} else {
 							String::new()
 						};
 						prevline = line;
 						if let Some(name) = name {
-							let name = CompileExpression(scope, names, name);
+							let name = compile_expression(scope, names, name);
 							format!("{}\n{}{} = {}", l, pre1, name, value)
 						} else {
 							format!("{}\n{}{}", l, pre1, value)
 						}
-					}) + &CompileDebugLine(prevline)
+					}) + &compile_debug_line(prevline)
 						+ "\n"
 				};
 				prevline = 0;
-				let pre2 = Indentate(scope - 1);
+				let pre2 = indentate(scope - 1);
 				if metas.is_empty() {
 					scope -= 1;
 					if let Some(metatable) = metatable {
@@ -194,10 +207,10 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 						format!("{{{}{}}}", values, pre2)
 					}
 				} else {
-					let metas = CompileList(metas, ", ", &mut |(name, value, line)| {
-						let value = CompileExpression(scope, names, value);
+					let metas = compile_list(metas, ", ", &mut |(name, value, line)| {
+						let value = compile_expression(scope, names, value);
 						let l = if prevline != 0 {
-							CompileDebugLine(prevline)
+							compile_debug_line(prevline)
 						} else {
 							String::new()
 						};
@@ -205,7 +218,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 						format!("{}\n{}{} = {}", l, pre1, name, value)
 					});
 					scope -= 1;
-					let line = CompileDebugLine(prevline);
+					let line = compile_debug_line(prevline);
 					format!(
 						"setmetatable({{{}{}}}, {{{}{}\n{}}})",
 						values, pre2, metas, line, pre2
@@ -213,12 +226,12 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 				}
 			}
 			LAMBDA {args, code} => {
-				let (code, args) = CompileFunction(scope, names, args, code);
+				let (code, args) = compile_function(scope, names, args, code);
 				format!("function({}){}end", args, code)
 			}
-			IDENT {expr, ..} => CompileIdentifier(scope, names, expr),
-			CALL(args) => format!("({})", CompileExpressions(scope, names, args)),
-			EXPR(expr) => format!("({})", CompileExpression(scope, names, expr)),
+			IDENT {expr, ..} => compile_identifier(scope, names, expr),
+			CALL(args) => format!("({})", compile_expressions(scope, names, args)),
+			EXPR(expr) => format!("({})", compile_expression(scope, names, expr)),
 			_ => {
 				panic!("Unexpected ComplexToken found")
 			}
@@ -227,14 +240,14 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 	result
 }
 
-fn CompileElseIfChain(
+fn compile_elseif_chain(
 	scope: usize,
 	condition: Expression,
 	code: CodeBlock,
 	next: Option<Box<ComplexToken>>,
 ) -> String {
-	let condition = CompileExpression(scope, None, condition);
-	let code = CompileCodeBlock(scope, "then", code);
+	let condition = compile_expression(scope, None, condition);
+	let code = compile_code_block(scope, "then", code);
 	let next = if let Some(next) = next {
 		String::from("else")
 			+ &match *next {
@@ -242,11 +255,9 @@ fn CompileElseIfChain(
 					condition,
 					code,
 					next,
-				} => CompileElseIfChain(scope, condition, code, next),
-				DO_BLOCK(code) => CompileCodeBlock(scope, "", code),
-				_ => {
-					panic!("Unexpected ComplexToken found")
-				}
+				} => compile_elseif_chain(scope, condition, code, next),
+				DO_BLOCK(code) => compile_code_block(scope, "", code),
+				_ => panic!("Unexpected ComplexToken found"),
 			}
 	} else {
 		String::new()
@@ -254,48 +265,49 @@ fn CompileElseIfChain(
 	format!("if {} {}{}", condition, code, next)
 }
 
-pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
-	let mut result = Indentate(scope);
+pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
+	let mut result = indentate(scope);
 	let ctokens = &mut ctokens.into_iter().peekable();
 	while let Some(t) = ctokens.next() {
 		result += &match t {
 			SYMBOL(lexeme) => lexeme,
-			VARIABLE {
-				local,
-				names,
-				values,
-				line,
-			} => {
-				let line = CompileDebugLine(line);
-				if !local && arg!(ENV_RAWSETGLOBALS) {
+			#[rustfmt::skip]
+			VARIABLE { local,names, values, line, } => {
+				let line = compile_debug_line(line);
+				if !local && flag!(env_rawsetglobals) {
 					let mut result = String::new();
 					let mut valuesit = values.iter();
 					let namesit = &mut names.iter().peekable();
 					while let Some(name) = namesit.next() {
 						let value = if let Some(value) = valuesit.next() {
-							CompileExpression(scope, Some(&names), value.clone())
+							compile_expression(scope, Some(&names), value.clone())
 						} else {
 							String::from("nil")
 						};
 						let end = {
-							let pend = IndentateIf(namesit, scope);
-							if pend != "" {
+							let pend = indentate_if(namesit, scope);
+							if !pend.is_empty() {
 								pend
 							} else {
-								IndentateIf(ctokens, scope)
+								indentate_if(ctokens, scope)
 							}
 						};
-						result += &format!("rawset(_G, \"{}\", {});{}{}", name, value, line, end);
+						write!(
+							result,
+							"rawset(_G, \"{}\", {});{}{}",
+							name, value, line, end
+						)
+						.expect("something really unexpected happened");
 					}
 					result
 				} else {
-					let end = IndentateIf(ctokens, scope);
+					let end = indentate_if(ctokens, scope);
 					let pre = if local { "local " } else { "" };
 					if values.is_empty() {
-						format!("{}{};{}{}", pre, CompileIdentifiers(names), line, end)
+						format!("{}{};{}{}", pre, compile_identifiers(names), line, end)
 					} else {
-						let values = CompileExpressions(scope, Some(&names), values);
-						let names = CompileIdentifiers(names);
+						let values = compile_expressions(scope, Some(&names), values);
+						let names = compile_identifiers(names);
 						format!("{}{} = {};{}{}", pre, names, values, line, end)
 					}
 				}
@@ -309,10 +321,10 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let iter = names.into_iter();
 				let mut names: Vec<String> = Vec::new();
 				for name in iter {
-					names.push(CompileExpression(scope, None, name))
+					names.push(compile_expression(scope, None, name))
 				}
 				let mut i = 0usize;
-				let values = CompileList(values, ", ", &mut |expr| {
+				let values = compile_list(values, ", ", &mut |expr| {
 					let name = if let Some(name) = names.get(i) {
 						name.clone()
 					} else {
@@ -322,7 +334,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					(if kind == DEFINE {
 						String::new()
 					} else {
-						name + &match kind {
+						name + match kind {
 							DEFINE_AND => " and ",
 							DEFINE_OR => " or ",
 							INCREASE => " + ",
@@ -332,20 +344,18 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 							EXPONENTIATE => " ^ ",
 							CONCATENATE => " .. ",
 							MODULATE => " % ",
-							_ => {
-								panic!("Unexpected alter type found")
-							}
+							_ => panic!("Unexpected alter type found"),
 						}
-					}) + &CompileExpression(scope, Some(&names), expr)
+					}) + &compile_expression(scope, Some(&names), expr)
 				});
-				let names = CompileIdentifiers(names);
-				let line = CompileDebugLine(line);
+				let names = compile_identifiers(names);
+				let line = compile_debug_line(line);
 				format!(
 					"{} = {};{}{}",
 					names,
 					values,
 					line,
-					IndentateIf(ctokens, scope)
+					indentate_if(ctokens, scope)
 				)
 			}
 			FUNCTION {
@@ -355,9 +365,9 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				code,
 			} => {
 				let pre = if local { "local " } else { "" };
-				let end = IndentateIf(ctokens, scope);
-				let name = CompileExpression(scope, None, name);
-				let (code, args) = CompileFunction(scope, None, args, code);
+				let end = indentate_if(ctokens, scope);
+				let name = compile_expression(scope, None, name);
+				let (code, args) = compile_function(scope, None, args, code);
 				format!("{}function {}({}){}end{}", pre, name, args, code, end)
 			}
 			IF_STATEMENT {
@@ -365,8 +375,8 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				code,
 				next,
 			} => {
-				let code = CompileElseIfChain(scope, condition, code, next);
-				format!("{}end{}", code, IndentateIf(ctokens, scope))
+				let code = compile_elseif_chain(scope, condition, code, next);
+				format!("{}end{}", code, indentate_if(ctokens, scope))
 			}
 			MATCH_BLOCK {
 				name,
@@ -374,23 +384,23 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				branches,
 				line,
 			} => {
-				let value = CompileExpression(scope, None, value);
-				let line = CompileDebugLine(line);
+				let value = compile_expression(scope, None, value);
+				let line = compile_debug_line(line);
 				let branches = {
-					let mut result = Indentate(scope);
+					let mut result = indentate(scope);
 					let mut branches = branches.into_iter().peekable();
 					while let Some((conditions, extraif, code)) = branches.next() {
 						let empty = conditions.is_empty();
 						let default = empty && extraif == None;
 						let pre = if default { "else" } else { "if" };
 						let condition = {
-							let mut condition = CompileList(conditions, "or ", &mut |expr| {
-								let expr = CompileExpression(scope, None, expr);
+							let mut condition = compile_list(conditions, "or ", &mut |expr| {
+								let expr = compile_expression(scope, None, expr);
 								format!("({} == {}) ", name, expr)
 							});
 							if let Some(extraif) = extraif {
 								condition.pop();
-								let extraif = CompileExpression(scope, None, extraif);
+								let extraif = compile_expression(scope, None, extraif);
 								if empty {
 									extraif + " "
 								} else {
@@ -400,7 +410,8 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 								condition
 							}
 						};
-						let code = CompileCodeBlock(scope, if default { "" } else { "then" }, code);
+						let code =
+							compile_code_block(scope, if default { "" } else { "then" }, code);
 						let end = match branches.peek() {
 							Some((conditions, extraif, _))
 								if conditions.is_empty() && matches!(extraif, None) =>
@@ -410,31 +421,32 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 							Some(_) => "else",
 							_ => "end",
 						};
-						result += &format!("{} {}{}{}", pre, condition, code, end)
+						write!(result, "{} {}{}{}", pre, condition, code, end)
+							.expect("something really unexpected happened");
 					}
 					result
 				};
-				let end = IndentateIf(ctokens, scope);
+				let end = indentate_if(ctokens, scope);
 				format!("local {} = {};{}\n{}{}", name, value, line, branches, end)
 			}
 			WHILE_LOOP { condition, code } => {
-				let condition = CompileExpression(scope, None, condition);
-				let code = CompileCodeBlock(scope, "do", code);
+				let condition = compile_expression(scope, None, condition);
+				let code = compile_code_block(scope, "do", code);
 				format!(
 					"while {} {}end{}",
 					condition,
 					code,
-					IndentateIf(ctokens, scope)
+					indentate_if(ctokens, scope)
 				)
 			}
 			LOOP_UNTIL { condition, code } => {
-				let condition = CompileExpression(scope, None, condition);
-				let code = CompileCodeBlock(scope, "", code);
+				let condition = compile_expression(scope, None, condition);
+				let code = compile_code_block(scope, "", code);
 				format!(
 					"repeat {}until {}{}",
 					code,
 					condition,
-					IndentateIf(ctokens, scope)
+					indentate_if(ctokens, scope)
 				)
 			}
 			FOR_LOOP {
@@ -444,11 +456,11 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				alter,
 				code,
 			} => {
-				let start = CompileExpression(scope, None, start);
-				let endexpr = CompileExpression(scope, None, end);
-				let alter = CompileExpression(scope, None, alter);
-				let code = CompileCodeBlock(scope, "do", code);
-				let end = IndentateIf(ctokens, scope);
+				let start = compile_expression(scope, None, start);
+				let endexpr = compile_expression(scope, None, end);
+				let alter = compile_expression(scope, None, alter);
+				let code = compile_code_block(scope, "do", code);
+				let end = indentate_if(ctokens, scope);
 				format!(
 					"for {} = {}, {}, {} {}end{}",
 					iterator, start, endexpr, alter, code, end
@@ -459,15 +471,15 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				expr,
 				code,
 			} => {
-				let expr = CompileExpression(scope, Some(&iterators), expr);
-				let iterators = CompileIdentifiers(iterators);
-				let code = CompileCodeBlock(scope, "do", code);
+				let expr = compile_expression(scope, Some(&iterators), expr);
+				let iterators = compile_identifiers(iterators);
+				let code = compile_code_block(scope, "do", code);
 				format!(
 					"for {} in {} {}end{}",
 					iterators,
 					expr,
 					code,
-					IndentateIf(ctokens, scope)
+					indentate_if(ctokens, scope)
 				)
 			}
 			TRY_CATCH {
@@ -475,11 +487,11 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				error,
 				catch,
 			} => {
-				let i = IndentateIf(ctokens, scope);
-				let totry = CompileCodeBlock(scope, "function()", totry);
+				let i = indentate_if(ctokens, scope);
+				let totry = compile_code_block(scope, "function()", totry);
 				if let Some(catch) = catch {
-					let catch = CompileCodeBlock(scope, "if not _check then", catch);
-					let i2 = Indentate(scope);
+					let catch = compile_code_block(scope, "if not _check then", catch);
+					let i2 = indentate(scope);
 					if let Some(error) = error {
 						format!(
 							"local _check, {} = pcall({}end)\n{}{}end{}",
@@ -496,35 +508,35 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				}
 			}
 			IDENT { expr, line } => {
-				let expr = CompileIdentifier(scope, None, expr);
-				let line = CompileDebugLine(line);
-				format!("{};{}{}", expr, line, IndentateIf(ctokens, scope))
+				let expr = compile_identifier(scope, None, expr);
+				let line = compile_debug_line(line);
+				format!("{};{}{}", expr, line, indentate_if(ctokens, scope))
 			}
 			/*CALL(args) => {
-				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
+				format!("({}){}", compile_expressions(scope, None, args), indentate_if(ctokens, scope))
 			}*/
 			EXPR(expr) => {
-				format!("({})", CompileExpression(scope, None, expr))
+				format!("({})", compile_expression(scope, None, expr))
 			}
 			DO_BLOCK(code) => {
 				format!(
 					"{}end{}",
-					CompileCodeBlock(scope, "do", code),
-					IndentateIf(ctokens, scope)
+					compile_code_block(scope, "do", code),
+					indentate_if(ctokens, scope)
 				)
 			}
 			RETURN_EXPR(exprs) => {
 				if let Some(exprs) = exprs {
-					format!("return {};", CompileExpressions(scope, None, exprs))
+					format!("return {};", compile_expressions(scope, None, exprs))
 				} else {
 					String::from("return;")
 				}
 			}
 			CONTINUE_LOOP => {
-				let end = IndentateIf(ctokens, scope);
+				let end = indentate_if(ctokens, scope);
 				format!(
 					"{};{}",
-					if arg!(ENV_CONTINUE) {
+					if flag!(env_continue) {
 						"goto continue"
 					} else {
 						"continue"
@@ -532,7 +544,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					end
 				)
 			}
-			BREAK_LOOP => String::from("break;") + &IndentateIf(ctokens, scope),
+			BREAK_LOOP => String::from("break;") + &indentate_if(ctokens, scope),
 			_ => {
 				panic!("Unexpected ComplexToken found")
 			}
