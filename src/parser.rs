@@ -493,6 +493,7 @@ impl ParserInfo {
 			let arg2 = self.buildExpression(end)?;
 			expr.push_back(SYMBOL(format!("{}.{}", bit, fname)));
 			expr.push_back(CALL(vec![arg1, arg2]));
+			self.current -= 1;
 		} else {
 			expr.push_back(SYMBOL(t.lexeme))
 		}
@@ -594,6 +595,7 @@ impl ParserInfo {
 						let arg = self.buildExpression(end)?;
 						expr.push_back(SYMBOL(bit.clone() + ".bnot"));
 						expr.push_back(CALL(vec![arg]));
+						self.current -= 1;
 					} else {
 						expr.push_back(SYMBOL(t.lexeme))
 					}
@@ -719,6 +721,9 @@ impl ParserInfo {
 					expr.push_back(EXPR(
 						self.buildExpression(Some((ROUND_BRACKET_CLOSED, ")")))?,
 					));
+					if self.checkVal() {
+						break t;
+					}
 					self.current += 1;
 					let fname = self.buildIdentifier()?;
 					expr.push_back(fname);
