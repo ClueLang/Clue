@@ -209,3 +209,15 @@ fn main() -> Result<(), String> {
 	}
 	Ok(())
 }
+
+#[cfg(test)]
+mod test {
+	use crate::CompileFolder;
+	use std::path::Path;
+
+	#[test]
+	fn CompilationSuccess() {
+		CompileFolder(Path::new("examples/"), String::new()).unwrap();
+	}
+}
+
