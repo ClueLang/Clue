@@ -127,6 +127,7 @@ pub struct CodeBlock {
 	pub start: usize,
 	pub code: Expression,
 	pub end: usize,
+	pub hascontinue: bool
 }
 
 struct ParserInfo {
@@ -660,6 +661,7 @@ impl ParserInfo {
 							}],
 							start,
 							end,
+							hascontinue: false
 						})
 					})?;
 					self.expr.push_back(ctoken);
@@ -691,6 +693,7 @@ impl ParserInfo {
 								values: vec![exprtrue]
 							}],
 							end: t2.line,
+							hascontinue: false
 						},
 						next: Some(Box::new(DO_BLOCK(CodeBlock {
 							start: t2.line,
@@ -701,6 +704,7 @@ impl ParserInfo {
 								values: vec![exprfalse]
 							}],
 							end: self.at(self.current).line,
+							hascontinue: false
 						}))),
 					});
 					expr.push_back(name);
@@ -881,16 +885,27 @@ impl ParserInfo {
 		Ok(IDENT { expr, line })
 	}
 
+	fn getCodeBlockStart(&mut self) -> Result<usize, String> {
+		let t = self.advance();
+		if t.kind != CURLY_BRACKET_OPEN {
+			self.current -= 2;
+			Ok(self.assertAdvance(CURLY_BRACKET_OPEN, "{")?.line)
+		} else {
+			Ok(t.line)
+		}
+	}
+
+	fn parseCodeBlock(&self, mut tokens: Vec<Token>) -> Result<Expression, String> {
+		if tokens.is_empty() {
+			Ok(Expression::new())
+		} else {
+			tokens.push(self.tokens.last().unwrap().clone());
+			Ok(ParseTokens(tokens, self.filename.clone())?)
+		}
+	}
+
 	fn buildCodeBlock(&mut self) -> Result<CodeBlock, String> {
-		let start = {
-			let t = self.advance();
-			if t.kind != CURLY_BRACKET_OPEN {
-				self.current -= 2;
-				self.assertAdvance(CURLY_BRACKET_OPEN, "{")?.line
-			} else {
-				t.line
-			}
-		};
+		let start = self.getCodeBlockStart()?;
 		let mut tokens: Vec<Token> = Vec::new();
 		let mut cscope = 1u8;
 		let end: usize;
@@ -910,21 +925,47 @@ impl ParserInfo {
 			}
 			tokens.push(t);
 		}
-		let code = if tokens.is_empty() {
-			Expression::new()
-		} else {
-			tokens.push(self.tokens.last().unwrap().clone());
-			ParseTokens(tokens, self.filename.clone())?
-		};
-		Ok(CodeBlock { start, code, end })
+		let code = self.parseCodeBlock(tokens)?;
+		Ok(CodeBlock {start, code, end, hascontinue: false})
 	}
 
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
-		let mut code = self.buildCodeBlock()?;
-		if arg!(ENV_CONTINUE) == ContinueMode::LUAJIT {
-			code.code.push_back(SYMBOL(String::from("::continue::")));
+		let mut hascontinue = false;
+		let mut isinotherloop = false;
+		let start = self.getCodeBlockStart()?;
+		let mut tokens: Vec<Token> = Vec::new();
+		let mut cscope = 1u8;
+		let end: usize;
+		loop {
+			let t = self.advance();
+			match t.kind {
+				CURLY_BRACKET_OPEN => cscope += 1,
+				CURLY_BRACKET_CLOSED => {
+					cscope -= 1;
+					isinotherloop = false;
+					if cscope == 0 {
+						end = t.line;
+						break;
+					}
+				}
+				FOR | WHILE | LOOP => isinotherloop = true,
+				CONTINUE if !isinotherloop => hascontinue = true,
+				EOF => return Err(self.expectedBefore("}", "<end>", t.line)),
+				_ => {}
+			}
+			tokens.push(t);
 		}
-		Ok(code)
+		let mut code = self.parseCodeBlock(tokens)?;
+		if hascontinue {
+			match arg!(ENV_CONTINUE) {
+				ContinueMode::SIMPLE => {}
+				ContinueMode::LUAJIT => code.push_back(SYMBOL(String::from("::continue::"))),
+				ContinueMode::MOONSCRIPT => {
+					//TODO
+				}
+			}
+		}
+		Ok(CodeBlock {start, code, end, hascontinue})
 	}
 
 	fn buildIdentifierList(&mut self) -> Result<Vec<String>, String> {
