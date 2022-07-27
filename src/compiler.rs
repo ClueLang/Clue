@@ -2,6 +2,7 @@ use crate::{
 	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
 	ENV_CONTINUE, ENV_DEBUGCOMMENTS, ENV_RAWSETGLOBALS,
+	ContinueMode
 };
 use std::iter::{Iterator, Peekable};
 
@@ -524,7 +525,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				let end = IndentateIf(ctokens, scope);
 				format!(
 					"{};{}",
-					if arg!(ENV_CONTINUE) {
+					if arg!(ENV_CONTINUE) == ContinueMode::LUAJIT {
 						"goto continue"
 					} else {
 						"continue"

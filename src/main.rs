@@ -20,7 +20,7 @@ mod compiler;
 mod parser;
 mod scanner;
 
-use clap::Parser;
+use clap::{Parser, ArgEnum};
 use compiler::*;
 use parser::*;
 use scanner::*;
@@ -32,11 +32,18 @@ pub static mut ENV_TOKENS: bool = false;
 pub static mut ENV_STRUCT: bool = false;
 pub static mut ENV_OUTPUT: bool = false;
 pub static mut ENV_JITBIT: Option<String> = None;
-pub static mut ENV_CONTINUE: bool = false;
+pub static mut ENV_CONTINUE: ContinueMode = ContinueMode::SIMPLE;
 pub static mut ENV_DONTSAVE: bool = false;
 pub static mut ENV_PATHISCODE: bool = false;
 pub static mut ENV_RAWSETGLOBALS: bool = false;
 pub static mut ENV_DEBUGCOMMENTS: bool = false;
+
+#[derive(Copy, Clone, PartialEq, ArgEnum)]
+pub enum ContinueMode {
+	SIMPLE,
+	LUAJIT,
+	MOONSCRIPT
+}
 
 #[derive(Parser)]
 #[clap(about, version, long_about = None)]
@@ -71,9 +78,9 @@ struct Cli {
 	#[clap(short, long, value_name = "VAR NAME")]
 	jitbit: Option<String>,
 
-	/// Use tags and goto for continue
-	#[clap(short, long)]
-	r#continue: bool,
+	/// Change the way continue identifiers are compiled
+	#[clap(short, long, value_enum, default_value = "simple", value_name = "MODE")]
+	r#continue: ContinueMode,
 
 	/// Don't save compiled code
 	#[clap(short = 'D', long)]

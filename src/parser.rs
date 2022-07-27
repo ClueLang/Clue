@@ -1,7 +1,11 @@
 #![allow(non_camel_case_types)]
 
 use self::ComplexToken::*;
-use crate::{compiler::CompileTokens, finaloutput, ENV_JITBIT, ENV_CONTINUE, ENV_DEBUGCOMMENTS, TokenType, Token};
+use crate::{
+	compiler::CompileTokens,
+	finaloutput, ENV_JITBIT, ENV_CONTINUE, ENV_DEBUGCOMMENTS,
+	TokenType, Token, ContinueMode
+};
 use crate::TokenType::*;
 use std::{cmp, collections::{LinkedList, HashMap}};
 use crate::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
@@ -917,7 +921,7 @@ impl ParserInfo {
 
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
 		let mut code = self.buildCodeBlock()?;
-		if arg!(ENV_CONTINUE) {
+		if arg!(ENV_CONTINUE) == ContinueMode::LUAJIT {
 			code.code.push_back(SYMBOL(String::from("::continue::")));
 		}
 		Ok(code)
