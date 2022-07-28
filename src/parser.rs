@@ -126,8 +126,7 @@ pub enum ComplexToken {
 pub struct CodeBlock {
 	pub start: usize,
 	pub code: Expression,
-	pub end: usize,
-	pub hascontinue: bool
+	pub end: usize
 }
 
 struct ParserInfo {
@@ -660,8 +659,7 @@ impl ParserInfo {
 								line: end
 							}],
 							start,
-							end,
-							hascontinue: false
+							end
 						})
 					})?;
 					self.expr.push_back(ctoken);
@@ -692,8 +690,7 @@ impl ParserInfo {
 								names: vec![expression![name.clone()]],
 								values: vec![exprtrue]
 							}],
-							end: t2.line,
-							hascontinue: false
+							end: t2.line
 						},
 						next: Some(Box::new(DO_BLOCK(CodeBlock {
 							start: t2.line,
@@ -703,8 +700,7 @@ impl ParserInfo {
 								names: vec![expression![name.clone()]],
 								values: vec![exprfalse]
 							}],
-							end: self.at(self.current).line,
-							hascontinue: false
+							end: self.at(self.current).line
 						}))),
 					});
 					expr.push_back(name);
@@ -926,12 +922,12 @@ impl ParserInfo {
 			tokens.push(t);
 		}
 		let code = self.parseCodeBlock(tokens)?;
-		Ok(CodeBlock {start, code, end, hascontinue: false})
+		Ok(CodeBlock {start, code, end})
 	}
 
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
 		let mut hascontinue = false;
-		let mut isinotherloop = false;
+		let mut is_in_other_loop = false;
 		let start = self.getCodeBlockStart()?;
 		let mut tokens: Vec<Token> = Vec::new();
 		let mut cscope = 1u8;
@@ -942,14 +938,24 @@ impl ParserInfo {
 				CURLY_BRACKET_OPEN => cscope += 1,
 				CURLY_BRACKET_CLOSED => {
 					cscope -= 1;
-					isinotherloop = false;
+					is_in_other_loop = false;
 					if cscope == 0 {
 						end = t.line;
 						break;
 					}
 				}
-				FOR | WHILE | LOOP => isinotherloop = true,
-				CONTINUE if !isinotherloop => hascontinue = true,
+				FOR | WHILE | LOOP => is_in_other_loop = true,
+				CONTINUE if !is_in_other_loop => {
+					hascontinue = true;
+					let line = t.line;
+					if arg!(ENV_CONTINUE) == ContinueMode::MOONSCRIPT {
+						tokens.push(Token {kind: IDENTIFIER, lexeme: String::from("_continue"), line});
+						tokens.push(Token {kind: DEFINE, lexeme: String::from("="), line});
+						tokens.push(Token {kind: TRUE, lexeme: String::from("true"), line});
+						tokens.push(Token {kind: BREAK, lexeme: String::from("break"), line});
+						continue
+					}
+				},
 				EOF => return Err(self.expectedBefore("}", "<end>", t.line)),
 				_ => {}
 			}
@@ -961,11 +967,33 @@ impl ParserInfo {
 				ContinueMode::SIMPLE => {}
 				ContinueMode::LUAJIT => code.push_back(SYMBOL(String::from("::continue::"))),
 				ContinueMode::MOONSCRIPT => {
-					//TODO
+					code.push_back(ALTER {
+						kind: DEFINE,
+						names: vec![expression![SYMBOL(String::from("_continue"))]],
+						values: vec![expression![SYMBOL(String::from("true"))]],
+						line: end
+					});
+					code = expression![
+						VARIABLE {
+							local: true,
+							names: vec![String::from("_continue")],
+							values: vec![expression![SYMBOL(String::from("false"))]],
+							line: start
+						},
+						LOOP_UNTIL {
+							condition: expression![SYMBOL(String::from("true"))],
+							code: CodeBlock {start, code, end}
+						},
+						IF_STATEMENT {
+							condition: expression![SYMBOL(String::from("not ")), SYMBOL(String::from("_continue"))],
+							code: CodeBlock {start: end, code: expression![BREAK_LOOP], end},
+							next: None
+						}
+					]
 				}
 			}
 		}
-		Ok(CodeBlock {start, code, end, hascontinue})
+		Ok(CodeBlock {start, code, end})
 	}
 
 	fn buildIdentifierList(&mut self) -> Result<Vec<String>, String> {
