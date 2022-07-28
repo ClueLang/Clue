@@ -1,14 +1,16 @@
 #![allow(non_camel_case_types)]
 
 use self::ComplexToken::*;
-use crate::{
-	compiler::CompileTokens,
-	finaloutput, ENV_JITBIT, ENV_CONTINUE, ENV_DEBUGCOMMENTS,
-	TokenType, Token, ContinueMode
-};
 use crate::TokenType::*;
-use std::{cmp, collections::{LinkedList, HashMap}};
 use crate::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
+use crate::{
+	compiler::CompileTokens, finaloutput, ContinueMode, Token, TokenType, ENV_CONTINUE,
+	ENV_DEBUGCOMMENTS, ENV_JITBIT,
+};
+use std::{
+	cmp,
+	collections::{HashMap, LinkedList},
+};
 
 macro_rules! expression {
 	($($x: expr),*) => {
@@ -44,7 +46,7 @@ pub enum ComplexToken {
 	TABLE {
 		values: Vec<(Option<Expression>, Expression, usize)>,
 		metas: Vec<(String, Expression, usize)>,
-		metatable: Option<String>
+		metatable: Option<String>,
 	},
 
 	FUNCTION {
@@ -109,10 +111,11 @@ pub enum ComplexToken {
 
 	MACRO_CALL {
 		expr: Expression,
-		args: Vec<Expression>
+		args: Vec<Expression>,
 	},
 
 	SYMBOL(String),
+	MULTILINE_SYMBOL(String),
 	PSEUDO(usize),
 	CALL(Vec<Expression>),
 	EXPR(Expression),
@@ -126,7 +129,7 @@ pub enum ComplexToken {
 pub struct CodeBlock {
 	pub start: usize,
 	pub code: Expression,
-	pub end: usize
+	pub end: usize,
 }
 
 struct ParserInfo {
@@ -138,7 +141,7 @@ struct ParserInfo {
 	testing: Option<usize>,
 	localid: u8,
 	statics: String,
-	macros: HashMap<String, Expression>
+	macros: HashMap<String, Expression>,
 }
 
 impl ParserInfo {
@@ -152,7 +155,7 @@ impl ParserInfo {
 			testing: None,
 			localid: 0,
 			statics: String::new(),
-			macros: HashMap::new()
+			macros: HashMap::new(),
 		}
 	}
 
@@ -367,17 +370,17 @@ impl ParserInfo {
 							return Err(self.error(
 								"An external metatable cannot be used if the table already set its own metamethods",
 								pn.line
-							))
+							));
 						}
 						metatable = Some(self.assertAdvance(IDENTIFIER, "<name>")?.lexeme);
 						self.advanceIf(COMMA);
-						continue
+						continue;
 					} else {
 						if let Some(_) = metatable {
 							return Err(self.error(
 								"Metamethods cannot be set if the table already ueses an external metatable",
 								pn.line
-							))
+							));
 						}
 						name = Err(String::from(match self.advance().lexeme.as_ref() {
 							"index" => "__index",
@@ -446,13 +449,18 @@ impl ParserInfo {
 			self.current -= 1;
 			self.advanceIf(COMMA);
 		}
-		Ok(TABLE {values, metas, metatable})
+		Ok(TABLE {
+			values,
+			metas,
+			metatable,
+		})
 	}
 
 	fn checkOperator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
 		if match self.peek(0).kind {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS
-			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT | THREEDOTS => false,
+			NUMBER | IDENTIFIER | STRING | MULTILINE_STRING | DOLLAR | PROTECTED_GET | TRUE
+			| FALSE | MINUS | BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT
+			| THREEDOTS => false,
 			_ => true,
 		} {
 			return Err(self.error(
@@ -462,19 +470,19 @@ impl ParserInfo {
 		}
 		if checkback
 			&& match self.lookBack(1).kind {
-			NUMBER
-			| IDENTIFIER
-			| STRING
-			| DOLLAR
-			| TRUE
-			| FALSE
-			| NIL
-			| ROUND_BRACKET_CLOSED
-			| SQUARE_BRACKET_CLOSED
-			| THREEDOTS => false,
-			_ => true,
-		}
-		{
+				NUMBER
+				| IDENTIFIER
+				| STRING
+				| MULTILINE_STRING
+				| DOLLAR
+				| TRUE
+				| FALSE
+				| NIL
+				| ROUND_BRACKET_CLOSED
+				| SQUARE_BRACKET_CLOSED
+				| THREEDOTS => false,
+				_ => true,
+			} {
 			return Err(self.error(
 				format!("Operator '{}' has invalid left hand token", t.lexeme),
 				t.line,
@@ -507,10 +515,9 @@ impl ParserInfo {
 	fn checkIndex(&mut self, t: &Token, expr: &mut Expression, lexeme: &str) -> Result<(), String> {
 		if !self.compare(IDENTIFIER)
 			|| match self.lookBack(0).kind {
-			IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
-			_ => false,
-		}
-		{
+				IDENTIFIER | SQUARE_BRACKET_CLOSED => true,
+				_ => false,
+			} {
 			return Err(self.error(
 				format!("'{}' should be used only when indexing", t.lexeme),
 				self.peek(0).line,
@@ -522,8 +529,8 @@ impl ParserInfo {
 
 	fn checkVal(&mut self) -> bool {
 		match self.peek(0).kind {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | NIL | NOT
-			| HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
+			NUMBER | IDENTIFIER | STRING | MULTILINE_STRING | DOLLAR | PROTECTED_GET | TRUE
+			| FALSE | NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
 			}
@@ -551,17 +558,19 @@ impl ParserInfo {
 					let macroexpr = if let Some(macroexpr) = code {
 						macroexpr.clone()
 					} else {
-						return Err(self.error(
-							format!("The macro {} is not defined", name),
-							t.line
-						))
+						return Err(
+							self.error(format!("The macro {} is not defined", name), t.line)
+						);
 					};
 					let args = if self.advanceIf(ROUND_BRACKET_OPEN) {
 						self.buildCall()?
 					} else {
 						Vec::new()
 					};
-					expr.push_back(MACRO_CALL {expr: macroexpr, args});
+					expr.push_back(MACRO_CALL {
+						expr: macroexpr,
+						args,
+					});
 					if self.checkVal() {
 						break t;
 					}
@@ -659,7 +668,7 @@ impl ParserInfo {
 								line: end
 							}],
 							start,
-							end
+							end,
 						})
 					})?;
 					self.expr.push_back(ctoken);
@@ -690,7 +699,7 @@ impl ParserInfo {
 								names: vec![expression![name.clone()]],
 								values: vec![exprtrue]
 							}],
-							end: t2.line
+							end: t2.line,
 						},
 						next: Some(Box::new(DO_BLOCK(CodeBlock {
 							start: t2.line,
@@ -700,7 +709,7 @@ impl ParserInfo {
 								names: vec![expression![name.clone()]],
 								values: vec![exprfalse]
 							}],
-							end: self.at(self.current).line
+							end: self.at(self.current).line,
 						}))),
 					});
 					expr.push_back(name);
@@ -717,6 +726,12 @@ impl ParserInfo {
 				}
 				STRING => {
 					expr.push_back(SYMBOL(format!("\"{}\"", t.lexeme)));
+					if self.checkVal() {
+						break t;
+					}
+				}
+				MULTILINE_STRING => {
+					expr.push_back(MULTILINE_SYMBOL(format!("`{}`", t.lexeme)));
 					if self.checkVal() {
 						break t;
 					}
@@ -922,7 +937,7 @@ impl ParserInfo {
 			tokens.push(t);
 		}
 		let code = self.parseCodeBlock(tokens)?;
-		Ok(CodeBlock {start, code, end})
+		Ok(CodeBlock { start, code, end })
 	}
 
 	fn buildLoopBlock(&mut self) -> Result<CodeBlock, String> {
@@ -949,13 +964,29 @@ impl ParserInfo {
 					hascontinue = true;
 					let line = t.line;
 					if arg!(ENV_CONTINUE) == ContinueMode::MOONSCRIPT {
-						tokens.push(Token {kind: IDENTIFIER, lexeme: String::from("_continue"), line});
-						tokens.push(Token {kind: DEFINE, lexeme: String::from("="), line});
-						tokens.push(Token {kind: TRUE, lexeme: String::from("true"), line});
-						tokens.push(Token {kind: BREAK, lexeme: String::from("break"), line});
-						continue
+						tokens.push(Token {
+							kind: IDENTIFIER,
+							lexeme: String::from("_continue"),
+							line,
+						});
+						tokens.push(Token {
+							kind: DEFINE,
+							lexeme: String::from("="),
+							line,
+						});
+						tokens.push(Token {
+							kind: TRUE,
+							lexeme: String::from("true"),
+							line,
+						});
+						tokens.push(Token {
+							kind: BREAK,
+							lexeme: String::from("break"),
+							line,
+						});
+						continue;
 					}
-				},
+				}
 				EOF => return Err(self.expectedBefore("}", "<end>", t.line)),
 				_ => {}
 			}
@@ -971,7 +1002,7 @@ impl ParserInfo {
 						kind: DEFINE,
 						names: vec![expression![SYMBOL(String::from("_continue"))]],
 						values: vec![expression![SYMBOL(String::from("true"))]],
-						line: end
+						line: end,
 					});
 					code = expression![
 						VARIABLE {
@@ -982,18 +1013,25 @@ impl ParserInfo {
 						},
 						LOOP_UNTIL {
 							condition: expression![SYMBOL(String::from("true"))],
-							code: CodeBlock {start, code, end}
+							code: CodeBlock { start, code, end }
 						},
 						IF_STATEMENT {
-							condition: expression![SYMBOL(String::from("not ")), SYMBOL(String::from("_continue"))],
-							code: CodeBlock {start: end, code: expression![BREAK_LOOP], end},
+							condition: expression![
+								SYMBOL(String::from("not ")),
+								SYMBOL(String::from("_continue"))
+							],
+							code: CodeBlock {
+								start: end,
+								code: expression![BREAK_LOOP],
+								end
+							},
 							next: None
 						}
 					]
 				}
 			}
 		}
-		Ok(CodeBlock {start, code, end})
+		Ok(CodeBlock { start, code, end })
 	}
 
 	fn buildIdentifierList(&mut self) -> Result<Vec<String>, String> {
