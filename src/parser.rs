@@ -115,7 +115,6 @@ pub enum ComplexToken {
 	},
 
 	SYMBOL(String),
-	MULTILINE_SYMBOL(String),
 	PSEUDO(usize),
 	CALL(Vec<Expression>),
 	EXPR(Expression),
@@ -731,7 +730,7 @@ impl ParserInfo {
 					}
 				}
 				MULTILINE_STRING => {
-					expr.push_back(MULTILINE_SYMBOL(format!("`{}`", t.lexeme)));
+					expr.push_back(SYMBOL(format!("`{}`", t.lexeme)));
 					if self.checkVal() {
 						break t;
 					}
