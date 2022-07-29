@@ -457,7 +457,7 @@ impl ParserInfo {
 
 	fn checkOperator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
 		if match self.peek(0).kind {
-			NUMBER | IDENTIFIER | STRING | MULTILINE_STRING | DOLLAR | PROTECTED_GET | TRUE
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
 			| FALSE | MINUS | BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT
 			| THREEDOTS => false,
 			_ => true,
@@ -472,7 +472,6 @@ impl ParserInfo {
 				NUMBER
 				| IDENTIFIER
 				| STRING
-				| MULTILINE_STRING
 				| DOLLAR
 				| TRUE
 				| FALSE
@@ -528,7 +527,7 @@ impl ParserInfo {
 
 	fn checkVal(&mut self) -> bool {
 		match self.peek(0).kind {
-			NUMBER | IDENTIFIER | STRING | MULTILINE_STRING | DOLLAR | PROTECTED_GET | TRUE
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
 			| FALSE | NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true

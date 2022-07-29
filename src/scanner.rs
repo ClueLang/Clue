@@ -20,7 +20,7 @@ pub enum TokenType {
 	BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL,
 
 	//literals
-	IDENTIFIER, NUMBER, STRING, MULTILINE_STRING,
+	IDENTIFIER, NUMBER, STRING,
 
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, UNTIL,
@@ -439,6 +439,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"default" => DEFAULT,
 						"macro" => MACRO,
 						"struct" => STRUCT,
+						"extern" => {i.warning("The extern keyword is reserved for Clue 3.0 and cannot be used."); EXTERN},
 						_ => IDENTIFIER
 					};
 					i.addToken(kind);
