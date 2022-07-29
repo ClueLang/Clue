@@ -717,20 +717,8 @@ impl ParserInfo {
 						break t;
 					}
 				}
-				THREEDOTS | NUMBER | TRUE | FALSE | NIL => {
+				THREEDOTS | NUMBER | TRUE | FALSE | NIL | STRING => {
 					expr.push_back(SYMBOL(t.lexeme.clone()));
-					if self.checkVal() {
-						break t;
-					}
-				}
-				STRING => {
-					expr.push_back(SYMBOL(format!("\"{}\"", t.lexeme)));
-					if self.checkVal() {
-						break t;
-					}
-				}
-				MULTILINE_STRING => {
-					expr.push_back(SYMBOL(format!("`{}`", t.lexeme)));
 					if self.checkVal() {
 						break t;
 					}

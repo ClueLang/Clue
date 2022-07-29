@@ -205,7 +205,7 @@ impl CodeInfo {
 				self.warning("Malformed number");
 			}
 		}
-		self.addLiteralToken(NUMBER, self.substr(self.start, self.current));
+		self.addToken(NUMBER);
 	}
 
 	fn readString(&mut self, strend: char) {
@@ -220,7 +220,7 @@ impl CodeInfo {
 			self.warning("Unterminated string");
 		} else {
 			self.current += 1;
-			let mut literal: String = self.substr(self.start + 1, self.current - 1);
+			let mut literal: String = self.substr(self.start, self.current);
 			literal.retain(|c| match c {
 				'\r' | '\n' | '\t' => false,
 				_ => true,
@@ -242,8 +242,7 @@ impl CodeInfo {
 			self.warning("Unterminated string");
 		} else {
 			self.current += 1;
-			let literal: String = self.substr(self.start + 1, self.current - 1);
-			self.addLiteralToken(MULTILINE_STRING, literal);
+			self.addToken(STRING);
 		}
 		self.line = aline
 	}
