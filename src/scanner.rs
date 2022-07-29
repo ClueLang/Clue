@@ -2,6 +2,7 @@
 
 use self::TokenType::*;
 
+#[rustfmt::skip]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenType {
 	//symbols
@@ -19,7 +20,7 @@ pub enum TokenType {
 	BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL,
 
 	//literals
-	IDENTIFIER, NUMBER, STRING,
+	IDENTIFIER, NUMBER, STRING, MULTILINE_STRING,
 
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, UNTIL,
@@ -157,7 +158,9 @@ impl CodeInfo {
 	fn warning(&mut self, message: impl Into<String>) {
 		println!(
 			"Error in file \"{}\" at line {}!\nError: \"{}\"\n",
-			self.filename, self.line, message.into()
+			self.filename,
+			self.line,
+			message.into()
 		);
 		self.errored = true;
 	}
@@ -227,6 +230,24 @@ impl CodeInfo {
 		self.line = aline;
 	}
 
+	fn readMultilineString(&mut self) {
+		let mut aline = self.line;
+		while !self.ended() && self.peek(0) != '`' {
+			if self.peek(0) == '\n' {
+				aline += 1
+			};
+			self.current += 1;
+		}
+		if self.ended() {
+			self.warning("Unterminated string");
+		} else {
+			self.current += 1;
+			let literal: String = self.substr(self.start + 1, self.current - 1);
+			self.addLiteralToken(MULTILINE_STRING, literal);
+		}
+		self.line = aline
+	}
+
 	fn readIdentifier(&mut self) -> String {
 		while {
 			let c = self.peek(0);
@@ -238,7 +259,10 @@ impl CodeInfo {
 	}
 
 	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
-		self.warning(format!("'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}", keyword, msg));
+		self.warning(format!(
+			"'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}",
+			keyword, msg
+		));
 		IDENTIFIER
 	}
 }
@@ -342,6 +366,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			' ' | '\r' | '\t' => {}
 			'\n' => i.line += 1,
 			'"' | '\'' => i.readString(c),
+			'`' => i.readMultilineString(),
 			_ => {
 				if c.is_ascii_digit() {
 					if c == '0' {
@@ -352,8 +377,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 									|c| {
 										let c = *c;
 										c.is_ascii_digit()
-											|| (c >= 'a' && c <= 'f')
-											|| (c >= 'A' && c <= 'F')
+											|| (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 									},
 									false,
 								);
