@@ -489,6 +489,23 @@ impl ParserInfo {
 		Ok(())
 	}
 
+	fn buildFunctionOp(
+		&mut self,
+		t: Token,
+		expr: &mut Expression,
+		fname: impl Into<String>,
+		end: OptionalEnd
+	) -> Result<(), String> {
+		self.checkOperator(&t, true)?;
+		let mut arg1 = Expression::new();
+		arg1.append(expr);
+		let arg2 = self.buildExpression(end)?;
+		expr.push_back(SYMBOL(fname.into()));
+		expr.push_back(CALL(vec![arg1, arg2]));
+		self.current -= 1;
+		Ok(())
+	}
+
 	fn buildBitwiseOp(
 		&mut self,
 		t: Token,
@@ -498,12 +515,7 @@ impl ParserInfo {
 	) -> Result<(), String> {
 		self.checkOperator(&t, true)?;
 		if let Some(bit) = arg!(&ENV_JITBIT) {
-			let mut arg1 = Expression::new();
-			arg1.append(expr);
-			let arg2 = self.buildExpression(end)?;
-			expr.push_back(SYMBOL(format!("{}.{}", bit, fname)));
-			expr.push_back(CALL(vec![arg1, arg2]));
-			self.current -= 1;
+			self.buildFunctionOp(t, expr, format!("{}.{}", bit, fname), end)?
 		} else {
 			expr.push_back(SYMBOL(t.lexeme))
 		}
@@ -597,6 +609,7 @@ impl ParserInfo {
 						t.lexeme
 					}))
 				}
+				FLOOR_DIVISION => self.buildFunctionOp(t, &mut expr, "math.floor", end)?,
 				BIT_AND => self.buildBitwiseOp(t, &mut expr, "band", end)?,
 				BIT_OR => self.buildBitwiseOp(t, &mut expr, "bor", end)?,
 				BIT_XOR => self.buildBitwiseOp(t, &mut expr, "bxor", end)?,
