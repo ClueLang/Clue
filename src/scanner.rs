@@ -12,7 +12,7 @@ pub enum TokenType {
 	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON, AT,
 	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
-	TERNARY_THEN, TERNARY_ELSE, ARROW,
+	TERNARY_THEN, TERNARY_ELSE, ARROW, FLOOR_DIVISION,
 
 	//definition and comparison
 	DEFINE, DEFINE_AND, DEFINE_OR, INCREASE, DECREASE, MULTIPLY, DIVIDE,
@@ -321,11 +321,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						i.current += 2;
 					}
 				}
-				'=' => {
-					i.current += 1;
-					i.addToken(DIVIDE);
-				}
-				_ => i.addToken(SLASH),
+				_ => i.matchAndAdd('=', DIVIDE, '_', FLOOR_DIVISION, SLASH)
 			},
 			'%' => i.compareAndAdd('=', MODULATE, PERCENTUAL),
 			'!' => i.compareAndAdd('=', NOT_EQUAL, NOT),
