@@ -26,6 +26,7 @@ pub enum TokenType {
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, UNTIL,
 	LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP, STATIC, ENUM,
 	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT, MACRO, STRUCT, EXTERN,
+	CONSTRUCTOR,
 
 	EOF,
 }
@@ -434,7 +435,8 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"match" => MATCH,
 						"default" => DEFAULT,
 						"macro" => MACRO,
-						"struct" => STRUCT,
+						"constructor" => {i.warning("The struct constructor is reserved for Clue 3.X and cannot be used."); CONSTRUCTOR},
+						"struct" => {i.warning("The struct keyword is reserved for Clue 3.X and cannot be used."); STRUCT},
 						"extern" => {i.warning("The extern keyword is reserved for Clue 3.0 and cannot be used."); EXTERN},
 						_ => IDENTIFIER
 					};
