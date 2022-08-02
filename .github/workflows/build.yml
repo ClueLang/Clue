@@ -19,7 +19,7 @@ jobs:
           toolchain: nightly
           target: "i686-pc-windows-msvc"
       - name: Cache build
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
       - name: Build the binary
         run: |
           rustup target add aarch64-pc-windows-msvc
@@ -66,7 +66,7 @@ jobs:
           toolchain: nightly
           target: "aarch64-apple-darwin"
       - name: Cache build
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
       - name: Build the binary
         run: |
           cargo build --release -Zmultitarget --target=x86_64-apple-darwin --target=aarch64-apple-darwin -vv
@@ -105,7 +105,7 @@ jobs:
           toolchain: nightly
           target: i686-unknown-linux-gnu
       - name: Cache build
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
       - name: Build the binary
         run: |
           rustup target add aarch64-unknown-linux-gnu
