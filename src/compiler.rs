@@ -5,6 +5,7 @@ use crate::{
 	flag,
 	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
+	env::ContinueMode,
 	ENV_DATA,
 };
 
@@ -150,7 +151,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 	let mut result = String::new();
 	for t in expr {
 		result += &match t {
-			MACRO_CALL {expr, args} => {
+			MACRO_CALL { expr, args } => {
 				let args = {
 					let mut strings: Vec<String> = Vec::new();
 					for arg in args {
@@ -161,7 +162,15 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 				let expr = compile_expression(scope, Some(&args), expr);
 				format!("({})", expr)
 			}
-			SYMBOL(lexeme) => lexeme,
+			SYMBOL(lexeme) => {
+				let chars: Vec<_> = lexeme.chars().collect();
+				if chars[0] == '`' && chars[lexeme.len() - 1] == '`' {
+					let text = &lexeme[1..lexeme.len() - 1];
+					return format!("[[{}]]", text);
+				}
+				lexeme
+			}
+
 			PSEUDO(num) => match names {
 				Some(names) => names
 					.get(num - 1)
@@ -270,9 +279,20 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 	let ctokens = &mut ctokens.into_iter().peekable();
 	while let Some(t) = ctokens.next() {
 		result += &match t {
-			SYMBOL(lexeme) => lexeme,
-			#[rustfmt::skip]
-			VARIABLE { local,names, values, line, } => {
+			SYMBOL(lexeme) => {
+				let chars: Vec<_> = lexeme.chars().collect();
+				if chars[0] == '`' && chars[lexeme.len() - 1] == '`' {
+					let text = &lexeme[1..lexeme.len() - 1];
+					return format!("[[{}]]", text);
+				}
+				lexeme
+			}
+			VARIABLE {
+				local,
+				names,
+				values,
+				line,
+			} => {
 				let line = compile_debug_line(line);
 				if !local && flag!(env_rawsetglobals) {
 					let mut result = String::new();
@@ -536,7 +556,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				let end = indentate_if(ctokens, scope);
 				format!(
 					"{};{}",
-					if flag!(env_continue) {
+					if flag!(env_continue) == ContinueMode::LUAJIT {
 						"goto continue"
 					} else {
 						"continue"

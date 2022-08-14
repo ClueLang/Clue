@@ -1,5 +1,5 @@
-use clap::Parser;
-use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA};
+use clap::{Parser};
+use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA, env::ContinueMode};
 use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
 
 #[derive(Parser)]
@@ -35,9 +35,9 @@ struct Cli {
 	#[clap(short, long, value_name = "VAR NAME")]
 	jitbit: Option<String>,
 
-	/// Use tags and goto for continue
-	#[clap(short, long)]
-	r#continue: bool,
+	/// Change the way continue identifiers are compiled
+	#[clap(short, long, value_enum, default_value = "simple", value_name = "MODE")]
+	r#continue: ContinueMode,
 
 	/// Don't save compiled code
 	#[clap(short = 'D', long)]
@@ -69,7 +69,7 @@ fn compile_code(code: String, name: String, scope: usize) -> Result<String, Stri
 	if flag!(env_tokens) {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
-	let ctokens = ParseTokens(tokens, name.clone())?;
+	let ctokens = parse_tokens(tokens, name.clone())?;
 	if flag!(env_struct) {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}

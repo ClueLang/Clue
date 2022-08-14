@@ -4,6 +4,7 @@ use self::ComplexToken::*;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
+use crate::env::ContinueMode;
 use std::{cmp, collections::{LinkedList, HashMap}};
 
 macro_rules! expression {
@@ -105,7 +106,7 @@ pub enum ComplexToken {
 
 	MACRO_CALL {
 		expr: Expression,
-		args: Vec<Expression>
+		args: Vec<Expression>,
 	},
 
 	SYMBOL(String),
@@ -134,7 +135,7 @@ struct ParserInfo {
 	testing: Option<usize>,
 	localid: u8,
 	statics: String,
-	macros: HashMap<String, Expression>
+	macros: HashMap<String, Expression>,
 }
 
 impl ParserInfo {
@@ -148,7 +149,7 @@ impl ParserInfo {
 			testing: None,
 			localid: 0,
 			statics: String::new(),
-			macros: HashMap::new()
+			macros: HashMap::new(),
 		}
 	}
 
@@ -474,6 +475,23 @@ impl ParserInfo {
 		Ok(())
 	}
 
+	fn build_function_op(
+		&mut self,
+		t: Token,
+		expr: &mut Expression,
+		fname: impl Into<String>,
+		end: OptionalEnd
+	) -> Result<(), String> {
+		self.check_operator(&t, true)?;
+		let mut arg1 = Expression::new();
+		arg1.append(expr);
+		let arg2 = self.build_expression(end)?;
+		expr.push_back(SYMBOL(fname.into()));
+		expr.push_back(CALL(vec![arg1, arg2]));
+		self.current -= 1;
+		Ok(())
+	}
+
 	fn build_bitwise_op(
 		&mut self,
 		t: Token,
@@ -483,12 +501,7 @@ impl ParserInfo {
 	) -> Result<(), String> {
 		self.check_operator(&t, true)?;
 		if let Some(bit) = flag!(env_jitbit) {
-			let mut arg1 = Expression::new();
-			arg1.append(expr);
-			let arg2 = self.build_expression(end)?;
-			expr.push_back(SYMBOL(format!("{}.{}", bit, fname)));
-			expr.push_back(CALL(vec![arg1, arg2]));
-			self.current -= 1;
+			self.build_function_op(t, expr, format!("{}.{}", bit, fname), end)?
 		} else {
 			expr.push_back(SYMBOL(t.lexeme))
 		}
@@ -515,8 +528,8 @@ impl ParserInfo {
 
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | NIL | NOT
-			| HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
+			| FALSE | NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
 			}
@@ -544,17 +557,19 @@ impl ParserInfo {
 					let macroexpr = if let Some(macroexpr) = code {
 						macroexpr.clone()
 					} else {
-						return Err(self.error(
-							format!("The macro {} is not defined", name),
-							t.line
-						))
+						return Err(
+							self.error(format!("The macro {} is not defined", name), t.line)
+						);
 					};
 					let args = if self.advance_if(ROUND_BRACKET_OPEN) {
 						self.build_call()?
 					} else {
 						Vec::new()
 					};
-					expr.push_back(MACRO_CALL {expr: macroexpr, args});
+					expr.push_back(MACRO_CALL {
+						expr: macroexpr,
+						args,
+					});
 					if self.check_val() {
 						break t;
 					}
@@ -583,6 +598,7 @@ impl ParserInfo {
 						t.lexeme
 					}))
 				}
+				FLOOR_DIVISION => self.build_function_op(t, &mut expr, "math.floor", end)?,
 				BIT_AND => self.build_bitwise_op(t, &mut expr, "band", end)?,
 				BIT_OR => self.build_bitwise_op(t, &mut expr, "bor", end)?,
 				BIT_XOR => self.build_bitwise_op(t, &mut expr, "bxor", end)?,
@@ -699,14 +715,8 @@ impl ParserInfo {
 						break t;
 					}
 				}
-				THREEDOTS | NUMBER | TRUE | FALSE | NIL => {
+				THREEDOTS | NUMBER | TRUE | FALSE | NIL | STRING => {
 					expr.push_back(SYMBOL(t.lexeme.clone()));
-					if self.check_val() {
-						break t;
-					}
-				}
-				STRING => {
-					expr.push_back(SYMBOL(format!("\"{}\"", t.lexeme)));
 					if self.check_val() {
 						break t;
 					}
@@ -871,16 +881,27 @@ impl ParserInfo {
 		Ok(IDENT {expr, line})
 	}
 
+	fn get_code_block_start(&mut self) -> Result<usize, String> {
+		let t = self.advance();
+		if t.kind != CURLY_BRACKET_OPEN {
+			self.current -= 2;
+			Ok(self.assert_advance(CURLY_BRACKET_OPEN, "{")?.line)
+		} else {
+			Ok(t.line)
+		}
+	}
+
+	fn parse_code_block(&self, mut tokens: Vec<Token>) -> Result<Expression, String> {
+		if tokens.is_empty() {
+			Ok(Expression::new())
+		} else {
+			tokens.push(self.tokens.last().unwrap().clone());
+			Ok(parse_tokens(tokens, self.filename.clone())?)
+		}
+	}
+
 	fn build_code_block(&mut self) -> Result<CodeBlock, String> {
-		let start = {
-			let t = self.advance();
-			if t.kind != CURLY_BRACKET_OPEN {
-				self.current -= 2;
-				self.assert_advance(CURLY_BRACKET_OPEN, "{")?.line
-			} else {
-				t.line
-			}
-		};
+		let start = self.get_code_block_start()?;
 		let mut tokens: Vec<Token> = Vec::new();
 		let mut cscope = 1u8;
 		let end: usize;
@@ -900,21 +921,102 @@ impl ParserInfo {
 			}
 			tokens.push(t);
 		}
-		let code = if tokens.is_empty() {
-			Expression::new()
-		} else {
-			tokens.push(self.tokens.last().unwrap().clone());
-			ParseTokens(tokens, self.filename.clone())?
-		};
+		let code = self.parse_code_block(tokens)?;
 		Ok(CodeBlock { start, code, end })
 	}
 
 	fn build_loop_block(&mut self) -> Result<CodeBlock, String> {
-		let mut code = self.build_code_block()?;
-		if flag!(env_continue) {
-			code.code.push_back(SYMBOL(String::from("::continue::")));
+		let mut hascontinue = false;
+		let mut is_in_other_loop = false;
+		let start = self.get_code_block_start()?;
+		let mut tokens: Vec<Token> = Vec::new();
+		let mut cscope = 1u8;
+		let end: usize;
+		loop {
+			let t = self.advance();
+			match t.kind {
+				CURLY_BRACKET_OPEN => cscope += 1,
+				CURLY_BRACKET_CLOSED => {
+					cscope -= 1;
+					is_in_other_loop = false;
+					if cscope == 0 {
+						end = t.line;
+						break;
+					}
+				}
+				FOR | WHILE | LOOP => is_in_other_loop = true,
+				CONTINUE if !is_in_other_loop => {
+					hascontinue = true;
+					let line = t.line;
+					if flag!(env_continue) == ContinueMode::MOONSCRIPT {
+						tokens.push(Token {
+							kind: IDENTIFIER,
+							lexeme: String::from("_continue"),
+							line,
+						});
+						tokens.push(Token {
+							kind: DEFINE,
+							lexeme: String::from("="),
+							line,
+						});
+						tokens.push(Token {
+							kind: TRUE,
+							lexeme: String::from("true"),
+							line,
+						});
+						tokens.push(Token {
+							kind: BREAK,
+							lexeme: String::from("break"),
+							line,
+						});
+						continue;
+					}
+				}
+				EOF => return Err(self.expected_before("}", "<end>", t.line)),
+				_ => {}
+			}
+			tokens.push(t);
 		}
-		Ok(code)
+		let mut code = self.parse_code_block(tokens)?;
+		if hascontinue {
+			match flag!(env_continue) {
+				ContinueMode::SIMPLE => {}
+				ContinueMode::LUAJIT => code.push_back(SYMBOL(String::from("::continue::"))),
+				ContinueMode::MOONSCRIPT => {
+					code.push_back(ALTER {
+						kind: DEFINE,
+						names: vec![expression![SYMBOL(String::from("_continue"))]],
+						values: vec![expression![SYMBOL(String::from("true"))]],
+						line: end,
+					});
+					code = expression![
+						VARIABLE {
+							local: true,
+							names: vec![String::from("_continue")],
+							values: vec![expression![SYMBOL(String::from("false"))]],
+							line: start
+						},
+						LOOP_UNTIL {
+							condition: expression![SYMBOL(String::from("true"))],
+							code: CodeBlock { start, code, end }
+						},
+						IF_STATEMENT {
+							condition: expression![
+								SYMBOL(String::from("not ")),
+								SYMBOL(String::from("_continue"))
+							],
+							code: CodeBlock {
+								start: end,
+								code: expression![BREAK_LOOP],
+								end
+							},
+							next: None
+						}
+					]
+				}
+			}
+		}
+		Ok(CodeBlock { start, code, end })
 	}
 
 	fn build_identifier_list(&mut self) -> Result<Vec<String>, String> {
@@ -1486,7 +1588,7 @@ impl ParserInfo {
 	}
 }
 
-pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
+pub fn parse_tokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
 	let mut i = ParserInfo::new(tokens, filename);
 	while !i.ended() {
 		let t = i.advance();

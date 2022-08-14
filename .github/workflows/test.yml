@@ -16,7 +16,7 @@ jobs:
           toolchain: nightly
           target: "i686-pc-windows-msvc"
       - name: Cache build
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
       - name: Test dev build
         run: cargo test
       - name: Test release build

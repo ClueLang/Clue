@@ -12,7 +12,7 @@ pub enum TokenType {
 	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON, AT,
 	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
-	TERNARY_THEN, TERNARY_ELSE, ARROW,
+	TERNARY_THEN, TERNARY_ELSE, ARROW, FLOOR_DIVISION,
 
 	//definition and comparison
 	DEFINE, DEFINE_AND, DEFINE_OR, INCREASE, DECREASE, MULTIPLY, DIVIDE,
@@ -25,7 +25,8 @@ pub enum TokenType {
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, UNTIL,
 	LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP, STATIC, ENUM,
-	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT, MACRO, STRUCT,
+	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT, MACRO, STRUCT, EXTERN,
+	CONSTRUCTOR,
 
 	EOF,
 }
@@ -201,7 +202,7 @@ impl CodeInfo {
 				self.warning("Malformed number");
 			}
 		}
-		self.add_literal_token(NUMBER, self.substr(self.start, self.current));
+		self.add_token(NUMBER);
 	}
 
 	fn read_string(&mut self, strend: char) {
@@ -216,11 +217,28 @@ impl CodeInfo {
 			self.warning("Unterminated string");
 		} else {
 			self.current += 1;
-			let mut literal: String = self.substr(self.start + 1, self.current - 1);
+			let mut literal: String = self.substr(self.start, self.current);
 			literal.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
 			self.add_literal_token(STRING, literal);
 		}
 		self.line = aline;
+	}
+
+	fn read_literal_string(&mut self) {
+		let mut aline = self.line;
+		while !self.ended() && self.peek(0) != '`' {
+			if self.peek(0) == '\n' {
+				aline += 1
+			};
+			self.current += 1;
+		}
+		if self.ended() {
+			self.warning("Unterminated string");
+		} else {
+			self.current += 1;
+			self.add_token(STRING);
+		}
+		self.line = aline
 	}
 
 	fn readIdentifier(&mut self) -> String {
@@ -297,11 +315,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 						i.current += 2;
 					}
 				}
-				'=' => {
-					i.current += 1;
-					i.add_token(DIVIDE);
-				}
-				_ => i.add_token(SLASH),
+				_ => i.match_and_add('=', DIVIDE, '_', FLOOR_DIVISION, SLASH)
 			},
 			'%' => i.compare_and_add('=', MODULATE, PERCENTUAL),
 			'!' => i.compare_and_add('=', NOT_EQUAL, NOT),
@@ -341,6 +355,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 			' ' | '\r' | '\t' => {}
 			'\n' => i.line += 1,
 			'"' | '\'' => i.read_string(c),
+			'`' => i.read_literal_string(),
 			_ => {
 				if c.is_ascii_digit() {
 					if c == '0' {
@@ -413,7 +428,9 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"match" => MATCH,
 						"default" => DEFAULT,
 						"macro" => MACRO,
-						"struct" => STRUCT,
+						"constructor" => {i.warning("The struct constructor is reserved for Clue 3.X and cannot be used."); CONSTRUCTOR},
+						"struct" => {i.warning("The struct keyword is reserved for Clue 3.X and cannot be used."); STRUCT},
+						"extern" => {i.warning("The extern keyword is reserved for Clue 3.0 and cannot be used."); EXTERN},
 						_ => IDENTIFIER
 					};
 					i.add_token(kind);

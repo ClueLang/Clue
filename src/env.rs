@@ -1,4 +1,12 @@
 use std::fmt::Write;
+use clap::ArgEnum;
+
+#[derive(Copy, Clone, PartialEq, ArgEnum)]
+pub enum ContinueMode {
+	SIMPLE,
+	LUAJIT,
+	MOONSCRIPT
+}
 
 #[macro_export]
 macro_rules! flag {
@@ -12,7 +20,7 @@ pub struct EnvData {
 	env_struct: bool,
 	env_output: bool,
 	env_jitbit: Option<String>,
-	env_continue: bool,
+	env_continue: ContinueMode,
 	env_dontsave: bool,
 	env_pathiscode: bool,
 	env_rawsetglobals: bool,
@@ -28,7 +36,7 @@ impl EnvData {
 			env_struct: false,
 			env_output: false,
 			env_jitbit: None,
-			env_continue: false,
+			env_continue: ContinueMode::SIMPLE,
 			env_dontsave: false,
 			env_pathiscode: false,
 			env_rawsetglobals: false,
@@ -43,7 +51,7 @@ impl EnvData {
 		env_struct: bool,
 		env_output: bool,
 		env_jitbit: Option<String>,
-		env_continue: bool,
+		env_continue: ContinueMode,
 		env_dontsave: bool,
 		env_pathiscode: bool,
 		env_rawsetglobals: bool,
@@ -71,7 +79,7 @@ impl EnvData {
 	pub fn env_jitbit(&self) -> &Option<String> {
 		&self.env_jitbit
 	}
-	pub fn env_continue(&self) -> bool {
+	pub fn env_continue(&self) -> ContinueMode {
 		self.env_continue
 	}
 	pub fn env_dontsave(&self) -> bool {
