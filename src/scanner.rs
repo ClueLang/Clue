@@ -243,7 +243,8 @@ impl CodeInfo {
 			self.warning("Unterminated string");
 		} else {
 			self.current += 1;
-			self.addToken(STRING);
+			let literal: String = self.substr(self.start + 1, self.current - 1);
+			self.addLiteralToken(STRING, format!("[[{}]]", literal));
 		}
 		self.line = aline
 	}

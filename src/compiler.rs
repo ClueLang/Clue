@@ -152,15 +152,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 				let expr = CompileExpression(scope, Some(&args), expr);
 				format!("({})", expr)
 			}
-			SYMBOL(lexeme) => {
-				let chars: Vec<_> = lexeme.chars().collect();
-				if chars[0] == '`' && chars[lexeme.len() - 1] == '`' {
-					let text = &lexeme[1..lexeme.len() - 1];
-					return format!("[[{}]]", text);
-				}
-				lexeme
-			}
-
+			SYMBOL(lexeme) => lexeme,
 			PSEUDO(num) => match names {
 				Some(names) => names
 					.get(num - 1)
