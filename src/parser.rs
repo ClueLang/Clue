@@ -459,7 +459,7 @@ impl ParserInfo {
 		if match self.peek(0).kind {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
 			| FALSE | MINUS | BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT
-			| THREEDOTS => false,
+			| THREEDOTS | MATCH => false,
 			_ => true,
 		} {
 			return Err(self.error(
