@@ -539,7 +539,7 @@ impl ParserInfo {
 
 	fn checkVal(&mut self) -> bool {
 		match self.peek(0).kind {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | BIT_NOT
 			| FALSE | NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
