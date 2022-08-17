@@ -312,10 +312,10 @@ impl ParserInfo {
 				}
 				CURLY_BRACKET_CLOSED => {
 					qscope -= 1;
-					qscope != 0
+					qscope > 1
 				}
 				COMMA => qscope != 1,
-				DEFINE => {
+				DEFINE if qscope == 1 => {
 					iskey = true;
 					false
 				}
