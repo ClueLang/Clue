@@ -106,9 +106,11 @@ impl CodeInfo {
 
 	fn peek(&self, pos: usize) -> char {
 		let pos: usize = self.current + pos;
-		if pos >= self.size {
-			return 0 as char;
-		}
+		self.at(pos)
+	}
+
+	fn lookBack(&self, pos: usize) -> char {
+		let pos: usize = self.current - pos - 1;
 		self.at(pos)
 	}
 
@@ -211,11 +213,12 @@ impl CodeInfo {
 
 	fn readString(&mut self, strend: char) {
 		let mut aline = self.line;
-		while !self.ended() && self.peek(0) != strend {
+		while !self.ended() && (self.peek(0) != strend || self.lookBack(0) == '\\') {
 			if self.peek(0) == '\n' {
 				aline += 1
 			};
 			self.current += 1;
+			println!("{}", self.peek(0));
 		}
 		if self.ended() {
 			self.warning("Unterminated string");
@@ -233,7 +236,7 @@ impl CodeInfo {
 
 	fn readRawString(&mut self) {
 		let mut aline = self.line;
-		while !self.ended() && self.peek(0) != '`' {
+		while !self.ended() && (self.peek(0) != '`' || self.lookBack(0) == '\\') {
 			if self.peek(0) == '\n' {
 				aline += 1
 			};
@@ -244,7 +247,7 @@ impl CodeInfo {
 		} else {
 			self.current += 1;
 			let literal: String = self.substr(self.start + 1, self.current - 1);
-			self.addLiteralToken(STRING, format!("[[{}]]", literal));
+			self.addLiteralToken(STRING, format!("[[{}]]", literal.replace("\\`", "`")));
 		}
 		self.line = aline
 	}
