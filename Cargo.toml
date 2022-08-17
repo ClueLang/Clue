@@ -7,6 +7,8 @@ build = "build.rs"
 authors = ["Maiori"]
 repository = "https://github.com/ClueLang/Clue"
 license = "MIT"
+keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
+categories = ["compilers"]
 
 [build-dependencies]
 winres = "0.1"
