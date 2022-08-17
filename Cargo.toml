@@ -7,7 +7,6 @@ build = "build.rs"
 authors = ["Maiori"]
 repository = "https://github.com/ClueLang/Clue"
 license = "MIT"
-license-file = "LICENSE"
 
 [build-dependencies]
 winres = "0.1"
