@@ -231,7 +231,7 @@ impl CodeInfo {
 		self.line = aline;
 	}
 
-	fn readLiteralString(&mut self) {
+	fn readRawString(&mut self) {
 		let mut aline = self.line;
 		while !self.ended() && self.peek(0) != '`' {
 			if self.peek(0) == '\n' {
@@ -363,7 +363,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 			' ' | '\r' | '\t' => {}
 			'\n' => i.line += 1,
 			'"' | '\'' => i.readString(c),
-			'`' => i.readLiteralString(),
+			'`' => i.readRawString(),
 			_ => {
 				if c.is_ascii_digit() {
 					if c == '0' {
