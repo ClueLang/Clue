@@ -307,10 +307,10 @@ impl ParserInfo {
 				}
 				CURLY_BRACKET_CLOSED => {
 					qscope -= 1;
-					qscope != 0
+					qscope > 1
 				}
 				COMMA => qscope != 1,
-				DEFINE => {
+				DEFINE if qscope == 1 => {
 					iskey = true;
 					false
 				}
@@ -450,7 +450,7 @@ impl ParserInfo {
 				| TRUE | FALSE | MINUS
 				| BIT_NOT | NIL | NOT
 				| HASHTAG | ROUND_BRACKET_OPEN
-				| THREEDOTS | AT
+				| THREEDOTS | AT | MATCH
 		) {
 			return Err(self.error(
 				format!("Operator '{}' has invalid right hand token", t.lexeme),
@@ -528,7 +528,7 @@ impl ParserInfo {
 
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | BIT_NOT
 			| FALSE | NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true

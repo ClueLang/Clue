@@ -102,9 +102,11 @@ impl CodeInfo {
 
 	fn peek(&self, pos: usize) -> char {
 		let pos: usize = self.current + pos;
-		if pos >= self.size {
-			return 0 as char;
-		}
+		self.at(pos)
+	}
+
+	fn lookBack(&self, pos: usize) -> char {
+		let pos: usize = self.current - pos - 1;
 		self.at(pos)
 	}
 
@@ -207,11 +209,12 @@ impl CodeInfo {
 
 	fn read_string(&mut self, strend: char) {
 		let mut aline = self.line;
-		while !self.ended() && self.peek(0) != strend {
+		while !self.ended() && (self.peek(0) != strend || self.lookBack(0) == '\\') {
 			if self.peek(0) == '\n' {
 				aline += 1
 			};
 			self.current += 1;
+			println!("{}", self.peek(0));
 		}
 		if self.ended() {
 			self.warning("Unterminated string");
@@ -224,9 +227,9 @@ impl CodeInfo {
 		self.line = aline;
 	}
 
-	fn read_literal_string(&mut self) {
+	fn read_raw_string(&mut self) {
 		let mut aline = self.line;
-		while !self.ended() && self.peek(0) != '`' {
+		while !self.ended() && (self.peek(0) != '`' || self.lookBack(0) == '\\') {
 			if self.peek(0) == '\n' {
 				aline += 1
 			};
@@ -236,7 +239,8 @@ impl CodeInfo {
 			self.warning("Unterminated string");
 		} else {
 			self.current += 1;
-			self.add_token(STRING);
+			let literal: String = self.substr(self.start + 1, self.current - 1);
+			self.add_literal_token(STRING, format!("[[{}]]", literal.replace("\\`", "`")));
 		}
 		self.line = aline
 	}
@@ -355,7 +359,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 			' ' | '\r' | '\t' => {}
 			'\n' => i.line += 1,
 			'"' | '\'' => i.read_string(c),
-			'`' => i.read_literal_string(),
+			'`' => i.read_raw_string(),
 			_ => {
 				if c.is_ascii_digit() {
 					if c == '0' {

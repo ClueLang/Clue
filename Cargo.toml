@@ -1,10 +1,14 @@
 [package]
 name = "clue"
 version = "3.0.0-indev"
-description = "C/Rust like programming language that compiles into Lua code\nMade by Maiori\nhttps://github.com/ClueLang/Clue"
+description = "C/Rust like programming language that compiles into Lua code"
 edition = "2018"
 build = "build.rs"
 authors = ["Maiori"]
+repository = "https://github.com/ClueLang/Clue"
+license = "MIT"
+keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
+categories = ["compilers"]
 
 [build-dependencies]
 winres = "0.1"

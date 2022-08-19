@@ -3,7 +3,7 @@ use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA, env::Conti
 use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
 
 #[derive(Parser)]
-#[clap(about, version, long_about = None)]
+#[clap(about = "C/Rust like programming language that compiles into Lua code\nMade by Maiori\nhttps://github.com/ClueLang/Clue", version, long_about = None)]
 struct Cli {
 	/// The path to the directory where the *.clue files are located.
 	/// Every directory inside the given directory will be checked too.

@@ -32,15 +32,8 @@ More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki),
 
 ## How to install
 
-### Using PowerShell (admin perms required)
-1. Paste and run the below line in your PowerShell
-```powershell
-md $Env:ProgramFiles\Clue -f >$null&&iwr((iwr https://api.github.com/repos/ClueLang/Clue/releases?per_page=1).Content|ConvertFrom-Json).assets[0].browser_download_url -o "$Env:ProgramFiles\Clue\clue.exe"&&[Environment]::SetEnvironmentVariable('Path',$Env:PATH+";$Env:ProgramFiles\Clue",'Machine')
-```
-2. Type `clue` in your PowerShell to run the compiler, it will explain the rest
-
-### Linux (cargo required)
-1. Paste and run this command in the console: `git clone https://github.com/ClueLang/Clue.git && cd Clue && cargo install --path .`
+### Using Cargo
+1. Paste and run this command in the console: `cargo install clue`
 2. Type `clue` in the console to run the compiler, it will explain the rest
 
 ### Manual insallation
