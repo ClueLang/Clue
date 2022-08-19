@@ -218,7 +218,6 @@ impl CodeInfo {
 				aline += 1
 			};
 			self.current += 1;
-			println!("{}", self.peek(0));
 		}
 		if self.ended() {
 			self.warning("Unterminated string");
