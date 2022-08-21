@@ -126,6 +126,39 @@ pub struct CodeBlock {
 	pub end: usize,
 }
 
+struct BorrowedToken {
+	tokens: *const Vec<Token>,
+	pos: usize
+}
+
+impl BorrowedToken {
+	fn new(tokens: *const Vec<Token>, pos: usize) -> BorrowedToken {
+		BorrowedToken {tokens, pos}
+	}
+
+	fn token(&self) -> &Token {
+		unsafe {
+			&(*self.tokens)[self.pos]
+		}
+	}
+
+	fn kind(&self) -> TokenType {
+		self.token().kind
+	}
+
+	fn lexeme(&self) -> String {
+		self.token().lexeme.clone()
+	}
+
+	fn line(&self) -> usize {
+		self.token().line
+	}
+
+	fn into_owned(&self) -> Token {
+		self.token().clone()
+	}
+}
+
 struct ParserInfo {
 	current: usize,
 	size: usize,
@@ -191,21 +224,21 @@ impl ParserInfo {
 		self.current >= self.size
 	}
 
-	fn at(&self, pos: usize) -> Token {
-		self.tokens[cmp::min(pos, self.size)].to_owned()
+	fn at(&self, pos: usize) -> BorrowedToken {
+		BorrowedToken::new(&self.tokens, cmp::min(pos, self.size))
 	}
 
-	fn advance(&mut self) -> Token {
+	fn advance(&mut self) -> BorrowedToken {
 		self.current += 1;
 		self.look_back(0)
 	}
 
-	fn peek(&self, pos: usize) -> Token {
+	fn peek(&self, pos: usize) -> BorrowedToken {
 		let pos: usize = self.current + pos;
 		self.at(pos)
 	}
 
-	fn look_back(&self, pos: usize) -> Token {
+	fn look_back(&self, pos: usize) -> BorrowedToken {
 		let pos: usize = self.current - pos - 1;
 		self.at(pos)
 	}
@@ -214,7 +247,7 @@ impl ParserInfo {
 		if self.ended() {
 			return false;
 		}
-		if self.peek(0).kind != expected {
+		if self.peek(0).kind() != expected {
 			return false;
 		}
 		true
@@ -224,17 +257,17 @@ impl ParserInfo {
 		if self.ended() {
 			return false;
 		}
-		if self.peek(0).kind != expected {
+		if self.peek(0).kind() != expected {
 			return false;
 		}
 		self.current += 1;
 		true
 	}
 
-	fn assert_advance(&mut self, expected: TokenType, error: &str) -> Result<Token, String> {
+	fn assert_advance(&mut self, expected: TokenType, error: &str) -> Result<BorrowedToken, String> {
 		let t = self.advance();
-		if t.kind != expected {
-			return Err(self.expected(error, &t.lexeme, t.line));
+		if t.kind() != expected {
+			return Err(self.expected(error, &t.lexeme(), t.line()));
 		}
 		Ok(t)
 	}
@@ -242,15 +275,15 @@ impl ParserInfo {
 	fn assert_compare(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
 		if !self.compare(expected) {
 			let t = self.peek(0);
-			return Err(self.expected(error, &t.lexeme, t.line));
+			return Err(self.expected(error, &t.lexeme(), t.line()));
 		}
 		Ok(())
 	}
 
-	fn assert_end<T>(&mut self, tocheck: &Token, end: OptionalEnd, iftrue: T) -> Result<T, String> {
+	fn assert_end<T>(&mut self, tocheck: &BorrowedToken, end: OptionalEnd, iftrue: T) -> Result<T, String> {
 		if let Some((kind, lexeme)) = end {
-			if tocheck.kind != kind {
-				return Err(self.expected(lexeme, &tocheck.lexeme, tocheck.line));
+			if tocheck.kind() != kind {
+				return Err(self.expected(lexeme, &tocheck.lexeme(), tocheck.line()));
 			}
 		}
 		Ok(iftrue)
@@ -259,7 +292,7 @@ impl ParserInfo {
 	fn assert(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
 		if !self.advance_if(expected) {
 			let t = self.peek(0);
-			return Err(self.expected(error, &t.lexeme, t.line));
+			return Err(self.expected(error, &t.lexeme(), t.line()));
 		}
 		Ok(())
 	}
@@ -283,7 +316,7 @@ impl ParserInfo {
 			let expr = self.build_expression(None)?;
 			let t = self.look_back(0);
 			exprs.push(expr);
-			if t.kind != separator {
+			if t.kind() != separator {
 				return self.assert_end(&t, end, exprs);
 			}
 		}
@@ -300,7 +333,7 @@ impl ParserInfo {
 			let start = self.current;
 			let mut qscope = 1u8;
 			let mut iskey = false;
-			while match self.peek(0).kind {
+			while match self.peek(0).kind() {
 				CURLY_BRACKET_OPEN => {
 					qscope += 1;
 					true
@@ -314,32 +347,32 @@ impl ParserInfo {
 					iskey = true;
 					false
 				}
-				META if self.peek(1).kind == WITH => {
+				META if self.peek(1).kind() == WITH => {
 					iskey = true;
 					true
 				}
-				EOF => return Err(self.expected_before("}", "<end>", self.peek(0).line)),
+				EOF => return Err(self.expected_before("}", "<end>", self.peek(0).line())),
 				_ => true,
 			} {
 				self.current += 1;
 			}
 			self.current = start;
 			if !iskey {
-				values.push((None, self.build_expression(None)?, self.at(start).line));
+				values.push((None, self.build_expression(None)?, self.at(start).line()));
 				self.current -= 1;
 				self.advance_if(COMMA);
 				continue;
 			}
 			let name: Result<Expression, String>;
 			let pn = self.advance();
-			match pn.kind {
+			match pn.kind() {
 				IDENTIFIER => {
-					name = Ok(expression![SYMBOL(pn.lexeme.clone())]);
+					name = Ok(expression![SYMBOL(pn.lexeme())]);
 				}
 				SQUARE_BRACKET_OPEN => {
 					let mut qscope = 1u8;
 					let start = self.current;
-					while match self.advance().kind {
+					while match self.advance().kind() {
 						SQUARE_BRACKET_OPEN => {
 							qscope += 1;
 							true
@@ -348,7 +381,7 @@ impl ParserInfo {
 							qscope -= 1;
 							!matches!(qscope, 0)
 						}
-						EOF => return Err(self.expected_before("]", "<end>", self.peek(0).line)),
+						EOF => return Err(self.expected_before("]", "<end>", self.peek(0).line())),
 						_ => true,
 					} {}
 					self.current = start;
@@ -360,20 +393,20 @@ impl ParserInfo {
 						if !metas.is_empty() {
 							return Err(self.error(
 								"An external metatable cannot be used if the table already set its own metamethods",
-								pn.line
+								pn.line()
 							));
 						}
-						metatable = Some(self.assert_advance(IDENTIFIER, "<name>")?.lexeme);
+						metatable = Some(self.assert_advance(IDENTIFIER, "<name>")?.lexeme());
 						self.advance_if(COMMA);
 						continue;
 					} else {
 						if metatable.is_some() {
 							return Err(self.error(
 								"Metamethods cannot be set if the table already ueses an external metatable",
-								pn.line
+								pn.line()
 							));
 						}
-						name = Err(String::from(match self.advance().lexeme.as_ref() {
+						name = Err(String::from(match self.advance().lexeme().as_ref() {
 							"index" => "__index",
 							"newindex" => "__newindex",
 							"mode" => "__mode",
@@ -395,20 +428,20 @@ impl ParserInfo {
 							"le" | "less_than_equal" | "<=" => "__le",
 							_ => {
 								let t = self.peek(0);
-								return Err(self.expected("<meta name>", &t.lexeme, t.line));
+								return Err(self.expected("<meta name>", &t.lexeme(), t.line()));
 							}
 						}))
 					}
 				}
-				_ => return Err(self.expected("<name>", &pn.lexeme, pn.line)),
+				_ => return Err(self.expected("<name>", &pn.lexeme(), pn.line())),
 			}
 			if !self.advance_if(DEFINE) {
 				let t = self.peek(0);
-				return Err(self.expected("=", &t.lexeme, t.line));
+				return Err(self.expected("=", &t.lexeme(), t.line()));
 			}
 			let start = self.current;
 			let mut cscope = 0u8;
-			while match self.peek(0).kind {
+			while match self.peek(0).kind() {
 				COMMA | CURLY_BRACKET_CLOSED => cscope != 0,
 				ROUND_BRACKET_OPEN => {
 					cscope += 1;
@@ -416,20 +449,20 @@ impl ParserInfo {
 				}
 				ROUND_BRACKET_CLOSED => {
 					if cscope == 0 {
-						return Err(self.expected_before("(", ")", self.peek(0).line));
+						return Err(self.expected_before("(", ")", self.peek(0).line()));
 					}
 					cscope -= 1;
 					true
 				}
-				EOF => return Err(self.expected_before("}", "<end>", self.peek(0).line)),
+				EOF => return Err(self.expected_before("}", "<end>", self.peek(0).line())),
 				_ => true,
 			} {
 				self.current += 1;
 			}
 			self.current = start;
 			match name {
-				Ok(n) => values.push((Some(n), self.build_expression(None)?, pn.line)),
-				Err(n) => metas.push((n, self.build_expression(None)?, pn.line)),
+				Ok(n) => values.push((Some(n), self.build_expression(None)?, pn.line())),
+				Err(n) => metas.push((n, self.build_expression(None)?, pn.line())),
 			}
 			self.current -= 1;
 			self.advance_if(COMMA);
@@ -441,9 +474,9 @@ impl ParserInfo {
 		})
 	}
 
-	fn check_operator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
+	fn check_operator(&mut self, t: &BorrowedToken, checkback: bool) -> Result<(), String> {
 		if !matches!(
-			self.peek(0).kind,
+			self.peek(0).kind(),
 			NUMBER
 				| IDENTIFIER | STRING
 				| DOLLAR | PROTECTED_GET
@@ -453,13 +486,13 @@ impl ParserInfo {
 				| THREEDOTS | AT | MATCH
 		) {
 			return Err(self.error(
-				format!("Operator '{}' has invalid right hand token", t.lexeme),
-				t.line,
+				format!("Operator '{}' has invalid right hand token", t.lexeme()),
+				t.line(),
 			));
 		}
 		if checkback
 			&& !matches!(
-				self.look_back(1).kind,
+				self.look_back(1).kind(),
 				NUMBER
 					| IDENTIFIER | STRING
 					| DOLLAR | TRUE | FALSE
@@ -468,8 +501,8 @@ impl ParserInfo {
 					| THREEDOTS
 			) {
 			return Err(self.error(
-				format!("Operator '{}' has invalid left hand token", t.lexeme),
-				t.line,
+				format!("Operator '{}' has invalid left hand token", t.lexeme()),
+				t.line(),
 			));
 		}
 		Ok(())
@@ -477,12 +510,12 @@ impl ParserInfo {
 
 	fn build_function_op(
 		&mut self,
-		t: Token,
+		t: &BorrowedToken,
 		expr: &mut Expression,
 		fname: impl Into<String>,
 		end: OptionalEnd
 	) -> Result<(), String> {
-		self.check_operator(&t, true)?;
+		self.check_operator(t, true)?;
 		let mut arg1 = Expression::new();
 		arg1.append(expr);
 		let arg2 = self.build_expression(end)?;
@@ -494,32 +527,32 @@ impl ParserInfo {
 
 	fn build_bitwise_op(
 		&mut self,
-		t: Token,
+		t: &BorrowedToken,
 		expr: &mut Expression,
 		fname: &str,
 		end: OptionalEnd,
 	) -> Result<(), String> {
-		self.check_operator(&t, true)?;
+		self.check_operator(t, true)?;
 		if let Some(bit) = flag!(env_jitbit) {
 			self.build_function_op(t, expr, format!("{}.{}", bit, fname), end)?
 		} else {
-			expr.push_back(SYMBOL(t.lexeme))
+			expr.push_back(SYMBOL(t.lexeme()))
 		}
 		Ok(())
 	}
 
 	fn check_index(
 		&mut self,
-		t: &Token,
+		t: &BorrowedToken,
 		expr: &mut Expression,
 		lexeme: &str,
 	) -> Result<(), String> {
 		if !self.compare(IDENTIFIER)
-			|| matches!(self.look_back(0).kind, IDENTIFIER | SQUARE_BRACKET_CLOSED)
+			|| matches!(self.look_back(0).kind(), IDENTIFIER | SQUARE_BRACKET_CLOSED)
 		{
 			return Err(self.error(
-				format!("'{}' should be used only when indexing", t.lexeme),
-				self.peek(0).line,
+				format!("'{}' should be used only when indexing", t.lexeme()),
+				self.peek(0).line(),
 			));
 		}
 		expr.push_back(SYMBOL(lexeme.to_string()));
@@ -527,7 +560,7 @@ impl ParserInfo {
 	}
 
 	fn check_val(&mut self) -> bool {
-		match self.peek(0).kind {
+		match self.peek(0).kind() {
 			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | BIT_NOT
 			| FALSE | NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
@@ -542,7 +575,7 @@ impl ParserInfo {
 		let start = self.current;
 		let last = loop {
 			let t = self.advance();
-			match t.kind {
+			match t.kind() {
 				IDENTIFIER => {
 					let fname = self.build_identifier()?;
 					self.current -= 1;
@@ -552,13 +585,13 @@ impl ParserInfo {
 					}
 				}
 				AT => {
-					let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme;
+					let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
 					let code = self.macros.get_mut(&name);
 					let macroexpr = if let Some(macroexpr) = code {
 						macroexpr.clone()
 					} else {
 						return Err(
-							self.error(format!("The macro {} is not defined", name), t.line)
+							self.error(format!("The macro {} is not defined", name), t.line())
 						);
 					};
 					let args = if self.advance_if(ROUND_BRACKET_OPEN) {
@@ -588,20 +621,20 @@ impl ParserInfo {
 				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS | EQUAL | BIGGER
 				| BIGGER_EQUAL | SMALLER | SMALLER_EQUAL => {
 					self.check_operator(&t, true)?;
-					expr.push_back(SYMBOL(t.lexeme))
+					expr.push_back(SYMBOL(t.lexeme()))
 				}
 				MINUS => {
 					self.check_operator(&t, false)?;
-					expr.push_back(SYMBOL(if self.look_back(1).kind == MINUS {
-						format!(" {}", t.lexeme)
+					expr.push_back(SYMBOL(if self.look_back(1).kind() == MINUS {
+						format!(" {}", t.lexeme())
 					} else {
-						t.lexeme
+						t.lexeme()
 					}))
 				}
-				FLOOR_DIVISION => self.build_function_op(t, &mut expr, "math.floor", end)?,
-				BIT_AND => self.build_bitwise_op(t, &mut expr, "band", end)?,
-				BIT_OR => self.build_bitwise_op(t, &mut expr, "bor", end)?,
-				BIT_XOR => self.build_bitwise_op(t, &mut expr, "bxor", end)?,
+				FLOOR_DIVISION => self.build_function_op(&t, &mut expr, "math.floor", end)?,
+				BIT_AND => self.build_bitwise_op(&t, &mut expr, "band", end)?,
+				BIT_OR => self.build_bitwise_op(&t, &mut expr, "bor", end)?,
+				BIT_XOR => self.build_bitwise_op(&t, &mut expr, "bxor", end)?,
 				BIT_NOT => {
 					self.check_operator(&t, false)?;
 					if let Some(bit) = flag!(env_jitbit) {
@@ -610,22 +643,22 @@ impl ParserInfo {
 						expr.push_back(CALL(vec![arg]));
 						self.current -= 1;
 					} else {
-						expr.push_back(SYMBOL(t.lexeme))
+						expr.push_back(SYMBOL(t.lexeme()))
 					}
 				}
-				LEFT_SHIFT => self.build_bitwise_op(t, &mut expr, "lshift", end)?,
-				RIGHT_SHIFT => self.build_bitwise_op(t, &mut expr, "rshift", end)?,
+				LEFT_SHIFT => self.build_bitwise_op(&t, &mut expr, "lshift", end)?,
+				RIGHT_SHIFT => self.build_bitwise_op(&t, &mut expr, "rshift", end)?,
 				NOT_EQUAL => {
 					self.check_operator(&t, true)?;
 					expr.push_back(SYMBOL(String::from("~=")))
 				}
 				HASHTAG => {
 					if !matches!(
-						self.peek(0).kind,
+						self.peek(0).kind(),
 						IDENTIFIER | CURLY_BRACKET_OPEN | ROUND_BRACKET_OPEN
 					) {
 						let t = self.peek(0);
-						return Err(self.expected("<table>", &t.lexeme, t.line));
+						return Err(self.expected("<table>", &t.lexeme(), t.line()));
 					}
 					expr.push_back(SYMBOL(String::from("#")))
 				}
@@ -651,10 +684,10 @@ impl ParserInfo {
 					let ident = SYMBOL(name.clone());
 					self.localid += 1;
 					let ctoken = self.build_match_block(name, &|i| {
-						let start = i.peek(0).line;
+						let start = i.peek(0).line();
 						let expr = i.build_expression(None)?;
-						let end = i.look_back(1).line;
-						if matches!(i.look_back(0).kind, CURLY_BRACKET_CLOSED | DEFAULT) {
+						let end = i.look_back(1).line();
+						if matches!(i.look_back(0).kind(), CURLY_BRACKET_CLOSED | DEFAULT) {
 							i.current -= 1
 						}
 						Ok(CodeBlock {
@@ -680,7 +713,7 @@ impl ParserInfo {
 					self.current -= 1;
 					let name = format!("_t{}", self.localid);
 					self.expr.push_back(VARIABLE {
-						line: t.line,
+						line: t.line(),
 						local: true,
 						names: vec![name.clone()],
 						values: Vec::new(),
@@ -689,24 +722,24 @@ impl ParserInfo {
 					self.expr.push_back(IF_STATEMENT {
 						condition,
 						code: CodeBlock {
-							start: self.at(start).line,
+							start: self.at(start).line(),
 							code: expression![ALTER {
 								kind: DEFINE,
-								line: t.line,
+								line: t.line(),
 								names: vec![expression![name.clone()]],
 								values: vec![exprtrue]
 							}],
-							end: t2.line,
+							end: t2.line(),
 						},
 						next: Some(Box::new(DO_BLOCK(CodeBlock {
-							start: t2.line,
+							start: t2.line(),
 							code: expression![ALTER {
 								kind: DEFINE,
-								line: t.line,
+								line: t.line(),
 								names: vec![expression![name.clone()]],
 								values: vec![exprfalse]
 							}],
-							end: self.at(self.current).line,
+							end: self.at(self.current).line(),
 						}))),
 					});
 					expr.push_back(name);
@@ -716,7 +749,7 @@ impl ParserInfo {
 					}
 				}
 				THREEDOTS | NUMBER | TRUE | FALSE | NIL | STRING => {
-					expr.push_back(SYMBOL(t.lexeme.clone()));
+					expr.push_back(SYMBOL(t.lexeme()));
 					if self.check_val() {
 						break t;
 					}
@@ -736,16 +769,16 @@ impl ParserInfo {
 				DOLLAR => {
 					let nt = self.peek(0);
 					let mut num = 1usize;
-					if nt.kind == NUMBER {
-						num = match nt.lexeme.parse() {
+					if nt.kind() == NUMBER {
+						num = match nt.lexeme().parse() {
 							Ok(n) => n,
 							Err(_) => {
 								return Err(self.error(
 									format!(
 										"Pseudo variables cannot point to the {}th variable",
-										nt.lexeme
+										nt.lexeme()
 									),
-									nt.line,
+									nt.line(),
 								))
 							}
 						};
@@ -753,7 +786,7 @@ impl ParserInfo {
 						if num == 0 {
 							return Err(self.error(
 								"Pseudo variables cannot point to the 0th variable",
-								nt.line,
+								nt.line(),
 							));
 						}
 					}
@@ -784,7 +817,7 @@ impl ParserInfo {
 			}
 		};
 		if expr.is_empty() {
-			return Err(self.expected("<expr>", &last.lexeme, last.line));
+			return Err(self.expected("<expr>", &last.lexeme(), last.line()));
 		}
 		self.assert_end(&self.look_back(0), end, expr)
 	}
@@ -794,17 +827,17 @@ impl ParserInfo {
 		self.current -= 1;
 		loop {
 			let t = self.advance();
-			match t.kind {
+			match t.kind() {
 				IDENTIFIER => {
-					expr.push_back(SYMBOL(t.lexeme));
+					expr.push_back(SYMBOL(t.lexeme()));
 					if self.check_val() {
 						break;
 					}
 				}
-				SAFEDOT => return Err(self.unexpected("?.", t.line)),
+				SAFEDOT => return Err(self.unexpected("?.", t.line())),
 				DOT => self.check_index(&t, &mut expr, ".")?,
 				SAFE_DOUBLE_COLON | DOUBLE_COLON => {
-					return Err(self.error("You can't call functions here", t.line))
+					return Err(self.error("You can't call functions here", t.line()))
 				}
 				SQUARE_BRACKET_OPEN => {
 					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
@@ -812,9 +845,9 @@ impl ParserInfo {
 					expr.push_back(EXPR(qexpr));
 					expr.push_back(SYMBOL(String::from("]")));
 				}
-				SAFE_SQUARE_BRACKET => return Err(self.unexpected("?[", t.line)),
+				SAFE_SQUARE_BRACKET => return Err(self.unexpected("?[", t.line())),
 				ROUND_BRACKET_OPEN => {
-					return Err(self.error("You can't call functions here", t.line))
+					return Err(self.error("You can't call functions here", t.line()))
 				}
 				_ => break,
 			}
@@ -824,13 +857,13 @@ impl ParserInfo {
 
 	fn build_identifier(&mut self) -> Result<ComplexToken, String> {
 		let mut expr = Expression::new();
-		let line = self.look_back(0).line;
+		let line = self.look_back(0).line();
 		self.current -= 1;
 		loop {
 			let t = self.advance();
-			match t.kind {
+			match t.kind() {
 				IDENTIFIER => {
-					expr.push_back(SYMBOL(t.lexeme));
+					expr.push_back(SYMBOL(t.lexeme()));
 					if self.check_val() {
 						break;
 					}
@@ -839,16 +872,16 @@ impl ParserInfo {
 				DOT => self.check_index(&t, &mut expr, ".")?,
 				SAFE_DOUBLE_COLON => {
 					self.check_index(&t, &mut expr, "?::")?;
-					if self.peek(1).kind != ROUND_BRACKET_OPEN {
+					if self.peek(1).kind() != ROUND_BRACKET_OPEN {
 						let t = self.peek(1);
-						return Err(self.expected("(", &t.lexeme, t.line));
+						return Err(self.expected("(", &t.lexeme(), t.line()));
 					}
 				}
 				DOUBLE_COLON => {
 					self.check_index(&t, &mut expr, ":")?;
-					if self.peek(1).kind != ROUND_BRACKET_OPEN {
+					if self.peek(1).kind() != ROUND_BRACKET_OPEN {
 						let t = self.peek(1);
-						return Err(self.expected("(", &t.lexeme, t.line));
+						return Err(self.expected("(", &t.lexeme(), t.line()));
 					}
 				}
 				SQUARE_BRACKET_OPEN => {
@@ -883,11 +916,11 @@ impl ParserInfo {
 
 	fn get_code_block_start(&mut self) -> Result<usize, String> {
 		let t = self.advance();
-		if t.kind != CURLY_BRACKET_OPEN {
+		if t.kind() != CURLY_BRACKET_OPEN {
 			self.current -= 2;
-			Ok(self.assert_advance(CURLY_BRACKET_OPEN, "{")?.line)
+			Ok(self.assert_advance(CURLY_BRACKET_OPEN, "{")?.line())
 		} else {
-			Ok(t.line)
+			Ok(t.line())
 		}
 	}
 
@@ -907,19 +940,19 @@ impl ParserInfo {
 		let end: usize;
 		loop {
 			let t = self.advance();
-			match t.kind {
+			match t.kind() {
 				CURLY_BRACKET_OPEN => cscope += 1,
 				CURLY_BRACKET_CLOSED => {
 					cscope -= 1;
 					if cscope == 0 {
-						end = t.line;
+						end = t.line();
 						break;
 					}
 				}
-				EOF => return Err(self.expected_before("}", "<end>", t.line)),
+				EOF => return Err(self.expected_before("}", "<end>", t.line())),
 				_ => {}
 			}
-			tokens.push(t);
+			tokens.push(t.into_owned());
 		}
 		let code = self.parse_code_block(tokens)?;
 		Ok(CodeBlock { start, code, end })
@@ -934,20 +967,20 @@ impl ParserInfo {
 		let end: usize;
 		loop {
 			let t = self.advance();
-			match t.kind {
+			match t.kind() {
 				CURLY_BRACKET_OPEN => cscope += 1,
 				CURLY_BRACKET_CLOSED => {
 					cscope -= 1;
 					is_in_other_loop = false;
 					if cscope == 0 {
-						end = t.line;
+						end = t.line();
 						break;
 					}
 				}
 				FOR | WHILE | LOOP => is_in_other_loop = true,
 				CONTINUE if !is_in_other_loop => {
 					hascontinue = true;
-					let line = t.line;
+					let line = t.line();
 					if flag!(env_continue) == ContinueMode::MOONSCRIPT {
 						tokens.push(Token {
 							kind: IDENTIFIER,
@@ -972,10 +1005,10 @@ impl ParserInfo {
 						continue;
 					}
 				}
-				EOF => return Err(self.expected_before("}", "<end>", t.line)),
+				EOF => return Err(self.expected_before("}", "<end>", t.line())),
 				_ => {}
 			}
-			tokens.push(t);
+			tokens.push(t.into_owned());
 		}
 		let mut code = self.parse_code_block(tokens)?;
 		if hascontinue {
@@ -1023,7 +1056,7 @@ impl ParserInfo {
 		let mut idents: Vec<String> = Vec::new();
 		while {
 			let t = self.assert_advance(IDENTIFIER, "<name>")?;
-			idents.push(t.lexeme);
+			idents.push(t.lexeme());
 			self.advance_if(COMMA)
 		} {}
 		Ok(idents)
@@ -1034,42 +1067,42 @@ impl ParserInfo {
 		while {
 			let name = {
 				let t = self.advance();
-				match t.kind {
+				match t.kind() {
 					IDENTIFIER => t,
 					THREEDOTS => {
 						self.assert_compare(ROUND_BRACKET_CLOSED, ")")?;
 						t
 					}
-					_ => return Err(self.expected("<name>", &t.lexeme, t.line)),
+					_ => return Err(self.expected("<name>", &t.lexeme(), t.line())),
 				}
 			};
 			let t = self.advance();
-			match t.kind {
+			match t.kind() {
 				COMMA => {
-					args.push((name.lexeme, None));
+					args.push((name.lexeme(), None));
 					true
 				}
 				DEFINE => {
 					let default = self.build_expression(None)?;
-					args.push((name.lexeme, Some((default, name.line))));
-					let notended = self.peek(0).kind != CURLY_BRACKET_OPEN;
+					args.push((name.lexeme(), Some((default, name.line()))));
+					let notended = self.peek(0).kind() != CURLY_BRACKET_OPEN;
 					if notended {
-						match self.look_back(0).kind {
+						match self.look_back(0).kind() {
 							COMMA => {}
 							ROUND_BRACKET_CLOSED => self.current -= 1,
 							_ => {
 								let t = self.peek(0);
-								return Err(self.expected(")", &t.lexeme, t.line));
+								return Err(self.expected(")", &t.lexeme(), t.line()));
 							}
 						}
 					}
 					notended
 				}
 				ROUND_BRACKET_CLOSED => {
-					args.push((name.lexeme, None));
+					args.push((name.lexeme(), None));
 					false
 				}
-				_ => return Err(self.expected(")", &t.lexeme, t.line)),
+				_ => return Err(self.expected(")", &t.lexeme(), t.line())),
 			}
 		} {}
 		Ok(args)
@@ -1083,7 +1116,7 @@ impl ParserInfo {
 			code,
 			next: {
 				let t = self.advance();
-				match t.kind {
+				match t.kind() {
 					ELSEIF => Some(Box::new(self.build_elseif_chain()?)),
 					ELSE => Some(Box::new(DO_BLOCK(self.build_code_block()?))),
 					_ => {
@@ -1106,7 +1139,7 @@ impl ParserInfo {
 			}
 			let name = self.assert_advance(IDENTIFIER, "<name>")?;
 			let t = self.advance();
-			let value = match t.kind {
+			let value = match t.kind() {
 				CURLY_BRACKET_CLOSED => {
 					self.current -= 1;
 					n += 1;
@@ -1118,19 +1151,19 @@ impl ParserInfo {
 				}
 				DEFINE => {
 					let t = self.advance();
-					if t.kind != NUMBER {
-						return Err(self.error("Enums values should be a non-float number ranging from -32768 to 32767.", t.line));
+					if t.kind() != NUMBER {
+						return Err(self.error("Enums values should be a non-float number ranging from -32768 to 32767.", t.line()));
 					}
-					n = check!(t.lexeme.parse());
+					n = check!(t.lexeme().parse());
 					self.advance_if(COMMA);
 					SYMBOL(n.to_string())
 				}
-				_ => return Err(self.expected("}", &t.lexeme, t.line)),
+				_ => return Err(self.expected("}", &t.lexeme(), t.line())),
 			};
 			enums.push_back(VARIABLE {
-				line: name.line,
+				line: name.line(),
 				local,
-				names: vec![name.lexeme],
+				names: vec![name.lexeme()],
 				values: vec![expression![value]],
 			});
 		}
@@ -1139,7 +1172,7 @@ impl ParserInfo {
 
 	fn build_function(&mut self, local: bool) -> Result<ComplexToken, String> {
 		self.current += 1;
-		let name = expression![SYMBOL(self.assert_advance(IDENTIFIER, "<name>")?.lexeme)];
+		let name = expression![SYMBOL(self.assert_advance(IDENTIFIER, "<name>")?.lexeme())];
 		self.assert(ROUND_BRACKET_OPEN, "(")?;
 		let args = if !self.advance_if(ROUND_BRACKET_CLOSED) {
 			self.build_function_args()?
@@ -1159,7 +1192,7 @@ impl ParserInfo {
 		let mut names: Vec<String> = Vec::new();
 		loop {
 			let pname = self.assert_advance(IDENTIFIER, "<name>")?;
-			names.push(pname.lexeme);
+			names.push(pname.lexeme());
 			if !self.compare(COMMA) {
 				self.advance_if(SEMICOLON);
 				break;
@@ -1167,7 +1200,7 @@ impl ParserInfo {
 			self.current += 1;
 		}
 		let check = self.advance();
-		let areinit = check.kind == DEFINE;
+		let areinit = check.kind() == DEFINE;
 		let values: Vec<Expression> = if !areinit {
 			Vec::new()
 		} else {
@@ -1224,18 +1257,18 @@ impl ParserInfo {
 		name: String,
 		func: &impl Fn(&mut ParserInfo) -> Result<CodeBlock, String>,
 	) -> Result<ComplexToken, String> {
-		let line = self.peek(0).line;
+		let line = self.peek(0).line();
 		let value = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
 		let mut branches: Vec<MatchCase> = Vec::new();
 		while {
 			if self.advance_if(DEFAULT) {
 				let t = self.advance();
-				match t.kind {
+				match t.kind() {
 					ARROW => {
 						if branches.is_empty() {
 							return Err(self.error(
 								"The default case (with no extra if) of a match block must be the last case, not the first",
-								t.line));
+								t.line()));
 						}
 						branches.push((Vec::new(), None, func(self)?));
 						self.assert(CURLY_BRACKET_CLOSED, "}")?;
@@ -1246,7 +1279,7 @@ impl ParserInfo {
 						branches.push((Vec::new(), Some(extraif), func(self)?));
 						!self.advance_if(CURLY_BRACKET_CLOSED)
 					}
-					_ => return Err(self.expected("=>", &t.lexeme, t.line)),
+					_ => return Err(self.expected("=>", &t.lexeme(), t.line())),
 				}
 			} else {
 				let (testexpr, reached) = self.test(|i| i.build_expression(Some((ARROW, "=>"))));
@@ -1271,9 +1304,9 @@ impl ParserInfo {
 		})
 	}
 
-	fn parse_token_local_global(&mut self, t: &Token) -> Result<(), String> {
-		let local = t.kind == LOCAL;
-		match self.peek(0).kind {
+	fn parse_token_local_global(&mut self, t: &BorrowedToken) -> Result<(), String> {
+		let local = t.kind() == LOCAL;
+		match self.peek(0).kind() {
 			FN => {
 				let function = self.build_function(local)?;
 				self.expr.push_back(function);
@@ -1283,7 +1316,7 @@ impl ParserInfo {
 				self.expr.append(enums);
 			}
 			_ => {
-				let vars = self.build_variables(local, t.line)?;
+				let vars = self.build_variables(local, t.line())?;
 				self.expr.push_back(vars);
 			}
 		}
@@ -1291,8 +1324,8 @@ impl ParserInfo {
 		Ok(())
 	}
 
-	fn parse_token_static(&mut self, t: &Token) -> Result<(), String> {
-		match self.peek(0).kind {
+	fn parse_token_static(&mut self, t: &BorrowedToken) -> Result<(), String> {
+		match self.peek(0).kind() {
 			FN => {
 				let function = expression![self.build_function(true)?];
 				self.compile_static(function);
@@ -1302,7 +1335,7 @@ impl ParserInfo {
 				self.compile_static(enums);
 			}
 			_ => {
-				let vars = expression![self.build_variables(true, t.line)?];
+				let vars = expression![self.build_variables(true, t.line())?];
 				self.compile_static(vars);
 			}
 		}
@@ -1315,24 +1348,24 @@ impl ParserInfo {
 			let mut expr = Expression::new();
 			loop {
 				let t = self.advance();
-				match t.kind {
+				match t.kind() {
 					IDENTIFIER => {
 						let nt = self.peek(0);
-						if nt.kind == IDENTIFIER {
-							return Err(self.unexpected(&nt.lexeme, nt.line));
+						if nt.kind() == IDENTIFIER {
+							return Err(self.unexpected(&nt.lexeme(), nt.line()));
 						}
-						expr.push_back(SYMBOL(t.lexeme))
+						expr.push_back(SYMBOL(t.lexeme()))
 					}
 					DOT => self.check_index(&t, &mut expr, ".")?,
 					DOUBLE_COLON => {
 						self.check_index(&t, &mut expr, ":")?;
 						let t = self.peek(1);
-						if t.kind != ROUND_BRACKET_OPEN {
-							return Err(self.expected("(", &t.lexeme, t.line));
+						if t.kind() != ROUND_BRACKET_OPEN {
+							return Err(self.expected("(", &t.lexeme(), t.line()));
 						}
 					}
 					ROUND_BRACKET_OPEN => break,
-					_ => return Err(self.expected("(", &t.lexeme, t.line)),
+					_ => return Err(self.expected("(", &t.lexeme(), t.line())),
 				}
 			}
 			expr
@@ -1353,7 +1386,7 @@ impl ParserInfo {
 		Ok(())
 	}
 
-	fn parse_token_identifier(&mut self, t: &Token) -> Result<(), String> {
+	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let testexpr = self.test(|i| i.build_name()).0;
 		if let Err(msg) = testexpr {
 			match msg.as_str() {
@@ -1373,18 +1406,18 @@ impl ParserInfo {
 		while {
 			names.push(self.build_name()?);
 			self.current += 1;
-			self.look_back(1).kind == COMMA
+			self.look_back(1).kind() == COMMA
 		} {}
 		self.current -= 1;
 		let checkt = self.look_back(0);
-		let check = checkt.kind as u8;
+		let check = checkt.kind() as u8;
 		if check < DEFINE as u8 || check > MODULATE as u8 {
-			return Err(self.expected("=", &checkt.lexeme, checkt.line));
+			return Err(self.expected("=", &checkt.lexeme(), checkt.line()));
 		}
 		let values: Vec<Expression> = self.find_expressions(COMMA, None)?;
 		self.expr.push_back(ALTER {
-			kind: checkt.kind,
-			line: t.line,
+			kind: checkt.kind(),
+			line: t.line(),
 			names,
 			values,
 		});
@@ -1448,7 +1481,7 @@ impl ParserInfo {
 
 	fn parse_token_loop(&mut self) -> Result<(), String> {
 		let code = self.build_loop_block()?;
-		if self.peek(0).kind == UNTIL {
+		if self.peek(0).kind() == UNTIL {
 			self.current += 1;
 			let condition = self.build_expression(None)?;
 			self.current -= 1;
@@ -1464,20 +1497,20 @@ impl ParserInfo {
 	}
 
 	fn parse_token_for(&mut self) -> Result<(), String> {
-		if self.peek(1).kind == DEFINE {
-			let iterator = self.assert_advance(IDENTIFIER, "<name>")?.lexeme;
+		if self.peek(1).kind() == DEFINE {
+			let iterator = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
 			self.current += 1;
 			let start = self.build_expression(Some((COMMA, ",")))?;
 			let end = self.build_expression(None)?;
 			self.current -= 1;
 			let t = self.advance();
-			let alter = match t.kind {
+			let alter = match t.kind() {
 				CURLY_BRACKET_OPEN => {
 					self.current -= 1;
 					expression![SYMBOL(String::from("1"))]
 				}
 				COMMA => self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?,
-				_ => return Err(self.expected(",", &t.lexeme, t.line)),
+				_ => return Err(self.expected(",", &t.lexeme(), t.line())),
 			};
 			let code = self.build_loop_block()?;
 			self.expr.push_back(FOR_LOOP {
@@ -1489,7 +1522,7 @@ impl ParserInfo {
 			})
 		} else {
 			let iterators = self.build_identifier_list()?;
-			let expr = match self.advance().kind {
+			let expr = match self.advance().kind() {
 				OF => {
 					let mut expr = expression![SYMBOL(String::from("pairs("))];
 					expr.append(&mut self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?);
@@ -1505,7 +1538,7 @@ impl ParserInfo {
 				WITH => self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?,
 				_ => {
 					let t = self.peek(0);
-					return Err(self.expected("of', 'in' or 'with", &t.lexeme, t.line));
+					return Err(self.expected("of', 'in' or 'with", &t.lexeme(), t.line()));
 				}
 			};
 			let code = self.build_loop_block()?;
@@ -1549,8 +1582,8 @@ impl ParserInfo {
 		let error: Option<String>;
 		let catch = if self.advance_if(CATCH) {
 			let t = self.advance();
-			if t.kind == IDENTIFIER {
-				error = Some(t.lexeme);
+			if t.kind() == IDENTIFIER {
+				error = Some(t.lexeme());
 			} else {
 				error = None;
 				self.current -= 1;
@@ -1570,20 +1603,20 @@ impl ParserInfo {
 	}
 
 	fn parse_token_macro(&mut self) -> Result<(), String> {
-		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme;
+		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
 		let code = self.build_expression(None)?;
 		self.current -= 1;
 		self.macros.insert(name, code);
 		Ok(())
 	}
 
-	fn parse_token_fn_enum(&mut self, t: &Token) -> Result<(), String> {
+	fn parse_token_fn_enum(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		Err(self.error(
 			format!(
 				"'{}' must have 'local', 'global' or 'static' beforehand",
-				t.lexeme
+				t.lexeme()
 			),
-			t.line,
+			t.line(),
 		))
 	}
 }
@@ -1592,7 +1625,7 @@ pub fn parse_tokens(tokens: Vec<Token>, filename: String) -> Result<Expression, 
 	let mut i = ParserInfo::new(tokens, filename);
 	while !i.ended() {
 		let t = i.advance();
-		match t.kind {
+		match t.kind() {
 			LOCAL | GLOBAL => i.parse_token_local_global(&t)?,
 			STATIC => i.parse_token_static(&t)?,
 			METHOD => i.parse_token_method()?,
@@ -1612,7 +1645,7 @@ pub fn parse_tokens(tokens: Vec<Token>, filename: String) -> Result<Expression, 
 			MACRO => i.parse_token_macro()?,
 			FN | ENUM => i.parse_token_fn_enum(&t)?,
 			EOF => break,
-			_ => return Err(i.expected("<end>", &t.lexeme, t.line)),
+			_ => return Err(i.expected("<end>", &t.lexeme(), t.line())),
 		}
 	}
 
