@@ -39,8 +39,8 @@ pub struct Token {
 }
 
 impl Token {
-	pub fn new(kind: TokenType, lexeme: String, line: usize) -> Token {
-		Token { kind, lexeme, line }
+	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize) -> Token {
+		Token {kind, lexeme: lexeme.into(), line}
 	}
 }
 
@@ -239,7 +239,13 @@ impl CodeInfo {
 		} else {
 			self.current += 1;
 			let literal: String = self.substr(self.start + 1, self.current - 1);
-			self.add_literal_token(STRING, format!("[[{}]]", literal.replace("\\`", "`")));
+			let mut brackets = String::new();
+			let mut must = literal.ends_with("]");
+			while must || literal.contains(&format!("]{}]", brackets)) {
+				brackets += "=";
+				must = false;
+			}
+			self.add_literal_token(STRING, format!("[{}[{}]{}]", brackets, literal.replace("\\`", "`"), brackets));
 		}
 		self.line = aline
 	}

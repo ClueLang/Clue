@@ -271,14 +271,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 	let ctokens = &mut ctokens.into_iter().peekable();
 	while let Some(t) = ctokens.next() {
 		result += &match t {
-			SYMBOL(lexeme) => {
-				let chars: Vec<_> = lexeme.chars().collect();
-				if chars[0] == '`' && chars[lexeme.len() - 1] == '`' {
-					let text = &lexeme[1..lexeme.len() - 1];
-					return format!("[[{}]]", text);
-				}
-				lexeme
-			}
+			SYMBOL(lexeme) => lexeme,
 			VARIABLE {
 				local,
 				names,

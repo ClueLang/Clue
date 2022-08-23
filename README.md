@@ -33,7 +33,7 @@ More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki),
 ## How to install
 
 ### Using Cargo
-1. Paste and run this command in the console: `cargo install clue --version 2.4.1-patch`
+1. Paste and run this command in the console: `cargo install clue`
 2. Type `clue` in the console to run the compiler, it will explain the rest
 
 ### Manual insallation
