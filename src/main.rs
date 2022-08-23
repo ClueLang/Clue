@@ -143,6 +143,7 @@ fn main() -> Result<(), String> {
 		cli.pathiscode,
 		cli.rawsetglobals,
 		cli.debugcomments,
+		cli.types,
 	);
 	if let Some(bit) = &flag!(env_jitbit) {
 		add_to_output(&format!("local {} = require(\"bit\");\n", bit));

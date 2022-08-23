@@ -32,6 +32,7 @@ pub struct EnvData {
 	env_pathiscode: bool,
 	env_rawsetglobals: bool,
 	env_debugcomments: bool,
+	env_types: TypesMode,
 
 	ouput_code: String,
 }
@@ -48,6 +49,7 @@ impl EnvData {
 			env_pathiscode: false,
 			env_rawsetglobals: false,
 			env_debugcomments: false,
+			env_types: TypesMode::NONE,
 			ouput_code: String::new(),
 		}
 	}
@@ -63,6 +65,7 @@ impl EnvData {
 		env_pathiscode: bool,
 		env_rawsetglobals: bool,
 		env_debugcomments: bool,
+		env_types: TypesMode
 	) {
 		self.env_tokens = env_tokens;
 		self.env_struct = env_struct;
@@ -73,6 +76,7 @@ impl EnvData {
 		self.env_pathiscode = env_pathiscode;
 		self.env_rawsetglobals = env_rawsetglobals;
 		self.env_debugcomments = env_debugcomments;
+		self.env_types = env_types;
 	}
 	pub fn env_tokens(&self) -> bool {
 		self.env_tokens
@@ -100,6 +104,9 @@ impl EnvData {
 	}
 	pub fn env_debugcomments(&self) -> bool {
 		self.env_debugcomments
+	}
+	pub fn env_types(&self) -> TypesMode {
+		self.env_types
 	}
 	pub fn ouput_code(&self) -> &str {
 		&self.ouput_code

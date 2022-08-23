@@ -159,6 +159,10 @@ impl BorrowedToken {
 	}
 }
 
+enum VarType {
+
+}
+
 struct ParserInfo {
 	current: usize,
 	size: usize,
@@ -169,6 +173,7 @@ struct ParserInfo {
 	localid: u8,
 	statics: String,
 	macros: HashMap<String, Expression>,
+	locals: Option<HashMap<String, VarType>>
 }
 
 impl ParserInfo {
@@ -183,6 +188,7 @@ impl ParserInfo {
 			localid: 0,
 			statics: String::new(),
 			macros: HashMap::new(),
+			locals: if flag!(env_types) != TypesMode::NONE {Some(HashMap::new())} else {None}
 		}
 	}
 
