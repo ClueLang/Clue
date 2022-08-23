@@ -1205,6 +1205,7 @@ impl ParserInfo {
 				} else {
 					self.warning("Defining external globals will not do anything if you don't have type checking enabled!", line)
 				}
+				self.current -= 1;
 				return Ok(SYMBOL(String::new()))
 			}
 		} else {
