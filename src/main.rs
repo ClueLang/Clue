@@ -1,5 +1,5 @@
 use clap::{Parser};
-use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA, env::ContinueMode};
+use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA, env::{ContinueMode, TypesMode}};
 use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
 
 #[derive(Parser)]
@@ -54,6 +54,10 @@ struct Cli {
 	/// Include debug comments in the output
 	#[clap(short, long)]
 	debugcomments: bool,
+
+	/// Enable type checking (might slow down compilation)
+	#[clap(short = 'T', long, value_enum, default_value = "none", value_name = "MODE")]
+	types: TypesMode
 }
 
 fn add_to_output(string: &str) {

@@ -4,7 +4,7 @@ use self::ComplexToken::*;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
-use crate::env::ContinueMode;
+use crate::env::{ContinueMode, TypesMode};
 use std::{cmp, collections::{LinkedList, HashMap}};
 
 macro_rules! expression {

@@ -8,6 +8,13 @@ pub enum ContinueMode {
 	MOONSCRIPT
 }
 
+#[derive(Copy, Clone, PartialEq, ArgEnum)]
+pub enum TypesMode {
+	NONE,
+	WARN,
+	STRICT
+}
+
 #[macro_export]
 macro_rules! flag {
 	($arg: ident) => {
