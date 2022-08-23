@@ -159,6 +159,7 @@ impl BorrowedToken {
 	}
 }
 
+#[derive(Debug)]
 enum VarType {
 
 }
@@ -203,6 +204,10 @@ impl ParserInfo {
 		let reached = self.current;
 		self.current = start;
 		(result, reached)
+	}
+
+	fn warning(&self, msg: impl Into<String>, line: usize) {
+		println!("Warning in file \"{}\" at line {}!\nWarning: \"{}\"", self.filename, line, msg.into());
 	}
 
 	fn error(&mut self, msg: impl Into<String>, line: usize) -> String {
@@ -1208,7 +1213,16 @@ impl ParserInfo {
 		let check = self.advance();
 		let areinit = check.kind() == DEFINE;
 		let values: Vec<Expression> = if !areinit {
-			Vec::new()
+			if local {
+				Vec::new()
+			} else {
+				if let Some(locals) = &self.locals {
+					println!("{:?}", locals);
+				} else {
+					self.warning("Defining external globals will not do anything if you don't have type checking enabled!", line)
+				}
+				return Ok(SYMBOL(String::new()))
+			}
 		} else {
 			self.find_expressions(COMMA, None)?
 		};
