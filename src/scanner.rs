@@ -39,12 +39,8 @@ pub struct Token {
 }
 
 impl Token {
-	pub fn new(kind: TokenType, lexeme: String, line: usize) -> Token {
-		Token {
-			kind: kind,
-			lexeme: String::from(lexeme),
-			line: line,
-		}
+	pub fn new<T: Into<String>>(kind: TokenType, lexeme: T, line: usize) -> Token {
+		Token {kind, lexeme: lexeme.into(), line}
 	}
 }
 
