@@ -242,7 +242,13 @@ impl CodeInfo {
 		} else {
 			self.current += 1;
 			let literal: String = self.substr(self.start + 1, self.current - 1);
-			self.addLiteralToken(STRING, format!("[[{}]]", literal.replace("\\`", "`")));
+			let mut brackets = String::new();
+			let mut must = literal.ends_with("]");
+			while must || literal.contains(&format!("]{}]", brackets)) {
+				brackets += "=";
+				must = false;
+			}
+			self.addLiteralToken(STRING, format!("[{}[{}]{}]", brackets, literal.replace("\\`", "`"), brackets));
 		}
 		self.line = aline
 	}
