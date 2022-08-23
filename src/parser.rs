@@ -963,26 +963,10 @@ impl ParserInfo {
 					hascontinue = true;
 					let line = t.line;
 					if arg!(ENV_CONTINUE) == ContinueMode::MOONSCRIPT {
-						tokens.push(Token {
-							kind: IDENTIFIER,
-							lexeme: String::from("_continue"),
-							line,
-						});
-						tokens.push(Token {
-							kind: DEFINE,
-							lexeme: String::from("="),
-							line,
-						});
-						tokens.push(Token {
-							kind: TRUE,
-							lexeme: String::from("true"),
-							line,
-						});
-						tokens.push(Token {
-							kind: BREAK,
-							lexeme: String::from("break"),
-							line,
-						});
+						tokens.push(Token::new(IDENTIFIER, "_continue", line));
+						tokens.push(Token::new(DEFINE, "=", line));
+						tokens.push(Token::new(TRUE, "true", line));
+						tokens.push(Token::new(BREAK, "break", line));
 						continue;
 					}
 				}
