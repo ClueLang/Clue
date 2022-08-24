@@ -15,6 +15,13 @@ pub enum TypesMode {
 	STRICT
 }
 
+#[derive(Copy, Clone, PartialEq, ArgEnum)]
+pub enum LuaSTD {
+	LUAJIT,
+	LUA54,
+	//ADD MORE LATER
+}
+
 #[macro_export]
 macro_rules! flag {
 	($arg: ident) => {
@@ -33,6 +40,7 @@ pub struct EnvData {
 	env_rawsetglobals: bool,
 	env_debugcomments: bool,
 	env_types: TypesMode,
+	env_std: Option<LuaSTD>,
 
 	ouput_code: String,
 }
@@ -50,6 +58,7 @@ impl EnvData {
 			env_rawsetglobals: false,
 			env_debugcomments: false,
 			env_types: TypesMode::NONE,
+			env_std: None,
 			ouput_code: String::new(),
 		}
 	}
@@ -65,7 +74,8 @@ impl EnvData {
 		env_pathiscode: bool,
 		env_rawsetglobals: bool,
 		env_debugcomments: bool,
-		env_types: TypesMode
+		env_types: TypesMode,
+		env_std: Option<LuaSTD>,
 	) {
 		self.env_tokens = env_tokens;
 		self.env_struct = env_struct;
@@ -77,40 +87,57 @@ impl EnvData {
 		self.env_rawsetglobals = env_rawsetglobals;
 		self.env_debugcomments = env_debugcomments;
 		self.env_types = env_types;
+		self.env_std = env_std;
 	}
+	
 	pub fn env_tokens(&self) -> bool {
 		self.env_tokens
 	}
+
 	pub fn env_struct(&self) -> bool {
 		self.env_struct
 	}
+
 	pub fn env_output(&self) -> bool {
 		self.env_output
 	}
+
 	pub fn env_jitbit(&self) -> &Option<String> {
 		&self.env_jitbit
 	}
+
 	pub fn env_continue(&self) -> ContinueMode {
 		self.env_continue
 	}
+
 	pub fn env_dontsave(&self) -> bool {
 		self.env_dontsave
 	}
+	
 	pub fn env_pathiscode(&self) -> bool {
 		self.env_pathiscode
 	}
+
 	pub fn env_rawsetglobals(&self) -> bool {
 		self.env_rawsetglobals
 	}
+
 	pub fn env_debugcomments(&self) -> bool {
 		self.env_debugcomments
 	}
+
 	pub fn env_types(&self) -> TypesMode {
 		self.env_types
 	}
+	
+	pub fn env_std(&self) -> Option<LuaSTD> {
+		self.env_std
+	}
+
 	pub fn ouput_code(&self) -> &str {
 		&self.ouput_code
 	}
+
 	pub fn add_output_code(&mut self, add: String) {
 		write!(self.ouput_code, "{}", add).expect("something really unexpected happened");
 	}

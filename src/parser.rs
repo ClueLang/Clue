@@ -161,7 +161,8 @@ impl BorrowedToken {
 
 #[derive(Debug)]
 enum VarType {
-
+	//Simple types
+	//NIL, BOOL, STRING, NUMBER, more time for planning needed, do later...
 }
 
 struct ParserInfo {

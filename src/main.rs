@@ -1,5 +1,6 @@
 use clap::{Parser};
-use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA, env::{ContinueMode, TypesMode}};
+use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA};
+use clue::env::{ContinueMode, TypesMode, LuaSTD};
 use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
 
 #[derive(Parser)]
@@ -57,7 +58,11 @@ struct Cli {
 
 	/// Enable type checking (might slow down compilation)
 	#[clap(short = 'T', long, value_enum, default_value = "none", value_name = "MODE")]
-	types: TypesMode
+	types: TypesMode,
+
+	/// Use the given Lua version's standard library (--types required)
+	#[clap(long, value_enum, value_name = "LUA VERSION", requires = "types")]
+	std: Option<LuaSTD>
 }
 
 fn add_to_output(string: &str) {
@@ -144,6 +149,7 @@ fn main() -> Result<(), String> {
 		cli.rawsetglobals,
 		cli.debugcomments,
 		cli.types,
+		cli.std,
 	);
 	if let Some(bit) = &flag!(env_jitbit) {
 		add_to_output(&format!("local {} = require(\"bit\");\n", bit));
