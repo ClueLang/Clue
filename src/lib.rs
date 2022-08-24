@@ -14,6 +14,7 @@ pub mod scanner;
 
 lazy_static! {
 	pub static ref ENV_DATA: RwLock<EnvData> = RwLock::new(EnvData::new());
+	pub static ref LUA_G: RwLock<parser::LocalsList> = RwLock::new(None);
 }
 
 #[macro_export]

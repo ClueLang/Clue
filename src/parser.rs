@@ -19,6 +19,7 @@ macro_rules! expression {
 
 pub type Expression = LinkedList<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
+pub type LocalsList = Option<HashMap<String, VarType>>;
 type OptionalEnd = Option<(TokenType, &'static str)>;
 type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
 
@@ -159,8 +160,8 @@ impl BorrowedToken {
 	}
 }
 
-#[derive(Debug)]
-enum VarType {
+#[derive(Clone, Debug)]
+pub enum VarType {
 	//Simple types
 	//NIL, BOOL, STRING, NUMBER, more time for planning needed, do later...
 }
@@ -175,7 +176,7 @@ struct ParserInfo {
 	localid: u8,
 	statics: String,
 	macros: HashMap<String, Expression>,
-	locals: Option<HashMap<String, VarType>>
+	locals: LocalsList
 }
 
 impl ParserInfo {
@@ -941,7 +942,7 @@ impl ParserInfo {
 			Ok(Expression::new())
 		} else {
 			tokens.push(self.tokens.last().unwrap().clone());
-			Ok(parse_tokens(tokens, self.filename.clone())?)
+			Ok(parse_tokens(tokens, self.locals.clone(), self.filename.clone())?)
 		}
 	}
 
@@ -1627,7 +1628,7 @@ impl ParserInfo {
 	}
 }
 
-pub fn parse_tokens(tokens: Vec<Token>, filename: String) -> Result<Expression, String> {
+pub fn parse_tokens(tokens: Vec<Token>, locals: Option<HashMap<String, VarType>>, filename: String) -> Result<Expression, String> {
 	let mut i = ParserInfo::new(tokens, filename);
 	while !i.ended() {
 		let t = i.advance();

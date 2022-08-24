@@ -1,7 +1,7 @@
 use clap::{Parser};
-use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA};
+use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA, LUA_G};
 use clue::env::{ContinueMode, TypesMode, LuaSTD};
-use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
+use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant, collections::HashMap};
 
 #[derive(Parser)]
 #[clap(about = "C/Rust like programming language that compiles into Lua code\nMade by Maiori\nhttps://github.com/ClueLang/Clue", version, long_about = None)]
@@ -61,8 +61,8 @@ struct Cli {
 	types: TypesMode,
 
 	/// Use the given Lua version's standard library (--types required)
-	#[clap(long, value_enum, value_name = "LUA VERSION", requires = "types")]
-	std: Option<LuaSTD>
+	#[clap(long, value_enum, default_value = "luajit", value_name = "LUA VERSION", requires = "types")]
+	std: LuaSTD
 }
 
 fn add_to_output(string: &str) {
@@ -78,7 +78,7 @@ fn compile_code(code: String, name: String, scope: usize) -> Result<String, Stri
 	if flag!(env_tokens) {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
-	let ctokens = parse_tokens(tokens, name.clone())?;
+	let ctokens = parse_tokens(tokens, check!(LUA_G.read()).clone(), name.clone())?;
 	if flag!(env_struct) {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
@@ -153,6 +153,11 @@ fn main() -> Result<(), String> {
 	);
 	if let Some(bit) = &flag!(env_jitbit) {
 		add_to_output(&format!("local {} = require(\"bit\");\n", bit));
+	}
+	if flag!(env_types) != TypesMode::NONE {
+		*check!(LUA_G.write()) = match flag!(env_std) {
+			_ => Some(HashMap::new()),
+		};
 	}
 	let codepath = cli.path.unwrap();
 	if flag!(env_pathiscode) {

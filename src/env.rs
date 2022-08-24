@@ -17,6 +17,7 @@ pub enum TypesMode {
 
 #[derive(Copy, Clone, PartialEq, ArgEnum)]
 pub enum LuaSTD {
+	NONE,
 	LUAJIT,
 	LUA54,
 	//ADD MORE LATER
@@ -40,7 +41,7 @@ pub struct EnvData {
 	env_rawsetglobals: bool,
 	env_debugcomments: bool,
 	env_types: TypesMode,
-	env_std: Option<LuaSTD>,
+	env_std: LuaSTD,
 
 	ouput_code: String,
 }
@@ -58,7 +59,7 @@ impl EnvData {
 			env_rawsetglobals: false,
 			env_debugcomments: false,
 			env_types: TypesMode::NONE,
-			env_std: None,
+			env_std: LuaSTD::NONE,
 			ouput_code: String::new(),
 		}
 	}
@@ -75,7 +76,7 @@ impl EnvData {
 		env_rawsetglobals: bool,
 		env_debugcomments: bool,
 		env_types: TypesMode,
-		env_std: Option<LuaSTD>,
+		env_std: LuaSTD,
 	) {
 		self.env_tokens = env_tokens;
 		self.env_struct = env_struct;
@@ -130,7 +131,7 @@ impl EnvData {
 		self.env_types
 	}
 	
-	pub fn env_std(&self) -> Option<LuaSTD> {
+	pub fn env_std(&self) -> LuaSTD {
 		self.env_std
 	}
 
