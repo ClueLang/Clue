@@ -3,8 +3,8 @@
 use self::ComplexToken::*;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
-use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
-use crate::env::{ContinueMode, TypesMode};
+use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA, LUA_G, add_global};
+use crate::env::{ContinueMode/*, TypesMode*/};
 use std::{cmp, collections::{LinkedList, HashMap}};
 
 macro_rules! expression {
@@ -19,7 +19,7 @@ macro_rules! expression {
 
 pub type Expression = LinkedList<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
-pub type LocalsList = Option<HashMap<String, VarType>>;
+pub type LocalsList = Option<HashMap<String, LuaType>>;
 type OptionalEnd = Option<(TokenType, &'static str)>;
 type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
 
@@ -161,9 +161,10 @@ impl BorrowedToken {
 }
 
 #[derive(Clone, Debug)]
-pub enum VarType {
+pub enum LuaType {
 	//Simple types
-	//NIL, BOOL, STRING, NUMBER, more time for planning needed, do later...
+	//BOOL, STRING, NUMBER, more time for planning needed, do later...
+	NIL
 }
 
 struct ParserInfo {
@@ -180,7 +181,7 @@ struct ParserInfo {
 }
 
 impl ParserInfo {
-	fn new(tokens: Vec<Token>, filename: String) -> ParserInfo {
+	fn new(tokens: Vec<Token>, locals: LocalsList, filename: String) -> ParserInfo {
 		ParserInfo {
 			current: 0,
 			size: tokens.len() - 1,
@@ -191,7 +192,7 @@ impl ParserInfo {
 			localid: 0,
 			statics: String::new(),
 			macros: HashMap::new(),
-			locals: if flag!(env_types) != TypesMode::NONE {Some(HashMap::new())} else {None}
+			locals
 		}
 	}
 
@@ -1185,11 +1186,26 @@ impl ParserInfo {
 		})
 	}
 
+	fn build_variable(&mut self, local: bool) -> Result<(String, LuaType), String> {
+		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
+		if let Some(locals) = &mut self.locals {
+			let luatype = LuaType::NIL; //PLACEHOLDER
+			if local {
+				locals.insert(name.to_string(), luatype.clone());
+			} else {
+				add_global(name.to_string(), luatype.clone())?;
+			}
+			Ok((name, luatype))
+		} else {
+			Ok((name, LuaType::NIL))
+		}
+	}
+
 	fn build_variables(&mut self, local: bool, line: usize) -> Result<ComplexToken, String> {
 		let mut names: Vec<String> = Vec::new();
 		loop {
-			let pname = self.assert_advance(IDENTIFIER, "<name>")?;
-			names.push(pname.lexeme());
+			let (pname, _) = self.build_variable(local)?;
+			names.push(pname);
 			if !self.compare(COMMA) {
 				self.advance_if(SEMICOLON);
 				break;
@@ -1628,8 +1644,8 @@ impl ParserInfo {
 	}
 }
 
-pub fn parse_tokens(tokens: Vec<Token>, locals: Option<HashMap<String, VarType>>, filename: String) -> Result<Expression, String> {
-	let mut i = ParserInfo::new(tokens, filename);
+pub fn parse_tokens(tokens: Vec<Token>, locals: Option<HashMap<String, LuaType>>, filename: String) -> Result<Expression, String> {
+	let mut i = ParserInfo::new(tokens, locals, filename);
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {
@@ -1672,6 +1688,8 @@ pub fn parse_tokens(tokens: Vec<Token>, locals: Option<HashMap<String, VarType>>
 				.add_output_code(i.statics);
 		}
 	}
+
+	println!("LOCALS = {:#?}\nGLOBALS = {:#?}", i.locals, check!(LUA_G.read()));
 
 	Ok(i.expr)
 }

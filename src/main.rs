@@ -78,7 +78,7 @@ fn compile_code(code: String, name: String, scope: usize) -> Result<String, Stri
 	if flag!(env_tokens) {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
-	let ctokens = parse_tokens(tokens, check!(LUA_G.read()).clone(), name.clone())?;
+	let ctokens = parse_tokens(tokens, if flag!(env_types) != TypesMode::NONE {Some(HashMap::new())} else {None}, name.clone())?;
 	if flag!(env_struct) {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
@@ -156,6 +156,7 @@ fn main() -> Result<(), String> {
 	}
 	if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
+			LuaSTD::LUA54 => Some(HashMap::from([(String::from("print"), LuaType::NIL)])), //PLACEHOLDER
 			_ => Some(HashMap::new()),
 		};
 	}

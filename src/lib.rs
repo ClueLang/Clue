@@ -26,3 +26,10 @@ macro_rules! check {
 		}
 	};
 }
+
+pub fn add_global(name: String, luatype: parser::LuaType) -> Result<(), String> {
+	if let Some(globals) = &mut *check!(LUA_G.write()) {
+		globals.insert(name, luatype);
+	}
+	Ok(())
+}
