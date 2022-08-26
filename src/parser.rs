@@ -3,7 +3,7 @@
 use self::ComplexToken::*;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
-use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA, LUA_G, add_global};
+use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA, LUA_G};
 use crate::env::{ContinueMode/*, TypesMode*/};
 use std::{cmp, collections::{LinkedList, HashMap}};
 
@@ -1186,15 +1186,11 @@ impl ParserInfo {
 		})
 	}
 
-	fn build_variable(&mut self, local: bool) -> Result<(String, LuaType), String> {
+	fn build_variable(&mut self) -> Result<(String, LuaType), String> {
 		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
 		if let Some(locals) = &mut self.locals {
 			let luatype = LuaType::NIL; //PLACEHOLDER
-			if local {
-				locals.insert(name.to_string(), luatype.clone());
-			} else {
-				add_global(name.to_string(), luatype.clone())?;
-			}
+			locals.insert(name.to_string(), luatype.clone());
 			Ok((name, luatype))
 		} else {
 			Ok((name, LuaType::NIL))
@@ -1204,7 +1200,7 @@ impl ParserInfo {
 	fn build_variables(&mut self, local: bool, line: usize) -> Result<ComplexToken, String> {
 		let mut names: Vec<String> = Vec::new();
 		loop {
-			let (pname, _) = self.build_variable(local)?;
+			let (pname, _) = self.build_variable()?;
 			names.push(pname);
 			if !self.compare(COMMA) {
 				self.advance_if(SEMICOLON);
