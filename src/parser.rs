@@ -164,7 +164,7 @@ impl BorrowedToken {
 pub enum LuaType {
 	//Simple types
 	//BOOL, STRING, NUMBER, more time for planning needed, do later...
-	NIL
+	NIL, NUMBER
 }
 
 struct ParserInfo {
@@ -1164,6 +1164,13 @@ impl ParserInfo {
 				names: vec![name.lexeme()],
 				values: vec![expression![value]],
 			});
+		}
+		if let Some(locals) = &mut self.locals {
+			for r#enum in &enums {
+				if let VARIABLE {names, ..} = r#enum {
+					locals.insert(names[0].clone(), LuaType::NUMBER);
+				}
+			}
 		}
 		Ok(enums)
 	}
