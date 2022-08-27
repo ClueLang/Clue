@@ -4,7 +4,7 @@ use self::ComplexToken::*;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA, LUA_G};
-use crate::env::{ContinueMode/*, TypesMode*/};
+use crate::env::{ContinueMode, TypesMode};
 use std::{cmp, collections::{LinkedList, HashMap}};
 
 macro_rules! expression {
@@ -162,9 +162,7 @@ impl BorrowedToken {
 
 #[derive(Clone, Debug)]
 pub enum LuaType {
-	//Simple types
-	//BOOL, STRING, NUMBER, more time for planning needed, do later...
-	NIL, NUMBER
+	ANY, NIL, NUMBER,
 }
 
 struct ParserInfo {
@@ -1193,14 +1191,28 @@ impl ParserInfo {
 		})
 	}
 
+	fn add_variable(&mut self, name: String, luatype: LuaType) {
+		if let Some(locals) = &mut self.locals {
+			locals.insert(name, luatype);
+		}
+	}
+
+	fn build_type(&mut self) -> Result<LuaType, String> {
+		if self.advance_if(TERNARY_ELSE) {
+			Ok(LuaType::NIL) //PLACEHOLDER
+		} else {
+			Ok(LuaType::ANY)
+		}
+	}
+
 	fn build_variable(&mut self) -> Result<(String, LuaType), String> {
 		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
-		if let Some(locals) = &mut self.locals {
-			let luatype = LuaType::NIL; //PLACEHOLDER
-			locals.insert(name.to_string(), luatype.clone());
+		if flag!(env_types) != TypesMode::NONE {
+			let luatype = self.build_type()?;
+			self.add_variable(name.to_string(), luatype.clone());
 			Ok((name, luatype))
 		} else {
-			Ok((name, LuaType::NIL))
+			Ok((name, LuaType::ANY))
 		}
 	}
 
