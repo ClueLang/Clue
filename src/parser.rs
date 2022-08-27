@@ -128,18 +128,17 @@ pub struct CodeBlock {
 }
 
 struct BorrowedToken {
-	tokens: *const Vec<Token>,
-	pos: usize
+	token: *const Token
 }
 
 impl BorrowedToken {
-	fn new(tokens: *const Vec<Token>, pos: usize) -> BorrowedToken {
-		BorrowedToken {tokens, pos}
+	fn new(token: *const Token) -> BorrowedToken {
+		BorrowedToken {token}
 	}
 
 	fn token(&self) -> &Token {
 		unsafe {
-			&(*self.tokens)[self.pos]
+			&(*self.token)
 		}
 	}
 
@@ -237,7 +236,7 @@ impl ParserInfo {
 	}
 
 	fn at(&self, pos: usize) -> BorrowedToken {
-		BorrowedToken::new(&self.tokens, cmp::min(pos, self.size))
+		BorrowedToken::new(&self.tokens[cmp::min(pos, self.size)])
 	}
 
 	fn advance(&mut self) -> BorrowedToken {
