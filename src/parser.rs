@@ -1199,9 +1199,9 @@ impl ParserInfo {
 
 	fn build_type(&mut self) -> Result<LuaType, String> {
 		if self.advance_if(COLON) {
-			Ok(LuaType::NIL) //PLACEHOLDER
+			Ok(LuaType::ANY) //PLACEHOLDER
 		} else {
-			Ok(LuaType::ANY)
+			Ok(LuaType::NIL)
 		}
 	}
 
