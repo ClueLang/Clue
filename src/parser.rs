@@ -716,10 +716,10 @@ impl ParserInfo {
 					self.expr.push_back(ctoken);
 					expr.push_back(ident);
 				}
-				TERNARY_THEN => {
+				QUESTION_MARK => {
 					let mut condition = Expression::new();
 					condition.append(&mut expr);
-					let exprtrue = self.build_expression(Some((TERNARY_ELSE, ":")))?;
+					let exprtrue = self.build_expression(Some((COLON, ":")))?;
 					let t2 = self.look_back(0);
 					let exprfalse = self.build_expression(end)?;
 					self.current -= 1;
@@ -1198,7 +1198,7 @@ impl ParserInfo {
 	}
 
 	fn build_type(&mut self) -> Result<LuaType, String> {
-		if self.advance_if(TERNARY_ELSE) {
+		if self.advance_if(COLON) {
 			Ok(LuaType::NIL) //PLACEHOLDER
 		} else {
 			Ok(LuaType::ANY)

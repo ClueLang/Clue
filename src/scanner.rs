@@ -12,7 +12,7 @@ pub enum TokenType {
 	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON, AT,
 	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
-	TERNARY_THEN, TERNARY_ELSE, ARROW, FLOOR_DIVISION,
+	QUESTION_MARK, COLON, ARROW, FLOOR_DIVISION,
 
 	//definition and comparison
 	DEFINE, DEFINE_AND, DEFINE_OR, INCREASE, DECREASE, MULTIPLY, DIVIDE,
@@ -351,13 +351,13 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 					'[' => SAFE_SQUARE_BRACKET,
 					_ => {
 						i.current -= 1;
-						TERNARY_THEN
+						QUESTION_MARK
 					}
 				};
 				i.add_token(kind);
 			}
 			'&' => i.compare_and_add('&', AND, BIT_AND),
-			':' => i.match_and_add(':', DOUBLE_COLON, '=', DEFINE_OR, TERNARY_ELSE),
+			':' => i.match_and_add(':', DOUBLE_COLON, '=', DEFINE_OR, COLON),
 			'|' => i.compare_and_add('|', OR, BIT_OR),
 			'$' => i.add_token(DOLLAR),
 			'@' => i.add_token(AT),
