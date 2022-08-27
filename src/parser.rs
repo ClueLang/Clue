@@ -159,7 +159,7 @@ impl BorrowedToken {
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum LuaType {
 	ANY, NIL, NUMBER,
 }
@@ -1057,8 +1057,13 @@ impl ParserInfo {
 		Ok(idents)
 	}
 
-	fn build_function_args(&mut self) -> Result<FunctionArgs, String> {
+	fn build_function_args(&mut self) -> Result<(FunctionArgs, Option<Vec<LuaType>>), String> {
 		let mut args = FunctionArgs::new();
+		let mut types: Option<Vec<LuaType>> = if let Some(_) = self.locals {
+			Some(Vec::new())
+		} else {
+			None
+		};
 		while {
 			let name = {
 				let t = self.advance();
@@ -1071,6 +1076,9 @@ impl ParserInfo {
 					_ => return Err(self.expected("<name>", &t.lexeme(), t.line())),
 				}
 			};
+			if self.locals != None {
+				//DONT FORGET, CONTINUE HERE
+			}
 			let t = self.advance();
 			match t.kind() {
 				COMMA => {
@@ -1206,7 +1214,7 @@ impl ParserInfo {
 
 	fn build_variable(&mut self) -> Result<(String, LuaType), String> {
 		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
-		if flag!(env_types) != TypesMode::NONE {
+		if self.locals != None {
 			let luatype = self.build_type()?;
 			self.add_variable(name.to_string(), luatype.clone());
 			Ok((name, luatype))
