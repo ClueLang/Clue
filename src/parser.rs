@@ -5,7 +5,7 @@ use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
 use crate::env::{ContinueMode/*, TypesMode*/};
-use std::{cmp, collections::{LinkedList, HashMap}};
+use std::{cmp, collections::{LinkedList, HashMap}, slice::Iter};
 
 macro_rules! expression {
 	($($x: expr),*) => {
@@ -306,6 +306,19 @@ impl ParserInfo {
 			return Err(self.expected(error, &t.lexeme(), t.line()));
 		}
 		Ok(())
+	}
+
+	fn assert_variable(&mut self, mut variable: Iter<ComplexToken>) -> Result<LuaType, String> {
+		let mut scope: &LocalsList = &self.locals;
+		let mut luatype = LuaType::NIL;
+		while let Some(locals) = scope {
+			if let Some(t) = variable.next() {
+
+			} else {
+				break;
+			}
+		}
+		Ok(luatype)
 	}
 
 	fn build_call(&mut self) -> Result<Vec<Expression>, String> {
