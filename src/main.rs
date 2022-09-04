@@ -189,7 +189,10 @@ fn main() -> Result<(), String> {
 		CompileFolder(path, String::new())?;
 		AddToOutput("\r}\nimport(\"main\")");
 		if !arg!(ENV_DONTSAVE) {
-			let outputname = &format!("{}.lua", cli.outputname);
+			let outputname = &format!("{}.lua", match cli.outputname.strip_suffix(".lua") {
+				Some(outputname) => outputname,
+				None => &cli.outputname
+			});
 			let compiledname = if path.display().to_string().ends_with('/')
 				|| path.display().to_string().ends_with('\\')
 			{
