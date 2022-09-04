@@ -33,7 +33,6 @@ pub static mut ENV_STRUCT: bool = false;
 pub static mut ENV_OUTPUT: bool = false;
 pub static mut ENV_JITBIT: Option<String> = None;
 pub static mut ENV_CONTINUE: ContinueMode = ContinueMode::SIMPLE;
-pub static mut ENV_PATHISCODE: bool = false;
 pub static mut ENV_RAWSETGLOBALS: bool = false;
 pub static mut ENV_DEBUGCOMMENTS: bool = false;
 
@@ -172,7 +171,6 @@ fn main() -> Result<(), String> {
 		ENV_OUTPUT = cli.output;
 		ENV_JITBIT = cli.jitbit;
 		ENV_CONTINUE = cli.r#continue;
-		ENV_PATHISCODE = cli.pathiscode;
 		ENV_RAWSETGLOBALS = cli.rawsetglobals;
 		ENV_DEBUGCOMMENTS = cli.debugcomments;
 	}
@@ -180,7 +178,7 @@ fn main() -> Result<(), String> {
 		AddToOutput(&format!("local {} = require(\"bit\");\n", bit));
 	}
 	let codepath = cli.path.unwrap();
-	if arg!(ENV_PATHISCODE) {
+	if cli.pathiscode {
 		let code = CompileCode(codepath.clone(), String::from("(command line)"), 0)?;
 		println!("{}", code);
 		return Ok(());
