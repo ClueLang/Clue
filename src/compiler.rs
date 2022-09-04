@@ -59,7 +59,7 @@ fn CompileFunction(
 		if let Some((default, line)) = default {
 			let default = CompileExpression(scope + 2, names, default);
 			let pre = Indentate(scope + 1);
-			let line = CompileDebugLine(line, scope);
+			let line = CompileDebugLine(line);
 			code = format!(
 				"\n{}if {} == nil then\n{}\t{} = {}{}\n{}end{}",
 				pre, arg, pre, arg, default, line, pre, code
@@ -83,9 +83,9 @@ fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	}
 }
 
-fn CompileDebugLine(line: usize, scope: usize) -> String {
+fn CompileDebugLine(line: usize) -> String {
 	if arg!(ENV_DEBUG) {
-		format!(" --{}\n{}_clueline = {};", line, Indentate(scope), line)
+		format!(" --{};", line)
 	} else {
 		String::new()
 	}
@@ -174,7 +174,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 					CompileList(values, ", ", &mut |(name, value, line)| {
 						let value = CompileExpression(scope, names, value);
 						let l = if prevline != 0 {
-							CompileDebugLine(prevline, scope)
+							CompileDebugLine(prevline)
 						} else {
 							String::new()
 						};
@@ -185,7 +185,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 						} else {
 							format!("{}\n{}{}", l, pre1, value)
 						}
-					}) + &CompileDebugLine(prevline, scope)
+					}) + &CompileDebugLine(prevline)
 						+ "\n"
 				};
 				prevline = 0;
@@ -201,7 +201,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 					let metas = CompileList(metas, ", ", &mut |(name, value, line)| {
 						let value = CompileExpression(scope, names, value);
 						let l = if prevline != 0 {
-							CompileDebugLine(prevline, scope)
+							CompileDebugLine(prevline)
 						} else {
 							String::new()
 						};
@@ -209,7 +209,7 @@ fn CompileExpression(mut scope: usize, names: Option<&Vec<String>>, expr: Expres
 						format!("{}\n{}{} = {}", l, pre1, name, value)
 					});
 					scope -= 1;
-					let line = CompileDebugLine(prevline, scope);
+					let line = CompileDebugLine(prevline);
 					format!(
 						"setmetatable({{{}{}}}, {{{}{}\n{}}})",
 						values, pre2, metas, line, pre2
@@ -270,7 +270,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				values,
 				line,
 			} => {
-				let line = CompileDebugLine(line, scope);
+				let line = CompileDebugLine(line);
 				if !local && arg!(ENV_RAWSETGLOBALS) {
 					let mut result = String::new();
 					let mut valuesit = values.iter();
@@ -343,7 +343,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					}) + &CompileExpression(scope, Some(&names), expr)
 				});
 				let names = CompileIdentifiers(names);
-				let line = CompileDebugLine(line, scope);
+				let line = CompileDebugLine(line);
 				format!(
 					"{} = {};{}{}",
 					names,
@@ -379,7 +379,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				line,
 			} => {
 				let value = CompileExpression(scope, None, value);
-				let line = CompileDebugLine(line, scope);
+				let line = CompileDebugLine(line);
 				let branches = {
 					let mut result = Indentate(scope);
 					let mut branches = branches.into_iter().peekable();
@@ -501,7 +501,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			}
 			IDENT { expr, line } => {
 				let expr = CompileIdentifier(scope, None, expr);
-				let line = CompileDebugLine(line, scope);
+				let line = CompileDebugLine(line);
 				format!("{};{}{}", expr, line, IndentateIf(ctokens, scope))
 			}
 			/*CALL(args) => {
