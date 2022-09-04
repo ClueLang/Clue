@@ -33,7 +33,6 @@ pub static mut ENV_STRUCT: bool = false;
 pub static mut ENV_OUTPUT: bool = false;
 pub static mut ENV_JITBIT: Option<String> = None;
 pub static mut ENV_CONTINUE: ContinueMode = ContinueMode::SIMPLE;
-pub static mut ENV_DONTSAVE: bool = false;
 pub static mut ENV_PATHISCODE: bool = false;
 pub static mut ENV_RAWSETGLOBALS: bool = false;
 pub static mut ENV_DEBUGCOMMENTS: bool = false;
@@ -173,7 +172,6 @@ fn main() -> Result<(), String> {
 		ENV_OUTPUT = cli.output;
 		ENV_JITBIT = cli.jitbit;
 		ENV_CONTINUE = cli.r#continue;
-		ENV_DONTSAVE = cli.dontsave;
 		ENV_PATHISCODE = cli.pathiscode;
 		ENV_RAWSETGLOBALS = cli.rawsetglobals;
 		ENV_DEBUGCOMMENTS = cli.debugcomments;
@@ -208,7 +206,7 @@ fn main() -> Result<(), String> {
 					.replace("§", &output)
 			}
 		}
-		if !arg!(ENV_DONTSAVE) {
+		if !cli.dontsave {
 			let outputname = &format!("{}.lua", match cli.outputname.strip_suffix(".lua") {
 				Some(outputname) => outputname,
 				None => &cli.outputname
@@ -229,7 +227,7 @@ fn main() -> Result<(), String> {
 			0,
 		)?;
 		AddToOutput(&code);
-		if !arg!(ENV_DONTSAVE) {
+		if !cli.dontsave {
 			let compiledname =
 				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
 			check!(fs::write(compiledname, unsafe { &finaloutput }))
