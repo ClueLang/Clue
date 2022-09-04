@@ -97,6 +97,10 @@ struct Cli {
 	/// Include debug comments in the output
 	#[clap(short, long)]
 	debugcomments: bool,
+
+	/// Use a custom Lua file as base for compiling the directory
+	#[clap(short, long, value_name = "FILE NAME")]
+	base: Option<String>,
 }
 
 fn AddToOutput(string: &str) {
@@ -189,9 +193,20 @@ fn main() -> Result<(), String> {
 		CompileFolder(path, String::new())?;
 		unsafe {
 			let (statics, output) = finaloutput.rsplit_once("--STATICS").unwrap();
-			finaloutput = include_str!("base.lua")
-				.replace("--STATICS\n", &statics)
-				.replace("§", &output);
+			finaloutput = match cli.base {
+				Some(filename) => {
+					let base = match fs::read(filename) {
+						Ok(base) => base,
+						Err(_) => return Err(String::from("The given custom base was not found!"))
+					};
+					check!(std::str::from_utf8(&base)).to_string()
+					.replace("--STATICS\n", &statics)
+					.replace("§", &output)
+				}
+				None => include_str!("base.lua")
+					.replace("--STATICS\n", &statics)
+					.replace("§", &output)
+			}
 		}
 		if !arg!(ENV_DONTSAVE) {
 			let outputname = &format!("{}.lua", match cli.outputname.strip_suffix(".lua") {
