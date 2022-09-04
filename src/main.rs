@@ -149,7 +149,7 @@ fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 			let code = CompileFile(filepath, name, 2)?;
 			let rname = rname.strip_suffix(".clue").unwrap();
 			AddToOutput(&format!(
-				"[\"{}\"] = function()\n{}\n\tend,\n\t",
+				"\t[\"{}\"] = function()\n{}\n\tend,\n",
 				rname, code
 			));
 		}
@@ -185,9 +185,13 @@ fn main() -> Result<(), String> {
 	}
 	let path: &Path = Path::new(&codepath);
 	if path.is_dir() {
+		AddToOutput("--STATICS\n");
 		CompileFolder(path, String::new())?;
 		unsafe {
-			finaloutput = include_str!("base.lua").replace("§", &finaloutput);
+			let (statics, output) = finaloutput.rsplit_once("--STATICS").unwrap();
+			finaloutput = include_str!("base.lua")
+				.replace("--STATICS\n", &statics)
+				.replace("§", &output);
 		}
 		if !arg!(ENV_DONTSAVE) {
 			let outputname = &format!("{}.lua", match cli.outputname.strip_suffix(".lua") {

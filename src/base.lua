@@ -1,3 +1,4 @@
+--STATICS
 local import, _modules
 do
 	local cache = {}
@@ -18,7 +19,5 @@ do
 		end
 	end
 end
-_modules = {
-	§
-}
+_modules = {§}
 import("main")
