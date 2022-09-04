@@ -184,6 +184,7 @@ fn main() -> Result<(), String> {
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
+	let mut compiledname = String::new();
 	if path.is_dir() {
 		AddToOutput("--STATICS\n");
 		CompileFolder(path, String::new())?;
@@ -209,14 +210,14 @@ fn main() -> Result<(), String> {
 				Some(outputname) => outputname,
 				None => &cli.outputname
 			});
-			let compiledname = if path.display().to_string().ends_with('/')
+			compiledname = if path.display().to_string().ends_with('/')
 				|| path.display().to_string().ends_with('\\')
 			{
 				format!("{}{}", path.display(), outputname)
 			} else {
 				format!("{}/{}", path.display(), outputname)
 			};
-			check!(fs::write(compiledname, unsafe { &finaloutput }))
+			check!(fs::write(&compiledname, unsafe { &finaloutput }))
 		}
 	} else if path.is_file() {
 		let code = CompileFile(
@@ -226,12 +227,15 @@ fn main() -> Result<(), String> {
 		)?;
 		AddToOutput(&code);
 		if !cli.dontsave {
-			let compiledname =
+			compiledname =
 				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-			check!(fs::write(compiledname, unsafe { &finaloutput }))
+			check!(fs::write(&compiledname, unsafe { &finaloutput }))
 		}
 	} else {
 		return Err(String::from("The given path doesn't exist"));
+	}
+	if arg!(ENV_DEBUG) {
+		check!(fs::write(compiledname, format!(include_str!("debug.lua"), unsafe { &finaloutput })))
 	}
 	Ok(())
 }
