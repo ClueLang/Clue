@@ -1,7 +1,7 @@
 use crate::{
 	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
-	ContinueMode, ENV_CONTINUE, ENV_DEBUGCOMMENTS, ENV_RAWSETGLOBALS,
+	ContinueMode, ENV_CONTINUE, ENV_DEBUG, ENV_RAWSETGLOBALS,
 };
 use std::iter::{Iterator, Peekable};
 
@@ -73,7 +73,7 @@ fn CompileFunction(
 fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	let code = CompileTokens(scope + 1, block.code);
 	let pre = Indentate(scope);
-	if arg!(ENV_DEBUGCOMMENTS) {
+	if arg!(ENV_DEBUG) {
 		format!(
 			"{}\n{}\t--{}->{}\n{}\n{}",
 			start, pre, block.start, block.end, code, pre
@@ -84,7 +84,7 @@ fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 }
 
 fn CompileDebugLine(line: usize) -> String {
-	if arg!(ENV_DEBUGCOMMENTS) {
+	if arg!(ENV_DEBUG) {
 		format!(" --{}", line)
 	} else {
 		String::new()

@@ -34,7 +34,7 @@ pub static mut ENV_OUTPUT: bool = false;
 pub static mut ENV_JITBIT: Option<String> = None;
 pub static mut ENV_CONTINUE: ContinueMode = ContinueMode::SIMPLE;
 pub static mut ENV_RAWSETGLOBALS: bool = false;
-pub static mut ENV_DEBUGCOMMENTS: bool = false;
+pub static mut ENV_DEBUG: bool = false;
 
 #[derive(Copy, Clone, PartialEq, ArgEnum)]
 pub enum ContinueMode {
@@ -92,9 +92,9 @@ struct Cli {
 	#[clap(short, long)]
 	rawsetglobals: bool,
 
-	/// Include debug comments in the output
+	/// Add debug information in output (might slow down runtime)
 	#[clap(short, long)]
-	debugcomments: bool,
+	debug: bool,
 
 	/// Use a custom Lua file as base for compiling the directory
 	#[clap(short, long, value_name = "FILE NAME")]
@@ -172,7 +172,7 @@ fn main() -> Result<(), String> {
 		ENV_JITBIT = cli.jitbit;
 		ENV_CONTINUE = cli.r#continue;
 		ENV_RAWSETGLOBALS = cli.rawsetglobals;
-		ENV_DEBUGCOMMENTS = cli.debugcomments;
+		ENV_DEBUG = cli.debug;
 	}
 	if let Some(bit) = arg!(&ENV_JITBIT) {
 		AddToOutput(&format!("local {} = require(\"bit\");\n", bit));

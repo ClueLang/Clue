@@ -5,7 +5,7 @@ use crate::TokenType::*;
 use crate::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{
 	compiler::CompileTokens, finaloutput, ContinueMode, Token, TokenType, ENV_CONTINUE,
-	ENV_DEBUGCOMMENTS, ENV_JITBIT,
+	ENV_DEBUG, ENV_JITBIT,
 };
 use std::{
 	cmp,
@@ -1556,7 +1556,7 @@ pub fn ParseTokens(tokens: Vec<Token>, filename: String) -> Result<Expression, S
 	}
 	unsafe {
 		if !i.statics.is_empty() {
-			finaloutput = if ENV_DEBUGCOMMENTS {
+			finaloutput = if ENV_DEBUG {
 				format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
 			} else {
 				i.statics
