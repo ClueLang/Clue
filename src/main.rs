@@ -185,9 +185,10 @@ fn main() -> Result<(), String> {
 	}
 	let path: &Path = Path::new(&codepath);
 	if path.is_dir() {
-		AddToOutput(include_str!("base.lua"));
 		CompileFolder(path, String::new())?;
-		AddToOutput("\r}\nimport(\"main\")");
+		unsafe {
+			finaloutput = include_str!("base.lua").replace("§", &finaloutput);
+		}
 		if !arg!(ENV_DONTSAVE) {
 			let outputname = &format!("{}.lua", match cli.outputname.strip_suffix(".lua") {
 				Some(outputname) => outputname,

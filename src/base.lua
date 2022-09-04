@@ -19,4 +19,6 @@ do
 	end
 end
 _modules = {
-	
+	§
+}
+import("main")
