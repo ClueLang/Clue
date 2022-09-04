@@ -20,4 +20,8 @@ do
 	end
 end
 _modules = {§}
-import("main")
+if _modules["main"] then
+	import("main")
+else
+	error("File \"main.clue\" was not found!")
+end
