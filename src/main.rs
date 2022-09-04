@@ -196,8 +196,8 @@ fn main() -> Result<(), String> {
 						Err(_) => return Err(String::from("The given custom base was not found!"))
 					};
 					check!(std::str::from_utf8(&base)).to_string()
-					.replace("--STATICS\n", &statics)
-					.replace("§", &output)
+						.replace("--STATICS\n", &statics)
+						.replace("§", &output)
 				}
 				None => include_str!("base.lua")
 					.replace("--STATICS\n", &statics)
