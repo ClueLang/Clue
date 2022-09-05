@@ -59,10 +59,11 @@ fn CompileFunction(
 		if let Some((default, line)) = default {
 			let default = CompileExpression(scope + 2, names, default);
 			let pre = Indentate(scope + 1);
+			let debug = CompileDebugLine(line, scope + 2);
 			let line = CompileDebugComment(line);
 			code = format!(
-				"\n{}if {} == nil then\n{}\t{} = {}{}\n{}end{}",
-				pre, arg, pre, arg, default, line, pre, code
+				"\n{}if {} == nil then\n{}\t{}{} = {}{}\n{}end{}",
+				pre, arg, pre, debug, arg, default, line, pre, code
 			)
 		}
 		arg
@@ -71,12 +72,14 @@ fn CompileFunction(
 }
 
 fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
-	let code = CompileTokens(scope + 1, block.code);
 	let pre = Indentate(scope);
+	let code = CompileTokens(scope + 1, block.code);
+	let debugpre = CompileDebugLine(block.start, scope + 1);
+	let debugend = CompileDebugLine(block.end, scope);
 	if arg!(ENV_DEBUG) {
 		format!(
-			"{}\n{}\t--{}->{}\n{}\n{}",
-			start, pre, block.start, block.end, code, pre
+			"{}\n{}\t{}--{}->{}\n{}\n\t{}{}",
+			start, pre, debugpre, block.start, block.end, code, pre, debugend
 		)
 	} else {
 		format!("{}\n{}\n{}", start, code, pre)
@@ -85,7 +88,15 @@ fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 
 fn CompileDebugComment(line: usize) -> String {
 	if arg!(ENV_DEBUG) {
-		format!(" --{};", line)
+		format!(" --{}", line)
+	} else {
+		String::new()
+	}
+}
+
+fn CompileDebugLine(line: usize, scope: usize) -> String {
+	if arg!(ENV_DEBUG) {
+		format!("_clueline = {};\n{}", line, Indentate(scope))
 	} else {
 		String::new()
 	}
@@ -270,9 +281,10 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				values,
 				line,
 			} => {
+				let debug = CompileDebugLine(line, scope);
 				let line = CompileDebugComment(line);
 				if !local && arg!(ENV_RAWSETGLOBALS) {
-					let mut result = String::new();
+					let mut result = debug;
 					let mut valuesit = values.iter();
 					let namesit = &mut names.iter().peekable();
 					while let Some(name) = namesit.next() {
@@ -296,11 +308,11 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					let end = IndentateIf(ctokens, scope);
 					let pre = if local { "local " } else { "" };
 					if values.is_empty() {
-						format!("{}{};{}{}", pre, CompileIdentifiers(names), line, end)
+						format!("{}{}{};{}{}", debug, pre, CompileIdentifiers(names), line, end)
 					} else {
 						let values = CompileExpressions(scope, Some(&names), values);
 						let names = CompileIdentifiers(names);
-						format!("{}{} = {};{}{}", pre, names, values, line, end)
+						format!("{}{}{} = {};{}{}", debug, pre, names, values, line, end)
 					}
 				}
 			}
@@ -343,9 +355,11 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					}) + &CompileExpression(scope, Some(&names), expr)
 				});
 				let names = CompileIdentifiers(names);
+				let debug = CompileDebugLine(line, scope);
 				let line = CompileDebugComment(line);
 				format!(
-					"{} = {};{}{}",
+					"{}{} = {};{}{}",
+					debug,
 					names,
 					values,
 					line,
@@ -379,6 +393,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 				line,
 			} => {
 				let value = CompileExpression(scope, None, value);
+				let debug = CompileDebugLine(line, scope);
 				let line = CompileDebugComment(line);
 				let branches = {
 					let mut result = Indentate(scope);
@@ -419,7 +434,7 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					result
 				};
 				let end = IndentateIf(ctokens, scope);
-				format!("local {} = {};{}\n{}{}", name, value, line, branches, end)
+				format!("{}local {} = {};{}\n{}{}", debug, name, value, line, branches, end)
 			}
 			WHILE_LOOP { condition, code } => {
 				let condition = CompileExpression(scope, None, condition);
@@ -501,8 +516,9 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 			}
 			IDENT { expr, line } => {
 				let expr = CompileIdentifier(scope, None, expr);
+				let debug = CompileDebugLine(line, scope);
 				let line = CompileDebugComment(line);
-				format!("{};{}{}", expr, line, IndentateIf(ctokens, scope))
+				format!("{}{};{}{}", debug, expr, line, IndentateIf(ctokens, scope))
 			}
 			/*CALL(args) => {
 				format!("({}){}", CompileExpressions(scope, None, args), IndentateIf(ctokens, scope))
