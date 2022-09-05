@@ -74,12 +74,11 @@ fn CompileFunction(
 fn CompileCodeBlock(scope: usize, start: &str, block: CodeBlock) -> String {
 	let pre = Indentate(scope);
 	let code = CompileTokens(scope + 1, block.code);
-	let debugpre = CompileDebugLine(block.start, scope + 1);
-	let debugend = CompileDebugLine(block.end, scope);
+	let debug = CompileDebugLine(block.start, scope + 1);
 	if arg!(ENV_DEBUG) {
 		format!(
-			"{}\n{}\t{}--{}->{}\n{}\n\t{}{}",
-			start, pre, debugpre, block.start, block.end, code, pre, debugend
+			"{}\n{}\t{}--{}->{}\n{}\n{}",
+			start, pre, debug, block.start, block.end, code, pre
 		)
 	} else {
 		format!("{}\n{}\n{}", start, code, pre)

@@ -46,7 +46,6 @@ More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki),
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
 - more advanced macros
-- `struct`
 - types (coming in 3.0)
 
 For any suggestion or bug you can make a github issue.
