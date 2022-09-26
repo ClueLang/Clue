@@ -1,4 +1,8 @@
-![image](https://user-images.githubusercontent.com/87673997/156028540-7a94db51-dd90-4bc6-9718-96e056d24cab.png)
+# The Clue programming language
+
+![image](https://user-images.githubusercontent.com/87673997/156028540-7a94db51-dd90-4bc6-9718-96e056d24cab.png)  
+[![Crates.io](https://img.shields.io/crates/v/clue?style=flat-square)](https://crates.io/crates/clue)
+[![Crates.io](https://img.shields.io/crates/d/clue?style=flat-square)](https://crates.io/crates/clue)
 
 Clue is a programming language that compiles into Lua code with a syntax similar to languages like C or Rust.
 
@@ -46,7 +50,6 @@ More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki),
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
 - more advanced macros
-- `struct`
 - types (coming in 3.0)
 
 For any suggestion or bug you can make a github issue.
