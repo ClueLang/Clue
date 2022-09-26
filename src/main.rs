@@ -1,7 +1,12 @@
-use clap::{Parser};
-use clue::{flag, check, compiler::*, parser::*, scanner::*, ENV_DATA, LUA_G};
-use clue::env::{ContinueMode, TypesMode, LuaSTD};
-use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant, collections::HashMap};
+use clap::Parser;
+use clue::env::{ContinueMode, LuaSTD, TypesMode};
+use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA, LUA_G};
+use std::sync::{Arc, Mutex};
+use std::thread::spawn;
+use std::{
+	collections::HashMap, ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path,
+	time::Instant,
+};
 
 #[derive(Parser)]
 #[clap(about = "C/Rust like programming language that compiles into Lua code\nMade by Maiori\nhttps://github.com/ClueLang/Clue", version, long_about = None)]
@@ -57,12 +62,24 @@ struct Cli {
 	debugcomments: bool,
 
 	/// Enable type checking (might slow down compilation)
-	#[clap(short = 'T', long, value_enum, default_value = "none", value_name = "MODE")]
+	#[clap(
+		short = 'T',
+		long,
+		value_enum,
+		default_value = "none",
+		value_name = "MODE"
+	)]
 	types: TypesMode,
 
 	/// Use the given Lua version's standard library (--types required)
-	#[clap(long, value_enum, default_value = "luajit", value_name = "LUA VERSION", requires = "types")]
-	std: LuaSTD
+	#[clap(
+		long,
+		value_enum,
+		default_value = "luajit",
+		value_name = "LUA VERSION",
+		requires = "types"
+	)]
+	std: LuaSTD,
 }
 
 fn add_to_output(string: &str) {
@@ -78,7 +95,15 @@ fn compile_code(code: String, name: String, scope: usize) -> Result<String, Stri
 	if flag!(env_tokens) {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
-	let ctokens = parse_tokens(tokens, if flag!(env_types) != TypesMode::NONE {Some(HashMap::new())} else {None}, name.clone())?;
+	let ctokens = parse_tokens(
+		tokens,
+		if flag!(env_types) != TypesMode::NONE {
+			Some(HashMap::new())
+		} else {
+			None
+		},
+		name.clone(),
+	)?;
 	if flag!(env_struct) {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
@@ -103,39 +128,95 @@ where
 	compile_code(code, name, scope)
 }
 
-fn compile_folder<P: AsRef<Path>>(path: P, rpath: String) -> Result<(), String>
+fn check_for_files<P: AsRef<Path>>(path: P) -> Result<Vec<String>, std::io::Error>
 where
 	P: AsRef<OsStr> + Display,
 {
-	for entry in check!(fs::read_dir(&path)) {
-		let entry = check!(entry);
-		let name: String = entry
+	let mut files = vec![];
+
+	for entry in fs::read_dir(&path)? {
+		let entry = entry?;
+		let name = entry
 			.path()
 			.file_name()
 			.unwrap()
 			.to_string_lossy()
 			.into_owned();
-		let filepath_name: String = format!("{}/{}", path, name);
-		let filepath: &Path = Path::new(&filepath_name);
-		let rname = rpath.clone() + &name;
+		let filepath_name = format!("{}/{}", path, name);
+		let filepath = Path::new(&filepath_name);
+
 		if filepath.is_dir() {
-			compile_folder(filepath_name, rname + ".")?;
+			let mut inside_files = check_for_files(filepath_name)?;
+			files.append(&mut inside_files);
 		} else if filepath_name.ends_with(".clue") {
-			let code = compile_file(filepath_name, name, 2)?;
-			let rname = rname.strip_suffix(".clue").unwrap();
-			add_to_output(&format!(
-				"[\"{}\"] = function()\n{}\n\tend,\n\t",
-				rname, code
-			));
+			files.push(filepath_name);
 		}
 	}
+
+	Ok(files)
+}
+
+fn compile_folder<P: AsRef<Path>>(path: P, _rpath: String) -> Result<(), std::io::Error>
+where
+	P: AsRef<OsStr> + Display,
+{
+	// for entry in check!(fs::read_dir(&path)) {
+	// 	let entry = check!(entry);
+	// 	let name = entry
+	// 		.path()
+	// 		.file_name()
+	// 		.unwrap()
+	// 		.to_string_lossy()
+	// 		.into_owned();
+	// 	let filepath_name = format!("{}/{}", path, name);
+	// 	let filepath = Path::new(&filepath_name);
+	// 	let rname = rpath.clone() + &name;
+	// 	if filepath.is_dir() {
+	// 		compile_folder(filepath_name, rname + ".")?;
+	// 	} else if filepath_name.ends_with(".clue") {
+	// 		let code = compile_file(filepath_name, name, 2)?;
+	// 		let rname = rname.strip_suffix(".clue").unwrap();
+	// 		add_to_output(&format!(
+	// 			"[\"{}\"] = function()\n{}\n\tend,\n\t",
+	// 			rname, code
+	// 		));
+	// 	}
+	// }
+	let files = Arc::new(Mutex::new(check_for_files(path)?));
+	let threads_count = std::thread::available_parallelism()?.get();
+	let mut threads = vec![];
+
+	for _ in 0..threads_count {
+		// this `.clone()` is used to create a new pointer to the outside `files`
+		// that can be used from inside the newly created thread
+		let files = files.clone();
+
+		let thread = spawn(move || {
+			while !files.lock().unwrap().is_empty() {
+				let filename = files.lock().unwrap().pop().unwrap();
+
+				let code = compile_file(&filename, filename.clone(), 2).unwrap();
+				add_to_output(&format!(
+					"[\"{}\"] = function()\n{}\n\tend,\n\t",
+					filename, code
+				));
+			}
+		});
+
+		threads.push(thread);
+	}
+
+	for thread in threads {
+		thread.join().unwrap();
+	}
+
 	Ok(())
 }
 
 fn main() -> Result<(), String> {
 	let cli = Cli::parse();
 	if cli.license {
-		println!("{}", include_str!("../LICENSE"));
+		println!(include_str!("../LICENSE"));
 		return Ok(());
 	}
 	ENV_DATA.write().expect("Can't lock env_data").set_data(
@@ -169,7 +250,7 @@ fn main() -> Result<(), String> {
 	let path: &Path = Path::new(&codepath);
 	if path.is_dir() {
 		add_to_output(include_str!("base.lua"));
-		compile_folder(&codepath, String::new())?;
+		compile_folder(&codepath, String::new()).unwrap();
 		add_to_output("\r}\nimport(\"main\")");
 		if !flag!(env_dontsave) {
 			let outputname = &format!("{}.lua", cli.outputname);
@@ -209,9 +290,14 @@ fn main() -> Result<(), String> {
 #[cfg(test)]
 mod test {
 	use crate::compile_folder;
+	use std::time::Instant;
 
 	#[test]
 	fn compilation_success() {
+		let start = Instant::now();
 		compile_folder("examples/", String::new()).unwrap();
+		let end = start.elapsed();
+
+		println!("Compilation time: {}ns", end.as_nanos());
 	}
 }
