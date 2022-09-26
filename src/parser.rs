@@ -1,11 +1,15 @@
 #![allow(non_camel_case_types)]
 
 use self::ComplexToken::*;
+use crate::env::ContinueMode;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
-use crate::env::{ContinueMode/*, TypesMode*/};
-use std::{cmp, collections::{LinkedList, HashMap}, slice::Iter};
+use std::{
+	cmp,
+	slice::Iter,
+	collections::{HashMap, LinkedList},
+};
 
 macro_rules! expression {
 	($($x: expr),*) => {
@@ -128,18 +132,16 @@ pub struct CodeBlock {
 }
 
 struct BorrowedToken {
-	token: *const Token
+	token: *const Token,
 }
 
 impl BorrowedToken {
 	fn new(token: *const Token) -> BorrowedToken {
-		BorrowedToken {token}
+		BorrowedToken { token }
 	}
 
 	fn token(&self) -> &Token {
-		unsafe {
-			&(*self.token)
-		}
+		unsafe { &(*self.token) }
 	}
 
 	fn kind(&self) -> TokenType {
@@ -159,9 +161,11 @@ impl BorrowedToken {
 	}
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum LuaType {
-	ANY, NIL, NUMBER,
+	ANY,
+	NIL,
+	NUMBER,
 }
 
 struct ParserInfo {
@@ -174,7 +178,7 @@ struct ParserInfo {
 	localid: u8,
 	statics: String,
 	macros: HashMap<String, Expression>,
-	locals: LocalsList
+	locals: LocalsList,
 }
 
 impl ParserInfo {
@@ -189,7 +193,7 @@ impl ParserInfo {
 			localid: 0,
 			statics: String::new(),
 			macros: HashMap::new(),
-			locals
+			locals,
 		}
 	}
 
@@ -207,7 +211,12 @@ impl ParserInfo {
 	}
 
 	fn warning(&self, msg: impl Into<String>, line: usize) {
-		println!("Warning in file \"{}\" at line {}!\nWarning: \"{}\"", self.filename, line, msg.into());
+		println!(
+			"Warning in file \"{}\" at line {}!\nWarning: \"{}\"",
+			self.filename,
+			line,
+			msg.into()
+		);
 	}
 
 	fn error(&mut self, msg: impl Into<String>, line: usize) -> String {
@@ -275,7 +284,11 @@ impl ParserInfo {
 		true
 	}
 
-	fn assert_advance(&mut self, expected: TokenType, error: &str) -> Result<BorrowedToken, String> {
+	fn assert_advance(
+		&mut self,
+		expected: TokenType,
+		error: &str,
+	) -> Result<BorrowedToken, String> {
 		let t = self.advance();
 		if t.kind() != expected {
 			return Err(self.expected(error, &t.lexeme(), t.line()));
@@ -291,7 +304,12 @@ impl ParserInfo {
 		Ok(())
 	}
 
-	fn assert_end<T>(&mut self, tocheck: &BorrowedToken, end: OptionalEnd, iftrue: T) -> Result<T, String> {
+	fn assert_end<T>(
+		&mut self,
+		tocheck: &BorrowedToken,
+		end: OptionalEnd,
+		iftrue: T,
+	) -> Result<T, String> {
 		if let Some((kind, lexeme)) = end {
 			if tocheck.kind() != kind {
 				return Err(self.expected(lexeme, &tocheck.lexeme(), tocheck.line()));
@@ -537,7 +555,7 @@ impl ParserInfo {
 		t: &BorrowedToken,
 		expr: &mut Expression,
 		fname: impl Into<String>,
-		end: OptionalEnd
+		end: OptionalEnd,
 	) -> Result<(), String> {
 		self.check_operator(t, true)?;
 		let mut arg1 = Expression::new();
@@ -585,8 +603,8 @@ impl ParserInfo {
 
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | BIT_NOT
-			| FALSE | NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | BIT_NOT | FALSE
+			| NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
 			}
@@ -828,7 +846,7 @@ impl ParserInfo {
 						(FunctionArgs::new(), None)
 					};
 					let code = self.build_function_block(types)?;
-					expr.push_back(LAMBDA {args, code});
+					expr.push_back(LAMBDA { args, code });
 					if self.check_val() {
 						break t;
 					}
@@ -935,7 +953,7 @@ impl ParserInfo {
 				_ => break,
 			}
 		}
-		Ok(IDENT {expr, line})
+		Ok(IDENT { expr, line })
 	}
 
 	fn get_code_block_start(&mut self) -> Result<usize, String> {
@@ -948,7 +966,11 @@ impl ParserInfo {
 		}
 	}
 
-	fn parse_code_block(&self, mut tokens: Vec<Token>, locals: LocalsList) -> Result<Expression, String> {
+	fn parse_code_block(
+		&self,
+		mut tokens: Vec<Token>,
+		locals: LocalsList,
+	) -> Result<Expression, String> {
 		if tokens.is_empty() {
 			Ok(Expression::new())
 		} else {
@@ -982,7 +1004,10 @@ impl ParserInfo {
 		Ok(CodeBlock { start, code, end })
 	}
 
-	fn build_function_block(&mut self, args: Option<Vec<(String, LuaType)>>) -> Result<CodeBlock, String> {
+	fn build_function_block(
+		&mut self,
+		args: Option<Vec<(String, LuaType)>>,
+	) -> Result<CodeBlock, String> {
 		if let Some(args) = args {
 			self.build_code_block({
 				let mut locals = self.locals.clone().unwrap();
@@ -1084,9 +1109,11 @@ impl ParserInfo {
 		Ok(idents)
 	}
 
-	fn build_function_args(&mut self) -> Result<(FunctionArgs, Option<Vec<(String, LuaType)>>), String> {
+	fn build_function_args(
+		&mut self,
+	) -> Result<(FunctionArgs, Option<Vec<(String, LuaType)>>), String> {
 		let mut args = FunctionArgs::new();
-		let mut types: Option<Vec<(String, LuaType)>> = if self.locals != None {
+		let mut types: Option<Vec<(String, LuaType)>> = if self.locals.is_some() {
 			Some(Vec::new())
 		} else {
 			None
@@ -1104,11 +1131,14 @@ impl ParserInfo {
 				}
 			};
 			if let Some(types) = &mut types {
-				types.push((name.lexeme(), if name.kind() == THREEDOTS {
-					LuaType::ANY
-				} else {
-					self.build_type()?
-				}))
+				types.push((
+					name.lexeme(),
+					if name.kind() == THREEDOTS {
+						LuaType::ANY
+					} else {
+						self.build_type()?
+					},
+				))
 			}
 			let t = self.advance();
 			match t.kind() {
@@ -1152,7 +1182,9 @@ impl ParserInfo {
 				let t = self.advance();
 				match t.kind() {
 					ELSEIF => Some(Box::new(self.build_elseif_chain()?)),
-					ELSE => Some(Box::new(DO_BLOCK(self.build_code_block(self.locals.clone())?))),
+					ELSE => Some(Box::new(DO_BLOCK(
+						self.build_code_block(self.locals.clone())?,
+					))),
 					_ => {
 						self.current -= 1;
 						None
@@ -1203,7 +1235,7 @@ impl ParserInfo {
 		}
 		if let Some(locals) = &mut self.locals {
 			for r#enum in &enums {
-				if let VARIABLE {names, ..} = r#enum {
+				if let VARIABLE { names, .. } = r#enum {
 					locals.insert(names[0].clone(), LuaType::NUMBER);
 				}
 			}
@@ -1222,7 +1254,7 @@ impl ParserInfo {
 			(FunctionArgs::new(), None)
 		};
 		let code = self.build_function_block(types)?;
-		if self.locals != None {
+		if self.locals.is_some() {
 			self.add_variable(t.lexeme(), LuaType::NIL);
 		}
 		Ok(FUNCTION {
@@ -1249,7 +1281,7 @@ impl ParserInfo {
 
 	fn build_variable(&mut self) -> Result<(String, LuaType), String> {
 		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
-		if self.locals != None {
+		if self.locals.is_some() {
 			let luatype = self.build_type()?;
 			self.add_variable(name.to_string(), luatype.clone());
 			Ok((name, luatype))
@@ -1281,7 +1313,7 @@ impl ParserInfo {
 					self.warning("Defining external globals will not do anything if you don't have type checking enabled!", line)
 				}
 				self.current -= 1;
-				return Ok(SYMBOL(String::new()))
+				return Ok(SYMBOL(String::new()));
 			}
 		} else {
 			self.find_expressions(COMMA, None)?
@@ -1356,7 +1388,11 @@ impl ParserInfo {
 					}
 					IF => {
 						let extraif = self.build_expression(Some((ARROW, "=>")))?;
-						branches.push((Vec::new(), Some(extraif), func(self, self.locals.clone())?));
+						branches.push((
+							Vec::new(),
+							Some(extraif),
+							func(self, self.locals.clone())?,
+						));
 						!self.advance_if(CURLY_BRACKET_CLOSED)
 					}
 					_ => return Err(self.expected("=>", &t.lexeme(), t.line())),
@@ -1477,7 +1513,7 @@ impl ParserInfo {
 					let expr = &mut self.build_expression(None)?;
 					self.expr.append(expr);
 					self.current -= 1;
-					return Ok(())
+					return Ok(());
 				}
 				_ => return Err(self.error(msg, self.testing.unwrap())),
 			}
@@ -1702,7 +1738,11 @@ impl ParserInfo {
 	}
 }
 
-pub fn parse_tokens(tokens: Vec<Token>, locals: Option<HashMap<String, LuaType>>, filename: String) -> Result<Expression, String> {
+pub fn parse_tokens(
+	tokens: Vec<Token>,
+	locals: Option<HashMap<String, LuaType>>,
+	filename: String,
+) -> Result<Expression, String> {
 	let mut i = ParserInfo::new(tokens, locals, filename);
 	while !i.ended() {
 		let t = i.advance();

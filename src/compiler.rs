@@ -2,10 +2,10 @@ use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
 
 use crate::{
+	env::ContinueMode,
 	flag,
 	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
-	env::ContinueMode,
 	ENV_DATA,
 };
 
@@ -226,11 +226,11 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 					)
 				}
 			}
-			LAMBDA {args, code} => {
+			LAMBDA { args, code } => {
 				let (code, args) = compile_function(scope, names, args, code);
 				format!("function({}){}end", args, code)
 			}
-			IDENT {expr, ..} => compile_identifier(scope, names, expr),
+			IDENT { expr, .. } => compile_identifier(scope, names, expr),
 			CALL(args) => format!("({})", compile_expressions(scope, names, args)),
 			EXPR(expr) => format!("({})", compile_expression(scope, names, expr)),
 			_ => {
@@ -396,7 +396,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					let mut branches = branches.into_iter().peekable();
 					while let Some((conditions, extraif, code)) = branches.next() {
 						let empty = conditions.is_empty();
-						let default = empty && extraif == None;
+						let default = empty && extraif.is_none();
 						let pre = if default { "else" } else { "if" };
 						let condition = {
 							let mut condition = compile_list(conditions, "or ", &mut |expr| {

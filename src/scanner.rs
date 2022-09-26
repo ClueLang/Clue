@@ -40,7 +40,11 @@ pub struct Token {
 
 impl Token {
 	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize) -> Token {
-		Token {kind, lexeme: lexeme.into(), line}
+		Token {
+			kind,
+			lexeme: lexeme.into(),
+			line,
+		}
 	}
 }
 
@@ -240,12 +244,20 @@ impl CodeInfo {
 			self.current += 1;
 			let literal: String = self.substr(self.start + 1, self.current - 1);
 			let mut brackets = String::new();
-			let mut must = literal.ends_with("]");
+			let mut must = literal.ends_with(']');
 			while must || literal.contains(&format!("]{}]", brackets)) {
 				brackets += "=";
 				must = false;
 			}
-			self.add_literal_token(STRING, format!("[{}[{}]{}]", brackets, literal.replace("\\`", "`"), brackets));
+			self.add_literal_token(
+				STRING,
+				format!(
+					"[{}[{}]{}]",
+					brackets,
+					literal.replace("\\`", "`"),
+					brackets
+				),
+			);
 		}
 		self.line = aline
 	}
@@ -324,7 +336,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 						i.current += 2;
 					}
 				}
-				_ => i.match_and_add('=', DIVIDE, '_', FLOOR_DIVISION, SLASH)
+				_ => i.match_and_add('=', DIVIDE, '_', FLOOR_DIVISION, SLASH),
 			},
 			'%' => i.compare_and_add('=', MODULATE, PERCENTUAL),
 			'!' => i.compare_and_add('=', NOT_EQUAL, NOT),
@@ -418,10 +430,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"false" => FALSE,
 						"nil" => NIL,
 						"break" => BREAK,
-						_ if match i.last {
-							DOT | SAFEDOT | DOUBLE_COLON | SAFE_DOUBLE_COLON => true,
-							_ => false
-						} => IDENTIFIER,
+						_ if matches!(i.last, DOT | SAFEDOT | DOUBLE_COLON | SAFE_DOUBLE_COLON) => IDENTIFIER,
 						"of" => OF,
 						"with" => WITH,
 						"meta" => META,
