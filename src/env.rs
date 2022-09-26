@@ -1,21 +1,21 @@
-use std::fmt::Write;
 use clap::ArgEnum;
+use std::fmt::Write;
 
-#[derive(Copy, Clone, PartialEq, ArgEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, ArgEnum)]
 pub enum ContinueMode {
 	SIMPLE,
 	LUAJIT,
-	MOONSCRIPT
+	MOONSCRIPT,
 }
 
-#[derive(Copy, Clone, PartialEq, ArgEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, ArgEnum)]
 pub enum TypesMode {
 	NONE,
 	WARN,
-	STRICT
+	STRICT,
 }
 
-#[derive(Copy, Clone, PartialEq, ArgEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, ArgEnum)]
 pub enum LuaSTD {
 	NONE,
 	LUAJIT,
@@ -90,7 +90,7 @@ impl EnvData {
 		self.env_types = env_types;
 		self.env_std = env_std;
 	}
-	
+
 	pub fn env_tokens(&self) -> bool {
 		self.env_tokens
 	}
@@ -114,7 +114,7 @@ impl EnvData {
 	pub fn env_dontsave(&self) -> bool {
 		self.env_dontsave
 	}
-	
+
 	pub fn env_pathiscode(&self) -> bool {
 		self.env_pathiscode
 	}
@@ -130,7 +130,7 @@ impl EnvData {
 	pub fn env_types(&self) -> TypesMode {
 		self.env_types
 	}
-	
+
 	pub fn env_std(&self) -> LuaSTD {
 		self.env_std
 	}
