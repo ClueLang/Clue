@@ -160,28 +160,6 @@ fn compile_folder<P: AsRef<Path>>(path: P, _rpath: String) -> Result<(), std::io
 where
 	P: AsRef<OsStr> + Display,
 {
-	// for entry in check!(fs::read_dir(&path)) {
-	// 	let entry = check!(entry);
-	// 	let name = entry
-	// 		.path()
-	// 		.file_name()
-	// 		.unwrap()
-	// 		.to_string_lossy()
-	// 		.into_owned();
-	// 	let filepath_name = format!("{}/{}", path, name);
-	// 	let filepath = Path::new(&filepath_name);
-	// 	let rname = rpath.clone() + &name;
-	// 	if filepath.is_dir() {
-	// 		compile_folder(filepath_name, rname + ".")?;
-	// 	} else if filepath_name.ends_with(".clue") {
-	// 		let code = compile_file(filepath_name, name, 2)?;
-	// 		let rname = rname.strip_suffix(".clue").unwrap();
-	// 		add_to_output(&format!(
-	// 			"[\"{}\"] = function()\n{}\n\tend,\n\t",
-	// 			rname, code
-	// 		));
-	// 	}
-	// }
 	let files = Arc::new(Mutex::new(check_for_files(path)?));
 	let threads_count = std::thread::available_parallelism()?.get();
 	let mut threads = vec![];
