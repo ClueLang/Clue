@@ -15,3 +15,4 @@ winres = "0.1"
 
 [dependencies]
 clap = {version = "3.1.6", features = ["derive"]}
+mlua = {version = "0.8.3", features = ["luajit", "vendored"]}
