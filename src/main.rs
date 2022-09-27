@@ -21,6 +21,7 @@ mod parser;
 mod scanner;
 
 use clap::{Parser, ArgEnum};
+use mlua::prelude::*;
 use compiler::*;
 use parser::*;
 use scanner::*;
@@ -99,6 +100,10 @@ struct Cli {
 	/// Use a custom Lua file as base for compiling the directory
 	#[clap(short, long, value_name = "FILE NAME")]
 	base: Option<String>,
+
+	/// Execute the output Lua code once it's compiled
+	#[clap(short, long)]
+	execute: bool,
 }
 
 fn AddToOutput(string: &str) {
@@ -236,6 +241,13 @@ fn main() -> Result<(), String> {
 	}
 	if arg!(ENV_DEBUG) {
 		check!(fs::write(compiledname, format!(include_str!("debug.lua"), unsafe { &finaloutput })))
+	}
+	if cli.execute {
+		println!("Executing compiled code...");
+		let time = Instant::now();
+		let lua = Lua::new();
+		check!(lua.load(unsafe {&finaloutput}).exec());
+		println!("Execution completed in {} seconds!", time.elapsed().as_secs_f32());
 	}
 	Ok(())
 }
