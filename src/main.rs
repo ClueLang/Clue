@@ -164,6 +164,15 @@ fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 	Ok(())
 }
 
+fn ExecuteLuaCode(code: &String) -> Result<(), String> {
+	println!("Executing compiled code...");
+	let time = Instant::now();
+	let lua = Lua::new();
+	check!(lua.load(code).exec());
+	println!("Execution completed in {} seconds!", time.elapsed().as_secs_f32());
+	Ok(())
+}
+
 fn main() -> Result<(), String> {
 	let cli = Cli::parse();
 	if cli.license {
@@ -240,14 +249,13 @@ fn main() -> Result<(), String> {
 		return Err(String::from("The given path doesn't exist"));
 	}
 	if arg!(ENV_DEBUG) {
-		check!(fs::write(compiledname, format!(include_str!("debug.lua"), unsafe { &finaloutput })))
-	}
-	if cli.execute {
-		println!("Executing compiled code...");
-		let time = Instant::now();
-		let lua = Lua::new();
-		check!(lua.load(unsafe {&finaloutput}).exec());
-		println!("Execution completed in {} seconds!", time.elapsed().as_secs_f32());
+		let newoutput = format!(include_str!("debug.lua"), unsafe { &finaloutput });
+		check!(fs::write(compiledname, &newoutput));
+		if cli.execute {
+			ExecuteLuaCode(&newoutput)?;
+		}
+	} else if cli.execute {
+		ExecuteLuaCode(unsafe { &finaloutput })?;
 	}
 	Ok(())
 }
