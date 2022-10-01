@@ -57,9 +57,13 @@ struct Cli {
 	#[clap(short, long)]
 	rawsetglobals: bool,
 
-	/// Include debug comments in the output
+	/// Add debug information in output (might slow down runtime)
 	#[clap(short, long)]
-	debugcomments: bool,
+	debug: bool,
+
+	/// Use a custom Lua file as base for compiling the directory
+	#[clap(short, long, value_name = "FILE NAME")]
+	base: Option<String>,
 
 	/// Enable type checking (might slow down compilation)
 	#[clap(
@@ -72,13 +76,7 @@ struct Cli {
 	types: TypesMode,
 
 	/// Use the given Lua version's standard library (--types required)
-	#[clap(
-		long,
-		value_enum,
-		default_value = "luajit",
-		value_name = "LUA VERSION",
-		requires = "types"
-	)]
+	#[clap(long, value_enum, default_value = "luajit", value_name = "LUA VERSION", requires = "types")]
 	std: LuaSTD,
 }
 
@@ -203,10 +201,8 @@ fn main() -> Result<(), String> {
 		cli.output,
 		cli.jitbit,
 		cli.r#continue,
-		cli.dontsave,
-		cli.pathiscode,
 		cli.rawsetglobals,
-		cli.debugcomments,
+		cli.debug,
 		cli.types,
 		cli.std,
 	);
@@ -220,29 +216,52 @@ fn main() -> Result<(), String> {
 		};
 	}
 	let codepath = cli.path.unwrap();
-	if flag!(env_pathiscode) {
+	if cli.pathiscode {
 		let code = compile_code(codepath, String::from("(command line)"), 0)?;
 		println!("{}", code);
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
+	let mut compiledname = String::new();
 	if path.is_dir() {
-		add_to_output(include_str!("base.lua"));
-		compile_folder(&codepath, String::new()).unwrap();
-		add_to_output("\r}\nimport(\"main\")");
-		if !flag!(env_dontsave) {
-			let outputname = &format!("{}.lua", cli.outputname);
-			let compiledname = if path.display().to_string().ends_with('/')
+		add_to_output("--STATICS\n");
+		compile_folder(&codepath, String::new())?;
+		let output = ENV_DATA.read()
+			.expect("Can't lock env_data")
+			.ouput_code()
+			.to_string();
+		let (statics, output) = output.rsplit_once("--STATICS").unwrap();
+		ENV_DATA.write()
+			.expect("Can't lock env_data")
+			.rewrite_output_code(match cli.base {
+				Some(filename) => {
+					let base = match fs::read(filename) {
+						Ok(base) => base,
+						Err(_) => return Err(String::from("The given custom base was not found!"))
+					};
+					check!(std::str::from_utf8(&base)).to_string()
+						.replace("--STATICS\n", &statics)
+						.replace("§", &output)
+				}
+				None => include_str!("base.lua")
+					.replace("--STATICS\n", &statics)
+					.replace("§", &output)
+			});
+		if !cli.dontsave {
+			let outputname = &format!("{}.lua", match cli.outputname.strip_suffix(".lua") {
+				Some(outputname) => outputname,
+				None => &cli.outputname
+			});
+			compiledname = if path.display().to_string().ends_with('/')
 				|| path.display().to_string().ends_with('\\')
 			{
 				format!("{}{}", path.display(), outputname)
 			} else {
 				format!("{}/{}", path.display(), outputname)
 			};
-			check!(fs::write(
-				compiledname,
-				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
-			))
+			check!(fs::write(&compiledname, ENV_DATA.read()
+				.expect("Can't lock env_data")
+				.ouput_code()))
 		}
 	} else if path.is_file() {
 		let code = compile_file(
@@ -251,7 +270,7 @@ fn main() -> Result<(), String> {
 			0,
 		)?;
 		add_to_output(&code);
-		if !flag!(env_dontsave) {
+		if !cli.dontsave {
 			let compiledname =
 				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
 			check!(fs::write(
@@ -261,6 +280,11 @@ fn main() -> Result<(), String> {
 		}
 	} else {
 		return Err(String::from("The given path doesn't exist"));
+	}
+	if flag!(env_debug) {
+		check!(fs::write(compiledname, format!(include_str!("debug.lua"), ENV_DATA.read()
+			.expect("Can't lock env_data")
+			.ouput_code())))
 	}
 	Ok(())
 }

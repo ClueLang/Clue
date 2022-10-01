@@ -67,10 +67,11 @@ fn compile_function(
 		if let Some((default, line)) = default {
 			let default = compile_expression(scope + 2, names, default);
 			let pre = indentate(scope + 1);
-			let line = compile_debug_line(line);
+			let debug = compile_debug_line(line, scope + 2);
+			let line = compile_debug_comment(line);
 			code = format!(
-				"\n{}if {} == nil then\n{}\t{} = {}{}\n{}end{}",
-				pre, arg, pre, arg, default, line, pre, code
+				"\n{}if {} == nil then\n{}\t{}{} = {}{}\n{}end{}",
+				pre, arg, pre, debug, arg, default, line, pre, code
 			)
 		}
 		arg
@@ -79,21 +80,30 @@ fn compile_function(
 }
 
 fn compile_code_block(scope: usize, start: &str, block: CodeBlock) -> String {
-	let code = compile_tokens(scope + 1, block.code);
 	let pre = indentate(scope);
-	if flag!(env_debugcomments) {
+	let code = compile_tokens(scope + 1, block.code);
+	let debug = compile_debug_line(block.start, scope + 1);
+	if flag!(env_debug) {
 		format!(
-			"{}\n{}\t--{}->{}\n{}\n{}",
-			start, pre, block.start, block.end, code, pre
+			"{}\n{}\t{}--{}->{}\n{}\n{}",
+			start, pre, debug, block.start, block.end, code, pre
 		)
 	} else {
 		format!("{}\n{}\n{}", start, code, pre)
 	}
 }
 
-fn compile_debug_line(line: usize) -> String {
-	if flag!(env_debugcomments) {
+fn compile_debug_comment(line: usize) -> String {
+	if flag!(env_debug) {
 		format!(" --{}", line)
+	} else {
+		String::new()
+	}
+}
+
+fn compile_debug_line(line: usize, scope: usize) -> String {
+	if flag!(env_debug) {
+		format!("_clueline = {};\n{}", line, indentate(scope))
 	} else {
 		String::new()
 	}
@@ -184,7 +194,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 					compile_list(values, ", ", &mut |(name, value, line)| {
 						let value = compile_expression(scope, names, value);
 						let l = if prevline != 0 {
-							compile_debug_line(prevline)
+							compile_debug_comment(prevline)
 						} else {
 							String::new()
 						};
@@ -195,7 +205,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 						} else {
 							format!("{}\n{}{}", l, pre1, value)
 						}
-					}) + &compile_debug_line(prevline)
+					}) + &compile_debug_comment(prevline)
 						+ "\n"
 				};
 				prevline = 0;
@@ -211,7 +221,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 					let metas = compile_list(metas, ", ", &mut |(name, value, line)| {
 						let value = compile_expression(scope, names, value);
 						let l = if prevline != 0 {
-							compile_debug_line(prevline)
+							compile_debug_comment(prevline)
 						} else {
 							String::new()
 						};
@@ -219,7 +229,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 						format!("{}\n{}{} = {}", l, pre1, name, value)
 					});
 					scope -= 1;
-					let line = compile_debug_line(prevline);
+					let line = compile_debug_comment(prevline);
 					format!(
 						"setmetatable({{{}{}}}, {{{}{}\n{}}})",
 						values, pre2, metas, line, pre2
@@ -278,9 +288,10 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				values,
 				line,
 			} => {
-				let line = compile_debug_line(line);
+				let debug = compile_debug_line(line, scope);
+				let line = compile_debug_comment(line);
 				if !local && flag!(env_rawsetglobals) {
-					let mut result = String::new();
+					let mut result = debug;
 					let mut valuesit = values.iter();
 					let namesit = &mut names.iter().peekable();
 					while let Some(name) = namesit.next() {
@@ -309,11 +320,11 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					let end = indentate_if(ctokens, scope);
 					let pre = if local { "local " } else { "" };
 					if values.is_empty() {
-						format!("{}{};{}{}", pre, compile_identifiers(names), line, end)
+						format!("{}{}{};{}{}", debug, pre, compile_identifiers(names), line, end)
 					} else {
 						let values = compile_expressions(scope, Some(&names), values);
 						let names = compile_identifiers(names);
-						format!("{}{} = {};{}{}", pre, names, values, line, end)
+						format!("{}{}{} = {};{}{}", debug, pre, names, values, line, end)
 					}
 				}
 			}
@@ -354,9 +365,11 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					}) + &compile_expression(scope, Some(&names), expr)
 				});
 				let names = compile_identifiers(names);
-				let line = compile_debug_line(line);
+				let debug = compile_debug_line(line, scope);
+				let line = compile_debug_comment(line);
 				format!(
-					"{} = {};{}{}",
+					"{}{} = {};{}{}",
+					debug,
 					names,
 					values,
 					line,
@@ -390,7 +403,8 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				line,
 			} => {
 				let value = compile_expression(scope, None, value);
-				let line = compile_debug_line(line);
+				let debug = compile_debug_line(line, scope);
+				let line = compile_debug_comment(line);
 				let branches = {
 					let mut result = indentate(scope);
 					let mut branches = branches.into_iter().peekable();
@@ -432,7 +446,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					result
 				};
 				let end = indentate_if(ctokens, scope);
-				format!("local {} = {};{}\n{}{}", name, value, line, branches, end)
+				format!("{}local {} = {};{}\n{}{}", debug, name, value, line, branches, end)
 			}
 			WHILE_LOOP { condition, code } => {
 				let condition = compile_expression(scope, None, condition);
@@ -514,8 +528,9 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 			}
 			IDENT { expr, line } => {
 				let expr = compile_identifier(scope, None, expr);
-				let line = compile_debug_line(line);
-				format!("{};{}{}", expr, line, indentate_if(ctokens, scope))
+				let debug = compile_debug_line(line, scope);
+				let line = compile_debug_comment(line);
+				format!("{}{};{}{}", debug, expr, line, indentate_if(ctokens, scope))
 			}
 			/*CALL(args) => {
 				format!("({}){}", compile_expressions(scope, None, args), indentate_if(ctokens, scope))

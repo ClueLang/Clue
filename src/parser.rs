@@ -1771,23 +1771,24 @@ pub fn parse_tokens(
 	}
 
 	if !i.statics.is_empty() {
-		if flag!(env_debugcomments) {
-			ENV_DATA
-				.write()
-				.expect("Can't lock env_data")
-				.add_output_code(format!(
-					"--statics defined in \"{}\":\n{}\n",
-					i.filename, i.statics
-				));
-		} else {
-			ENV_DATA
-				.write()
-				.expect("Can't lock env_data")
-				.add_output_code(i.statics);
-		}
+		let debug = flag!(env_debug);
+		let output = ENV_DATA.write().expect("Can't lock env_data").ouput_code().to_string();
+		ENV_DATA
+			.write()
+			.expect("Can't lock env_data")
+			.rewrite_output_code(
+				if debug {
+					format!(
+						"--statics defined in \"{}\":\n{}\n",
+						i.filename, i.statics
+					)
+				} else {
+					i.statics
+				} + &output
+			);
 	}
 
-	println!("LOCALS = {:#?}", i.locals);
+	//println!("LOCALS = {:#?}", i.locals);
 
 	Ok(i.expr)
 }

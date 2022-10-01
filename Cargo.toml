@@ -1,6 +1,6 @@
 [package]
 name = "clue"
-version = "3.0.0-indev"
+version = "2.5.0"
 description = "C/Rust like programming language that compiles into Lua code"
 edition = "2018"
 build = "build.rs"

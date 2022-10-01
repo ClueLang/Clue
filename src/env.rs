@@ -36,10 +36,8 @@ pub struct EnvData {
 	env_output: bool,
 	env_jitbit: Option<String>,
 	env_continue: ContinueMode,
-	env_dontsave: bool,
-	env_pathiscode: bool,
 	env_rawsetglobals: bool,
-	env_debugcomments: bool,
+	env_debug: bool,
 	env_types: TypesMode,
 	env_std: LuaSTD,
 
@@ -54,10 +52,8 @@ impl EnvData {
 			env_output: false,
 			env_jitbit: None,
 			env_continue: ContinueMode::SIMPLE,
-			env_dontsave: false,
-			env_pathiscode: false,
 			env_rawsetglobals: false,
-			env_debugcomments: false,
+			env_debug: false,
 			env_types: TypesMode::NONE,
 			env_std: LuaSTD::NONE,
 			ouput_code: String::new(),
@@ -71,10 +67,8 @@ impl EnvData {
 		env_output: bool,
 		env_jitbit: Option<String>,
 		env_continue: ContinueMode,
-		env_dontsave: bool,
-		env_pathiscode: bool,
 		env_rawsetglobals: bool,
-		env_debugcomments: bool,
+		env_debug: bool,
 		env_types: TypesMode,
 		env_std: LuaSTD,
 	) {
@@ -83,10 +77,8 @@ impl EnvData {
 		self.env_output = env_output;
 		self.env_jitbit = env_jitbit;
 		self.env_continue = env_continue;
-		self.env_dontsave = env_dontsave;
-		self.env_pathiscode = env_pathiscode;
 		self.env_rawsetglobals = env_rawsetglobals;
-		self.env_debugcomments = env_debugcomments;
+		self.env_debug = env_debug;
 		self.env_types = env_types;
 		self.env_std = env_std;
 	}
@@ -111,20 +103,12 @@ impl EnvData {
 		self.env_continue
 	}
 
-	pub fn env_dontsave(&self) -> bool {
-		self.env_dontsave
-	}
-
-	pub fn env_pathiscode(&self) -> bool {
-		self.env_pathiscode
-	}
-
 	pub fn env_rawsetglobals(&self) -> bool {
 		self.env_rawsetglobals
 	}
 
-	pub fn env_debugcomments(&self) -> bool {
-		self.env_debugcomments
+	pub fn env_debug(&self) -> bool {
+		self.env_debug
 	}
 
 	pub fn env_types(&self) -> TypesMode {
@@ -141,6 +125,10 @@ impl EnvData {
 
 	pub fn add_output_code(&mut self, add: String) {
 		write!(self.ouput_code, "{}", add).expect("something really unexpected happened");
+	}
+
+	pub fn rewrite_output_code(&mut self, output: String) {
+		self.ouput_code = output
 	}
 }
 

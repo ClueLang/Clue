@@ -1,3 +1,4 @@
+static x = 3
 local vector = {
 	x = 0, y = 0,
 	meta unary = fn(t) {
