@@ -7,8 +7,8 @@ use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACK
 use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
 use std::{
 	cmp,
-	slice::Iter,
 	collections::{HashMap, LinkedList},
+	slice::Iter,
 };
 
 macro_rules! expression {
@@ -24,6 +24,7 @@ macro_rules! expression {
 pub type Expression = LinkedList<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
 pub type LocalsList = Option<HashMap<String, LuaType>>;
+pub type ArgsAndTypes = (FunctionArgs, Option<Vec<(String, LuaType)>>);
 type OptionalEnd = Option<(TokenType, &'static str)>;
 type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
 
@@ -156,8 +157,8 @@ impl BorrowedToken {
 		self.token().line
 	}
 
-	fn into_owned(&self) -> Token {
-		self.token().clone()
+	fn into_owned(self) -> Token {
+		self.token().to_owned()
 	}
 }
 
@@ -331,7 +332,7 @@ impl ParserInfo {
 		let mut luatype = LuaType::NIL;
 		while let Some(locals) = scope {
 			if let Some(t) = variable.next() {
-
+				// TODO
 			} else {
 				break;
 			}
@@ -1109,9 +1110,7 @@ impl ParserInfo {
 		Ok(idents)
 	}
 
-	fn build_function_args(
-		&mut self,
-	) -> Result<(FunctionArgs, Option<Vec<(String, LuaType)>>), String> {
+	fn build_function_args(&mut self) -> Result<ArgsAndTypes, String> {
 		let mut args = FunctionArgs::new();
 		let mut types: Option<Vec<(String, LuaType)>> = if self.locals.is_some() {
 			Some(Vec::new())
@@ -1772,19 +1771,20 @@ pub fn parse_tokens(
 
 	if !i.statics.is_empty() {
 		let debug = flag!(env_debug);
-		let output = ENV_DATA.write().expect("Can't lock env_data").ouput_code().to_string();
+		let output = ENV_DATA
+			.write()
+			.expect("Can't lock env_data")
+			.ouput_code()
+			.to_string();
 		ENV_DATA
 			.write()
 			.expect("Can't lock env_data")
 			.rewrite_output_code(
 				if debug {
-					format!(
-						"--statics defined in \"{}\":\n{}\n",
-						i.filename, i.statics
-					)
+					format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
 				} else {
 					i.statics
-				} + &output
+				} + &output,
 			);
 	}
 
