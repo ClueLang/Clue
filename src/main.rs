@@ -249,12 +249,12 @@ fn main() -> Result<(), String> {
 					};
 					check!(std::str::from_utf8(&base))
 						.to_string()
-						.replace("--STATICS\n", &statics)
-						.replace("§", &output)
+						.replace("--STATICS\n", statics)
+						.replace('§', output)
 				}
 				None => include_str!("base.lua")
-					.replace("--STATICS\n", &statics)
-					.replace("§", &output),
+					.replace("--STATICS\n", statics)
+					.replace('§', output),
 			});
 		if !cli.dontsave {
 			let outputname = &format!(
