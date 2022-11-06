@@ -2,7 +2,7 @@
 name = "clue"
 version = "2.5.0"
 description = "C/Rust like programming language that compiles into Lua code"
-edition = "2018"
+edition = "2021"
 build = "build.rs"
 authors = ["Maiori"]
 repository = "https://github.com/ClueLang/Clue"
@@ -14,5 +14,5 @@ categories = ["compilers"]
 winres = "0.1"
 
 [dependencies]
-clap = {version = "3.1.6", features = ["derive"]}
+clap = {version = "4.0.18", features = ["derive"]}
 lazy_static = "1.4.0"

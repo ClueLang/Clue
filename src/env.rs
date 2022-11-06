@@ -1,21 +1,21 @@
-use clap::ArgEnum;
+use clap::ValueEnum;
 use std::fmt::Write;
 
-#[derive(Copy, Clone, PartialEq, Eq, ArgEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
 pub enum ContinueMode {
 	SIMPLE,
 	LUAJIT,
 	MOONSCRIPT,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ArgEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
 pub enum TypesMode {
 	NONE,
 	WARN,
 	STRICT,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ArgEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
 pub enum LuaSTD {
 	NONE,
 	LUAJIT,
