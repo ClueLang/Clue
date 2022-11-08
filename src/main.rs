@@ -1,7 +1,7 @@
 use clap::Parser;
 use clue::env::{ContinueMode, LuaSTD, TypesMode};
 use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA, LUA_G};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread::spawn;
 use std::{
 	collections::HashMap, ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path,
@@ -174,7 +174,7 @@ fn compile_folder<P: AsRef<Path>>(path: P, _rpath: String) -> Result<(), std::io
 where
 	P: AsRef<OsStr> + Display,
 {
-	let files = Arc::new(RwLock::new(check_for_files(path)?));
+	let files = Arc::new(Mutex::new(check_for_files(path)?));
 	let threads_count = std::thread::available_parallelism()?.get();
 	let mut threads = vec![];
 
@@ -183,16 +183,25 @@ where
 		// that can be used from inside the newly created thread
 		let files = files.clone();
 
-		let thread = spawn(move || {
-			while !files.read().unwrap().is_empty() {
-				let filename = files.write().unwrap().pop().unwrap();
+		let thread = spawn(move || loop {
+			let filename: String;
 
-				let code = compile_file(&filename, filename.clone(), 2).unwrap();
-				add_to_output(&format!(
-					"[\"{}\"] = function()\n{}\n\tend,\n\t",
-					filename, code
-				));
+			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
+			{
+				let mut files = files.lock().unwrap();
+
+				if files.is_empty() {
+					break;
+				}
+
+				filename = files.pop().unwrap();
 			}
+
+			let code = compile_file(&filename, filename.clone(), 2).unwrap();
+			add_to_output(&format!(
+				"[\"{}\"] = function()\n{}\n\tend,\n\t",
+				filename, code
+			));
 		});
 
 		threads.push(thread);
