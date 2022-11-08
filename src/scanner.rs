@@ -207,16 +207,12 @@ impl CodeInfo {
 		self.addToken(NUMBER);
 	}
 
-	fn skipEscape(&mut self) {
-		self.current += 1;
-	}
-
 	fn readString(&mut self, strend: char) {
 		let mut aline = self.line;
 		while !self.ended() && self.peek(0) != strend {
 
 			if self.peek(0) == '\\'{
-				self.skipEscape();
+				self.current += 1;
 			}
 			
 			if self.peek(0) == '\n' {
