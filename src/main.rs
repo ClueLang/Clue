@@ -8,6 +8,16 @@ use std::{
 	time::Instant,
 };
 
+#[cfg(feature = "devtimer")]
+use devtimer::run_benchmark;
+
+macro_rules! println {
+    ($($rest:tt)*) => {
+        #[cfg(not(feature = "devtimer"))]
+        std::println!($($rest)*)
+    }
+}
+
 #[derive(Parser)]
 #[clap(about = "C/Rust like programming language that compiles into Lua code\nMade by Maiori\nhttps://github.com/ClueLang/Clue", version, long_about = None)]
 struct Cli {
@@ -195,6 +205,7 @@ where
 	Ok(())
 }
 
+#[cfg(not(feature = "devtimer"))]
 fn main() -> Result<(), String> {
 	let cli = Cli::parse();
 	if cli.license {
@@ -304,6 +315,12 @@ fn main() -> Result<(), String> {
 		))
 	}
 	Ok(())
+}
+
+#[cfg(feature = "devtimer")]
+fn main() {
+	let bench_results = run_benchmark(100, |_| compile_folder("examples/", String::new()).unwrap());
+	bench_results.print_stats();
 }
 
 #[cfg(test)]
