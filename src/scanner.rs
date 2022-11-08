@@ -210,12 +210,9 @@ impl CodeInfo {
 	fn readString(&mut self, strend: char) {
 		let mut aline = self.line;
 		while !self.ended() && self.peek(0) != strend {
-
 			if self.peek(0) == '\\'{
 				self.current += 1;
-			}
-			
-			if self.peek(0) == '\n' {
+			} else if self.peek(0) == '\n' {
 				aline += 1
 			};
 			self.current += 1;
