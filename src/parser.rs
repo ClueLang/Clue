@@ -1502,17 +1502,17 @@ impl ParserInfo {
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let testexpr = self.test(|i| i.build_name()).0;
 		if let Err(msg) = testexpr {
-			match msg.as_str() {
+			return match msg.as_str() {
 				"You can't call functions here"
 				| "Unexpected token '?.'"
 				| "Unexpected token '?['" => {
 					let expr = &mut self.build_expression(None)?;
 					self.expr.append(expr);
 					self.current -= 1;
-					return Ok(());
+					Ok(())
 				}
-				_ => return Err(self.error(msg, self.testing.unwrap())),
-			}
+				_ => Err(self.error(msg, self.testing.unwrap())),
+			};
 		}
 		self.current += 1;
 		let mut names: Vec<Expression> = Vec::new();
