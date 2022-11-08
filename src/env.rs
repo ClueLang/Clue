@@ -124,7 +124,7 @@ impl EnvData {
 	}
 
 	pub fn add_output_code(&mut self, add: String) {
-		write!(self.ouput_code, "{}", add).expect("something really unexpected happened");
+		write!(self.ouput_code, "{add}").expect("something really unexpected happened");
 	}
 
 	pub fn rewrite_output_code(&mut self, output: String) {

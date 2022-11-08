@@ -1,13 +1,11 @@
 use clap::Parser;
 use clue::env::{ContinueMode, LuaSTD, TypesMode};
 use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA, LUA_G};
+use fxhash::FxHashMap;
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
-use std::{
-	collections::HashMap, ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path,
-	time::Instant,
-};
+use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
 
 #[cfg(feature = "devtimer")]
 use devtimer::run_benchmark;
@@ -113,7 +111,7 @@ fn compile_code(code: String, name: String, scope: usize) -> Result<String, Stri
 	let ctokens = parse_tokens(
 		tokens,
 		if flag!(env_types) != TypesMode::NONE {
-			Some(HashMap::new())
+			Some(FxHashMap::default())
 		} else {
 			None
 		},
@@ -157,7 +155,7 @@ where
 			.unwrap()
 			.to_string_lossy()
 			.into_owned();
-		let filepath_name = format!("{}/{}", path, name);
+		let filepath_name = format!("{path}/{name}");
 		let filepath = Path::new(&filepath_name);
 
 		if filepath.is_dir() {
@@ -237,12 +235,15 @@ fn main() -> Result<(), String> {
 		cli.std,
 	);
 	if let Some(bit) = &flag!(env_jitbit) {
-		add_to_output(&format!("local {} = require(\"bit\");\n", bit));
+		add_to_output(&format!("local {bit} = require(\"bit\");\n"));
 	}
 	if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
-			LuaSTD::LUA54 => Some(HashMap::from([(String::from("print"), LuaType::NIL)])), //PLACEHOLDER
-			_ => Some(HashMap::new()),
+			LuaSTD::LUA54 => Some(FxHashMap::from_iter([(
+				String::from("print"),
+				LuaType::NIL,
+			)])), //PLACEHOLDER
+			_ => Some(FxHashMap::default()),
 		};
 	}
 	let codepath = cli.path.unwrap();
@@ -281,19 +282,18 @@ fn main() -> Result<(), String> {
 					.replace('§', output),
 			});
 		if !cli.dontsave {
-			let outputname = &format!(
+			let output_name = &format!(
 				"{}.lua",
 				match cli.outputname.strip_suffix(".lua") {
-					Some(outputname) => outputname,
+					Some(output_name) => output_name,
 					None => &cli.outputname,
 				}
 			);
-			compiledname = if path.display().to_string().ends_with('/')
-				|| path.display().to_string().ends_with('\\')
-			{
-				format!("{}{}", path.display(), outputname)
+			let display = path.display().to_string();
+			compiledname = if display.ends_with('/') || display.ends_with('\\') {
+				format!("{display}{output_name}")
 			} else {
-				format!("{}/{}", path.display(), outputname)
+				format!("{display}/{output_name}")
 			};
 			check!(fs::write(
 				&compiledname,

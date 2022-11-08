@@ -89,13 +89,13 @@ fn compile_code_block(scope: usize, start: &str, block: CodeBlock) -> String {
 			start, pre, debug, block.start, block.end, code, pre
 		)
 	} else {
-		format!("{}\n{}\n{}", start, code, pre)
+		format!("{start}\n{code}\n{pre}")
 	}
 }
 
 fn compile_debug_comment(line: usize) -> String {
 	if flag!(env_debug) {
-		format!(" --{}", line)
+		format!(" --{line}")
 	} else {
 		String::new()
 	}
@@ -103,7 +103,7 @@ fn compile_debug_comment(line: usize) -> String {
 
 fn compile_debug_line(line: usize, scope: usize) -> String {
 	if flag!(env_debug) {
-		format!("_clueline = {};\n{}", line, indentate(scope))
+		format!("_clueline = {line};\n{}", indentate(scope))
 	} else {
 		String::new()
 	}
@@ -134,7 +134,7 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 						} else {
 							panic!("This message should never appear");
 						};
-						write!(checked, "[({})]", rexpr)
+						write!(checked, "[({rexpr})]")
 							.expect("something really unexpected happened");
 					}
 					"]" => {}
@@ -143,7 +143,7 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 			}
 			EXPR(expr) => {
 				let expr = compile_expression(scope, names, expr);
-				write!(checked, "({})]", expr).expect("something really unexpected happened");
+				write!(checked, "({expr})]").expect("something really unexpected happened");
 			}
 			CALL(args) => write!(checked, "({})", compile_expressions(scope, names, args))
 				.expect("something really unexpected happened"),
@@ -170,7 +170,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 					strings
 				};
 				let expr = compile_expression(scope, Some(&args), expr);
-				format!("({})", expr)
+				format!("({expr})")
 			}
 			SYMBOL(lexeme) => lexeme,
 			PSEUDO(num) => match names {
@@ -201,9 +201,9 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 						prevline = line;
 						if let Some(name) = name {
 							let name = compile_expression(scope, names, name);
-							format!("{}\n{}{} = {}", l, pre1, name, value)
+							format!("{l}\n{pre1}{name} = {value}")
 						} else {
-							format!("{}\n{}{}", l, pre1, value)
+							format!("{l}\n{pre1}{value}")
 						}
 					}) + &compile_debug_comment(prevline)
 						+ "\n"
@@ -213,9 +213,9 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 				if metas.is_empty() {
 					scope -= 1;
 					if let Some(metatable) = metatable {
-						format!("setmetatable({{{}{}}}, {})", values, pre2, metatable)
+						format!("setmetatable({{{values}{pre2}}}, {metatable})")
 					} else {
-						format!("{{{}{}}}", values, pre2)
+						format!("{{{values}{pre2}}}")
 					}
 				} else {
 					let metas = compile_list(metas, ", ", &mut |(name, value, line)| {
@@ -226,7 +226,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 							String::new()
 						};
 						prevline = line;
-						format!("{}\n{}{} = {}", l, pre1, name, value)
+						format!("{l}\n{pre1}{name} = {value}")
 					});
 					scope -= 1;
 					let line = compile_debug_comment(prevline);
@@ -238,7 +238,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 			}
 			LAMBDA { args, code } => {
 				let (code, args) = compile_function(scope, names, args, code);
-				format!("function({}){}end", args, code)
+				format!("function({args}){code}end")
 			}
 			IDENT { expr, .. } => compile_identifier(scope, names, expr),
 			CALL(args) => format!("({})", compile_expressions(scope, names, args)),
@@ -273,7 +273,7 @@ fn compile_elseif_chain(
 	} else {
 		String::new()
 	};
-	format!("if {} {}{}", condition, code, next)
+	format!("if {condition} {code}{next}")
 }
 
 pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
@@ -320,11 +320,11 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					let end = indentate_if(ctokens, scope);
 					let pre = if local { "local " } else { "" };
 					if values.is_empty() {
-						format!("{}{}{};{}{}", debug, pre, compile_identifiers(names), line, end)
+						format!("{debug}{pre}{};{line}{end}", compile_identifiers(names))
 					} else {
 						let values = compile_expressions(scope, Some(&names), values);
 						let names = compile_identifiers(names);
-						format!("{}{}{} = {};{}{}", debug, pre, names, values, line, end)
+						format!("{debug}{pre}{names} = {values};{line}{end}")
 					}
 				}
 			}
@@ -386,7 +386,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				let end = indentate_if(ctokens, scope);
 				let name = compile_expression(scope, None, name);
 				let (code, args) = compile_function(scope, None, args, code);
-				format!("{}function {}({}){}end{}", pre, name, args, code, end)
+				format!("{pre}function {name}({args}){code}end{end}")
 			}
 			IF_STATEMENT {
 				condition,
@@ -394,7 +394,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				next,
 			} => {
 				let code = compile_elseif_chain(scope, condition, code, next);
-				format!("{}end{}", code, indentate_if(ctokens, scope))
+				format!("{code}end{}", indentate_if(ctokens, scope))
 			}
 			MATCH_BLOCK {
 				name,
@@ -415,7 +415,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 						let condition = {
 							let mut condition = compile_list(conditions, "or ", &mut |expr| {
 								let expr = compile_expression(scope, None, expr);
-								format!("({} == {}) ", name, expr)
+								format!("({name} == {expr}) ")
 							});
 							if let Some(extraif) = extraif {
 								condition.pop();
@@ -423,7 +423,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 								if empty {
 									extraif + " "
 								} else {
-									format!("({}) and {} ", condition, extraif)
+									format!("({condition}) and {extraif} ")
 								}
 							} else {
 								condition
@@ -440,13 +440,13 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 							Some(_) => "else",
 							_ => "end",
 						};
-						write!(result, "{} {}{}{}", pre, condition, code, end)
+						write!(result, "{pre} {condition}{code}{end}")
 							.expect("something really unexpected happened");
 					}
 					result
 				};
 				let end = indentate_if(ctokens, scope);
-				format!("{}local {} = {};{}\n{}{}", debug, name, value, line, branches, end)
+				format!("{debug}local {name} = {value};{line}\n{branches}{end}")
 			}
 			WHILE_LOOP { condition, code } => {
 				let condition = compile_expression(scope, None, condition);
@@ -523,14 +523,14 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 						)
 					}
 				} else {
-					format!("pcall({}end){}", totry, i)
+					format!("pcall({totry}end){i}")
 				}
 			}
 			IDENT { expr, line } => {
 				let expr = compile_identifier(scope, None, expr);
 				let debug = compile_debug_line(line, scope);
 				let line = compile_debug_comment(line);
-				format!("{}{};{}{}", debug, expr, line, indentate_if(ctokens, scope))
+				format!("{debug}{expr};{line}{}", indentate_if(ctokens, scope))
 			}
 			/*CALL(args) => {
 				format!("({}){}", compile_expressions(scope, None, args), indentate_if(ctokens, scope))
