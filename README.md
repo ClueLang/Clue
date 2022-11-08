@@ -40,6 +40,8 @@ More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki),
 1. Paste and run this command in the console: `cargo install clue`
 2. Type `clue` in the console to run the compiler, it will explain the rest
 
+Additionally, `CARGO_PROFILE_RELEASE_LTO` can be used to make Clue run faster, at the expense of a slower install time: `CARGO_PROFILE_RELEASE_LTO=true cargo install clue`
+
 ### Manual insallation
 1. Download the latest release and save it somewhere
 2. Open your system environment variables
