@@ -1,7 +1,7 @@
 use clap::Parser;
 use clue::env::{ContinueMode, LuaSTD, TypesMode};
 use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA, LUA_G};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::thread::spawn;
 use std::{
 	collections::HashMap, ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path,
@@ -174,7 +174,7 @@ fn compile_folder<P: AsRef<Path>>(path: P, _rpath: String) -> Result<(), std::io
 where
 	P: AsRef<OsStr> + Display,
 {
-	let files = Arc::new(Mutex::new(check_for_files(path)?));
+	let files = Arc::new(RwLock::new(check_for_files(path)?));
 	let threads_count = std::thread::available_parallelism()?.get();
 	let mut threads = vec![];
 
@@ -184,8 +184,8 @@ where
 		let files = files.clone();
 
 		let thread = spawn(move || {
-			while !files.lock().unwrap().is_empty() {
-				let filename = files.lock().unwrap().pop().unwrap();
+			while !files.read().unwrap().is_empty() {
+				let filename = files.write().unwrap().pop().unwrap();
 
 				let code = compile_file(&filename, filename.clone(), 2).unwrap();
 				add_to_output(&format!(
