@@ -1,7 +1,7 @@
 use clap::Parser;
 use clue::env::{ContinueMode, LuaSTD, TypesMode};
 use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA, LUA_G};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 use std::{
 	collections::HashMap, ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path,
