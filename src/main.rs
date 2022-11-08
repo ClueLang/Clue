@@ -1,6 +1,7 @@
 use clap::Parser;
 use clue::env::{ContinueMode, LuaSTD, TypesMode};
 use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA, LUA_G};
+use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 use std::{
@@ -175,7 +176,10 @@ where
 	P: AsRef<OsStr> + Display,
 {
 	let files = Arc::new(Mutex::new(check_for_files(path)?));
-	let threads_count = std::thread::available_parallelism()?.get();
+	let threads_count = min(
+		std::thread::available_parallelism()?.get(),
+		files.lock().unwrap().len(),
+	);
 	let mut threads = vec![];
 
 	for _ in 0..threads_count {
