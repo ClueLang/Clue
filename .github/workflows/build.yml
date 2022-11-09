@@ -23,7 +23,7 @@ jobs:
       - name: Build the binary
         run: |
           rustup target add aarch64-pc-windows-msvc
-          cargo build -Zmultitarget --target=x86_64-pc-windows-msvc --target=i686-pc-windows-msvc --target=aarch64-pc-windows-msvc --release -vv
+          cargo build  --target=x86_64-pc-windows-msvc --target=i686-pc-windows-msvc --target=aarch64-pc-windows-msvc --release -vv
           cd target\x86_64-pc-windows-msvc\release && tar -cavf "$env:CRATE_NAME-x86_64-pc-windows-msvc.zip" "$env:CRATE_NAME.exe"  && cd ../../..
           cd target\i686-pc-windows-msvc\release && tar -cavf "$env:CRATE_NAME-i686-pc-windows-msvc.zip" "$env:CRATE_NAME.exe"  && cd ../../..
           cd target\aarch64-pc-windows-msvc\release && tar -cavf "$env:CRATE_NAME-aarch64-pc-windows-msvc.zip" "$env:CRATE_NAME.exe"  && cd ../../..
@@ -68,8 +68,10 @@ jobs:
       - name: Cache build
         uses: Swatinem/rust-cache@v2
       - name: Build the binary
+        env:
+          C_FLAGS_aarch64-apple-darwin: "--target=aarch64-apple-darwin"
         run: |
-          cargo build --release -Zmultitarget --target=x86_64-apple-darwin --target=aarch64-apple-darwin -vv
+          cargo build --release  --target=x86_64-apple-darwin --target=aarch64-apple-darwin -vv
           cd target/x86_64-apple-darwin/release/ && tar -cvf "$CRATE_NAME-x86_64-apple-darwin.tar.gz" "$CRATE_NAME"  && cd ../../..
           cd target/aarch64-apple-darwin/release/ && tar -cvf "$CRATE_NAME-aarch64-apple-darwin.tar.gz" "$CRATE_NAME" && cd ../../..
       - name: Upload clue-x86_64-apple-darwin.tar.gz
@@ -107,6 +109,11 @@ jobs:
       - name: Cache build
         uses: Swatinem/rust-cache@v2
       - name: Build the binary
+        env:
+          CC_i686-unknown-linux-gnu: i686-linux-gnu-gcc
+          CC_aarch64-unknown-linux-gnu: aarch64-linux-gnu-gcc
+          CC_armv7-unknown-linux-gnueabi: arm-linux-gnueabi-gcc
+          CC_armv7-unknown-linux-gnueabihf: arm-linux-gnueabihf-gcc
         run: |
           rustup target add aarch64-unknown-linux-gnu
           rustup target add armv7-unknown-linux-gnueabi
@@ -121,7 +128,7 @@ jobs:
           echo 'linker = "arm-linux-gnueabi-gcc"' >>.cargo/config
           echo '[target.armv7-unknown-linux-gnueabihf]' >>.cargo/config
           echo 'linker = "arm-linux-gnueabihf-gcc"' >>.cargo/config
-          cargo build -Zmultitarget --target=x86_64-unknown-linux-gnu \
+          cargo build  --target=x86_64-unknown-linux-gnu \
                 --target=i686-unknown-linux-gnu \
                 --target=aarch64-unknown-linux-gnu \
                 --target=aarch64-unknown-linux-gnu \

@@ -9,3 +9,7 @@ runs:
   image: "markosth09/voidlinux-rust-nightly-cross:latest"
   env:
     CRATE_NAME: ${{ inputs.name }}
+    CC_i686-unknown-linux-musl: i686-linux-musl-gcc
+    CC_aarch64-unknown-linux-musl: aarch64-linux-musl-gcc
+    CC_armv7-unknown-linux-musleabi: arm-linux-musleabi-gcc
+    CC_armv7-unknown-linux-musleabihf: arm-linux-musleabihf-gcc
