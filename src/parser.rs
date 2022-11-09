@@ -457,9 +457,10 @@ impl ParserInfo {
 
 	fn checkOperator(&mut self, t: &Token, checkback: bool) -> Result<(), String> {
 		if match self.peek(0).kind {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
+			NUMBER
+			| IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
 			| FALSE | MINUS | BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT
-			| THREEDOTS | MATCH => false,
+			| THREEDOTS | MATCH | CURLY_BRACKET_OPEN => false,
 			_ => true,
 		} {
 			return Err(self.error(
@@ -478,7 +479,8 @@ impl ParserInfo {
 				| NIL
 				| ROUND_BRACKET_CLOSED
 				| SQUARE_BRACKET_CLOSED
-				| THREEDOTS => false,
+				| THREEDOTS
+				| CURLY_BRACKET_CLOSED => false,
 				_ => true,
 			} {
 			return Err(self.error(
