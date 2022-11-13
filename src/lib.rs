@@ -26,3 +26,19 @@ macro_rules! check {
 		}
 	};
 }
+
+#[macro_export]
+macro_rules! format_clue {
+	($output: ident, $string: ident) => {
+		$output.push_str(&$string);
+	};
+
+	($output: ident, $string: literal) => {
+		$output.push_str($string);
+	};
+
+	($output: ident, $string:tt, $($strings: tt),*) => {
+		format_clue!($output, $string);
+		format_clue!($output, $($strings),*)
+	};
+}

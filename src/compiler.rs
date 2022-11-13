@@ -3,7 +3,7 @@ use std::iter::{Iterator, Peekable};
 
 use crate::{
 	env::ContinueMode,
-	flag,
+	flag, format_clue,
 	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
 	ENV_DATA,
@@ -19,8 +19,10 @@ fn indentate(scope: usize) -> String {
 
 fn indentate_if<T: Iterator>(ctokens: &mut Peekable<T>, scope: usize) -> String {
 	match ctokens.peek() {
-		Some(_) => format!("\n{}", indentate(scope)),
-		None => String::new(),
+		Some(_) => {
+			format!("\n{}", indentate(scope))
+		}
+		None => String::with_capacity(4),
 	}
 }
 
@@ -69,10 +71,32 @@ fn compile_function(
 			let pre = indentate(scope + 1);
 			let debug = compile_debug_line(line, scope + 2);
 			let line = compile_debug_comment(line);
-			code = format!(
-				"\n{}if {} == nil then\n{}\t{}{} = {}{}\n{}end{}",
-				pre, arg, pre, debug, arg, default, line, pre, code
-			)
+			let mut output = String::with_capacity(
+				pre.len() * 3
+					+ arg.len() * 2 + debug.len()
+					+ default.len() + line.len()
+					+ code.len() + 20,
+			);
+			format_clue!(
+				output,
+				"\n",
+				pre,
+				"if ",
+				arg,
+				" == nil then\n",
+				pre,
+				"\t",
+				debug,
+				arg,
+				" = ",
+				default,
+				line,
+				"\n",
+				pre,
+				"end",
+				code
+			);
+			code = output;
 		}
 		arg
 	});
@@ -116,8 +140,8 @@ fn compile_debug_line(line: usize, scope: usize) -> String {
 }
 
 fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
-	let mut result = String::new();
-	let mut checked = String::new();
+	let mut result = String::with_capacity(32);
+	let mut checked = String::with_capacity(32);
 	let mut iter = expr.into_iter().peekable();
 	while let Some(t) = iter.next() {
 		match t.clone() {
@@ -149,7 +173,9 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 			}
 			EXPR(expr) => {
 				let expr = compile_expression(scope, names, expr);
-				write!(checked, "({expr})]").expect("something really unexpected happened");
+				checked.push_str("(");
+				checked.push_str(&expr);
+				checked.push_str(")]");
 			}
 			CALL(args) => write!(checked, "({})", compile_expressions(scope, names, args))
 				.expect("something really unexpected happened"),
@@ -164,7 +190,7 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 }
 
 fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
-	let mut result = String::new();
+	let mut result = String::with_capacity(64);
 	for t in expr {
 		result += &match t {
 			MACRO_CALL { expr, args } => {
@@ -192,7 +218,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 				metatable,
 			} => {
 				scope += 1;
-				let mut prevline = 0usize;
+				let mut prevline = 0;
 				let pre1 = indentate(scope);
 				let values = if values.is_empty() {
 					String::new()
@@ -207,9 +233,24 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 						prevline = line;
 						if let Some(name) = name {
 							let name = compile_expression(scope, names, name);
-							format!("{l}\n{pre1}{name} = {value}")
+							let mut output = String::with_capacity(
+								l.len() + pre1.len() + name.len() + value.len() + 5,
+							);
+							output.push_str(&l);
+							output.push_str("\n");
+							output.push_str(&pre1);
+							output.push_str(&name);
+							output.push_str(" = ");
+							output.push_str(&value);
+							output
 						} else {
-							format!("{l}\n{pre1}{value}")
+							let mut output =
+								String::with_capacity(l.len() + pre1.len() + value.len() + 2);
+							output.push_str(&l);
+							output.push_str("\n");
+							output.push_str(&pre1);
+							output.push_str(&value);
+							output
 						}
 					}) + &compile_debug_comment(prevline)
 						+ "\n"
@@ -326,11 +367,16 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					let end = indentate_if(ctokens, scope);
 					let pre = if local { "local " } else { "" };
 					if values.is_empty() {
-						format!("{debug}{pre}{};{line}{end}", compile_identifiers(names))
+						let ident = compile_identifiers(names);
+						let mut output = String::with_capacity(128);
+						format_clue!(output, debug, pre, ident, ";", line, end);
+						output
 					} else {
 						let values = compile_expressions(scope, Some(&names), values);
 						let names = compile_identifiers(names);
-						format!("{debug}{pre}{names} = {values};{line}{end}")
+						let mut output = String::with_capacity(128);
+						format_clue!(output, debug, pre, names, " = ", values, ";", line, end);
+						output
 					}
 				}
 			}
