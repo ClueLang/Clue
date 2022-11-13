@@ -1,5 +1,4 @@
 use clap::ValueEnum;
-use std::fmt::Write;
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
 pub enum ContinueMode {
@@ -41,7 +40,7 @@ pub struct EnvData {
 	env_types: TypesMode,
 	env_std: LuaSTD,
 
-	ouput_code: String,
+	output_code: String,
 }
 
 impl EnvData {
@@ -56,7 +55,7 @@ impl EnvData {
 			env_debug: false,
 			env_types: TypesMode::NONE,
 			env_std: LuaSTD::NONE,
-			ouput_code: String::with_capacity(512),
+			output_code: String::with_capacity(512),
 		}
 	}
 
@@ -119,16 +118,16 @@ impl EnvData {
 		self.env_std
 	}
 
-	pub fn ouput_code(&self) -> &str {
-		&self.ouput_code
+	pub fn output_code(&self) -> &str {
+		&self.output_code
 	}
 
 	pub fn add_output_code(&mut self, add: String) {
-		write!(self.ouput_code, "{add}").expect("something really unexpected happened");
+		self.output_code.push_str(&add);
 	}
 
 	pub fn rewrite_output_code(&mut self, output: String) {
-		self.ouput_code = output
+		self.output_code = output
 	}
 }
 

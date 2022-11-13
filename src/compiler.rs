@@ -89,7 +89,13 @@ fn compile_code_block(scope: usize, start: &str, block: CodeBlock) -> String {
 			start, pre, debug, block.start, block.end, code, pre
 		)
 	} else {
-		format!("{start}\n{code}\n{pre}")
+		let mut output = String::with_capacity(start.len() + code.len() + pre.len() + 2);
+		output.push_str(start);
+		output.push_str("\n");
+		output.push_str(&code);
+		output.push_str("\n");
+		output.push_str(&pre);
+		output
 	}
 }
 

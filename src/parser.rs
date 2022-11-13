@@ -1771,7 +1771,7 @@ pub fn parse_tokens(
 		let output = ENV_DATA
 			.write()
 			.expect("Can't lock env_data")
-			.ouput_code()
+			.output_code()
 			.to_string();
 		ENV_DATA
 			.write()

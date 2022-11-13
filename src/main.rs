@@ -136,7 +136,7 @@ fn compile_file<P: AsRef<Path>>(path: P, name: String, scope: usize) -> Result<S
 where
 	P: AsRef<OsStr> + Display,
 {
-	let mut code: String = String::new();
+	let mut code: String = String::with_capacity(512);
 	check!(check!(File::open(path)).read_to_string(&mut code));
 	compile_code(code, name, scope)
 }
@@ -179,7 +179,7 @@ where
 		std::thread::available_parallelism()?.get(),
 		files.lock().unwrap().len(),
 	);
-	let mut threads = vec![];
+	let mut threads = Vec::with_capacity(threads_count);
 
 	for _ in 0..threads_count {
 		// this `.clone()` is used to create a new pointer to the outside `files`
@@ -258,7 +258,7 @@ fn main() -> Result<(), String> {
 		let output = ENV_DATA
 			.read()
 			.expect("Can't lock env_data")
-			.ouput_code()
+			.output_code()
 			.to_string();
 		let (statics, output) = output.rsplit_once("--STATICS").unwrap();
 		ENV_DATA
@@ -295,7 +295,7 @@ fn main() -> Result<(), String> {
 			};
 			check!(fs::write(
 				&compiledname,
-				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
+				ENV_DATA.read().expect("Can't lock env_data").output_code()
 			))
 		}
 	} else if path.is_file() {
@@ -310,7 +310,7 @@ fn main() -> Result<(), String> {
 				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
 			check!(fs::write(
 				compiledname,
-				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
+				ENV_DATA.read().expect("Can't lock env_data").output_code()
 			))
 		}
 	} else {
@@ -321,7 +321,7 @@ fn main() -> Result<(), String> {
 			compiledname,
 			format!(
 				include_str!("debug.lua"),
-				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
+				ENV_DATA.read().expect("Can't lock env_data").output_code()
 			)
 		))
 	}
@@ -337,7 +337,7 @@ fn compile_multi_files_bench(files: Vec<String>) {
 			.get(),
 		files.lock().unwrap().len(),
 	);
-	let mut threads = vec![];
+	let mut threads = Vec::with_capacity(threads_count);
 
 	for _ in 0..threads_count {
 		// this `.clone()` is used to create a new pointer to the outside `files`
@@ -345,7 +345,7 @@ fn compile_multi_files_bench(files: Vec<String>) {
 		let files = files.clone();
 
 		let thread = spawn(move || loop {
-			let filename: String;
+			let file: String;
 
 			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
 			{
@@ -355,14 +355,10 @@ fn compile_multi_files_bench(files: Vec<String>) {
 					break;
 				}
 
-				filename = files.pop().unwrap();
+				file = files.pop().unwrap();
 			}
 
-			let code = compile_file(&filename, filename.clone(), 2).unwrap();
-			add_to_output(&format!(
-				"[\"{}\"] = function()\n{}\n\tend,\n\t",
-				filename, code
-			));
+			compile_code(file, String::new(), 2).unwrap();
 		});
 
 		threads.push(thread);
@@ -376,7 +372,10 @@ fn compile_multi_files_bench(files: Vec<String>) {
 #[cfg(feature = "devtimer")]
 fn main() {
 	let files = check_for_files("examples/")
-		.expect("Unexpected error happened in checking for files to compile");
+		.expect("Unexpected error happened in checking for files to compile")
+		.iter()
+		.map(|file| fs::read_to_string(file).unwrap())
+		.collect::<Vec<String>>();
 
 	let bench_results = run_benchmark(1000, |_| compile_multi_files_bench(files.clone()));
 	bench_results.print_stats();
@@ -385,7 +384,6 @@ fn main() {
 #[cfg(test)]
 mod test {
 	use crate::compile_folder;
-	use std::time::Instant;
 
 	#[test]
 	fn compilation_success() {
