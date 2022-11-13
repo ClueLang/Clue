@@ -56,7 +56,7 @@ impl EnvData {
 			env_debug: false,
 			env_types: TypesMode::NONE,
 			env_std: LuaSTD::NONE,
-			ouput_code: String::new(),
+			ouput_code: String::with_capacity(512),
 		}
 	}
 
