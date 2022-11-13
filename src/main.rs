@@ -169,6 +169,7 @@ where
 	Ok(files)
 }
 
+#[cfg(not(feature = "devtimer"))]
 fn compile_folder<P: AsRef<Path>>(path: P, _rpath: String) -> Result<(), std::io::Error>
 where
 	P: AsRef<OsStr> + Display,
@@ -331,8 +332,56 @@ fn main() -> Result<(), String> {
 }
 
 #[cfg(feature = "devtimer")]
+fn compile_multi_files_bench(files: Vec<String>) {
+	let files = Arc::new(Mutex::new(files));
+	let threads_count = min(
+		std::thread::available_parallelism()
+			.expect("Unexpected error happened when checking for how many parallelism is available")
+			.get(),
+		files.lock().unwrap().len(),
+	);
+	let mut threads = vec![];
+
+	for _ in 0..threads_count {
+		// this `.clone()` is used to create a new pointer to the outside `files`
+		// that can be used from inside the newly created thread
+		let files = files.clone();
+
+		let thread = spawn(move || loop {
+			let filename: String;
+
+			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
+			{
+				let mut files = files.lock().unwrap();
+
+				if files.is_empty() {
+					break;
+				}
+
+				filename = files.pop().unwrap();
+			}
+
+			let code = compile_file(&filename, filename.clone(), 2).unwrap();
+			add_to_output(&format!(
+				"[\"{}\"] = function()\n{}\n\tend,\n\t",
+				filename, code
+			));
+		});
+
+		threads.push(thread);
+	}
+
+	for thread in threads {
+		thread.join().unwrap();
+	}
+}
+
+#[cfg(feature = "devtimer")]
 fn main() {
-	let bench_results = run_benchmark(100, |_| compile_folder("examples/", String::new()).unwrap());
+	let files = check_for_files("examples/")
+		.expect("Unexpected error happened in checking for files to compile");
+
+	let bench_results = run_benchmark(100, |_| compile_multi_files_bench(files.clone()));
 	bench_results.print_stats();
 }
 
