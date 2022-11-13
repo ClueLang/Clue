@@ -16,7 +16,7 @@ winres = "0.1"
 [dependencies]
 clap = { version = "4.0.18", features = ["derive"] }
 lazy_static = "1.4.0"
-fxhash = "0.2.1"
+hashbrown = "0.13.1"
 devtimer = { version = "4.0.1", optional = true }
 
 [profile.release]

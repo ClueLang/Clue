@@ -1,7 +1,7 @@
 use clap::Parser;
 use clue::env::{ContinueMode, LuaSTD, TypesMode};
 use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA, LUA_G};
-use fxhash::FxHashMap;
+use hashbrown::HashMap;
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
@@ -111,7 +111,7 @@ fn compile_code(code: String, name: String, scope: usize) -> Result<String, Stri
 	let ctokens = parse_tokens(
 		tokens,
 		if flag!(env_types) != TypesMode::NONE {
-			Some(FxHashMap::default())
+			Some(HashMap::default())
 		} else {
 			None
 		},
@@ -240,11 +240,8 @@ fn main() -> Result<(), String> {
 	}
 	if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
-			LuaSTD::LUA54 => Some(FxHashMap::from_iter([(
-				String::from("print"),
-				LuaType::NIL,
-			)])), //PLACEHOLDER
-			_ => Some(FxHashMap::default()),
+			LuaSTD::LUA54 => Some(HashMap::from_iter([(String::from("print"), LuaType::NIL)])), //PLACEHOLDER
+			_ => Some(HashMap::default()),
 		};
 	}
 	let codepath = cli.path.unwrap();
@@ -381,7 +378,7 @@ fn main() {
 	let files = check_for_files("examples/")
 		.expect("Unexpected error happened in checking for files to compile");
 
-	let bench_results = run_benchmark(100, |_| compile_multi_files_bench(files.clone()));
+	let bench_results = run_benchmark(1000, |_| compile_multi_files_bench(files.clone()));
 	bench_results.print_stats();
 }
 

@@ -5,7 +5,7 @@ use crate::env::ContinueMode;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
-use fxhash::FxHashMap;
+use hashbrown::HashMap;
 use std::{cmp, collections::LinkedList, slice::Iter};
 
 macro_rules! expression {
@@ -20,7 +20,7 @@ macro_rules! expression {
 
 pub type Expression = LinkedList<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
-pub type LocalsList = Option<FxHashMap<String, LuaType>>;
+pub type LocalsList = Option<HashMap<String, LuaType>>;
 pub type ArgsAndTypes = (FunctionArgs, Option<Vec<(String, LuaType)>>);
 type OptionalEnd = Option<(TokenType, &'static str)>;
 type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
@@ -175,7 +175,7 @@ struct ParserInfo {
 	testing: Option<usize>,
 	localid: u8,
 	statics: String,
-	macros: FxHashMap<String, Expression>,
+	macros: HashMap<String, Expression>,
 	locals: LocalsList,
 }
 
@@ -190,7 +190,7 @@ impl ParserInfo {
 			testing: None,
 			localid: 0,
 			statics: String::new(),
-			macros: FxHashMap::default(),
+			macros: HashMap::default(),
 			locals,
 		}
 	}
@@ -1736,7 +1736,7 @@ impl ParserInfo {
 
 pub fn parse_tokens(
 	tokens: Vec<Token>,
-	locals: Option<FxHashMap<String, LuaType>>,
+	locals: Option<HashMap<String, LuaType>>,
 	filename: String,
 ) -> Result<Expression, String> {
 	let mut i = ParserInfo::new(tokens, locals, filename);
