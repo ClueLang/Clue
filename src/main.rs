@@ -343,10 +343,6 @@ mod test {
 
 	#[test]
 	fn compilation_success() {
-		let start = Instant::now();
 		compile_folder("examples/", String::new()).unwrap();
-		let end = start.elapsed();
-
-		println!("Compilation time: {}ns", end.as_nanos());
 	}
 }
