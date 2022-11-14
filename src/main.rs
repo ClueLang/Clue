@@ -7,9 +7,6 @@ use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
 
-#[cfg(feature = "devtimer")]
-use devtimer::run_benchmark;
-
 macro_rules! println {
     ($($rest:tt)*) => {
         #[cfg(not(feature = "devtimer"))]
@@ -370,6 +367,24 @@ fn compile_multi_files_bench(files: Vec<String>) {
 }
 
 #[cfg(feature = "devtimer")]
+fn run_benchmark(iters: usize, func: impl Fn()) -> Vec<u128> {
+	let mut timer = devtimer::SimpleTimer::new();
+	let mut results = Vec::with_capacity(iters);
+
+	for i in 0..iters {
+		std::println!("Running iter {} ...", i + 1);
+		timer.start();
+		func();
+		timer.stop();
+		results.push(timer.time_in_nanos().unwrap());
+	}
+
+	results.sort();
+
+	results
+}
+
+#[cfg(feature = "devtimer")]
 fn main() {
 	let files = check_for_files("examples/")
 		.expect("Unexpected error happened in checking for files to compile")
@@ -377,8 +392,27 @@ fn main() {
 		.map(|file| fs::read_to_string(file).unwrap())
 		.collect::<Vec<String>>();
 
-	let bench_results = run_benchmark(1000, |_| compile_multi_files_bench(files.clone()));
-	bench_results.print_stats();
+	let bench_results = run_benchmark(10000, || compile_multi_files_bench(files.clone()));
+
+	let mut avg = 0;
+	let mut top_avg = 0;
+	let top_len = bench_results.len() as f64 * 0.01;
+
+	for (i, value) in bench_results.iter().enumerate() {
+		if (i as f64) <= top_len {
+			top_avg += value;
+		}
+		avg += value;
+	}
+
+	avg /= bench_results.len() as u128;
+	top_avg /= top_len as u128;
+
+	std::println!();
+	std::println!("Slowest: {} ns", bench_results.last().unwrap());
+	std::println!("Fastest: {} ns", bench_results.first().unwrap());
+	std::println!("Average: {} ns/iter", avg);
+	std::println!("Top 1% : {} ns/iter", top_avg);
 }
 
 #[cfg(test)]
