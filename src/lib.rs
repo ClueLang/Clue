@@ -29,16 +29,25 @@ macro_rules! check {
 
 #[macro_export]
 macro_rules! format_clue {
-	($output: ident, $string: ident) => {
-		$output.push_str(&$string);
-	};
+	// ($output: ident, $string: ident) => {
+	// 	$output.push_str(&$string);
+	// };
+	//
+	// ($output: ident, $string: literal) => {
+	// 	$output.push_str($string);
+	// };
+	//
+	// ($output: ident, $string:tt, $($strings: tt),*) => {
+	// 	format_clue!($output, $string);
+	// 	format_clue!($output, $($strings),*)
+	// };
 
-	($output: ident, $string: literal) => {
-		$output.push_str($string);
-	};
-
-	($output: ident, $string:tt, $($strings: tt),*) => {
-		format_clue!($output, $string);
-		format_clue!($output, $($strings),*)
-	};
+    ($($strings:expr),+) => {{
+        use std::ops::AddAssign;
+        let mut len_format_clue = 0;
+        $(len_format_clue.add_assign(AsRef::<str>::as_ref(&$strings).len());)+
+        let mut output_format_clue = String::with_capacity(len_format_clue);
+        $(output_format_clue.push_str($strings.as_ref());)+
+        output_format_clue
+    }};
 }

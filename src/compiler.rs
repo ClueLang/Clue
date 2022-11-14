@@ -71,14 +71,7 @@ fn compile_function(
 			let pre = indentate(scope + 1);
 			let debug = compile_debug_line(line, scope + 2);
 			let line = compile_debug_comment(line);
-			let mut output = String::with_capacity(
-				pre.len() * 3
-					+ arg.len() * 2 + debug.len()
-					+ default.len() + line.len()
-					+ code.len() + 20,
-			);
-			format_clue!(
-				output,
+			code = format_clue!(
 				"\n",
 				pre,
 				"if ",
@@ -96,7 +89,6 @@ fn compile_function(
 				"end",
 				code
 			);
-			code = output;
 		}
 		arg
 	});
@@ -113,13 +105,7 @@ fn compile_code_block(scope: usize, start: &str, block: CodeBlock) -> String {
 			start, pre, debug, block.start, block.end, code, pre
 		)
 	} else {
-		let mut output = String::with_capacity(start.len() + code.len() + pre.len() + 2);
-		output.push_str(start);
-		output.push_str("\n");
-		output.push_str(&code);
-		output.push_str("\n");
-		output.push_str(&pre);
-		output
+		format_clue!(start, "\n", code, "\n", pre)
 	}
 }
 
@@ -173,9 +159,7 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 			}
 			EXPR(expr) => {
 				let expr = compile_expression(scope, names, expr);
-				checked.push_str("(");
-				checked.push_str(&expr);
-				checked.push_str(")]");
+				checked.push_str(&format_clue!("(", expr, ")]"));
 			}
 			CALL(args) => write!(checked, "({})", compile_expressions(scope, names, args))
 				.expect("something really unexpected happened"),
@@ -233,24 +217,9 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 						prevline = line;
 						if let Some(name) = name {
 							let name = compile_expression(scope, names, name);
-							let mut output = String::with_capacity(
-								l.len() + pre1.len() + name.len() + value.len() + 5,
-							);
-							output.push_str(&l);
-							output.push_str("\n");
-							output.push_str(&pre1);
-							output.push_str(&name);
-							output.push_str(" = ");
-							output.push_str(&value);
-							output
+							format_clue!(l, "\n", pre1, name, " = ", value)
 						} else {
-							let mut output =
-								String::with_capacity(l.len() + pre1.len() + value.len() + 2);
-							output.push_str(&l);
-							output.push_str("\n");
-							output.push_str(&pre1);
-							output.push_str(&value);
-							output
+							format_clue!(l, "\n", pre1, value)
 						}
 					}) + &compile_debug_comment(prevline)
 						+ "\n"
@@ -368,15 +337,11 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					let pre = if local { "local " } else { "" };
 					if values.is_empty() {
 						let ident = compile_identifiers(names);
-						let mut output = String::with_capacity(128);
-						format_clue!(output, debug, pre, ident, ";", line, end);
-						output
+						format_clue!(debug, pre, ident, ";", line, end)
 					} else {
 						let values = compile_expressions(scope, Some(&names), values);
 						let names = compile_identifiers(names);
-						let mut output = String::with_capacity(128);
-						format_clue!(output, debug, pre, names, " = ", values, ";", line, end);
-						output
+						format_clue!(debug, pre, names, " = ", values, ";", line, end)
 					}
 				}
 			}
