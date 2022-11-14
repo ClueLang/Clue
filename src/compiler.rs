@@ -169,7 +169,7 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 	if result.is_empty() {
 		result + &checked
 	} else {
-		format!("({})", result + &checked)
+		format_clue!("(", result, checked, ")")
 	}
 }
 
@@ -186,7 +186,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 					strings
 				};
 				let expr = compile_expression(scope, Some(&args), expr);
-				format!("({expr})")
+				format_clue!("(", expr, ")")
 			}
 			SYMBOL(lexeme) => lexeme,
 			PSEUDO(num) => match names {
@@ -242,7 +242,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 							String::new()
 						};
 						prevline = line;
-						format!("{l}\n{pre1}{name} = {value}")
+						format_clue!(l, "\n", pre1, name, " = ", value)
 					});
 					scope -= 1;
 					let line = compile_debug_comment(prevline);
@@ -254,7 +254,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 			}
 			LAMBDA { args, code } => {
 				let (code, args) = compile_function(scope, names, args, code);
-				format!("function({args}){code}end")
+				format_clue!("function(", args, ")", code, "end")
 			}
 			IDENT { expr, .. } => compile_identifier(scope, names, expr),
 			CALL(args) => format!("({})", compile_expressions(scope, names, args)),
