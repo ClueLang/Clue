@@ -168,7 +168,9 @@ fn ExecuteLuaCode(code: &String) -> Result<(), String> {
 	println!("Running compiled code...");
 	let lua = Lua::new();
 	let time = Instant::now();
-	check!(lua.load(code).exec());
+	if let Err(error) = lua.load(code).exec() {
+		println!("{}", error);
+	}
 	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 	Ok(())
 }
