@@ -442,9 +442,9 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"match" => MATCH,
 						"default" => DEFAULT,
 						"macro" => MACRO,
-						"constructor" => {i.warning("The struct constructor is reserved for Clue 3.X and cannot be used."); CONSTRUCTOR},
-						"struct" => {i.warning("The struct keyword is reserved for Clue 3.X and cannot be used."); STRUCT},
-						"extern" => {i.warning("The extern keyword is reserved for Clue 3.0 and cannot be used."); EXTERN},
+						"constructor" => {i.warning("The struct constructor is reserved for Clue 4.0 and cannot be used."); CONSTRUCTOR},
+						"struct" => {i.warning("The struct keyword is reserved for Clue 4.0 and cannot be used."); STRUCT},
+						"extern" => {i.warning("The extern keyword is reserved for Clue 4.0 and cannot be used."); EXTERN},
 						_ => IDENTIFIER
 					};
 					i.addToken(kind);
