@@ -37,10 +37,9 @@ pub struct EnvData {
 	env_continue: ContinueMode,
 	env_rawsetglobals: bool,
 	env_debug: bool,
+	output_code: String,
 	//env_types: TypesMode,
 	//env_std: LuaSTD,
-
-	output_code: String,
 }
 
 impl EnvData {
@@ -53,9 +52,9 @@ impl EnvData {
 			env_continue: ContinueMode::SIMPLE,
 			env_rawsetglobals: false,
 			env_debug: false,
+			output_code: String::with_capacity(512),
 			//env_types: TypesMode::NONE,
 			//env_std: LuaSTD::NONE,
-			output_code: String::with_capacity(512),
 		}
 	}
 
@@ -109,17 +108,17 @@ impl EnvData {
 	pub fn env_debug(&self) -> bool {
 		self.env_debug
 	}
-/*
-	pub fn env_types(&self) -> TypesMode {
-		self.env_types
-	}
+	/*
+		pub fn env_types(&self) -> TypesMode {
+			self.env_types
+		}
 
-	pub fn env_std(&self) -> LuaSTD {
-		self.env_std
-	}
-*/
-	pub fn ouput_code(&self) -> &str {
-		&self.ouput_code
+		pub fn env_std(&self) -> LuaSTD {
+			self.env_std
+		}
+	*/
+	pub fn output_code(&self) -> &str {
+		&self.output_code
 	}
 
 	pub fn add_output_code(&mut self, add: String) {

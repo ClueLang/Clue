@@ -1,7 +1,6 @@
 use clap::Parser;
-use clue::env::{ContinueMode/*, LuaSTD, TypesMode*/};
-use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA/*, LUA_G*/};
-use hashbrown::HashMap;
+use clue::env::ContinueMode;
+use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA /*, LUA_G*/};
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
@@ -75,26 +74,26 @@ struct Cli {
 	#[clap(short, long, value_name = "MODE")]
 	types: Option<String>,
 
-/*	/// Enable type checking (might slow down compilation)
-	#[clap(
-		short,
-		long,
-		value_enum,
-		default_value = "none",
-		value_name = "MODE"
-	)]
-	types: TypesMode,
+	/*	/// Enable type checking (might slow down compilation)
+		#[clap(
+			short,
+			long,
+			value_enum,
+			default_value = "none",
+			value_name = "MODE"
+		)]
+		types: TypesMode,
 
-	/// Use the given Lua version's standard library (--types required)
-	#[clap(
-		long,
-		value_enum,
-		default_value = "luajit",
-		value_name = "LUA VERSION",
-		requires = "types"
-	)]
-	std: LuaSTD,
-*/
+		/// Use the given Lua version's standard library (--types required)
+		#[clap(
+			long,
+			value_enum,
+			default_value = "luajit",
+			value_name = "LUA VERSION",
+			requires = "types"
+		)]
+		std: LuaSTD,
+	*/
 	#[cfg(feature = "mlua")]
 	/// Execute the output Lua code once it's compiled
 	#[clap(short, long)]
@@ -240,7 +239,8 @@ fn main() -> Result<(), String> {
 	if cli.license {
 		println!(include_str!("../LICENSE"));
 		return Ok(());
-	} else if let Some(_) = cli.types { //TEMPORARY PLACEHOLDER UNTIL 4.0
+	} else if cli.types.is_some() {
+		//TEMPORARY PLACEHOLDER UNTIL 4.0
 		return Err(String::from("Type checking is not supported yet!"));
 	}
 	ENV_DATA.write().expect("Can't lock env_data").set_data(
@@ -341,8 +341,8 @@ fn main() -> Result<(), String> {
 	}
 	let output = ENV_DATA.read().expect("Can't lock env_data");
 	if flag!(env_debug) {
-		let newoutput = format!(include_str!("debug.lua"), output.ouput_code());
-		check!(fs::write(compiledname, &newoutput));
+		let newoutput = format!(include_str!("debug.lua"), output.output_code());
+		check!(fs::write(compiledname, newoutput));
 		#[cfg(feature = "mlua")]
 		if cli.execute {
 			execute_lua_code(&newoutput)
