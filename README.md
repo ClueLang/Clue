@@ -55,8 +55,8 @@ By default Clue enables both features.
 ## More coming soon!
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
-- more advanced macros
-- types (coming in 3.0)
+- preprocessor (coming in 3.0)
+- types (coming in 4.0)
 
 For any suggestion or bug you can make a github issue.
 If you need help with the language itself, you can check out the new [Discord server](https://discord.gg/EQsnWpqN3C).
