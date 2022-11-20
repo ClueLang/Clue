@@ -1,11 +1,11 @@
 use clap::Parser;
 use mlua::Lua;
-use clue::env::{ContinueMode, LuaSTD, TypesMode};
-use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA, LUA_G};
+use clue::env::{ContinueMode/*, LuaSTD, TypesMode*/};
+use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA/*, LUA_G*/};
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 use std::{
-	collections::HashMap, ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path,
+	/*collections::HashMap, */ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path,
 	time::Instant,
 };
 
@@ -66,9 +66,13 @@ struct Cli {
 	#[clap(short, long, value_name = "FILE NAME")]
 	base: Option<String>,
 
-	/// Enable type checking (might slow down compilation)
+	/// This is not yet supported (Coming out in 4.0)
+	#[clap(short, long, value_name = "MODE")]
+	types: Option<String>,
+
+/*	/// Enable type checking (might slow down compilation)
 	#[clap(
-		short = 'T',
+		short,
 		long,
 		value_enum,
 		default_value = "none",
@@ -85,7 +89,7 @@ struct Cli {
 		requires = "types"
 	)]
 	std: LuaSTD,
-
+*/
 	/// Execute the output Lua code once it's compiled
 	#[clap(short, long)]
 	execute: bool,
@@ -106,11 +110,11 @@ fn compile_code(code: String, name: String, scope: usize) -> Result<String, Stri
 	}
 	let ctokens = parse_tokens(
 		tokens,
-		if flag!(env_types) != TypesMode::NONE {
+		/*if flag!(env_types) != TypesMode::NONE {
 			Some(HashMap::new())
 		} else {
 			None
-		},
+		},*/
 		name.clone(),
 	)?;
 	if flag!(env_struct) {
@@ -215,6 +219,8 @@ fn main() -> Result<(), String> {
 	if cli.license {
 		println!(include_str!("../LICENSE"));
 		return Ok(());
+	} else if let Some(_) = cli.types { //TEMPORARY PLACEHOLDER UNTIL 4.0
+		return Err(String::from("Type checking is not supported yet!"));
 	}
 	ENV_DATA.write().expect("Can't lock env_data").set_data(
 		cli.tokens,
@@ -224,18 +230,18 @@ fn main() -> Result<(), String> {
 		cli.r#continue,
 		cli.rawsetglobals,
 		cli.debug,
-		cli.types,
-		cli.std,
+		//cli.types,
+		//cli.std,
 	);
 	if let Some(bit) = &flag!(env_jitbit) {
 		add_to_output(&format!("local {} = require(\"bit\");\n", bit));
 	}
-	if flag!(env_types) != TypesMode::NONE {
+	/*if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
 			LuaSTD::LUA54 => Some(HashMap::from([(String::from("print"), LuaType::NIL)])), //PLACEHOLDER
 			_ => Some(HashMap::new()),
 		};
-	}
+	}*/
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
 		let code = compile_code(codepath, String::from("(command line)"), 0)?;
@@ -330,7 +336,7 @@ mod test {
 	#[test]
 	fn compilation_success() {
 		let start = Instant::now();
-		compile_folder("examples/", String::new()).unwrap();
+		compile_folder("examples", String::new()).unwrap();
 		let end = start.elapsed();
 
 		println!("Compilation time: {}ns", end.as_nanos());

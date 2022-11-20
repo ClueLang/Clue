@@ -7,7 +7,7 @@ pub enum ContinueMode {
 	LUAJIT,
 	MOONSCRIPT,
 }
-
+/*
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
 pub enum TypesMode {
 	NONE,
@@ -22,7 +22,7 @@ pub enum LuaSTD {
 	LUA54,
 	//ADD MORE LATER
 }
-
+*/
 #[macro_export]
 macro_rules! flag {
 	($arg: ident) => {
@@ -38,8 +38,8 @@ pub struct EnvData {
 	env_continue: ContinueMode,
 	env_rawsetglobals: bool,
 	env_debug: bool,
-	env_types: TypesMode,
-	env_std: LuaSTD,
+	//env_types: TypesMode,
+	//env_std: LuaSTD,
 
 	ouput_code: String,
 }
@@ -54,8 +54,8 @@ impl EnvData {
 			env_continue: ContinueMode::SIMPLE,
 			env_rawsetglobals: false,
 			env_debug: false,
-			env_types: TypesMode::NONE,
-			env_std: LuaSTD::NONE,
+			//env_types: TypesMode::NONE,
+			//env_std: LuaSTD::NONE,
 			ouput_code: String::new(),
 		}
 	}
@@ -69,8 +69,8 @@ impl EnvData {
 		env_continue: ContinueMode,
 		env_rawsetglobals: bool,
 		env_debug: bool,
-		env_types: TypesMode,
-		env_std: LuaSTD,
+		//env_types: TypesMode,
+		//env_std: LuaSTD,
 	) {
 		self.env_tokens = env_tokens;
 		self.env_struct = env_struct;
@@ -79,8 +79,8 @@ impl EnvData {
 		self.env_continue = env_continue;
 		self.env_rawsetglobals = env_rawsetglobals;
 		self.env_debug = env_debug;
-		self.env_types = env_types;
-		self.env_std = env_std;
+		//self.env_types = env_types;
+		//self.env_std = env_std;
 	}
 
 	pub fn env_tokens(&self) -> bool {
@@ -110,7 +110,7 @@ impl EnvData {
 	pub fn env_debug(&self) -> bool {
 		self.env_debug
 	}
-
+/*
 	pub fn env_types(&self) -> TypesMode {
 		self.env_types
 	}
@@ -118,7 +118,7 @@ impl EnvData {
 	pub fn env_std(&self) -> LuaSTD {
 		self.env_std
 	}
-
+*/
 	pub fn ouput_code(&self) -> &str {
 		&self.ouput_code
 	}

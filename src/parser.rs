@@ -8,7 +8,7 @@ use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::Toke
 use std::{
 	cmp,
 	collections::{HashMap, LinkedList},
-	slice::Iter,
+	//slice::Iter,
 };
 
 macro_rules! expression {
@@ -23,8 +23,8 @@ macro_rules! expression {
 
 pub type Expression = LinkedList<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
-pub type LocalsList = Option<HashMap<String, LuaType>>;
-pub type ArgsAndTypes = (FunctionArgs, Option<Vec<(String, LuaType)>>);
+//pub type LocalsList = Option<HashMap<String, LuaType>>;
+//pub type ArgsAndTypes = (FunctionArgs, Option<Vec<(String, LuaType)>>);
 type OptionalEnd = Option<(TokenType, &'static str)>;
 type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
 
@@ -161,14 +161,14 @@ impl BorrowedToken {
 		self.token().to_owned()
 	}
 }
-
+/*
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum LuaType {
 	ANY,
 	NIL,
 	NUMBER,
 }
-
+*/
 struct ParserInfo {
 	current: usize,
 	size: usize,
@@ -179,11 +179,11 @@ struct ParserInfo {
 	localid: u8,
 	statics: String,
 	macros: HashMap<String, Expression>,
-	locals: LocalsList,
+	//locals: LocalsList,
 }
 
 impl ParserInfo {
-	fn new(tokens: Vec<Token>, locals: LocalsList, filename: String) -> ParserInfo {
+	fn new(tokens: Vec<Token>/*, locals: LocalsList*/, filename: String) -> ParserInfo {
 		ParserInfo {
 			current: 0,
 			size: tokens.len() - 1,
@@ -194,7 +194,7 @@ impl ParserInfo {
 			localid: 0,
 			statics: String::new(),
 			macros: HashMap::new(),
-			locals,
+			//locals,
 		}
 	}
 
@@ -210,7 +210,7 @@ impl ParserInfo {
 		self.current = start;
 		(result, reached)
 	}
-
+/*
 	fn warning(&self, msg: impl Into<String>, line: usize) {
 		println!(
 			"Warning in file \"{}\" at line {}!\nWarning: \"{}\"",
@@ -219,7 +219,7 @@ impl ParserInfo {
 			msg.into()
 		);
 	}
-
+*/
 	fn error(&mut self, msg: impl Into<String>, line: usize) -> String {
 		if let Some(0) = self.testing {
 			self.testing = Some(line);
@@ -326,7 +326,7 @@ impl ParserInfo {
 		}
 		Ok(())
 	}
-
+/*
 	fn assert_variable(&mut self, mut variable: Iter<ComplexToken>) -> Result<LuaType, String> {
 		let mut scope: &LocalsList = &self.locals;
 		let mut luatype = LuaType::NIL;
@@ -339,7 +339,7 @@ impl ParserInfo {
 		}
 		Ok(luatype)
 	}
-
+*/
 	fn build_call(&mut self) -> Result<Vec<Expression>, String> {
 		let args: Vec<Expression> = if self.advance_if(ROUND_BRACKET_CLOSED) {
 			Vec::new()
@@ -736,7 +736,7 @@ impl ParserInfo {
 					let name = format!("_match{}", self.localid);
 					let ident = SYMBOL(name.clone());
 					self.localid += 1;
-					let ctoken = self.build_match_block(name, &|i, _| {
+					let ctoken = self.build_match_block(name, &|i/*, _*/| {
 						let start = i.peek(0).line();
 						let expr = i.build_expression(None)?;
 						let end = i.look_back(1).line();
@@ -849,14 +849,14 @@ impl ParserInfo {
 					}
 				}
 				FN => {
-					let (args, types) = if self.advance_if(ROUND_BRACKET_OPEN)
+					let /*(*/args/*, types)*/ = if self.advance_if(ROUND_BRACKET_OPEN)
 						&& !self.advance_if(ROUND_BRACKET_CLOSED)
 					{
 						self.build_function_args()?
 					} else {
-						(FunctionArgs::new(), None)
+						/*(*/FunctionArgs::new()//, None)
 					};
-					let code = self.build_function_block(types)?;
+					let code = self.build_function_block(/*types*/)?;
 					expr.push_back(LAMBDA { args, code });
 					if self.check_val() {
 						break t;
@@ -980,17 +980,17 @@ impl ParserInfo {
 	fn parse_code_block(
 		&self,
 		mut tokens: Vec<Token>,
-		locals: LocalsList,
+		//locals: LocalsList,
 	) -> Result<Expression, String> {
 		if tokens.is_empty() {
 			Ok(Expression::new())
 		} else {
 			tokens.push(self.tokens.last().unwrap().clone());
-			Ok(parse_tokens(tokens, locals, self.filename.clone())?)
+			Ok(parse_tokens(tokens/*, locals*/, self.filename.clone())?)
 		}
 	}
 
-	fn build_code_block(&mut self, locals: LocalsList) -> Result<CodeBlock, String> {
+	fn build_code_block(&mut self/*, locals: LocalsList*/) -> Result<CodeBlock, String> {
 		let start = self.get_code_block_start()?;
 		let mut tokens: Vec<Token> = Vec::new();
 		let mut cscope = 1u8;
@@ -1011,14 +1011,14 @@ impl ParserInfo {
 			}
 			tokens.push(t.into_owned());
 		}
-		let code = self.parse_code_block(tokens, locals)?;
+		let code = self.parse_code_block(tokens/*, locals*/)?;
 		Ok(CodeBlock { start, code, end })
 	}
 
 	fn build_function_block(
 		&mut self,
-		args: Option<Vec<(String, LuaType)>>,
-	) -> Result<CodeBlock, String> {
+		//args: Option<Vec<(String, LuaType)>>,
+	) -> Result<CodeBlock, String> {/*
 		if let Some(args) = args {
 			self.build_code_block({
 				let mut locals = self.locals.clone().unwrap();
@@ -1027,9 +1027,9 @@ impl ParserInfo {
 				}
 				Some(locals)
 			})
-		} else {
-			self.build_code_block(self.locals.clone())
-		}
+		} else {*/
+			self.build_code_block(/*self.locals.clone()*/)
+		//}
 	}
 
 	fn build_loop_block(&mut self) -> Result<CodeBlock, String> {
@@ -1068,7 +1068,7 @@ impl ParserInfo {
 			}
 			tokens.push(t.into_owned());
 		}
-		let mut code = self.parse_code_block(tokens, self.locals.clone())?;
+		let mut code = self.parse_code_block(tokens/*, self.locals.clone()*/)?;
 		if hascontinue {
 			match flag!(env_continue) {
 				ContinueMode::SIMPLE => {}
@@ -1120,13 +1120,13 @@ impl ParserInfo {
 		Ok(idents)
 	}
 
-	fn build_function_args(&mut self) -> Result<ArgsAndTypes, String> {
+	fn build_function_args(&mut self) -> Result</*ArgsAndTypes*/FunctionArgs, String> {
 		let mut args = FunctionArgs::new();
-		let mut types: Option<Vec<(String, LuaType)>> = if self.locals.is_some() {
+		/*let mut types: Option<Vec<(String, LuaType)>> = if self.locals.is_some() {
 			Some(Vec::new())
 		} else {
 			None
-		};
+		};*/
 		while {
 			let name = {
 				let t = self.advance();
@@ -1139,7 +1139,7 @@ impl ParserInfo {
 					_ => return Err(self.expected("<name>", &t.lexeme(), t.line())),
 				}
 			};
-			if let Some(types) = &mut types {
+			/*if let Some(types) = &mut types {
 				types.push((
 					name.lexeme(),
 					if name.kind() == THREEDOTS {
@@ -1148,7 +1148,7 @@ impl ParserInfo {
 						self.build_type()?
 					},
 				))
-			}
+			}*/
 			let t = self.advance();
 			match t.kind() {
 				COMMA => {
@@ -1178,12 +1178,12 @@ impl ParserInfo {
 				_ => return Err(self.expected(")", &t.lexeme(), t.line())),
 			}
 		} {}
-		Ok((args, types))
+		Ok(/*(args, types)*/args)
 	}
 
 	fn build_elseif_chain(&mut self) -> Result<ComplexToken, String> {
 		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
-		let code = self.build_code_block(self.locals.clone())?;
+		let code = self.build_code_block(/*self.locals.clone()*/)?;
 		Ok(IF_STATEMENT {
 			condition,
 			code,
@@ -1192,7 +1192,7 @@ impl ParserInfo {
 				match t.kind() {
 					ELSEIF => Some(Box::new(self.build_elseif_chain()?)),
 					ELSE => Some(Box::new(DO_BLOCK(
-						self.build_code_block(self.locals.clone())?,
+						self.build_code_block(/*self.locals.clone()*/)?,
 					))),
 					_ => {
 						self.current -= 1;
@@ -1242,13 +1242,13 @@ impl ParserInfo {
 				values: vec![expression![value]],
 			});
 		}
-		if let Some(locals) = &mut self.locals {
+		/*if let Some(locals) = &mut self.locals {
 			for r#enum in &enums {
 				if let VARIABLE { names, .. } = r#enum {
 					locals.insert(names[0].clone(), LuaType::NUMBER);
 				}
 			}
-		}
+		}*/
 		Ok(enums)
 	}
 
@@ -1257,15 +1257,15 @@ impl ParserInfo {
 		let t = self.assert_advance(IDENTIFIER, "<name>")?;
 		let name = expression![SYMBOL(t.lexeme())];
 		self.assert(ROUND_BRACKET_OPEN, "(")?;
-		let (args, types) = if !self.advance_if(ROUND_BRACKET_CLOSED) {
+		let /*(*/args/*, types)*/ = if !self.advance_if(ROUND_BRACKET_CLOSED) {
 			self.build_function_args()?
 		} else {
-			(FunctionArgs::new(), None)
+			/*(*/FunctionArgs::new()//, None)
 		};
-		let code = self.build_function_block(types)?;
-		if self.locals.is_some() {
+		let code = self.build_function_block(/*types*/)?;
+		/*if self.locals.is_some() {
 			self.add_variable(t.lexeme(), LuaType::NIL);
-		}
+		}*/
 		Ok(FUNCTION {
 			local,
 			name,
@@ -1273,7 +1273,7 @@ impl ParserInfo {
 			code,
 		})
 	}
-
+/*
 	fn add_variable(&mut self, name: String, luatype: LuaType) {
 		if let Some(locals) = &mut self.locals {
 			locals.insert(name, luatype);
@@ -1287,22 +1287,22 @@ impl ParserInfo {
 			Ok(LuaType::NIL)
 		}
 	}
-
-	fn build_variable(&mut self) -> Result<(String, LuaType), String> {
+*/
+	fn build_variable(&mut self) -> Result</*(*/String/*, LuaType)*/, String> {
 		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
-		if self.locals.is_some() {
+		/*if self.locals.is_some() {
 			let luatype = self.build_type()?;
 			self.add_variable(name.to_string(), luatype.clone());
 			Ok((name, luatype))
-		} else {
-			Ok((name, LuaType::ANY))
-		}
+		} else {*/
+			Ok(/*(*/name/*, LuaType::ANY)*/)
+		//}
 	}
 
 	fn build_variables(&mut self, local: bool, line: usize) -> Result<ComplexToken, String> {
 		let mut names: Vec<String> = Vec::new();
 		loop {
-			let (pname, _) = self.build_variable()?;
+			let /*(*/pname/* , _)*/ = self.build_variable()?;
 			names.push(pname);
 			if !self.compare(COMMA) {
 				self.advance_if(SEMICOLON);
@@ -1316,11 +1316,11 @@ impl ParserInfo {
 			if local {
 				Vec::new()
 			} else {
-				if let Some(_locals) = &self.locals {
+				/*if let Some(_locals) = &self.locals {
 					//println!("{:?}", locals);
 				} else {
 					self.warning("Defining external globals will not do anything if you don't have type checking enabled!", line)
-				}
+				}*/
 				self.current -= 1;
 				return Ok(SYMBOL(String::new()));
 			}
@@ -1344,7 +1344,7 @@ impl ParserInfo {
 	fn build_match_case(
 		&mut self,
 		pexpr: Option<Expression>,
-		func: &impl Fn(&mut ParserInfo, LocalsList) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo/*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<MatchCase, String> {
 		let mut conditions: Vec<Expression> = Vec::new();
 		let mut current = Expression::new();
@@ -1370,13 +1370,13 @@ impl ParserInfo {
 		if !current.is_empty() {
 			conditions.push(current);
 		}
-		Ok((conditions, extraif, func(self, self.locals.clone())?))
+		Ok((conditions, extraif, func(self/*, self.locals.clone()*/)?))
 	}
 
 	fn build_match_block(
 		&mut self,
 		name: String,
-		func: &impl Fn(&mut ParserInfo, LocalsList) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo/*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<ComplexToken, String> {
 		let line = self.peek(0).line();
 		let value = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
@@ -1391,7 +1391,7 @@ impl ParserInfo {
 								"The default case (with no extra if) of a match block must be the last case, not the first",
 								t.line()));
 						}
-						branches.push((Vec::new(), None, func(self, self.locals.clone())?));
+						branches.push((Vec::new(), None, func(self/*, self.locals.clone()*/)?));
 						self.assert(CURLY_BRACKET_CLOSED, "}")?;
 						false
 					}
@@ -1400,7 +1400,7 @@ impl ParserInfo {
 						branches.push((
 							Vec::new(),
 							Some(extraif),
-							func(self, self.locals.clone())?,
+							func(self/*, self.locals.clone()*/)?,
 						));
 						!self.advance_if(CURLY_BRACKET_CLOSED)
 					}
@@ -1495,12 +1495,12 @@ impl ParserInfo {
 			}
 			expr
 		};
-		let (args, types) = if !self.advance_if(ROUND_BRACKET_CLOSED) {
+		let /*(*/args/*, types)*/ = if !self.advance_if(ROUND_BRACKET_CLOSED) {
 			self.build_function_args()?
 		} else {
-			(FunctionArgs::new(), None)
+			/*(*/FunctionArgs::new()//, None)
 		};
-		let code = self.build_function_block(types)?;
+		let code = self.build_function_block(/*types*/)?;
 		//ADD FUNCTION FOR ADDING VALUES INSIDE TABLES MAYBE?
 		self.expr.push_back(FUNCTION {
 			local: false,
@@ -1566,7 +1566,7 @@ impl ParserInfo {
 
 	fn parse_token_curly_bracket_open(&mut self) -> Result<(), String> {
 		self.current -= 1;
-		let block = self.build_code_block(self.locals.clone())?;
+		let block = self.build_code_block(/*self.locals.clone()*/)?;
 		self.expr.push_back(DO_BLOCK(block));
 
 		Ok(())
@@ -1704,7 +1704,7 @@ impl ParserInfo {
 	}
 
 	fn parse_token_try(&mut self) -> Result<(), String> {
-		let totry = self.build_code_block(self.locals.clone())?;
+		let totry = self.build_code_block(/*self.locals.clone()*/)?;
 		let error: Option<String>;
 		let catch = if self.advance_if(CATCH) {
 			let t = self.advance();
@@ -1714,7 +1714,7 @@ impl ParserInfo {
 				error = None;
 				self.current -= 1;
 			}
-			Some(self.build_code_block(self.locals.clone())?)
+			Some(self.build_code_block(/*self.locals.clone()*/)?)
 		} else {
 			error = None;
 			None
@@ -1749,10 +1749,10 @@ impl ParserInfo {
 
 pub fn parse_tokens(
 	tokens: Vec<Token>,
-	locals: Option<HashMap<String, LuaType>>,
+	//locals: Option<HashMap<String, LuaType>>,
 	filename: String,
 ) -> Result<Expression, String> {
-	let mut i = ParserInfo::new(tokens, locals, filename);
+	let mut i = ParserInfo::new(tokens/*, locals*/, filename);
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {
