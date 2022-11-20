@@ -214,7 +214,7 @@ impl CodeInfo {
 	fn read_string(&mut self, strend: char) {
 		let mut aline = self.line;
 		while !self.ended() && self.peek(0) != strend {
-			if self.peek(0) == '\\'{
+			if self.peek(0) == '\\' {
 				self.current += 1;
 			} else if self.peek(0) == '\n' {
 				aline += 1
@@ -247,7 +247,7 @@ impl CodeInfo {
 			let literal: String = self.substr(self.start + 1, self.current - 1);
 			let mut brackets = String::new();
 			let mut must = literal.ends_with(']');
-			while must || literal.contains(&format!("]{}]", brackets)) {
+			while must || literal.contains(&format!("]{brackets}]")) {
 				brackets += "=";
 				must = false;
 			}
@@ -455,7 +455,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 					};
 					i.add_token(kind);
 				} else {
-					i.warning(format!("Unexpected character '{}'", c).as_str());
+					i.warning(format!("Unexpected character '{c}'").as_str());
 				}
 			}
 		}

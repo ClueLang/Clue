@@ -1,12 +1,17 @@
 use clap::Parser;
-use clue::env::{ContinueMode/*, LuaSTD, TypesMode*/};
-use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA/*, LUA_G*/};
+use clue::env::ContinueMode;
+use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA /*, LUA_G*/};
+use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
-use std::{
-	/*collections::HashMap, */ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path,
-	time::Instant,
-};
+use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
+
+macro_rules! println {
+    ($($rest:tt)*) => {
+        #[cfg(not(feature = "devtimer"))]
+        std::println!($($rest)*)
+    }
+}
 
 #[derive(Parser)]
 #[clap(about = "C/Rust like programming language that compiles into Lua code\nMade by Maiori\nhttps://github.com/ClueLang/Clue", version, long_about = None)]
@@ -69,26 +74,26 @@ struct Cli {
 	#[clap(short, long, value_name = "MODE")]
 	types: Option<String>,
 
-/*	/// Enable type checking (might slow down compilation)
-	#[clap(
-		short,
-		long,
-		value_enum,
-		default_value = "none",
-		value_name = "MODE"
-	)]
-	types: TypesMode,
+	/*	/// Enable type checking (might slow down compilation)
+		#[clap(
+			short,
+			long,
+			value_enum,
+			default_value = "none",
+			value_name = "MODE"
+		)]
+		types: TypesMode,
 
-	/// Use the given Lua version's standard library (--types required)
-	#[clap(
-		long,
-		value_enum,
-		default_value = "luajit",
-		value_name = "LUA VERSION",
-		requires = "types"
-	)]
-	std: LuaSTD,
-*/
+		/// Use the given Lua version's standard library (--types required)
+		#[clap(
+			long,
+			value_enum,
+			default_value = "luajit",
+			value_name = "LUA VERSION",
+			requires = "types"
+		)]
+		std: LuaSTD,
+	*/
 	#[cfg(feature = "mlua")]
 	/// Execute the output Lua code once it's compiled
 	#[clap(short, long)]
@@ -111,7 +116,7 @@ fn compile_code(code: String, name: String, scope: usize) -> Result<String, Stri
 	let ctokens = parse_tokens(
 		tokens,
 		/*if flag!(env_types) != TypesMode::NONE {
-			Some(HashMap::new())
+			Some(HashMap::default())
 		} else {
 			None
 		},*/
@@ -136,7 +141,7 @@ fn compile_file<P: AsRef<Path>>(path: P, name: String, scope: usize) -> Result<S
 where
 	P: AsRef<OsStr> + Display,
 {
-	let mut code: String = String::new();
+	let mut code: String = String::with_capacity(512);
 	check!(check!(File::open(path)).read_to_string(&mut code));
 	compile_code(code, name, scope)
 }
@@ -155,7 +160,7 @@ where
 			.unwrap()
 			.to_string_lossy()
 			.into_owned();
-		let filepath_name = format!("{}/{}", path, name);
+		let filepath_name = format!("{path}/{name}");
 		let filepath = Path::new(&filepath_name);
 
 		if filepath.is_dir() {
@@ -169,29 +174,42 @@ where
 	Ok(files)
 }
 
+#[cfg(not(feature = "devtimer"))]
 fn compile_folder<P: AsRef<Path>>(path: P, _rpath: String) -> Result<(), std::io::Error>
 where
 	P: AsRef<OsStr> + Display,
 {
 	let files = Arc::new(Mutex::new(check_for_files(path)?));
-	let threads_count = std::thread::available_parallelism()?.get();
-	let mut threads = vec![];
+	let threads_count = min(
+		std::thread::available_parallelism()?.get(),
+		files.lock().unwrap().len(),
+	);
+	let mut threads = Vec::with_capacity(threads_count);
 
 	for _ in 0..threads_count {
 		// this `.clone()` is used to create a new pointer to the outside `files`
 		// that can be used from inside the newly created thread
 		let files = files.clone();
 
-		let thread = spawn(move || {
-			while !files.lock().unwrap().is_empty() {
-				let filename = files.lock().unwrap().pop().unwrap();
+		let thread = spawn(move || loop {
+			let filename: String;
 
-				let code = compile_file(&filename, filename.clone(), 2).unwrap();
-				add_to_output(&format!(
-					"[\"{}\"] = function()\n{}\n\tend,\n\t",
-					filename, code
-				));
+			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
+			{
+				let mut files = files.lock().unwrap();
+
+				if files.is_empty() {
+					break;
+				}
+
+				filename = files.pop().unwrap();
 			}
+
+			let code = compile_file(&filename, filename.clone(), 2).unwrap();
+			add_to_output(&format!(
+				"[\"{}\"] = function()\n{}\n\tend,\n\t",
+				filename, code
+			));
 		});
 
 		threads.push(thread);
@@ -215,12 +233,14 @@ fn execute_lua_code(code: &str) {
 	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 }
 
+#[cfg(not(feature = "devtimer"))]
 fn main() -> Result<(), String> {
 	let cli = Cli::parse();
 	if cli.license {
 		println!(include_str!("../LICENSE"));
 		return Ok(());
-	} else if let Some(_) = cli.types { //TEMPORARY PLACEHOLDER UNTIL 4.0
+	} else if cli.types.is_some() {
+		//TEMPORARY PLACEHOLDER UNTIL 4.0
 		return Err(String::from("Type checking is not supported yet!"));
 	}
 	ENV_DATA.write().expect("Can't lock env_data").set_data(
@@ -235,12 +255,12 @@ fn main() -> Result<(), String> {
 		//cli.std,
 	);
 	if let Some(bit) = &flag!(env_jitbit) {
-		add_to_output(&format!("local {} = require(\"bit\");\n", bit));
+		add_to_output(&format!("local {bit} = require(\"bit\");\n"));
 	}
 	/*if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
-			LuaSTD::LUA54 => Some(HashMap::from([(String::from("print"), LuaType::NIL)])), //PLACEHOLDER
-			_ => Some(HashMap::new()),
+			LuaSTD::LUA54 => Some(HashMap::from_iter([(String::from("print"), LuaType::NIL)])), //PLACEHOLDER
+			_ => Some(HashMap::default()),
 		};
 	}*/
 	let codepath = cli.path.unwrap();
@@ -261,7 +281,7 @@ fn main() -> Result<(), String> {
 		let output = ENV_DATA
 			.read()
 			.expect("Can't lock env_data")
-			.ouput_code()
+			.output_code()
 			.to_string();
 		let (statics, output) = output.rsplit_once("--STATICS").unwrap();
 		ENV_DATA
@@ -283,23 +303,22 @@ fn main() -> Result<(), String> {
 					.replace('§', output),
 			});
 		if !cli.dontsave {
-			let outputname = &format!(
+			let output_name = &format!(
 				"{}.lua",
 				match cli.outputname.strip_suffix(".lua") {
-					Some(outputname) => outputname,
+					Some(output_name) => output_name,
 					None => &cli.outputname,
 				}
 			);
-			compiledname = if path.display().to_string().ends_with('/')
-				|| path.display().to_string().ends_with('\\')
-			{
-				format!("{}{}", path.display(), outputname)
+			let display = path.display().to_string();
+			compiledname = if display.ends_with('/') || display.ends_with('\\') {
+				format!("{display}{output_name}")
 			} else {
-				format!("{}/{}", path.display(), outputname)
+				format!("{display}/{output_name}")
 			};
 			check!(fs::write(
 				&compiledname,
-				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
+				ENV_DATA.read().expect("Can't lock env_data").output_code()
 			))
 		}
 	} else if path.is_file() {
@@ -314,7 +333,7 @@ fn main() -> Result<(), String> {
 				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
 			check!(fs::write(
 				compiledname,
-				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
+				ENV_DATA.read().expect("Can't lock env_data").output_code()
 			))
 		}
 	} else {
@@ -322,8 +341,8 @@ fn main() -> Result<(), String> {
 	}
 	let output = ENV_DATA.read().expect("Can't lock env_data");
 	if flag!(env_debug) {
-		let newoutput = format!(include_str!("debug.lua"), output.ouput_code());
-		check!(fs::write(compiledname, &newoutput));
+		let newoutput = format!(include_str!("debug.lua"), output.output_code());
+		check!(fs::write(compiledname, newoutput));
 		#[cfg(feature = "mlua")]
 		if cli.execute {
 			execute_lua_code(&newoutput)
@@ -337,17 +356,102 @@ fn main() -> Result<(), String> {
 	Ok(())
 }
 
+#[cfg(feature = "devtimer")]
+fn compile_multi_files_bench(files: Vec<String>) {
+	let files = Arc::new(Mutex::new(files));
+	let threads_count = min(
+		std::thread::available_parallelism()
+			.expect("Unexpected error happened when checking for how many parallelism is available")
+			.get(),
+		files.lock().unwrap().len(),
+	);
+	let mut threads = Vec::with_capacity(threads_count);
+
+	for _ in 0..threads_count {
+		// this `.clone()` is used to create a new pointer to the outside `files`
+		// that can be used from inside the newly created thread
+		let files = files.clone();
+
+		let thread = spawn(move || loop {
+			let file: String;
+
+			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
+			{
+				let mut files = files.lock().unwrap();
+
+				if files.is_empty() {
+					break;
+				}
+
+				file = files.pop().unwrap();
+			}
+
+			compile_code(file, String::new(), 2).unwrap();
+		});
+
+		threads.push(thread);
+	}
+
+	for thread in threads {
+		thread.join().unwrap();
+	}
+}
+
+#[cfg(feature = "devtimer")]
+fn run_benchmark(iters: usize, func: impl Fn()) -> Vec<u128> {
+	let mut timer = devtimer::SimpleTimer::new();
+	let mut results = Vec::with_capacity(iters);
+
+	for i in 0..iters {
+		std::println!("Running iter {} ...", i + 1);
+		timer.start();
+		func();
+		timer.stop();
+		results.push(timer.time_in_nanos().unwrap());
+	}
+
+	results.sort();
+
+	results
+}
+
+#[cfg(feature = "devtimer")]
+fn main() {
+	let files = check_for_files("examples/")
+		.expect("Unexpected error happened in checking for files to compile")
+		.iter()
+		.map(|file| fs::read_to_string(file).unwrap())
+		.collect::<Vec<String>>();
+
+	let bench_results = run_benchmark(10000, || compile_multi_files_bench(files.clone()));
+
+	let mut avg = 0;
+	let mut top_avg = 0;
+	let top_len = bench_results.len() as f64 * 0.01;
+
+	for (i, value) in bench_results.iter().enumerate() {
+		if (i as f64) <= top_len {
+			top_avg += value;
+		}
+		avg += value;
+	}
+
+	avg /= bench_results.len() as u128;
+	top_avg /= top_len as u128;
+
+	std::println!();
+	std::println!("Slowest: {} ns", bench_results.last().unwrap());
+	std::println!("Fastest: {} ns", bench_results.first().unwrap());
+	std::println!("Average: {} ns/iter", avg);
+	std::println!("Top 1% : {} ns/iter", top_avg);
+}
+
 #[cfg(test)]
 mod test {
 	use crate::compile_folder;
-	use std::time::Instant;
 
 	#[test]
 	fn compilation_success() {
-		let start = Instant::now();
-		compile_folder("examples", String::new()).unwrap();
-		let end = start.elapsed();
-
-		println!("Compilation time: {}ns", end.as_nanos());
+		compile_folder("examples/", String::new()).unwrap();
 	}
 }

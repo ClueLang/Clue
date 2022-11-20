@@ -5,11 +5,8 @@ use crate::env::ContinueMode;
 use crate::scanner::TokenType::*;
 use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
-use std::{
-	cmp,
-	collections::{HashMap, LinkedList},
-	//slice::Iter,
-};
+use hashbrown::HashMap;
+use std::{cmp, collections::LinkedList};
 
 macro_rules! expression {
 	($($x: expr),*) => {
@@ -183,7 +180,7 @@ struct ParserInfo {
 }
 
 impl ParserInfo {
-	fn new(tokens: Vec<Token>/*, locals: LocalsList*/, filename: String) -> ParserInfo {
+	fn new(tokens: Vec<Token> /*, locals: LocalsList*/, filename: String) -> ParserInfo {
 		ParserInfo {
 			current: 0,
 			size: tokens.len() - 1,
@@ -193,8 +190,8 @@ impl ParserInfo {
 			testing: None,
 			localid: 0,
 			statics: String::new(),
-			macros: HashMap::new(),
-			//locals,
+			macros: HashMap::default(),
+			// locals,
 		}
 	}
 
@@ -210,35 +207,35 @@ impl ParserInfo {
 		self.current = start;
 		(result, reached)
 	}
-/*
-	fn warning(&self, msg: impl Into<String>, line: usize) {
-		println!(
-			"Warning in file \"{}\" at line {}!\nWarning: \"{}\"",
-			self.filename,
-			line,
-			msg.into()
-		);
-	}
-*/
+	/*
+		fn warning(&self, msg: impl Into<String>, line: usize) {
+			println!(
+				"Warning in file \"{}\" at line {}!\nWarning: \"{}\"",
+				self.filename,
+				line,
+				msg.into()
+			);
+		}
+	*/
 	fn error(&mut self, msg: impl Into<String>, line: usize) -> String {
 		if let Some(0) = self.testing {
 			self.testing = Some(line);
 		} else {
-			println!("Error in file \"{}\" at line {}!", self.filename, line);
+			println!("Error in file \"{}\" at line {line}!", self.filename);
 		}
 		msg.into()
 	}
 
 	fn expected(&mut self, expected: &str, got: &str, line: usize) -> String {
-		self.error(format!("Expected '{}', got '{}'", expected, got), line)
+		self.error(format!("Expected '{expected}', got '{got}'"), line)
 	}
 
 	fn expected_before(&mut self, expected: &str, before: &str, line: usize) -> String {
-		self.error(format!("Expected '{}' before '{}'", expected, before), line)
+		self.error(format!("Expected '{expected}' before '{before}'"), line)
 	}
 
 	fn unexpected(&mut self, str: &str, line: usize) -> String {
-		self.error(format!("Unexpected token '{}'", str), line)
+		self.error(format!("Unexpected token '{str}'"), line)
 	}
 
 	fn ended(&self) -> bool {
@@ -326,20 +323,20 @@ impl ParserInfo {
 		}
 		Ok(())
 	}
-/*
-	fn assert_variable(&mut self, mut variable: Iter<ComplexToken>) -> Result<LuaType, String> {
-		let mut scope: &LocalsList = &self.locals;
-		let mut luatype = LuaType::NIL;
-		while let Some(locals) = scope {
-			if let Some(t) = variable.next() {
-				// TODO
-			} else {
-				break;
+	/*
+		fn assert_variable(&mut self, mut variable: Iter<ComplexToken>) -> Result<LuaType, String> {
+			let mut scope: &LocalsList = &self.locals;
+			let mut luatype = LuaType::NIL;
+			while let Some(locals) = scope {
+				if let Some(t) = variable.next() {
+					// TODO
+				} else {
+					break;
+				}
 			}
+			Ok(luatype)
 		}
-		Ok(luatype)
-	}
-*/
+	*/
 	fn build_call(&mut self) -> Result<Vec<Expression>, String> {
 		let args: Vec<Expression> = if self.advance_if(ROUND_BRACKET_CLOSED) {
 			Vec::new()
@@ -517,12 +514,15 @@ impl ParserInfo {
 		})
 	}
 
-	fn check_operator(&mut self, t: &BorrowedToken, notable: &mut bool, checkback: bool) -> Result<(), String> {
+	fn check_operator(
+		&mut self,
+		t: &BorrowedToken,
+		notable: &mut bool,
+		checkback: bool,
+	) -> Result<(), String> {
 		if match self.peek(0).kind() {
-			NUMBER
-			| IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
-			| FALSE | MINUS | BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT
-			| THREEDOTS | MATCH => false,
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS
+			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT | THREEDOTS | MATCH => false,
 			CURLY_BRACKET_OPEN => {
 				*notable = false;
 				false
@@ -538,16 +538,11 @@ impl ParserInfo {
 			&& !matches!(
 				self.look_back(1).kind(),
 				NUMBER
-					| IDENTIFIER
-					| STRING
-					| DOLLAR
-					| TRUE
-					| FALSE
-					| NIL
-					| ROUND_BRACKET_CLOSED
+					| IDENTIFIER | STRING
+					| DOLLAR | TRUE | FALSE
+					| NIL | ROUND_BRACKET_CLOSED
 					| SQUARE_BRACKET_CLOSED
-					| THREEDOTS
-					| CURLY_BRACKET_CLOSED
+					| THREEDOTS | CURLY_BRACKET_CLOSED
 			) {
 			return Err(self.error(
 				format!("Operator '{}' has invalid left hand token", t.lexeme()),
@@ -563,9 +558,9 @@ impl ParserInfo {
 		expr: &mut Expression,
 		fname: impl Into<String>,
 		end: OptionalEnd,
-		notable: &mut bool
+		notable: &mut bool,
 	) -> Result<(), String> {
-		self.check_operator(&t, notable, true)?;
+		self.check_operator(t, notable, true)?;
 		let mut arg1 = Expression::new();
 		arg1.append(expr);
 		let arg2 = self.build_expression(end)?;
@@ -581,11 +576,11 @@ impl ParserInfo {
 		expr: &mut Expression,
 		fname: &str,
 		end: OptionalEnd,
-		notable: &mut bool
+		notable: &mut bool,
 	) -> Result<(), String> {
-		self.check_operator(&t, notable, true)?;
+		self.check_operator(t, notable, true)?;
 		if let Some(bit) = flag!(env_jitbit) {
-			self.build_function_op(t, expr, format!("{}.{}", bit, fname), end, notable)?
+			self.build_function_op(t, expr, format!("{bit}.{fname}"), end, notable)?
 		} else {
 			expr.push_back(SYMBOL(t.lexeme()))
 		}
@@ -643,7 +638,7 @@ impl ParserInfo {
 						macroexpr.clone()
 					} else {
 						return Err(
-							self.error(format!("The macro {} is not defined", name), t.line())
+							self.error(format!("The macro {name} is not defined"), t.line())
 						);
 					};
 					let args = if self.advance_if(ROUND_BRACKET_OPEN) {
@@ -684,7 +679,9 @@ impl ParserInfo {
 						t.lexeme()
 					}))
 				}
-				FLOOR_DIVISION => self.build_function_op(&t, &mut expr, "math.floor", end, notable)?,
+				FLOOR_DIVISION => {
+					self.build_function_op(&t, &mut expr, "math.floor", end, notable)?
+				}
 				BIT_AND => self.build_bitwise_op(&t, &mut expr, "band", end, notable)?,
 				BIT_OR => self.build_bitwise_op(&t, &mut expr, "bor", end, notable)?,
 				BIT_XOR => self.build_bitwise_op(&t, &mut expr, "bxor", end, notable)?,
@@ -736,7 +733,7 @@ impl ParserInfo {
 					let name = format!("_match{}", self.localid);
 					let ident = SYMBOL(name.clone());
 					self.localid += 1;
-					let ctoken = self.build_match_block(name, &|i/*, _*/| {
+					let ctoken = self.build_match_block(name, &|i /*, _*/| {
 						let start = i.peek(0).line();
 						let expr = i.build_expression(None)?;
 						let end = i.look_back(1).line();
@@ -986,11 +983,14 @@ impl ParserInfo {
 			Ok(Expression::new())
 		} else {
 			tokens.push(self.tokens.last().unwrap().clone());
-			Ok(parse_tokens(tokens/*, locals*/, self.filename.clone())?)
+			Ok(parse_tokens(
+				tokens, /*, locals*/
+				self.filename.clone(),
+			)?)
 		}
 	}
 
-	fn build_code_block(&mut self/*, locals: LocalsList*/) -> Result<CodeBlock, String> {
+	fn build_code_block(&mut self /*, locals: LocalsList*/) -> Result<CodeBlock, String> {
 		let start = self.get_code_block_start()?;
 		let mut tokens: Vec<Token> = Vec::new();
 		let mut cscope = 1u8;
@@ -1011,14 +1011,15 @@ impl ParserInfo {
 			}
 			tokens.push(t.into_owned());
 		}
-		let code = self.parse_code_block(tokens/*, locals*/)?;
+		let code = self.parse_code_block(tokens /*, locals*/)?;
 		Ok(CodeBlock { start, code, end })
 	}
 
 	fn build_function_block(
 		&mut self,
 		//args: Option<Vec<(String, LuaType)>>,
-	) -> Result<CodeBlock, String> {/*
+	) -> Result<CodeBlock, String> {
+		/*
 		if let Some(args) = args {
 			self.build_code_block({
 				let mut locals = self.locals.clone().unwrap();
@@ -1028,7 +1029,7 @@ impl ParserInfo {
 				Some(locals)
 			})
 		} else {*/
-			self.build_code_block(/*self.locals.clone()*/)
+		self.build_code_block(/*self.locals.clone()*/)
 		//}
 	}
 
@@ -1068,7 +1069,7 @@ impl ParserInfo {
 			}
 			tokens.push(t.into_owned());
 		}
-		let mut code = self.parse_code_block(tokens/*, self.locals.clone()*/)?;
+		let mut code = self.parse_code_block(tokens /*, self.locals.clone()*/)?;
 		if hascontinue {
 			match flag!(env_continue) {
 				ContinueMode::SIMPLE => {}
@@ -1120,7 +1121,7 @@ impl ParserInfo {
 		Ok(idents)
 	}
 
-	fn build_function_args(&mut self) -> Result</*ArgsAndTypes*/FunctionArgs, String> {
+	fn build_function_args(&mut self) -> Result</*ArgsAndTypes*/ FunctionArgs, String> {
 		let mut args = FunctionArgs::new();
 		/*let mut types: Option<Vec<(String, LuaType)>> = if self.locals.is_some() {
 			Some(Vec::new())
@@ -1178,7 +1179,7 @@ impl ParserInfo {
 				_ => return Err(self.expected(")", &t.lexeme(), t.line())),
 			}
 		} {}
-		Ok(/*(args, types)*/args)
+		Ok(/*(args, types)*/ args)
 	}
 
 	fn build_elseif_chain(&mut self) -> Result<ComplexToken, String> {
@@ -1273,29 +1274,29 @@ impl ParserInfo {
 			code,
 		})
 	}
-/*
-	fn add_variable(&mut self, name: String, luatype: LuaType) {
-		if let Some(locals) = &mut self.locals {
-			locals.insert(name, luatype);
+	/*
+		fn add_variable(&mut self, name: String, luatype: LuaType) {
+			if let Some(locals) = &mut self.locals {
+				locals.insert(name, luatype);
+			}
 		}
-	}
 
-	fn build_type(&mut self) -> Result<LuaType, String> {
-		if self.advance_if(COLON) {
-			Ok(LuaType::ANY) //PLACEHOLDER
-		} else {
-			Ok(LuaType::NIL)
+		fn build_type(&mut self) -> Result<LuaType, String> {
+			if self.advance_if(COLON) {
+				Ok(LuaType::ANY) //PLACEHOLDER
+			} else {
+				Ok(LuaType::NIL)
+			}
 		}
-	}
-*/
-	fn build_variable(&mut self) -> Result</*(*/String/*, LuaType)*/, String> {
+	*/
+	fn build_variable(&mut self) -> Result</*(*/ String /*, LuaType)*/, String> {
 		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
 		/*if self.locals.is_some() {
 			let luatype = self.build_type()?;
 			self.add_variable(name.to_string(), luatype.clone());
 			Ok((name, luatype))
 		} else {*/
-			Ok(/*(*/name/*, LuaType::ANY)*/)
+		Ok(/*(*/ name /*, LuaType::ANY)*/)
 		//}
 	}
 
@@ -1344,7 +1345,7 @@ impl ParserInfo {
 	fn build_match_case(
 		&mut self,
 		pexpr: Option<Expression>,
-		func: &impl Fn(&mut ParserInfo/*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<MatchCase, String> {
 		let mut conditions: Vec<Expression> = Vec::new();
 		let mut current = Expression::new();
@@ -1370,13 +1371,13 @@ impl ParserInfo {
 		if !current.is_empty() {
 			conditions.push(current);
 		}
-		Ok((conditions, extraif, func(self/*, self.locals.clone()*/)?))
+		Ok((conditions, extraif, func(self /*, self.locals.clone()*/)?))
 	}
 
 	fn build_match_block(
 		&mut self,
 		name: String,
-		func: &impl Fn(&mut ParserInfo/*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<ComplexToken, String> {
 		let line = self.peek(0).line();
 		let value = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
@@ -1391,7 +1392,7 @@ impl ParserInfo {
 								"The default case (with no extra if) of a match block must be the last case, not the first",
 								t.line()));
 						}
-						branches.push((Vec::new(), None, func(self/*, self.locals.clone()*/)?));
+						branches.push((Vec::new(), None, func(self /*, self.locals.clone()*/)?));
 						self.assert(CURLY_BRACKET_CLOSED, "}")?;
 						false
 					}
@@ -1400,7 +1401,7 @@ impl ParserInfo {
 						branches.push((
 							Vec::new(),
 							Some(extraif),
-							func(self/*, self.locals.clone()*/)?,
+							func(self /*, self.locals.clone()*/)?,
 						));
 						!self.advance_if(CURLY_BRACKET_CLOSED)
 					}
@@ -1515,17 +1516,17 @@ impl ParserInfo {
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let testexpr = self.test(|i| i.build_name()).0;
 		if let Err(msg) = testexpr {
-			match msg.as_str() {
+			return match msg.as_str() {
 				"You can't call functions here"
 				| "Unexpected token '?.'"
 				| "Unexpected token '?['" => {
 					let expr = &mut self.build_expression(None)?;
 					self.expr.append(expr);
 					self.current -= 1;
-					return Ok(());
+					Ok(())
 				}
-				_ => return Err(self.error(msg, self.testing.unwrap())),
-			}
+				_ => Err(self.error(msg, self.testing.unwrap())),
+			};
 		}
 		self.current += 1;
 		let mut names: Vec<Expression> = Vec::new();
@@ -1752,7 +1753,7 @@ pub fn parse_tokens(
 	//locals: Option<HashMap<String, LuaType>>,
 	filename: String,
 ) -> Result<Expression, String> {
-	let mut i = ParserInfo::new(tokens/*, locals*/, filename);
+	let mut i = ParserInfo::new(tokens /*, locals*/, filename);
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {
@@ -1784,7 +1785,7 @@ pub fn parse_tokens(
 		let output = ENV_DATA
 			.write()
 			.expect("Can't lock env_data")
-			.ouput_code()
+			.output_code()
 			.to_string();
 		ENV_DATA
 			.write()

@@ -15,10 +15,16 @@ winres = "0.1"
 
 [dependencies]
 clap = {version = "3.2.23", features = ["derive"]}
-mlua = {version = "0.8.3", features = ["luajit", "vendored"], optional = true}
 lazy_static = "1.4.0"
+hashbrown = "0.13.1"
+devtimer = { version = "4.0.1", optional = true }
+rpmalloc = { version = "0.2.2", optional = true }
+mlua = {version = "0.8.3", features = ["luajit", "vendored"], optional = true}
 
 [features]
-default = ["mlua"]
+default = ["mlua", "rpmalloc"]
+bench = ["devtimer", "rpmalloc"]
 interpreter = ["mlua"]
-# rpmalloc will be added here
+
+[profile.release]
+lto = true

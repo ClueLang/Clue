@@ -7,6 +7,10 @@ use lazy_static::lazy_static;
 
 use crate::env::EnvData;
 
+#[cfg(feature = "rpmalloc")]
+#[global_allocator]
+static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
+
 pub mod compiler;
 pub mod env;
 pub mod parser;
@@ -25,4 +29,16 @@ macro_rules! check {
 			Err(e) => return Err(e.to_string()),
 		}
 	};
+}
+
+#[macro_export]
+macro_rules! format_clue {
+    ($($strings:expr),+) => {{
+        use std::ops::AddAssign;
+        let mut len_format_clue = 0;
+        $(len_format_clue.add_assign(AsRef::<str>::as_ref(&$strings).len());)+
+        let mut output_format_clue = String::with_capacity(len_format_clue);
+        $(output_format_clue.push_str($strings.as_ref());)+
+        output_format_clue
+    }};
 }
