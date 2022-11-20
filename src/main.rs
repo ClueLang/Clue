@@ -342,7 +342,7 @@ fn main() -> Result<(), String> {
 	let output = ENV_DATA.read().expect("Can't lock env_data");
 	if flag!(env_debug) {
 		let newoutput = format!(include_str!("debug.lua"), output.output_code());
-		check!(fs::write(compiledname, newoutput));
+		check!(fs::write(compiledname, &newoutput));
 		#[cfg(feature = "mlua")]
 		if cli.execute {
 			execute_lua_code(&newoutput)
@@ -350,7 +350,7 @@ fn main() -> Result<(), String> {
 	} else {
 		#[cfg(feature = "mlua")]
 		if cli.execute {
-			execute_lua_code(output.ouput_code())
+			execute_lua_code(output.output_code())
 		}
 	}
 	Ok(())
