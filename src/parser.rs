@@ -517,17 +517,18 @@ impl ParserInfo {
 		})
 	}
 
-	fn check_operator(&mut self, t: &BorrowedToken, checkback: bool) -> Result<(), String> {
-		if !matches!(
-			self.peek(0).kind(),
+	fn check_operator(&mut self, t: &BorrowedToken, notable: &mut bool, checkback: bool) -> Result<(), String> {
+		if match self.peek(0).kind() {
 			NUMBER
-				| IDENTIFIER | STRING
-				| DOLLAR | PROTECTED_GET
-				| TRUE | FALSE | MINUS
-				| BIT_NOT | NIL | NOT
-				| HASHTAG | ROUND_BRACKET_OPEN
-				| THREEDOTS | AT | MATCH
-		) {
+			| IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
+			| FALSE | MINUS | BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT
+			| THREEDOTS | MATCH => false,
+			CURLY_BRACKET_OPEN => {
+				*notable = false;
+				false
+			}
+			_ => true,
+		} {
 			return Err(self.error(
 				format!("Operator '{}' has invalid right hand token", t.lexeme()),
 				t.line(),
@@ -537,11 +538,16 @@ impl ParserInfo {
 			&& !matches!(
 				self.look_back(1).kind(),
 				NUMBER
-					| IDENTIFIER | STRING
-					| DOLLAR | TRUE | FALSE
-					| NIL | ROUND_BRACKET_CLOSED
+					| IDENTIFIER
+					| STRING
+					| DOLLAR
+					| TRUE
+					| FALSE
+					| NIL
+					| ROUND_BRACKET_CLOSED
 					| SQUARE_BRACKET_CLOSED
 					| THREEDOTS
+					| CURLY_BRACKET_CLOSED
 			) {
 			return Err(self.error(
 				format!("Operator '{}' has invalid left hand token", t.lexeme()),
@@ -557,8 +563,9 @@ impl ParserInfo {
 		expr: &mut Expression,
 		fname: impl Into<String>,
 		end: OptionalEnd,
+		notable: &mut bool
 	) -> Result<(), String> {
-		self.check_operator(t, true)?;
+		self.check_operator(&t, notable, true)?;
 		let mut arg1 = Expression::new();
 		arg1.append(expr);
 		let arg2 = self.build_expression(end)?;
@@ -574,10 +581,11 @@ impl ParserInfo {
 		expr: &mut Expression,
 		fname: &str,
 		end: OptionalEnd,
+		notable: &mut bool
 	) -> Result<(), String> {
-		self.check_operator(t, true)?;
+		self.check_operator(&t, notable, true)?;
 		if let Some(bit) = flag!(env_jitbit) {
-			self.build_function_op(t, expr, format!("{}.{}", bit, fname), end)?
+			self.build_function_op(t, expr, format!("{}.{}", bit, fname), end, notable)?
 		} else {
 			expr.push_back(SYMBOL(t.lexeme()))
 		}
@@ -615,6 +623,7 @@ impl ParserInfo {
 
 	fn build_expression(&mut self, end: OptionalEnd) -> Result<Expression, String> {
 		let mut expr = Expression::new();
+		let notable = &mut true;
 		let start = self.current;
 		let last = loop {
 			let t = self.advance();
@@ -652,34 +661,35 @@ impl ParserInfo {
 				}
 				CURLY_BRACKET_OPEN => {
 					if let Some((kind, ..)) = end {
-						if kind == CURLY_BRACKET_OPEN {
+						if kind == CURLY_BRACKET_OPEN && *notable {
 							break t;
 						}
 					}
 					expr.push_back(self.build_table()?);
+					*notable = true;
 					if self.check_val() {
 						break t;
 					}
 				}
 				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS | EQUAL | BIGGER
 				| BIGGER_EQUAL | SMALLER | SMALLER_EQUAL => {
-					self.check_operator(&t, true)?;
+					self.check_operator(&t, notable, true)?;
 					expr.push_back(SYMBOL(t.lexeme()))
 				}
 				MINUS => {
-					self.check_operator(&t, false)?;
+					self.check_operator(&t, notable, false)?;
 					expr.push_back(SYMBOL(if self.look_back(1).kind() == MINUS {
 						format!(" {}", t.lexeme())
 					} else {
 						t.lexeme()
 					}))
 				}
-				FLOOR_DIVISION => self.build_function_op(&t, &mut expr, "math.floor", end)?,
-				BIT_AND => self.build_bitwise_op(&t, &mut expr, "band", end)?,
-				BIT_OR => self.build_bitwise_op(&t, &mut expr, "bor", end)?,
-				BIT_XOR => self.build_bitwise_op(&t, &mut expr, "bxor", end)?,
+				FLOOR_DIVISION => self.build_function_op(&t, &mut expr, "math.floor", end, notable)?,
+				BIT_AND => self.build_bitwise_op(&t, &mut expr, "band", end, notable)?,
+				BIT_OR => self.build_bitwise_op(&t, &mut expr, "bor", end, notable)?,
+				BIT_XOR => self.build_bitwise_op(&t, &mut expr, "bxor", end, notable)?,
 				BIT_NOT => {
-					self.check_operator(&t, false)?;
+					self.check_operator(&t, notable, false)?;
 					if let Some(bit) = flag!(env_jitbit) {
 						let arg = self.build_expression(end)?;
 						expr.push_back(SYMBOL(bit.clone() + ".bnot"));
@@ -689,10 +699,10 @@ impl ParserInfo {
 						expr.push_back(SYMBOL(t.lexeme()))
 					}
 				}
-				LEFT_SHIFT => self.build_bitwise_op(&t, &mut expr, "lshift", end)?,
-				RIGHT_SHIFT => self.build_bitwise_op(&t, &mut expr, "rshift", end)?,
+				LEFT_SHIFT => self.build_bitwise_op(&t, &mut expr, "lshift", end, notable)?,
+				RIGHT_SHIFT => self.build_bitwise_op(&t, &mut expr, "rshift", end, notable)?,
 				NOT_EQUAL => {
-					self.check_operator(&t, true)?;
+					self.check_operator(&t, notable, true)?;
 					expr.push_back(SYMBOL(String::from("~=")))
 				}
 				HASHTAG => {
@@ -711,15 +721,15 @@ impl ParserInfo {
 					expr.push_back(PGET(self.build_identifier(true)?));
 				}*/
 				AND => {
-					self.check_operator(&t, true)?;
+					self.check_operator(&t, notable, true)?;
 					expr.push_back(SYMBOL(String::from(" and ")))
 				}
 				OR => {
-					self.check_operator(&t, true)?;
+					self.check_operator(&t, notable, true)?;
 					expr.push_back(SYMBOL(String::from(" or ")))
 				}
 				NOT => {
-					self.check_operator(&t, false)?;
+					self.check_operator(&t, notable, false)?;
 					expr.push_back(SYMBOL(String::from("not ")))
 				}
 				MATCH => {

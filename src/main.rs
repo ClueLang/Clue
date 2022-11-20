@@ -1,4 +1,5 @@
 use clap::Parser;
+use mlua::Lua;
 use clue::env::{ContinueMode, LuaSTD, TypesMode};
 use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA, LUA_G};
 use std::sync::{Arc, Mutex};
@@ -84,6 +85,10 @@ struct Cli {
 		requires = "types"
 	)]
 	std: LuaSTD,
+
+	/// Execute the output Lua code once it's compiled
+	#[clap(short, long)]
+	execute: bool,
 }
 
 fn add_to_output(string: &str) {
@@ -195,6 +200,16 @@ where
 	Ok(())
 }
 
+fn execute_lua_code(code: &str) {
+	println!("Running compiled code...");
+	let lua = Lua::new();
+	let time = Instant::now();
+	if let Err(error) = lua.load(code).exec() {
+		println!("{}", error);
+	}
+	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
+}
+
 fn main() -> Result<(), String> {
 	let cli = Cli::parse();
 	if cli.license {
@@ -294,14 +309,15 @@ fn main() -> Result<(), String> {
 	} else {
 		return Err(String::from("The given path doesn't exist"));
 	}
+	let output = ENV_DATA.read().expect("Can't lock env_data");
 	if flag!(env_debug) {
-		check!(fs::write(
-			compiledname,
-			format!(
-				include_str!("debug.lua"),
-				ENV_DATA.read().expect("Can't lock env_data").ouput_code()
-			)
-		))
+		let newoutput = format!(include_str!("debug.lua"), output.ouput_code());
+		check!(fs::write(compiledname, &newoutput));
+		if cli.execute {
+			execute_lua_code(&newoutput)
+		}
+	} else if cli.execute {
+		execute_lua_code(output.ouput_code())
 	}
 	Ok(())
 }
