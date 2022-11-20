@@ -1,6 +1,6 @@
 use clap::Parser;
-use clue::env::{ContinueMode, LuaSTD, TypesMode};
-use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA, LUA_G};
+use clue::env::{ContinueMode/*, LuaSTD, TypesMode*/};
+use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA/*, LUA_G*/};
 use hashbrown::HashMap;
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
@@ -71,9 +71,13 @@ struct Cli {
 	#[clap(short, long, value_name = "FILE NAME")]
 	base: Option<String>,
 
-	/// Enable type checking (might slow down compilation)
+	/// This is not yet supported (Coming out in 4.0)
+	#[clap(short, long, value_name = "MODE")]
+	types: Option<String>,
+
+/*	/// Enable type checking (might slow down compilation)
 	#[clap(
-		short = 'T',
+		short,
 		long,
 		value_enum,
 		default_value = "none",
@@ -90,6 +94,11 @@ struct Cli {
 		requires = "types"
 	)]
 	std: LuaSTD,
+*/
+	#[cfg(feature = "mlua")]
+	/// Execute the output Lua code once it's compiled
+	#[clap(short, long)]
+	execute: bool,
 }
 
 fn add_to_output(string: &str) {
@@ -107,11 +116,11 @@ fn compile_code(code: String, name: String, scope: usize) -> Result<String, Stri
 	}
 	let ctokens = parse_tokens(
 		tokens,
-		if flag!(env_types) != TypesMode::NONE {
+		/*if flag!(env_types) != TypesMode::NONE {
 			Some(HashMap::default())
 		} else {
 			None
-		},
+		},*/
 		name.clone(),
 	)?;
 	if flag!(env_struct) {
@@ -214,12 +223,25 @@ where
 	Ok(())
 }
 
+#[cfg(feature = "mlua")]
+fn execute_lua_code(code: &str) {
+	println!("Running compiled code...");
+	let lua = mlua::Lua::new();
+	let time = Instant::now();
+	if let Err(error) = lua.load(code).exec() {
+		println!("{}", error);
+	}
+	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
+}
+
 #[cfg(not(feature = "devtimer"))]
 fn main() -> Result<(), String> {
 	let cli = Cli::parse();
 	if cli.license {
 		println!(include_str!("../LICENSE"));
 		return Ok(());
+	} else if let Some(_) = cli.types { //TEMPORARY PLACEHOLDER UNTIL 4.0
+		return Err(String::from("Type checking is not supported yet!"));
 	}
 	ENV_DATA.write().expect("Can't lock env_data").set_data(
 		cli.tokens,
@@ -229,22 +251,26 @@ fn main() -> Result<(), String> {
 		cli.r#continue,
 		cli.rawsetglobals,
 		cli.debug,
-		cli.types,
-		cli.std,
+		//cli.types,
+		//cli.std,
 	);
 	if let Some(bit) = &flag!(env_jitbit) {
 		add_to_output(&format!("local {bit} = require(\"bit\");\n"));
 	}
-	if flag!(env_types) != TypesMode::NONE {
+	/*if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
 			LuaSTD::LUA54 => Some(HashMap::from_iter([(String::from("print"), LuaType::NIL)])), //PLACEHOLDER
 			_ => Some(HashMap::default()),
 		};
-	}
+	}*/
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
 		let code = compile_code(codepath, String::from("(command line)"), 0)?;
 		println!("{}", code);
+		#[cfg(feature = "mlua")]
+		if cli.execute {
+			execute_lua_code(&code)
+		}
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
@@ -313,14 +339,19 @@ fn main() -> Result<(), String> {
 	} else {
 		return Err(String::from("The given path doesn't exist"));
 	}
+	let output = ENV_DATA.read().expect("Can't lock env_data");
 	if flag!(env_debug) {
-		check!(fs::write(
-			compiledname,
-			format!(
-				include_str!("debug.lua"),
-				ENV_DATA.read().expect("Can't lock env_data").output_code()
-			)
-		))
+		let newoutput = format!(include_str!("debug.lua"), output.ouput_code());
+		check!(fs::write(compiledname, &newoutput));
+		#[cfg(feature = "mlua")]
+		if cli.execute {
+			execute_lua_code(&newoutput)
+		}
+	} else {
+		#[cfg(feature = "mlua")]
+		if cli.execute {
+			execute_lua_code(output.ouput_code())
+		}
 	}
 	Ok(())
 }

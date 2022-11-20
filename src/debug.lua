@@ -1,9 +1,16 @@
-local _clueline
+local _clueline, _error
+
+error = function(errmsg, n)
+    _error = "Error: " .. errmsg
+    error(errmsg, n)
+end
 
 xpcall(function()
 
 {}
 
 end, function(err)
-    error(err .. "\nEstimated Clue line: " .. _clueline)
+    _error = _error .. "\nEstimated Clue line: " .. _clueline
 end)
+
+print(_error or "Code completed without errors.")
