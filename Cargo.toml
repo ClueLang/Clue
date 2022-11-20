@@ -15,5 +15,8 @@ winres = "0.1"
 
 [dependencies]
 clap = {version = "3.2.23", features = ["derive"]}
-mlua = {version = "0.8.3", features = ["luajit", "vendored"]}
+mlua = {version = "0.8.3", features = ["luajit", "vendored"], optional = true}
 lazy_static = "1.4.0"
+
+[features]
+interpreter = ["mlua"]

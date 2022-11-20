@@ -1,5 +1,4 @@
 use clap::Parser;
-use mlua::Lua;
 use clue::env::{ContinueMode/*, LuaSTD, TypesMode*/};
 use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA/*, LUA_G*/};
 use std::sync::{Arc, Mutex};
@@ -90,6 +89,7 @@ struct Cli {
 	)]
 	std: LuaSTD,
 */
+	#[cfg(feature = "mlua")]
 	/// Execute the output Lua code once it's compiled
 	#[clap(short, long)]
 	execute: bool,
@@ -204,9 +204,10 @@ where
 	Ok(())
 }
 
+#[cfg(feature = "mlua")]
 fn execute_lua_code(code: &str) {
 	println!("Running compiled code...");
-	let lua = Lua::new();
+	let lua = mlua::Lua::new();
 	let time = Instant::now();
 	if let Err(error) = lua.load(code).exec() {
 		println!("{}", error);
@@ -246,6 +247,10 @@ fn main() -> Result<(), String> {
 	if cli.pathiscode {
 		let code = compile_code(codepath, String::from("(command line)"), 0)?;
 		println!("{}", code);
+		#[cfg(feature = "mlua")]
+		if cli.execute {
+			execute_lua_code(&code)
+		}
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
@@ -319,11 +324,15 @@ fn main() -> Result<(), String> {
 	if flag!(env_debug) {
 		let newoutput = format!(include_str!("debug.lua"), output.ouput_code());
 		check!(fs::write(compiledname, &newoutput));
+		#[cfg(feature = "mlua")]
 		if cli.execute {
 			execute_lua_code(&newoutput)
 		}
-	} else if cli.execute {
-		execute_lua_code(output.ouput_code())
+	} else {
+		#[cfg(feature = "mlua")]
+		if cli.execute {
+			execute_lua_code(output.ouput_code())
+		}
 	}
 	Ok(())
 }
