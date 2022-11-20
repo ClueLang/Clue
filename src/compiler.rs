@@ -10,7 +10,7 @@ use crate::{
 };
 
 fn indentate(scope: usize) -> String {
-	let mut result = String::with_capacity(512);
+	let mut result = String::with_capacity(128);
 	for _ in 0..scope {
 		result += "\t";
 	}

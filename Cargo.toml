@@ -18,6 +18,10 @@ clap = { version = "4.0.18", features = ["derive"] }
 lazy_static = "1.4.0"
 hashbrown = "0.13.1"
 devtimer = { version = "4.0.1", optional = true }
+rpmalloc = { version = "0.2.2", optional = true }
+
+[features]
+bench = ["devtimer", "rpmalloc"]
 
 [profile.release]
 lto = true
