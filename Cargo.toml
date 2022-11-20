@@ -14,6 +14,6 @@ categories = ["compilers"]
 winres = "0.1"
 
 [dependencies]
-clap = {version = "4.0.18", features = ["derive"]}
+clap = {version = "3.2.23", features = ["derive"]}
 mlua = {version = "0.8.3", features = ["luajit", "vendored"]}
 lazy_static = "1.4.0"
