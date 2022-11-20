@@ -22,6 +22,7 @@ rpmalloc = { version = "0.2.2", optional = true }
 mlua = {version = "0.8.3", features = ["luajit", "vendored"], optional = true}
 
 [features]
+default = ["mlua", "rpmalloc"]
 bench = ["devtimer", "rpmalloc"]
 interpreter = ["mlua"]
 

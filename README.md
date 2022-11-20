@@ -40,12 +40,11 @@ More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki),
 1. Paste and run this command in the console: `cargo install clue`
 2. Type `clue` in the console to run the compiler, it will explain the rest
 
-Clue supports extra features that have to be enabled manually if desired:
-* `interpreter`: adds the `--execute` flag to let Clue run the generated output
+Clue supports extra features that can be toggled when installing:
+* `interpreter`: adds the `--execute` flag to let Clue run the generated output using [mlua](https://github.com/khvzak/mlua)
 * `rpmalloc`: uses [rpmalloc](https://github.com/EmbarkStudios/rpmalloc-rs) to improve performance, not available on all platforms
 
-To add these features, simply add `--features` and list the ones you want  
-Example: `cargo install clue --features interpreter`
+By default Clue enables both features.
 
 ### Manual insallation
 1. Download the latest release and save it somewhere
