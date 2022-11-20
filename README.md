@@ -41,8 +41,8 @@ More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki),
 2. Type `clue` in the console to run the compiler, it will explain the rest
 
 Clue supports extra features that have to be enabled manually if desired:
-* interpreter: adds the `--execute` flag to let Clue run the generated output
-* rpmalloc: uses [rpmalloc](https://github.com/EmbarkStudios/rpmalloc-rs) to improve performance, not available on all platoforms
+* `interpreter`: adds the `--execute` flag to let Clue run the generated output
+* `rpmalloc`: uses [rpmalloc](https://github.com/EmbarkStudios/rpmalloc-rs) to improve performance, not available on all platforms
 
 To add these features, simply add `--features` and list the ones you want  
 Example: `cargo install clue --features interpreter`
