@@ -441,10 +441,10 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						"catch" => CATCH,
 						"match" => MATCH,
 						"default" => DEFAULT,
-						"macro" => MACRO,
-						"constructor" => {i.warning("The struct constructor is reserved for Clue 3.X and cannot be used."); CONSTRUCTOR},
-						"struct" => {i.warning("The struct keyword is reserved for Clue 3.X and cannot be used."); STRUCT},
-						"extern" => {i.warning("The extern keyword is reserved for Clue 3.0 and cannot be used."); EXTERN},
+						"macro" => {println!("Note: the macro keyword will be replaced by @define in 3.0!"); MACRO},
+						"constructor" => {i.warning("The struct constructor is reserved for Clue 4.0 and cannot be used."); CONSTRUCTOR},
+						"struct" => {i.warning("The struct keyword is reserved for Clue 4.0 and cannot be used."); STRUCT},
+						"extern" => {i.warning("The extern keyword is reserved for Clue 4.0 and cannot be used."); EXTERN},
 						_ => IDENTIFIER
 					};
 					i.addToken(kind);

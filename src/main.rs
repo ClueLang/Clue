@@ -165,11 +165,13 @@ fn CompileFolder(path: &Path, rpath: String) -> Result<(), String> {
 }
 
 fn ExecuteLuaCode(code: &String) -> Result<(), String> {
-	println!("Executing compiled code...");
-	let time = Instant::now();
+	println!("Running compiled code...");
 	let lua = Lua::new();
-	check!(lua.load(code).exec());
-	println!("Execution completed in {} seconds!", time.elapsed().as_secs_f32());
+	let time = Instant::now();
+	if let Err(error) = lua.load(code).exec() {
+		println!("{}", error);
+	}
+	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 	Ok(())
 }
 
