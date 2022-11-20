@@ -1,6 +1,6 @@
 use clap::Parser;
 use clue::env::ContinueMode;
-use clue::{check, compiler::*, flag, parser::*, scanner::*, ENV_DATA /*, LUA_G*/};
+use clue::{check, preprocessor::*, compiler::*, flag, parser::*, scanner::*, ENV_DATA /*, LUA_G*/};
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
@@ -107,8 +107,11 @@ fn add_to_output(string: &str) {
 		.add_output_code(String::from(string));
 }
 
-fn compile_code(code: String, name: String, scope: usize) -> Result<String, String> {
+fn compile_code(mut code: String, name: String, scope: usize) -> Result<String, String> {
 	let time = Instant::now();
+	if code.contains('@') || code.contains('$') {
+		code = preprocess_code(code, &name)?.iter().collect();
+	}
 	let tokens: Vec<Token> = scan_code(code, name.clone())?;
 	if flag!(env_tokens) {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);

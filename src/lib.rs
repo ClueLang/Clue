@@ -11,6 +11,7 @@ use crate::env::EnvData;
 #[global_allocator]
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
+pub mod preprocessor;
 pub mod compiler;
 pub mod env;
 pub mod parser;
