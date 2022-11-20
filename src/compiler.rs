@@ -289,7 +289,7 @@ fn compile_elseif_chain(
 	} else {
 		String::new()
 	};
-	format!("if {condition} {code}{next}")
+	format_clue!("if ", condition, " ", code, next)
 }
 
 pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
@@ -384,11 +384,12 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				let names = compile_identifiers(names);
 				let debug = compile_debug_line(line, scope);
 				let line = compile_debug_comment(line);
-				format!(
-					"{}{} = {};{}{}",
+				format_clue!(
 					debug,
 					names,
+					" = ",
 					values,
+					";",
 					line,
 					indentate_if(ctokens, scope)
 				)
@@ -403,7 +404,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				let end = indentate_if(ctokens, scope);
 				let name = compile_expression(scope, None, name);
 				let (code, args) = compile_function(scope, None, args, code);
-				format!("{pre}function {name}({args}){code}end{end}")
+				format_clue!(pre, "function ", name, "(", args, ")", code, "end", end)
 			}
 			IF_STATEMENT {
 				condition,
@@ -411,7 +412,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				next,
 			} => {
 				let code = compile_elseif_chain(scope, condition, code, next);
-				format!("{code}end{}", indentate_if(ctokens, scope))
+				format_clue!(code, "end", indentate_if(ctokens, scope))
 			}
 			MATCH_BLOCK {
 				name,
@@ -432,7 +433,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 						let condition = {
 							let mut condition = compile_list(conditions, "or ", &mut |expr| {
 								let expr = compile_expression(scope, None, expr);
-								format!("({name} == {expr}) ")
+								format_clue!("(", name, " == ", expr, ") ")
 							});
 							if let Some(extraif) = extraif {
 								condition.pop();
@@ -440,7 +441,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 								if empty {
 									extraif + " "
 								} else {
-									format!("({condition}) and {extraif} ")
+									format_clue!("(", condition, ") and ", extraif, " ")
 								}
 							} else {
 								condition
@@ -463,24 +464,27 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					result
 				};
 				let end = indentate_if(ctokens, scope);
-				format!("{debug}local {name} = {value};{line}\n{branches}{end}")
+				format_clue!(debug, "local ", name, " = ", value, ";", line, "\n", branches, end)
 			}
 			WHILE_LOOP { condition, code } => {
 				let condition = compile_expression(scope, None, condition);
 				let code = compile_code_block(scope, "do", code);
-				format!(
-					"while {} {}end{}",
+				format_clue!(
+					"while ",
 					condition,
+					" ",
 					code,
+					"end",
 					indentate_if(ctokens, scope)
 				)
 			}
 			LOOP_UNTIL { condition, code } => {
 				let condition = compile_expression(scope, None, condition);
 				let code = compile_code_block(scope, "", code);
-				format!(
-					"repeat {}until {}{}",
+				format_clue!(
+					"repeat ",
 					code,
+					"until ",
 					condition,
 					indentate_if(ctokens, scope)
 				)
@@ -497,9 +501,9 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				let alter = compile_expression(scope, None, alter);
 				let code = compile_code_block(scope, "do", code);
 				let end = indentate_if(ctokens, scope);
-				format!(
-					"for {} = {}, {}, {} {}end{}",
-					iterator, start, endexpr, alter, code, end
+				format_clue!(
+					"for ", iterator, " = ", start, ", ", endexpr, ", ", alter, " ", code, "end",
+					end
 				)
 			}
 			FOR_FUNC_LOOP {
@@ -510,11 +514,14 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				let expr = compile_expression(scope, Some(&iterators), expr);
 				let iterators = compile_identifiers(iterators);
 				let code = compile_code_block(scope, "do", code);
-				format!(
-					"for {} in {} {}end{}",
+				format_clue!(
+					"for ",
 					iterators,
+					" in ",
 					expr,
+					" ",
 					code,
+					"end",
 					indentate_if(ctokens, scope)
 				)
 			}
@@ -529,25 +536,37 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					let catch = compile_code_block(scope, "if not _check then", catch);
 					let i2 = indentate(scope);
 					if let Some(error) = error {
-						format!(
-							"local _check, {} = pcall({}end)\n{}{}end{}",
-							error, totry, i2, catch, i
+						format_clue!(
+							"local _check, ",
+							error,
+							" = pcall(",
+							totry,
+							"end)\n",
+							i2,
+							catch,
+							"end",
+							i
 						)
 					} else {
-						format!(
-							"local _check = pcall({}end)\n{}{}end{}",
-							totry, i2, catch, i
+						format_clue!(
+							"local _check = pcall(",
+							totry,
+							"end)\n",
+							i2,
+							catch,
+							"end",
+							i
 						)
 					}
 				} else {
-					format!("pcall({totry}end){i}")
+					format_clue!("pcall(", totry, "end)", i)
 				}
 			}
 			IDENT { expr, line } => {
 				let expr = compile_identifier(scope, None, expr);
 				let debug = compile_debug_line(line, scope);
 				let line = compile_debug_comment(line);
-				format!("{debug}{expr};{line}{}", indentate_if(ctokens, scope))
+				format_clue!(debug, expr, ";", line, indentate_if(ctokens, scope))
 			}
 			/*CALL(args) => {
 				format!("({}){}", compile_expressions(scope, None, args), indentate_if(ctokens, scope))
