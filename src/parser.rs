@@ -2,9 +2,9 @@
 
 use self::ComplexToken::*;
 use crate::env::ContinueMode;
+use crate::scanner::{TokenType, Token};
 use crate::scanner::TokenType::*;
-use crate::scanner::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
-use crate::{check, compiler::compile_tokens, flag, scanner::Token, scanner::TokenType, ENV_DATA};
+use crate::{format_clue, check, compiler::compile_tokens, flag, ENV_DATA};
 use hashbrown::HashMap;
 use std::{cmp, collections::LinkedList};
 
@@ -227,15 +227,15 @@ impl ParserInfo {
 	}
 
 	fn expected(&mut self, expected: &str, got: &str, line: usize) -> String {
-		self.error(format!("Expected '{expected}', got '{got}'"), line)
+		self.error(format_clue!("Expected '", expected, "', got '", got, "'"), line)
 	}
 
 	fn expected_before(&mut self, expected: &str, before: &str, line: usize) -> String {
-		self.error(format!("Expected '{expected}' before '{before}'"), line)
+		self.error(format_clue!("Expected '", expected, "' before '", before, "'"), line)
 	}
 
 	fn unexpected(&mut self, str: &str, line: usize) -> String {
-		self.error(format!("Unexpected token '{str}'"), line)
+		self.error(format_clue!("Unexpected token '", str, "'"), line)
 	}
 
 	fn ended(&self) -> bool {
