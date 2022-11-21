@@ -4,6 +4,11 @@ use crate::format_clue;
 
 pub type LinkedString = std::collections::LinkedList<char>;
 
+fn error(msg: String, line: usize, filename: &String) -> String {
+	println!("Error in file \"{filename}\" at line {line}!");
+	msg
+}
+
 fn read_word(chars: &mut Peekable<Chars>) -> String {
 	let mut word = String::new();
 	while {
@@ -29,7 +34,10 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 			'@' => {
 				let directive = read_word(chars);
 				match directive {
-					_ => return Err(format_clue!("Unknown directive '", directive, "'"))
+					_ => return Err(error(
+						format_clue!("Unknown directive '", directive, "'"),
+						line, filename
+					))
 				}
 			},
 			_ => continue,
