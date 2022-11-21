@@ -183,10 +183,7 @@ where
 	P: AsRef<OsStr> + Display,
 {
 	let files = Arc::new(Mutex::new(check_for_files(path)?));
-	let threads_count = min(
-		std::thread::available_parallelism()?.get(),
-		files.lock().unwrap().len(),
-	);
+	let threads_count = min(files.lock().unwrap().len(), num_cpus::get() * 2);
 	let mut threads = Vec::with_capacity(threads_count);
 
 	for _ in 0..threads_count {
@@ -361,13 +358,8 @@ fn main() -> Result<(), String> {
 
 #[cfg(feature = "devtimer")]
 fn compile_multi_files_bench(files: Vec<String>) {
+	let threads_count = min(files.len(), num_cpus::get() * 2);
 	let files = Arc::new(Mutex::new(files));
-	let threads_count = min(
-		std::thread::available_parallelism()
-			.expect("Unexpected error happened when checking for how many parallelism is available")
-			.get(),
-		files.lock().unwrap().len(),
-	);
 	let mut threads = Vec::with_capacity(threads_count);
 
 	for _ in 0..threads_count {
