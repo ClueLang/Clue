@@ -196,7 +196,11 @@ fn main() -> Result<(), String> {
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
 		let code = CompileCode(codepath.clone(), String::from("(command line)"), 0)?;
-		println!("{}", code);
+        if cli.execute{
+            ExecuteLuaCode(&code)?
+        }else{
+		    println!("{}", code);
+        }
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
