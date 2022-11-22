@@ -1,6 +1,6 @@
 use clap::Parser;
 use clue::env::ContinueMode;
-use clue::{check, preprocessor::*, compiler::*, flag, parser::*, scanner::*, ENV_DATA /*, LUA_G*/};
+use clue::{check, format_clue, preprocessor::*, compiler::*, flag, parser::*, scanner::*, ENV_DATA /*, LUA_G*/};
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
@@ -149,12 +149,11 @@ where
 	compile_code(code, name, scope)
 }
 
-fn check_for_files<P: AsRef<Path>>(path: P) -> Result<Vec<String>, std::io::Error>
+fn check_for_files<P: AsRef<Path>>(path: P, rpath: String) -> Result<Vec<(String, String)>, std::io::Error>
 where
 	P: AsRef<OsStr> + Display,
 {
 	let mut files = vec![];
-
 	for entry in fs::read_dir(&path)? {
 		let entry = entry?;
 		let name = entry
@@ -165,60 +164,52 @@ where
 			.into_owned();
 		let filepath_name = format!("{path}/{name}");
 		let filepath = Path::new(&filepath_name);
-
+		let realname = rpath.clone() + &name;
 		if filepath.is_dir() {
-			let mut inside_files = check_for_files(filepath_name)?;
+			let mut inside_files = check_for_files(filepath_name, realname + ".")?;
 			files.append(&mut inside_files);
 		} else if filepath_name.ends_with(".clue") {
-			files.push(filepath_name);
+			files.push((filepath_name, realname));
 		}
 	}
-
 	Ok(files)
 }
 
 #[cfg(not(feature = "devtimer"))]
-fn compile_folder<P: AsRef<Path>>(path: P, _rpath: String) -> Result<(), std::io::Error>
+fn compile_folder<P: AsRef<Path>>(path: P, rpath: String) -> Result<(), std::io::Error>
 where
 	P: AsRef<OsStr> + Display,
 {
-	let files = Arc::new(Mutex::new(check_for_files(path)?));
+	let files = Arc::new(Mutex::new(check_for_files(path, rpath)?));
 	let threads_count = min(files.lock().unwrap().len(), num_cpus::get() * 2);
 	let mut threads = Vec::with_capacity(threads_count);
-
 	for _ in 0..threads_count {
 		// this `.clone()` is used to create a new pointer to the outside `files`
 		// that can be used from inside the newly created thread
 		let files = files.clone();
-
 		let thread = spawn(move || loop {
-			let filename: String;
-
 			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
-			{
+			let (filename, realname) = {
 				let mut files = files.lock().unwrap();
-
 				if files.is_empty() {
 					break;
 				}
-
-				filename = files.pop().unwrap();
-			}
-
+				files.pop().unwrap()
+			};
 			let code = compile_file(&filename, filename.clone(), 2).unwrap();
-			add_to_output(&format!(
-				"[\"{}\"] = function()\n{}\n\tend,\n\t",
-				filename, code
+			add_to_output(&format_clue!(
+				"\t[\"",
+				realname.strip_suffix(".clue").unwrap(),
+				"\"] = function()\n",
+				code,
+				"\n\tend,\n"
 			));
 		});
-
 		threads.push(thread);
 	}
-
 	for thread in threads {
 		thread.join().unwrap();
 	}
-
 	Ok(())
 }
 
