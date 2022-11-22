@@ -141,7 +141,31 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 					))
 				}
 			},
-			_ => continue,
+			'/' => {
+				if let Some(nextc) = chars.peek() {
+					match *nextc {
+						'/' => {
+							code.pop_back();
+							chars.next();
+							skip_whitespace(chars);
+						},
+						'*' => {
+							code.pop_back();
+							chars.next();
+							while {
+								let word = assert_word(chars, line, filename);
+								word.is_err() || !word.unwrap().ends_with("*/")
+							} {
+								if let None = chars.peek() {
+									return Err(error("Unterminated string", line, filename))
+								}
+							}
+						}
+						_ => {}
+					}
+				}
+			}
+			_ => {},
 		}
 	}
 	Ok(code)
