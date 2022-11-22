@@ -72,14 +72,29 @@ fn assert_word(chars: &mut Peekable<Chars>, line: usize, filename: &String) -> R
 }
 
 fn read_block(
-	mut chars: &mut Peekable<Chars>,
+	chars: &mut Peekable<Chars>,
 	mut line: usize,
 	filename: &String
-) -> Result<(), String> {
+) -> Result<String, String> {
 	reach(chars, '{', line, filename)?;
-	let partiions: (LinkedString, LinkedString) = chars.partition(|c| {true});
-	chars = &mut partiions.0.into_iter().peekable();
-	Ok(())
+	let mut block = String::new();
+	let mut cscope = 1u8;
+	while let Some(c) = chars.next() {
+		block.push(c);
+		match c {
+			'\n' => line += 1,
+			'{' => cscope += 1,
+			'}' => {
+				cscope -= 1;
+				if cscope == 0 {
+					block.pop();
+					return Ok(block)
+				}
+			}
+			_ => {}
+		}
+	}
+	Err(expected_before("}", "<end>", line, filename))
 }
 
 pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedString, String> {
@@ -91,11 +106,15 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 		match c {
 			'\n' => line += 1,
 			'@' => {
+				code.pop_back();
 				let directive = read_word(chars);
 				match directive.as_str() {
 					"ifdef" => {
 						let var = assert_word(chars, line, filename)?;
-
+						let block = read_block(chars, line, filename)?;
+						if env::var(var).is_ok() {
+							code.append(&mut preprocess_code(block, filename)?);
+						}
 					}
 					"" => return Err(error("Expected directive name", line, filename)),
 					_ => return Err(error(
