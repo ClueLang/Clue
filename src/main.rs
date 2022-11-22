@@ -176,11 +176,11 @@ where
 }
 
 #[cfg(not(feature = "devtimer"))]
-fn compile_folder<P: AsRef<Path>>(path: P, rpath: String) -> Result<(), std::io::Error>
+fn compile_folder<P: AsRef<Path>>(path: P, rpath: String) -> Result<(), String>
 where
 	P: AsRef<OsStr> + Display,
 {
-	let files = Arc::new(Mutex::new(check_for_files(path, rpath)?));
+	let files = Arc::new(Mutex::new(check!(check_for_files(path, rpath))));
 	let threads_count = min(files.lock().unwrap().len(), num_cpus::get() * 2);
 	let mut threads = Vec::with_capacity(threads_count);
 	for _ in 0..threads_count {
@@ -196,7 +196,13 @@ where
 				}
 				files.pop().unwrap()
 			};
-			let code = compile_file(&filename, filename.clone(), 2).unwrap();
+			let code = match compile_file(&filename, filename.clone(), 2) {
+				Ok(t) => t,
+				Err(e) => {
+					println!("Error: {}", e);
+					format_clue!("\t\terror(\"Compilation errored for this file!\\nError: ", e, "\")")
+				}
+			};
 			add_to_output(&format_clue!(
 				"\t[\"",
 				realname.strip_suffix(".clue").unwrap(),
