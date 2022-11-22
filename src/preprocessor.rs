@@ -125,6 +125,10 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 				code.pop_back();
 				let directive = read_word(chars);
 				prev = match directive.as_str() {
+					"ifos" => {
+						let target_os = assert_word(chars, line, filename)?.to_ascii_lowercase();
+						keep_block(chars, &mut code, env::consts::OS == target_os, line, filename)?
+					}
 					"ifdef" => {
 						let var = assert_word(chars, line, filename)?;
 						keep_block(chars, &mut code, env::var(var).is_ok(), line, filename)?
