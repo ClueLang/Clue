@@ -3,6 +3,7 @@ use std::{iter::Peekable, str, str::Chars, env};
 use crate::format_clue;
 
 pub type LinkedString = std::collections::LinkedList<char>;
+type CodeChars<'a, 'b> = &'a mut Peekable<Chars<'b>>;
 
 fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
 	println!("Error in file \"{filename}\" at line {line}!");
@@ -17,7 +18,7 @@ fn expected_before(expected: &str, before: &str, line: usize, filename: &String)
 	error(format_clue!("Expected '", expected, "' before '", before, "'"), line, filename)
 }
 
-fn skip_whitespace(chars: &mut Peekable<Chars>) {
+fn skip_whitespace(chars: CodeChars) {
 	while {
 		if let Some(c) = chars.peek() {
 			c.is_whitespace()
@@ -30,7 +31,7 @@ fn skip_whitespace(chars: &mut Peekable<Chars>) {
 }
 
 fn reach(
-	chars: &mut Peekable<Chars>,
+	chars: CodeChars,
 	end: char,
 	line: usize,
 	filename: &String
@@ -47,7 +48,7 @@ fn reach(
 	}
 }
 
-fn read_word(chars: &mut Peekable<Chars>) -> String {
+fn read_word(chars: CodeChars) -> String {
 	let mut word = String::new();
 	while {
 		if let Some(c) = chars.peek() {
@@ -61,7 +62,7 @@ fn read_word(chars: &mut Peekable<Chars>) -> String {
 	word
 }
 
-fn assert_word(chars: &mut Peekable<Chars>, line: usize, filename: &String) -> Result<String, String> {
+fn assert_word(chars: CodeChars, line: usize, filename: &String) -> Result<String, String> {
 	skip_whitespace(chars);
 	let word = read_word(chars);
 	if word.is_empty() {
@@ -72,7 +73,7 @@ fn assert_word(chars: &mut Peekable<Chars>, line: usize, filename: &String) -> R
 }
 
 fn read_block(
-	chars: &mut Peekable<Chars>,
+	chars: CodeChars,
 	mut line: usize,
 	filename: &String
 ) -> Result<String, String> {
