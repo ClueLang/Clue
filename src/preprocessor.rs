@@ -98,9 +98,24 @@ fn read_block(
 	Err(expected_before("}", "<end>", line, filename))
 }
 
+fn keep_block(
+	chars: CodeChars,
+	code: &mut LinkedString,
+	cond: bool,
+	line: usize,
+	filename: &String
+) -> Result<bool, String> {
+	let block = read_block(chars, line, filename)?;
+	if cond {
+		code.append(&mut preprocess_code(block, filename)?);
+	}
+	Ok(cond)
+}
+
 pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedString, String> {
 	let mut code = LinkedString::new();
 	let mut line = 1usize;
+	let mut prev = false;
 	let chars = &mut rawcode.chars().peekable();
 	while let Some(c) = chars.next() {
 		code.push_back(c);
@@ -109,14 +124,13 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 			'@' => {
 				code.pop_back();
 				let directive = read_word(chars);
-				match directive.as_str() {
+				prev = match directive.as_str() {
 					"ifdef" => {
 						let var = assert_word(chars, line, filename)?;
-						let block = read_block(chars, line, filename)?;
-						if env::var(var).is_ok() {
-							code.append(&mut preprocess_code(block, filename)?);
-						}
+						keep_block(chars, &mut code, env::var(var).is_ok(), line, filename)?
 					}
+					"ifprev" => keep_block(chars, &mut code, prev, line, filename)?,
+					"else" => keep_block(chars, &mut code, !prev, line, filename)?,
 					"" => return Err(error("Expected directive name", line, filename)),
 					_ => return Err(error(
 						format_clue!("Unknown directive '", directive, "'"),
