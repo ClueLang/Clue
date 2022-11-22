@@ -307,7 +307,14 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					let end = IndentateIf(ctokens, scope);
 					let pre = if local { "local " } else { "" };
 					if values.is_empty() {
-						format!("{}{}{};{}{}", debug, pre, CompileIdentifiers(names), line, end)
+						format!(
+							"{}{}{};{}{}",
+							debug,
+							pre,
+							CompileIdentifiers(names),
+							line,
+							end
+						)
 					} else {
 						let values = CompileExpressions(scope, Some(&names), values);
 						let names = CompileIdentifiers(names);
@@ -433,7 +440,10 @@ pub fn CompileTokens(scope: usize, ctokens: Expression) -> String {
 					result
 				};
 				let end = IndentateIf(ctokens, scope);
-				format!("{}local {} = {};{}\n{}{}", debug, name, value, line, branches, end)
+				format!(
+					"{}local {} = {};{}\n{}{}",
+					debug, name, value, line, branches, end
+				)
 			}
 			WHILE_LOOP { condition, code } => {
 				let condition = CompileExpression(scope, None, condition);

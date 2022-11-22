@@ -40,7 +40,11 @@ pub struct Token {
 
 impl Token {
 	pub fn new<T: Into<String>>(kind: TokenType, lexeme: T, line: usize) -> Token {
-		Token {kind, lexeme: lexeme.into(), line}
+		Token {
+			kind,
+			lexeme: lexeme.into(),
+			line,
+		}
 	}
 }
 
@@ -210,7 +214,7 @@ impl CodeInfo {
 	fn readString(&mut self, strend: char) {
 		let mut aline = self.line;
 		while !self.ended() && self.peek(0) != strend {
-			if self.peek(0) == '\\'{
+			if self.peek(0) == '\\' {
 				self.current += 1;
 			} else if self.peek(0) == '\n' {
 				aline += 1
@@ -250,7 +254,15 @@ impl CodeInfo {
 				brackets += "=";
 				must = false;
 			}
-			self.addLiteralToken(STRING, format!("[{}[{}]{}]", brackets, literal.replace("\\`", "`"), brackets));
+			self.addLiteralToken(
+				STRING,
+				format!(
+					"[{}[{}]{}]",
+					brackets,
+					literal.replace("\\`", "`"),
+					brackets
+				),
+			);
 		}
 		self.line = aline
 	}
@@ -329,7 +341,7 @@ pub fn ScanCode(code: String, filename: String) -> Result<Vec<Token>, String> {
 						i.current += 2;
 					}
 				}
-				_ => i.matchAndAdd('=', DIVIDE, '_', FLOOR_DIVISION, SLASH)
+				_ => i.matchAndAdd('=', DIVIDE, '_', FLOOR_DIVISION, SLASH),
 			},
 			'%' => i.compareAndAdd('=', MODULATE, PERCENTUAL),
 			'!' => i.compareAndAdd('=', NOT_EQUAL, NOT),
