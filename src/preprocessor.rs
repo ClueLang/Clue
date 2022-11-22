@@ -80,7 +80,7 @@ fn read_block(
 	reach(chars, '{', line, filename)?;
 	let mut block = String::new();
 	let mut cscope = 1u8;
-	while let Some(c) = chars.next() {
+	for c in chars.by_ref() {
 		block.push(c);
 		match c {
 			'\n' => line += 1,
@@ -147,7 +147,7 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 						'/' => {
 							code.pop_back();
 							chars.next();
-							while let Some(c) = chars.next() {
+							for c in chars.by_ref() {
 								if c == '\n' {
 									line += 1;
 									break
@@ -161,8 +161,8 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 								let word = assert_word(chars, line, filename);
 								word.is_err() || !word.unwrap().ends_with("*/")
 							} {
-								if let None = chars.peek() {
-									return Err(error("Unterminated string", line, filename))
+								if chars.peek().is_none() {
+									return Err(error("Unterminated comment", line, filename))
 								}
 							}
 						}
