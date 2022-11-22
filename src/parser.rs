@@ -4,8 +4,8 @@ use self::ComplexToken::*;
 use crate::TokenType::*;
 use crate::TokenType::{COMMA, CURLY_BRACKET_CLOSED, DEFINE, ROUND_BRACKET_CLOSED};
 use crate::{
-	compiler::CompileTokens, finaloutput, ContinueMode, Token, TokenType, ENV_CONTINUE,
-	ENV_DEBUG, ENV_JITBIT,
+	compiler::CompileTokens, finaloutput, ContinueMode, Token, TokenType, ENV_CONTINUE, ENV_DEBUG,
+	ENV_JITBIT,
 };
 use std::{
 	cmp,
@@ -455,12 +455,15 @@ impl ParserInfo {
 		})
 	}
 
-	fn checkOperator(&mut self, t: &Token, notable: &mut bool, checkback: bool) -> Result<(), String> {
+	fn checkOperator(
+		&mut self,
+		t: &Token,
+		notable: &mut bool,
+		checkback: bool,
+	) -> Result<(), String> {
 		if match self.peek(0).kind {
-			NUMBER
-			| IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE
-			| FALSE | MINUS | BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT
-			| THREEDOTS | MATCH => false,
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS
+			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT | THREEDOTS | MATCH => false,
 			CURLY_BRACKET_OPEN => {
 				*notable = false;
 				false
@@ -472,20 +475,21 @@ impl ParserInfo {
 				t.line,
 			));
 		}
-		if checkback && match self.lookBack(1).kind {
-			NUMBER
-			| IDENTIFIER
-			| STRING
-			| DOLLAR
-			| TRUE
-			| FALSE
-			| NIL
-			| ROUND_BRACKET_CLOSED
-			| SQUARE_BRACKET_CLOSED
-			| THREEDOTS
-			| CURLY_BRACKET_CLOSED => false,
-			_ => true,
-		} {
+		if checkback
+			&& match self.lookBack(1).kind {
+				NUMBER
+				| IDENTIFIER
+				| STRING
+				| DOLLAR
+				| TRUE
+				| FALSE
+				| NIL
+				| ROUND_BRACKET_CLOSED
+				| SQUARE_BRACKET_CLOSED
+				| THREEDOTS
+				| CURLY_BRACKET_CLOSED => false,
+				_ => true,
+			} {
 			return Err(self.error(
 				format!("Operator '{}' has invalid left hand token", t.lexeme),
 				t.line,
@@ -500,7 +504,7 @@ impl ParserInfo {
 		expr: &mut Expression,
 		fname: impl Into<String>,
 		end: OptionalEnd,
-		notable: &mut bool
+		notable: &mut bool,
 	) -> Result<(), String> {
 		self.checkOperator(&t, notable, true)?;
 		let mut arg1 = Expression::new();
@@ -518,7 +522,7 @@ impl ParserInfo {
 		expr: &mut Expression,
 		fname: &str,
 		end: OptionalEnd,
-		notable: &mut bool
+		notable: &mut bool,
 	) -> Result<(), String> {
 		self.checkOperator(&t, notable, true)?;
 		if let Some(bit) = arg!(&ENV_JITBIT) {
@@ -546,8 +550,8 @@ impl ParserInfo {
 
 	fn checkVal(&mut self) -> bool {
 		match self.peek(0).kind {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | BIT_NOT
-			| FALSE | NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | BIT_NOT | FALSE
+			| NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
 			}

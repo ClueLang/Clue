@@ -20,9 +20,9 @@ mod compiler;
 mod parser;
 mod scanner;
 
-use clap::{Parser, ArgEnum};
-use mlua::prelude::*;
+use clap::{ArgEnum, Parser};
 use compiler::*;
+use mlua::prelude::*;
 use parser::*;
 use scanner::*;
 use std::{fs, fs::File, io::prelude::*, path::Path, time::Instant};
@@ -41,7 +41,7 @@ pub static mut ENV_DEBUG: bool = false;
 pub enum ContinueMode {
 	SIMPLE,
 	LUAJIT,
-	MOONSCRIPT
+	MOONSCRIPT,
 }
 
 #[derive(Parser)]
@@ -196,11 +196,11 @@ fn main() -> Result<(), String> {
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
 		let code = CompileCode(codepath.clone(), String::from("(command line)"), 0)?;
-        if cli.execute{
-            ExecuteLuaCode(&code)?
-        }else{
-		    println!("{}", code);
-        }
+		if cli.execute {
+			ExecuteLuaCode(&code)?
+		} else {
+			println!("{}", code);
+		}
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
@@ -214,22 +214,26 @@ fn main() -> Result<(), String> {
 				Some(filename) => {
 					let base = match fs::read(filename) {
 						Ok(base) => base,
-						Err(_) => return Err(String::from("The given custom base was not found!"))
+						Err(_) => return Err(String::from("The given custom base was not found!")),
 					};
-					check!(std::str::from_utf8(&base)).to_string()
+					check!(std::str::from_utf8(&base))
+						.to_string()
 						.replace("--STATICS\n", &statics)
 						.replace("§", &output)
 				}
 				None => include_str!("base.lua")
 					.replace("--STATICS\n", &statics)
-					.replace("§", &output)
+					.replace("§", &output),
 			}
 		}
 		if !cli.dontsave {
-			let outputname = &format!("{}.lua", match cli.outputname.strip_suffix(".lua") {
-				Some(outputname) => outputname,
-				None => &cli.outputname
-			});
+			let outputname = &format!(
+				"{}.lua",
+				match cli.outputname.strip_suffix(".lua") {
+					Some(outputname) => outputname,
+					None => &cli.outputname,
+				}
+			);
 			compiledname = if path.display().to_string().ends_with('/')
 				|| path.display().to_string().ends_with('\\')
 			{
@@ -276,4 +280,3 @@ mod test {
 		CompileFolder(Path::new("examples/"), String::new()).unwrap();
 	}
 }
-
