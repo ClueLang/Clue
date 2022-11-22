@@ -409,10 +409,10 @@ fn run_benchmark(iters: usize, func: impl Fn()) -> Vec<u128> {
 
 #[cfg(feature = "devtimer")]
 fn main() {
-	let files = check_for_files("examples/")
+	let files = check_for_files("examples/", String::new())
 		.expect("Unexpected error happened in checking for files to compile")
 		.iter()
-		.map(|file| fs::read_to_string(file).unwrap())
+		.map(|file| fs::read_to_string(file.0.clone()).unwrap())
 		.collect::<Vec<String>>();
 
 	let bench_results = run_benchmark(10000, || compile_multi_files_bench(files.clone()));
