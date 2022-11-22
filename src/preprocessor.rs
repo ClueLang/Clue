@@ -133,7 +133,6 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 						let var = assert_word(chars, line, filename)?;
 						keep_block(chars, &mut code, env::var(var).is_ok(), line, filename)?
 					}
-					"ifprev" => keep_block(chars, &mut code, prev, line, filename)?,
 					"else" => keep_block(chars, &mut code, !prev, line, filename)?,
 					"" => return Err(error("Expected directive name", line, filename)),
 					_ => return Err(error(
