@@ -147,7 +147,12 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 						'/' => {
 							code.pop_back();
 							chars.next();
-							skip_whitespace(chars);
+							while let Some(c) = chars.next() {
+								if c == '\n' {
+									line += 1;
+									break
+								}
+							}
 						},
 						'*' => {
 							code.pop_back();
