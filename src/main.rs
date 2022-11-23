@@ -182,11 +182,13 @@ where
 {
 	let files = Arc::new(Mutex::new(check!(check_for_files(path, rpath))));
 	let threads_count = min(files.lock().unwrap().len(), num_cpus::get() * 2);
+	let errored = Arc::new(Mutex::new(0u8));
 	let mut threads = Vec::with_capacity(threads_count);
 	for _ in 0..threads_count {
 		// this `.clone()` is used to create a new pointer to the outside `files`
 		// that can be used from inside the newly created thread
 		let files = files.clone();
+		let errored = errored.clone();
 		let thread = spawn(move || loop {
 			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
 			let (filename, realname) = {
@@ -199,6 +201,7 @@ where
 			let code = match compile_file(&filename, filename.clone(), 2) {
 				Ok(t) => t,
 				Err(e) => {
+					*errored.lock().unwrap() += 1;
 					println!("Error: {}", e);
 					format_clue!("\t\terror(\"Compilation errored for this file!\\nError: ", e, "\")")
 				}
@@ -216,7 +219,12 @@ where
 	for thread in threads {
 		thread.join().unwrap();
 	}
-	Ok(())
+	let errored = *errored.lock().unwrap();
+	match errored {
+		0 => Ok(()),
+		1 => Err(String::from("1 file failed to compile!")),
+		n => Err(format!("{n} files failed to compile!")),
+	}
 }
 
 #[cfg(feature = "mlua")]
@@ -274,7 +282,7 @@ fn main() -> Result<(), String> {
 	let mut compiledname = String::new();
 	if path.is_dir() {
 		add_to_output("--STATICS\n");
-		compile_folder(&codepath, String::new()).unwrap();
+		compile_folder(&codepath, String::new())?;
 		let output = ENV_DATA
 			.read()
 			.expect("Can't lock env_data")
