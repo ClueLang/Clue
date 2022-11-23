@@ -18,10 +18,17 @@ fn expected_before(expected: &str, before: &str, line: usize, filename: &String)
 	error(format_clue!("Expected '", expected, "' before '", before, "'"), line, filename)
 }
 
-fn skip_whitespace(chars: CodeChars) {
+fn skip_whitespace(chars: CodeChars, line: &mut usize) {
 	while {
 		if let Some(c) = chars.peek() {
-			c.is_whitespace()
+			if c.is_whitespace() {
+				if *c == '\n' {
+					*line += 1;
+				}
+				true
+			} else {
+				false
+			}
 		} else {
 			false
 		}
@@ -33,18 +40,18 @@ fn skip_whitespace(chars: CodeChars) {
 fn reach(
 	chars: CodeChars,
 	end: char,
-	line: usize,
+	line: &mut usize,
 	filename: &String
 ) -> Result<(), String> {
-	skip_whitespace(chars);
+	skip_whitespace(chars, line);
 	if let Some(c) = chars.next() {
 		if end != c {
-			Err(expected(&end.to_string(), &c.to_string(), line, filename))
+			Err(expected(&end.to_string(), &c.to_string(), *line, filename))
 		} else {
 			Ok(())
 		}
 	} else {
-		Err(expected_before(&end.to_string(), "<end>", line, filename))
+		Err(expected_before(&end.to_string(), "<end>", *line, filename))
 	}
 }
 
@@ -62,11 +69,11 @@ fn read_word(chars: CodeChars) -> String {
 	word
 }
 
-fn assert_word(chars: CodeChars, line: usize, filename: &String) -> Result<String, String> {
-	skip_whitespace(chars);
+fn assert_word(chars: CodeChars, line: &mut usize, filename: &String) -> Result<String, String> {
+	skip_whitespace(chars, line);
 	let word = read_word(chars);
 	if word.is_empty() {
-		Err(error("Word expected", line, filename))
+		Err(error("Word expected", *line, filename))
 	} else {
 		Ok(word)
 	}
@@ -77,7 +84,7 @@ fn read_block(
 	mut line: usize,
 	filename: &String
 ) -> Result<String, String> {
-	reach(chars, '{', line, filename)?;
+	reach(chars, '{', &mut line, filename)?;
 	let mut block = String::new();
 	let mut cscope = 1u8;
 	for c in chars.by_ref() {
@@ -116,21 +123,28 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 	let mut code = LinkedString::new();
 	let mut line = 1usize;
 	let mut prev = false;
+	let mut prevline = 1usize;
 	let chars = &mut rawcode.chars().peekable();
 	while let Some(c) = chars.next() {
 		code.push_back(c);
 		match c {
-			'\n' => line += 1,
+			'\n' => {
+				for _ in 0..line - prevline {
+					code.push_back('\n');
+				}
+				line += 1;
+				prevline = line;
+			}
 			'@' => {
 				code.pop_back();
 				let directive = read_word(chars);
 				prev = match directive.as_str() {
 					"ifos" => {
-						let target_os = assert_word(chars, line, filename)?.to_ascii_lowercase();
+						let target_os = assert_word(chars, &mut line, filename)?.to_ascii_lowercase();
 						keep_block(chars, &mut code, env::consts::OS == target_os, line, filename)?
 					}
 					"ifdef" => {
-						let var = assert_word(chars, line, filename)?;
+						let var = assert_word(chars, &mut line, filename)?;
 						keep_block(chars, &mut code, env::var(var).is_ok(), line, filename)?
 					}
 					"else" => keep_block(chars, &mut code, !prev, line, filename)?,
@@ -147,18 +161,18 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 						'/' => {
 							code.pop_back();
 							chars.next();
-							for c in chars.by_ref() {
-								if c == '\n' {
-									line += 1;
-									break
+							while let Some(c) = chars.peek() {
+								if *c == '\n' {
+									break;
 								}
+								chars.next();
 							}
 						},
 						'*' => {
 							code.pop_back();
 							chars.next();
 							while {
-								let word = assert_word(chars, line, filename);
+								let word = assert_word(chars, &mut line, filename);
 								word.is_err() || !word.unwrap().ends_with("*/")
 							} {
 								if chars.peek().is_none() {
@@ -173,5 +187,6 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 			_ => {},
 		}
 	}
+	println!("{:?}", code.iter().collect::<String>());
 	Ok(code)
 }
