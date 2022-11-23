@@ -334,10 +334,9 @@ fn main() -> Result<(), String> {
 		)?;
 		add_to_output(&code);
 		if !cli.dontsave {
-			let compiledname =
-				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
+			compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
 			check!(fs::write(
-				compiledname,
+				&compiledname,
 				ENV_DATA.read().expect("Can't lock env_data").output_code()
 			))
 		}
