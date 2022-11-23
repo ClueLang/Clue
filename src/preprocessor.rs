@@ -19,21 +19,15 @@ fn expected_before(expected: &str, before: &str, line: usize, filename: &String)
 }
 
 fn skip_whitespace(chars: CodeChars, line: &mut usize) {
-	while {
-		if let Some(c) = chars.peek() {
-			if c.is_whitespace() {
-				if *c == '\n' {
-					*line += 1;
-				}
-				true
-			} else {
-				false
+	while let Some(c) = chars.peek() {
+		if c.is_whitespace() {
+			if *c == '\n' {
+				*line += 1;
 			}
+			chars.next();
 		} else {
-			false
+			break
 		}
-	} {
-		chars.next();
 	}
 }
 
