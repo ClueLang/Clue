@@ -181,6 +181,5 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 			_ => {},
 		}
 	}
-	println!("{:?}", code.iter().collect::<String>());
 	Ok(code)
 }
