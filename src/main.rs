@@ -203,7 +203,7 @@ where
 				Err(e) => {
 					*errored.lock().unwrap() += 1;
 					println!("Error: {}", e);
-					format_clue!("\t\terror(\"Compilation errored for this file!\\nError: ", e, "\")")
+					continue;
 				}
 			};
 			add_to_output(&format_clue!(
