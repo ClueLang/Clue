@@ -1,5 +1,6 @@
 use clap::ValueEnum;
 
+/// TODO
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
 pub enum ContinueMode {
 	SIMPLE,
@@ -29,6 +30,7 @@ macro_rules! flag {
 	};
 }
 
+/// TODO
 pub struct EnvData {
 	env_tokens: bool,
 	env_struct: bool,
@@ -43,6 +45,7 @@ pub struct EnvData {
 }
 
 impl EnvData {
+	/// TODO
 	pub fn new() -> Self {
 		Self {
 			env_tokens: false,
@@ -58,6 +61,7 @@ impl EnvData {
 		}
 	}
 
+	/// TODO
 	pub fn set_data(
 		&mut self,
 		env_tokens: bool,
@@ -121,10 +125,12 @@ impl EnvData {
 		&self.output_code
 	}
 
+	/// TODO
 	pub fn add_output_code(&mut self, add: String) {
 		self.output_code.push_str(&add);
 	}
 
+	/// TODO
 	pub fn rewrite_output_code(&mut self, output: String) {
 		self.output_code = output
 	}
