@@ -244,25 +244,30 @@ impl<'a> ParserInfo<'a> {
 		self.current >= self.size
 	}
 
+	/// TODO
 	fn at(&self, pos: usize) -> BorrowedToken {
 		BorrowedToken::new(&self.tokens[cmp::min(pos, self.size)])
 	}
 
+	/// TODO
 	fn advance(&mut self) -> BorrowedToken {
 		self.current += 1;
 		self.look_back(0)
 	}
 
+	/// TODO
 	fn peek(&self, pos: usize) -> BorrowedToken {
 		let pos: usize = self.current + pos;
 		self.at(pos)
 	}
 
+	/// TODO
 	fn look_back(&self, pos: usize) -> BorrowedToken {
 		let pos: usize = self.current - pos - 1;
 		self.at(pos)
 	}
 
+	/// TODO
 	fn compare(&self, expected: TokenType) -> bool {
 		if self.ended() {
 			return false;
@@ -273,6 +278,7 @@ impl<'a> ParserInfo<'a> {
 		true
 	}
 
+	/// TODO
 	fn advance_if(&mut self, expected: TokenType) -> bool {
 		if self.ended() {
 			return false;
@@ -284,6 +290,7 @@ impl<'a> ParserInfo<'a> {
 		true
 	}
 
+	/// TODO
 	fn assert_advance(
 		&mut self,
 		expected: TokenType,
@@ -296,6 +303,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(t)
 	}
 
+	/// TODO
 	fn assert_compare(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
 		if !self.compare(expected) {
 			let t = self.peek(0);
@@ -304,6 +312,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn assert_end<T>(
 		&mut self,
 		tocheck: &BorrowedToken,
@@ -323,6 +332,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(iftrue)
 	}
 
+	/// TODO
 	fn assert(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
 		if !self.advance_if(expected) {
 			let t = self.peek(0);
@@ -372,6 +382,7 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
+	/// TODO
 	fn build_table(&mut self) -> Result<ComplexToken, String> {
 		let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
 		let mut metas: Vec<(String, Expression, usize)> = Vec::new();
@@ -568,6 +579,7 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
+	/// TODO
 	fn check_operator(
 		&mut self,
 		t: &BorrowedToken,
@@ -607,6 +619,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn build_function_op(
 		&mut self,
 		t: &BorrowedToken,
@@ -625,6 +638,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn build_bitwise_op(
 		&mut self,
 		t: &BorrowedToken,
@@ -642,6 +656,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn check_index(
 		&mut self,
 		t: &BorrowedToken,
@@ -661,6 +676,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind() {
 			NUMBER | IDENTIFIER | STRING | TRUE | BIT_NOT | FALSE | NIL | NOT | HASHTAG
@@ -672,6 +688,7 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
+	/// TODO
 	fn build_expression(&mut self, end: OptionalEnd) -> Result<Expression, String> {
 		let mut expr = Expression::with_capacity(16);
 		let notable = &mut true;
@@ -924,10 +941,12 @@ impl<'a> ParserInfo<'a> {
 		self.assert_end(&self.look_back(0), end, expr)
 	}
 
+	/// TODO
 	fn build_name(&mut self) -> Result<Expression, String> {
 		Ok(vec_deque![self.build_identifier()?])
 	}
 
+	/// TODO
 	fn build_identifier(&mut self) -> Result<ComplexToken, String> {
 		let line = self.look_back(0).line();
 		Ok(IDENT {
@@ -1057,6 +1076,7 @@ impl<'a> ParserInfo<'a> {
 		Ok((expr, safe_indexing))
 	}
 
+	/// TODO
 	fn get_code_block_start(&mut self) -> Result<usize, String> {
 		let t = self.advance();
 		if t.kind() != CURLY_BRACKET_OPEN {
@@ -1072,6 +1092,7 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
+	/// TODO
 	fn parse_code_block(
 		&mut self,
 		mut tokens: Vec<Token>,
@@ -1087,6 +1108,7 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
+	/// TODO
 	fn build_code_block(&mut self /*, locals: LocalsList*/) -> Result<CodeBlock, String> {
 		let start = self.get_code_block_start()?;
 		let mut tokens: Vec<Token> = Vec::new();
@@ -1112,6 +1134,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(CodeBlock { start, code, end })
 	}
 
+	/// TODO
 	fn build_function_block(
 		&mut self,
 		//args: Option<Vec<(String, LuaType)>>,
@@ -1130,6 +1153,7 @@ impl<'a> ParserInfo<'a> {
 		//}
 	}
 
+	/// TODO
 	fn build_loop_block(&mut self) -> Result<CodeBlock, String> {
 		let mut hascontinue: Option<String> = None;
 		let mut is_in_other_loop = false;
@@ -1207,6 +1231,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(CodeBlock { start, code, end })
 	}
 
+	/// TODO
 	fn build_identifier_list(&mut self) -> Result<Vec<String>, String> {
 		let mut idents: Vec<String> = Vec::new();
 		loop {
@@ -1218,6 +1243,7 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
+	/// TODO
 	fn build_function_args(&mut self) -> Result</*ArgsAndTypes*/ FunctionArgs, String> {
 		let mut args = FunctionArgs::new();
 		/*let mut types: Option<Vec<(String, LuaType)>> = if self.locals.is_some() {
@@ -1279,6 +1305,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(/*(args, types)*/ args)
 	}
 
+	/// TODO
 	fn build_elseif_chain(&mut self) -> Result<ComplexToken, String> {
 		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
 		let code = self.build_code_block(/*self.locals.clone()*/)?;
@@ -1301,6 +1328,7 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
+	/// TODO
 	fn build_enums(&mut self, local: bool) -> Result<Expression, String> {
 		self.current += 1;
 		self.assert(CURLY_BRACKET_OPEN, "{")?;
@@ -1354,6 +1382,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(enums)
 	}
 
+	/// TODO
 	fn build_function(&mut self, local: bool) -> Result<ComplexToken, String> {
 		self.current += 1;
 		let t = self.assert_advance(IDENTIFIER, "<name>")?;
@@ -1452,11 +1481,13 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
+	/// TODO
 	fn compile_static(&mut self, expr: Expression) {
 		let code = self.compiler.compile_tokens(0, expr);
 		self.statics += &(code + "\n");
 	}
 
+	/// TODO
 	fn build_match_case(
 		&mut self,
 		pexpr: Option<Expression>,
@@ -1489,6 +1520,7 @@ impl<'a> ParserInfo<'a> {
 		Ok((conditions, extraif, func(self /*, self.locals.clone()*/)?))
 	}
 
+	/// TODO
 	fn build_match_block(
 		&mut self,
 		name: String,
@@ -1550,6 +1582,7 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
+	/// TODO
 	fn parse_token_local_global(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let local = t.kind() == LOCAL;
 		match self.peek(0).kind() {
@@ -1571,6 +1604,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_static(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		match self.peek(0).kind() {
 			FN => {
@@ -1590,6 +1624,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_method(&mut self) -> Result<(), String> {
 		let name = {
 			let mut expr = Expression::with_capacity(4);
@@ -1634,6 +1669,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let start = self.current - 1;
 		let (mut first_expr, safe_indexing) = self.build_identifier_internal()?;
@@ -1727,6 +1763,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_round_bracket_open(&mut self) -> Result<(), String> {
 		let expr = self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?;
 		self.expr.push_back(EXPR(expr));
@@ -1739,6 +1776,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_curly_bracket_open(&mut self) -> Result<(), String> {
 		self.current -= 1;
 		let block = self.build_code_block(/*self.locals.clone()*/)?;
@@ -1747,6 +1785,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_if(&mut self) -> Result<(), String> {
 		let ctoken = self.build_elseif_chain()?;
 		self.expr.push_back(ctoken);
@@ -1754,6 +1793,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_match(&mut self) -> Result<(), String> {
 		let name = self.get_next_internal_var();
 		let ctoken = self.build_match_block(name, &ParserInfo::build_code_block)?;
@@ -1762,6 +1802,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_while(&mut self) -> Result<(), String> {
 		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
 		let code = self.build_loop_block()?;
@@ -1770,6 +1811,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_until(&mut self) -> Result<(), String> {
 		let mut condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
 		condition.push_front(SYMBOL(String::from("not (")));
@@ -1780,6 +1822,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_loop(&mut self) -> Result<(), String> {
 		let code = self.build_loop_block()?;
 		if self.peek(0).kind() == UNTIL {
@@ -1797,6 +1840,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_for(&mut self) -> Result<(), String> {
 		if self.peek(1).kind() == DEFINE {
 			let iterator = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
@@ -1858,6 +1902,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_continue(&mut self) -> Result<(), String> {
 		self.expr.push_back(CONTINUE_LOOP);
 		self.advance_if(SEMICOLON);
@@ -1865,6 +1910,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_break(&mut self) -> Result<(), String> {
 		self.expr.push_back(BREAK_LOOP);
 		self.advance_if(SEMICOLON);
@@ -1872,6 +1918,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_return(&mut self) -> Result<(), String> {
 		let expr = if self.ended() || self.advance_if(SEMICOLON) {
 			None
@@ -1883,6 +1930,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_try(&mut self) -> Result<(), String> {
 		let totry = self.build_code_block(/*self.locals.clone()*/)?;
 		let error: Option<String>;
@@ -1908,6 +1956,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_macro(&mut self) -> Result<(), String> {
 		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
 		let code = self.build_expression(None)?;
@@ -1916,6 +1965,7 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
+	/// TODO
 	fn parse_token_fn_enum(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		Err(self.error(
 			format!(
@@ -1928,6 +1978,7 @@ impl<'a> ParserInfo<'a> {
 	}
 }
 
+/// TODO
 pub fn parse_tokens(
 	tokens: Vec<Token>,
 	//locals: Option<AHashMap<String, LuaType>>,
