@@ -7,14 +7,15 @@ use lazy_static::lazy_static;
 
 use crate::env::EnvData;
 
+/// This an allocator that supports only some platforms but has really good performances
 #[cfg(feature = "rpmalloc")]
 #[global_allocator]
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
-pub mod preprocessor;
 pub mod compiler;
 pub mod env;
 pub mod parser;
+pub mod preprocessor;
 pub mod scanner;
 
 lazy_static! {
@@ -22,6 +23,7 @@ lazy_static! {
 	//pub static ref LUA_G: RwLock<parser::LocalsList> = RwLock::new(None);
 }
 
+/// TODO
 #[macro_export]
 macro_rules! check {
 	($tocheck: expr) => {
@@ -32,6 +34,7 @@ macro_rules! check {
 	};
 }
 
+/// Creates a String by pre-allocating it and using `push_str` for every argument given to the macro
 #[macro_export]
 macro_rules! format_clue {
     ($($strings:expr),+) => {{

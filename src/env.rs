@@ -125,7 +125,7 @@ impl EnvData {
 		&self.output_code
 	}
 
-	/// TODO
+	/// Pushes to the output_code what you pass as an argument
 	pub fn add_output_code(&mut self, add: String) {
 		self.output_code.push_str(&add);
 	}
