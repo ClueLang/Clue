@@ -21,7 +21,7 @@ do
 end
 _modules = {§}
 if _modules["main"] then
-	import("main")
+	return import("main")
 else
 	error("File \"main.clue\" was not found!")
 end
