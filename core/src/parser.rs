@@ -1,5 +1,3 @@
-#![allow(non_camel_case_types)]
-
 use self::ComplexToken::*;
 use crate::compiler::Compiler;
 use crate::env::{BitwiseMode, ContinueMode, LuaVersion, Options};
