@@ -5,7 +5,7 @@ use crate::env::ContinueMode;
 use crate::scanner::{TokenType, Token};
 use crate::scanner::TokenType::*;
 use crate::{format_clue, check, compiler::compile_tokens, flag, ENV_DATA};
-use hashbrown::HashMap;
+use ahash::AHashMap;
 use std::{cmp, collections::LinkedList};
 
 macro_rules! expression {
@@ -20,7 +20,7 @@ macro_rules! expression {
 
 pub type Expression = LinkedList<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
-//pub type LocalsList = Option<HashMap<String, LuaType>>;
+//pub type LocalsList = Option<AHashMap<String, LuaType>>;
 //pub type ArgsAndTypes = (FunctionArgs, Option<Vec<(String, LuaType)>>);
 type OptionalEnd = Option<(TokenType, &'static str)>;
 type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
@@ -175,7 +175,7 @@ struct ParserInfo {
 	testing: Option<usize>,
 	localid: u8,
 	statics: String,
-	macros: HashMap<String, Expression>,
+	macros: AHashMap<String, Expression>,
 	//locals: LocalsList,
 }
 
@@ -190,7 +190,7 @@ impl ParserInfo {
 			testing: None,
 			localid: 0,
 			statics: String::new(),
-			macros: HashMap::default(),
+			macros: AHashMap::default(),
 			// locals,
 		}
 	}
@@ -1750,7 +1750,7 @@ impl ParserInfo {
 
 pub fn parse_tokens(
 	tokens: Vec<Token>,
-	//locals: Option<HashMap<String, LuaType>>,
+	//locals: Option<AHashMap<String, LuaType>>,
 	filename: String,
 ) -> Result<Expression, String> {
 	let mut i = ParserInfo::new(tokens /*, locals*/, filename);

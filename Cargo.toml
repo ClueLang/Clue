@@ -16,7 +16,7 @@ winres = "0.1"
 [dependencies]
 clap = {version = "3.2.23", features = ["derive"]}
 lazy_static = "1.4.0"
-hashbrown = "0.13.1"
+ahash = "0.8.2"
 num_cpus = "1.14.0"
 devtimer = { version = "4.0.1", optional = true }
 rpmalloc = { version = "0.2.2", optional = true }
