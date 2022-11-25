@@ -1,5 +1,7 @@
 #![allow(non_camel_case_types)]
 
+use ahash::AHashMap;
+
 use self::TokenType::*;
 
 /*
@@ -288,6 +290,8 @@ impl CodeInfo {
 		));
 		IDENTIFIER
 	}
+
+	const SYMBOLS: AHashMap<&str, ()> = AHashMap::new();
 }
 
 pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {

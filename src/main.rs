@@ -119,7 +119,7 @@ fn compile_code(mut code: String, name: String, scope: usize) -> Result<String, 
 	let ctokens = parse_tokens(
 		tokens,
 		/*if flag!(env_types) != TypesMode::NONE {
-			Some(HashMap::default())
+			Some(AHashMap::default())
 		} else {
 			None
 		},*/
@@ -264,8 +264,8 @@ fn main() -> Result<(), String> {
 	}
 	/*if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
-			LuaSTD::LUA54 => Some(HashMap::from_iter([(String::from("print"), LuaType::NIL)])), //PLACEHOLDER
-			_ => Some(HashMap::default()),
+			LuaSTD::LUA54 => Some(AHashMap::from_iter([(String::from("print"), LuaType::NIL)])), //PLACEHOLDER
+			_ => Some(AHashMap::default()),
 		};
 	}*/
 	let codepath = cli.path.unwrap();
