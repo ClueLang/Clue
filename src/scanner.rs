@@ -2,6 +2,13 @@
 
 use self::TokenType::*;
 
+/*
+Slowest: 3491020 ns
+Fastest: 64360 ns
+Average: 110609 ns/iter
+Top 1% : 69556 ns/iter
+*/
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[rustfmt::skip]
 pub enum TokenType {
@@ -109,7 +116,7 @@ impl CodeInfo {
 		self.at(pos)
 	}
 
-	fn lookBack(&self, pos: usize) -> char {
+	fn look_back(&self, pos: usize) -> char {
 		let pos: usize = self.current - pos - 1;
 		self.at(pos)
 	}
@@ -234,7 +241,7 @@ impl CodeInfo {
 
 	fn read_raw_string(&mut self) {
 		let mut aline = self.line;
-		while !self.ended() && (self.peek(0) != '`' || self.lookBack(0) == '\\') {
+		while !self.ended() && (self.peek(0) != '`' || self.look_back(0) == '\\') {
 			if self.peek(0) == '\n' {
 				aline += 1
 			};
@@ -264,7 +271,7 @@ impl CodeInfo {
 		self.line = aline
 	}
 
-	fn readIdentifier(&mut self) -> String {
+	fn read_identifier(&mut self) -> String {
 		while {
 			let c = self.peek(0);
 			c.is_ascii_alphanumeric() || c == '_'
@@ -410,7 +417,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 						i.read_number(char::is_ascii_digit, true);
 					}
 				} else if c.is_ascii_alphabetic() || c == '_' {
-					let kind: TokenType = match i.readIdentifier().as_str() {
+					let kind: TokenType = match i.read_identifier().as_str() {
 						"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
 						"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
 						"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),
