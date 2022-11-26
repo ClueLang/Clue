@@ -1,8 +1,7 @@
 #![allow(non_camel_case_types)]
 
-use ahash::AHashMap;
-
 use self::TokenType::*;
+use phf::phf_map;
 
 /*
 Slowest: 3491020 ns
@@ -10,6 +9,8 @@ Fastest: 64360 ns
 Average: 110609 ns/iter
 Top 1% : 69556 ns/iter
 */
+
+type SymbolsMap = phf::Map<char, SymbolType>;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[rustfmt::skip]
@@ -19,7 +20,7 @@ pub enum TokenType {
 	SQUARE_BRACKET_CLOSED, CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR, PLUS, MINUS, STAR, SLASH,
 	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON, AT,
-	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
+	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, SAFE_EXPRESSION,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
 	QUESTION_MARK, COLON, ARROW, FLOOR_DIVISION,
 
@@ -148,25 +149,6 @@ impl CodeInfo {
 		self.tokens.push(Token::new(kind, lexeme, self.line));
 	}
 
-	fn compare_and_add(&mut self, c: char, kt: TokenType, kf: TokenType) {
-		let kind: TokenType = match self.compare(c) {
-			true => kt,
-			false => kf,
-		};
-		self.add_token(kind);
-	}
-
-	fn match_and_add(&mut self, c1: char, k1: TokenType, c2: char, k2: TokenType, kd: TokenType) {
-		let kind: TokenType = match self.compare(c1) {
-			true => k1,
-			false => match self.compare(c2) {
-				true => k2,
-				false => kd,
-			},
-		};
-		self.add_token(kind);
-	}
-
 	fn warning(&mut self, message: impl Into<String>) {
 		println!(
 			"Error in file \"{}\" at line {}!\nError: \"{}\"\n",
@@ -175,6 +157,14 @@ impl CodeInfo {
 			message.into()
 		);
 		self.errored = true;
+	}
+
+	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
+		self.warning(format!(
+			"'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}",
+			keyword, msg
+		));
+		IDENTIFIER
 	}
 
 	fn read_number(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
@@ -283,191 +273,219 @@ impl CodeInfo {
 		self.substr(self.start, self.current)
 	}
 
-	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
-		self.warning(format!(
-			"'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}",
-			keyword, msg
-		));
-		IDENTIFIER
+	fn read_comment(&mut self) {
+		while self.peek(0) != '\n' && !self.ended() {
+			self.current += 1
+		}
 	}
 
-	const SYMBOLS: AHashMap<&str, ()> = AHashMap::new();
+	fn read_multiline_comment(&mut self) {
+		while !(self.ended() || self.peek(0) == '*' && self.peek(1) == '/') {
+			if self.peek(0) == '\n' {
+				self.line += 1
+			}
+			self.current += 1;
+		}
+		if self.ended() {
+			self.warning("Unterminated comment");
+		} else {
+			self.current += 2;
+		}
+	}
+
+	fn scan_char(&mut self, symbols: &SymbolsMap, c: &char) -> bool {
+		if let Some(token) = symbols.get(c) {
+			match token {
+				SymbolType::JUST(kind) => self.add_token(*kind),
+				SymbolType::SYMBOLS(symbols, default) => {
+					let nextc = self.advance();
+					if !self.scan_char(symbols, &nextc) {
+						self.current -= 1;
+						self.add_token(*default);
+					}
+				},
+				SymbolType::FUNCTION(f) => f(self),
+			}
+			true
+		} else {
+			false
+		}
+	}
 }
+
+enum SymbolType {
+	JUST(TokenType),
+	FUNCTION(&'static dyn Fn(&mut CodeInfo)),
+	SYMBOLS(SymbolsMap, TokenType),
+}
+
+const SYMBOLS: SymbolsMap = phf_map!(
+	'(' => SymbolType::JUST(ROUND_BRACKET_OPEN),
+	')' => SymbolType::JUST(ROUND_BRACKET_CLOSED),
+	'[' => SymbolType::JUST(SQUARE_BRACKET_OPEN),
+	']' => SymbolType::JUST(SQUARE_BRACKET_CLOSED),
+	'{' => SymbolType::JUST(CURLY_BRACKET_OPEN),
+	'}' => SymbolType::JUST(CURLY_BRACKET_CLOSED),
+	',' => SymbolType::JUST(COMMA),
+	'.' => SymbolType::SYMBOLS(phf_map!(
+		'.' => SymbolType::SYMBOLS(phf_map!(
+			'.' => SymbolType::JUST(THREEDOTS),
+			'=' => SymbolType::JUST(CONCATENATE),
+		), TWODOTS)
+	), DOT),
+	';' => SymbolType::JUST(SEMICOLON),
+	'+' => SymbolType::SYMBOLS(phf_map!(
+		'=' => SymbolType::JUST(INCREASE),
+	), PLUS),
+	'-' => SymbolType::SYMBOLS(phf_map!(
+		'=' => SymbolType::JUST(DECREASE),
+	), MINUS),
+	'*' => SymbolType::SYMBOLS(phf_map!(
+		'=' => SymbolType::JUST(MULTIPLY),
+	), STAR),
+	'^' => SymbolType::SYMBOLS(phf_map!(
+		'=' => SymbolType::JUST(EXPONENTIATE),
+		'^' => SymbolType::JUST(BIT_XOR),
+	), CARET),
+	'#' => SymbolType::JUST(HASHTAG),
+	'/' => SymbolType::SYMBOLS(phf_map!(
+		'/' => SymbolType::FUNCTION(&CodeInfo::read_comment),
+		'*' => SymbolType::FUNCTION(&CodeInfo::read_multiline_comment),
+		'=' => SymbolType::JUST(DIVIDE),
+		'_' => SymbolType::JUST(FLOOR_DIVISION),
+	), SLASH),
+	'%' => SymbolType::SYMBOLS(phf_map!(
+		'=' => SymbolType::JUST(MODULATE),
+	), PERCENTUAL),
+	'!' => SymbolType::SYMBOLS(phf_map!(
+		'=' => SymbolType::JUST(NOT_EQUAL),
+	), NOT),
+	'~' => SymbolType::JUST(BIT_NOT),
+	'=' => SymbolType::SYMBOLS(phf_map!(
+		'=' => SymbolType::JUST(EQUAL),
+		'>' => SymbolType::JUST(ARROW),
+	), DEFINE),
+	'<' => SymbolType::SYMBOLS(phf_map!(
+		'=' => SymbolType::JUST(SMALLER_EQUAL),
+		'<' => SymbolType::JUST(LEFT_SHIFT),
+	), SMALLER),
+	'>' => SymbolType::SYMBOLS(phf_map!(
+		'=' => SymbolType::JUST(BIGGER_EQUAL),
+		'>' => SymbolType::JUST(RIGHT_SHIFT),
+	), BIGGER),
+	'?' => SymbolType::SYMBOLS(phf_map!(
+		'=' => SymbolType::FUNCTION(&|i| i.warning("'?=' is deprecated and was replaced with '&&='")),
+		'>' => SymbolType::JUST(SAFE_EXPRESSION),
+		'.' => SymbolType::JUST(SAFEDOT),
+		':' => SymbolType::FUNCTION(&|i| {
+			if i.compare(':') {
+				i.add_token(SAFE_DOUBLE_COLON);
+			} else {
+				i.current -= 1;
+			}
+		}),
+		'[' => SymbolType::JUST(SAFE_SQUARE_BRACKET),
+	), QUESTION_MARK),
+	'&' => SymbolType::SYMBOLS(phf_map!(
+		'&' => SymbolType::JUST(AND),
+	), BIT_AND),
+	':' => SymbolType::SYMBOLS(phf_map!(
+		':' => SymbolType::JUST(DOUBLE_COLON),
+		'=' => SymbolType::FUNCTION(&|i| i.warning("':=' is deprecated and was replaced with '||='")),
+	), COLON),
+	'|' => SymbolType::SYMBOLS(phf_map!(
+		'|' => SymbolType::JUST(OR),
+	), BIT_OR),
+	'\n' => SymbolType::FUNCTION(&|i| i.line += 1),
+	'"' => SymbolType::FUNCTION(&|i| i.read_string('"')),
+	'\'' => SymbolType::FUNCTION(&|i| i.read_string('\'')),
+	'`' => SymbolType::FUNCTION(&CodeInfo::read_raw_string)
+);
 
 pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() {
 		i.start = i.current;
 		let c: char = i.advance();
-		match c {
-			'(' => i.add_token(ROUND_BRACKET_OPEN),
-			')' => i.add_token(ROUND_BRACKET_CLOSED),
-			'[' => i.add_token(SQUARE_BRACKET_OPEN),
-			']' => i.add_token(SQUARE_BRACKET_CLOSED),
-			'{' => i.add_token(CURLY_BRACKET_OPEN),
-			'}' => i.add_token(CURLY_BRACKET_CLOSED),
-			',' => i.add_token(COMMA),
-			'.' => {
-				if i.peek(0) == '.' {
-					i.current += 1;
-					let f: char = i.peek(0);
-					if f == '.' {
-						i.current += 1;
-						i.add_token(THREEDOTS);
-					} else if f == '=' {
-						i.current += 1;
-						i.add_token(CONCATENATE);
-					} else {
-						i.add_token(TWODOTS);
+		if !i.scan_char(&SYMBOLS, &c) {
+			if c.is_ascii_whitespace() {
+				continue
+			} if c.is_ascii_digit() {
+				if c == '0' {
+					match i.peek(0) {
+						'x' | 'X' => {
+							i.current += 1;
+							i.read_number(
+								|c| {
+									let c = *c;
+									c.is_ascii_digit()
+										|| ('a'..='f').contains(&c) || ('A'..='F').contains(&c)
+								},
+								false,
+							);
+						}
+						'b' | 'B' => {
+							i.current += 1;
+							i.read_number(
+								|c| {
+									let c = *c;
+									c == '0' || c == '1'
+								},
+								false,
+							);
+						}
+						_ => i.read_number(char::is_ascii_digit, true),
 					}
 				} else {
-					i.add_token(DOT);
+					i.read_number(char::is_ascii_digit, true);
 				}
-			}
-			';' => i.add_token(SEMICOLON),
-			'+' => i.compare_and_add('=', INCREASE, PLUS),
-			'-' => i.compare_and_add('=', DECREASE, MINUS),
-			'*' => i.compare_and_add('=', MULTIPLY, STAR),
-			'^' => i.match_and_add('=', EXPONENTIATE, '^', BIT_XOR, CARET),
-			'#' => i.add_token(HASHTAG),
-			'/' => match i.peek(0) {
-				'/' => {
-					while i.peek(0) != '\n' && !i.ended() {
-						i.current += 1
-					}
-				}
-				'*' => {
-					while !(i.ended() || i.peek(0) == '*' && i.peek(1) == '/') {
-						if i.peek(0) == '\n' {
-							i.line += 1
-						}
-						i.current += 1;
-					}
-					if i.ended() {
-						i.warning("Unterminated comment");
-					} else {
-						i.current += 2;
-					}
-				}
-				_ => i.match_and_add('=', DIVIDE, '_', FLOOR_DIVISION, SLASH),
-			},
-			'%' => i.compare_and_add('=', MODULATE, PERCENTUAL),
-			'!' => i.compare_and_add('=', NOT_EQUAL, NOT),
-			'~' => i.add_token(BIT_NOT),
-			'=' => i.match_and_add('=', EQUAL, '>', ARROW, DEFINE),
-			'<' => i.match_and_add('=', SMALLER_EQUAL, '<', LEFT_SHIFT, SMALLER),
-			'>' => i.match_and_add('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
-			'?' => {
-				let kind = match i.advance() {
-					'=' => DEFINE_AND,
-					'>' => {
-						i.warning("?> is deprecated");
-						PROTECTED_GET
-					}
-					'.' => SAFEDOT,
-					':' => {
-						if i.compare(':') {
-							SAFE_DOUBLE_COLON
-						} else {
-							i.current -= 1;
-							continue;
-						}
-					}
-					'[' => SAFE_SQUARE_BRACKET,
-					_ => {
-						i.current -= 1;
-						QUESTION_MARK
-					}
+			} else if c.is_ascii_alphabetic() || c == '_' {
+				let kind: TokenType = match i.read_identifier().as_str() {
+					"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
+					"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
+					"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),
+					"do" => i.reserved("do", "'do ... end' blocks in Clue are made like this: '{ ... }'"),
+					"end" => i.reserved("end", "code blocks in Clue are closed with '}'"),
+					"function" => i.reserved("function", "functions in Clue are defined with the 'fn' keyword"),
+					"repeat" => i.reserved("repeat", "'repeat ... until x' loops in Clue are made like this: 'loop { ... } until x'"),
+					"then" => i.reserved("then", "code blocks in Clue are opened with '{'"),
+					"if" => IF,
+					"elseif" => ELSEIF,
+					"else" => ELSE,
+					"for" => FOR,
+					"in" => IN,
+					"while" => WHILE,
+					"until" => UNTIL,
+					"local" => LOCAL,
+					"return" => RETURN,
+					"true" => TRUE,
+					"false" => FALSE,
+					"nil" => NIL,
+					"break" => BREAK,
+					_ if matches!(i.last, DOT | SAFEDOT | DOUBLE_COLON | SAFE_DOUBLE_COLON) => IDENTIFIER,
+					"of" => OF,
+					"with" => WITH,
+					"meta" => META,
+					"global" => GLOBAL,
+					"fn" => FN,
+					"method" => METHOD,
+					"loop" => LOOP,
+					"static" => STATIC,
+					"enum" => ENUM,
+					"continue" => CONTINUE,
+					"try" => TRY,
+					"catch" => CATCH,
+					"match" => MATCH,
+					"default" => DEFAULT,
+					"macro" => {println!("Note: the macro keyword will be replaced by @define in 3.0!"); MACRO},
+					"constructor" => {i.warning("The struct constructor is reserved for Clue 4.0 and cannot be used."); CONSTRUCTOR},
+					"struct" => {i.warning("The struct keyword is reserved for Clue 4.0 and cannot be used."); STRUCT},
+					"extern" => {i.warning("The extern keyword is reserved for Clue 4.0 and cannot be used."); EXTERN},
+					_ => IDENTIFIER
 				};
 				i.add_token(kind);
-			}
-			'&' => i.compare_and_add('&', AND, BIT_AND),
-			':' => i.match_and_add(':', DOUBLE_COLON, '=', DEFINE_OR, COLON),
-			'|' => i.compare_and_add('|', OR, BIT_OR),
-			'$' => i.add_token(DOLLAR),
-			'@' => i.add_token(AT),
-			' ' | '\r' | '\t' => {}
-			'\n' => i.line += 1,
-			'"' | '\'' => i.read_string(c),
-			'`' => i.read_raw_string(),
-			_ => {
-				if c.is_ascii_digit() {
-					if c == '0' {
-						match i.peek(0) {
-							'x' | 'X' => {
-								i.current += 1;
-								i.read_number(
-									|c| {
-										let c = *c;
-										c.is_ascii_digit()
-											|| ('a'..='f').contains(&c) || ('A'..='F').contains(&c)
-									},
-									false,
-								);
-							}
-							'b' | 'B' => {
-								i.current += 1;
-								i.read_number(
-									|c| {
-										let c = *c;
-										c == '0' || c == '1'
-									},
-									false,
-								);
-							}
-							_ => i.read_number(char::is_ascii_digit, true),
-						}
-					} else {
-						i.read_number(char::is_ascii_digit, true);
-					}
-				} else if c.is_ascii_alphabetic() || c == '_' {
-					let kind: TokenType = match i.read_identifier().as_str() {
-						"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
-						"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
-						"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),
-						"do" => i.reserved("do", "'do ... end' blocks in Clue are made like this: '{ ... }'"),
-						"end" => i.reserved("end", "code blocks in Clue are closed with '}'"),
-						"function" => i.reserved("function", "functions in Clue are defined with the 'fn' keyword"),
-						"repeat" => i.reserved("repeat", "'repeat ... until x' loops in Clue are made like this: 'loop { ... } until x'"),
-						"then" => i.reserved("then", "code blocks in Clue are opened with '{'"),
-						"if" => IF,
-						"elseif" => ELSEIF,
-						"else" => ELSE,
-						"for" => FOR,
-						"in" => IN,
-						"while" => WHILE,
-						"until" => UNTIL,
-						"local" => LOCAL,
-						"return" => RETURN,
-						"true" => TRUE,
-						"false" => FALSE,
-						"nil" => NIL,
-						"break" => BREAK,
-						_ if matches!(i.last, DOT | SAFEDOT | DOUBLE_COLON | SAFE_DOUBLE_COLON) => IDENTIFIER,
-						"of" => OF,
-						"with" => WITH,
-						"meta" => META,
-						"global" => GLOBAL,
-						"fn" => FN,
-						"method" => METHOD,
-						"loop" => LOOP,
-						"static" => STATIC,
-						"enum" => ENUM,
-						"continue" => CONTINUE,
-						"try" => TRY,
-						"catch" => CATCH,
-						"match" => MATCH,
-						"default" => DEFAULT,
-						"macro" => {println!("Note: the macro keyword will be replaced by @define in 3.0!"); MACRO},
-						"constructor" => {i.warning("The struct constructor is reserved for Clue 4.0 and cannot be used."); CONSTRUCTOR},
-						"struct" => {i.warning("The struct keyword is reserved for Clue 4.0 and cannot be used."); STRUCT},
-						"extern" => {i.warning("The extern keyword is reserved for Clue 4.0 and cannot be used."); EXTERN},
-						_ => IDENTIFIER
-					};
-					i.add_token(kind);
-				} else {
-					i.warning(format!("Unexpected character '{c}'").as_str());
-				}
+			} else {
+				i.warning(format!("Unexpected character '{c}'").as_str());
 			}
 		}
 	}
