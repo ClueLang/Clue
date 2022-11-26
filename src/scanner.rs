@@ -102,7 +102,7 @@ impl CodeInfo {
 		self.current += 1;
 		prev
 	}
-
+/*
 	fn compare(&mut self, expected: char) -> bool {
 		if self.ended() {
 			return false;
@@ -113,7 +113,7 @@ impl CodeInfo {
 		self.current += 1;
 		true
 	}
-
+*/
 	fn peek(&self, pos: usize) -> char {
 		let pos: usize = self.current + pos;
 		self.at(pos)
@@ -273,26 +273,6 @@ impl CodeInfo {
 		self.substr(self.start, self.current)
 	}
 
-	fn read_comment(&mut self) {
-		while self.peek(0) != '\n' && !self.ended() {
-			self.current += 1
-		}
-	}
-
-	fn read_multiline_comment(&mut self) {
-		while !(self.ended() || self.peek(0) == '*' && self.peek(1) == '/') {
-			if self.peek(0) == '\n' {
-				self.line += 1
-			}
-			self.current += 1;
-		}
-		if self.ended() {
-			self.warning("Unterminated comment");
-		} else {
-			self.current += 2;
-		}
-	}
-
 	fn scan_char(&mut self, symbols: &SymbolsMap, c: &char) -> bool {
 		if let Some(token) = symbols.get(c) {
 			match token {
@@ -304,7 +284,8 @@ impl CodeInfo {
 						self.add_token(*default);
 					}
 				},
-				SymbolType::FUNCTION(f) => f(self),
+				SymbolType::ERROR(e) => self.warning(*e),
+				//SymbolType::FUNCTION(f) => f(self),
 			}
 			true
 		} else {
@@ -315,93 +296,88 @@ impl CodeInfo {
 
 enum SymbolType {
 	JUST(TokenType),
-	FUNCTION(fn(&mut CodeInfo)),
+	//FUNCTION(fn(&mut CodeInfo)),
+	ERROR(&'static str),
 	SYMBOLS(SymbolsMap, TokenType),
 }
 
 lazy_static! {
-static ref SYMBOLS: SymbolsMap = AHashMap::from([
-	('(', SymbolType::JUST(ROUND_BRACKET_OPEN)),
-	(')', SymbolType::JUST(ROUND_BRACKET_CLOSED)),
-	('[', SymbolType::JUST(SQUARE_BRACKET_OPEN)),
-	(']', SymbolType::JUST(SQUARE_BRACKET_CLOSED)),
-	('{', SymbolType::JUST(CURLY_BRACKET_OPEN)),
-	('}', SymbolType::JUST(CURLY_BRACKET_CLOSED)),
-	(',', SymbolType::JUST(COMMA)),
-	('.', SymbolType::SYMBOLS(AHashMap::from([
+	static ref SYMBOLS: SymbolsMap = AHashMap::from([
+		('(', SymbolType::JUST(ROUND_BRACKET_OPEN)),
+		(')', SymbolType::JUST(ROUND_BRACKET_CLOSED)),
+		('[', SymbolType::JUST(SQUARE_BRACKET_OPEN)),
+		(']', SymbolType::JUST(SQUARE_BRACKET_CLOSED)),
+		('{', SymbolType::JUST(CURLY_BRACKET_OPEN)),
+		('}', SymbolType::JUST(CURLY_BRACKET_CLOSED)),
+		(',', SymbolType::JUST(COMMA)),
 		('.', SymbolType::SYMBOLS(AHashMap::from([
-			('.', SymbolType::JUST(THREEDOTS)),
-			('=', SymbolType::JUST(CONCATENATE)),
-		]), TWODOTS))
-	]), DOT)),
-	(';', SymbolType::JUST(SEMICOLON)),
-	('+', SymbolType::SYMBOLS(AHashMap::from([
-		('=', SymbolType::JUST(INCREASE)),
-	]), PLUS)),
-	('-', SymbolType::SYMBOLS(AHashMap::from([
-		('=', SymbolType::JUST(DECREASE)),
-	]), MINUS)),
-	('*', SymbolType::SYMBOLS(AHashMap::from([
-		('=', SymbolType::JUST(MULTIPLY)),
-	]), STAR)),
-	('^', SymbolType::SYMBOLS(AHashMap::from([
-		('=', SymbolType::JUST(EXPONENTIATE)),
-		('^', SymbolType::JUST(BIT_XOR)),
-	]), CARET)),
-	('#', SymbolType::JUST(HASHTAG)),
-	('/', SymbolType::SYMBOLS(AHashMap::from([
-		('/', SymbolType::FUNCTION(CodeInfo::read_comment)),
-		('*', SymbolType::FUNCTION(CodeInfo::read_multiline_comment)),
-		('=', SymbolType::JUST(DIVIDE)),
-		('_', SymbolType::JUST(FLOOR_DIVISION)),
-	]), SLASH)),
-	('%', SymbolType::SYMBOLS(AHashMap::from([
-		('=', SymbolType::JUST(MODULATE)),
-	]), PERCENTUAL)),
-	('!', SymbolType::SYMBOLS(AHashMap::from([
-		('=', SymbolType::JUST(NOT_EQUAL)),
-	]), NOT)),
-	('~', SymbolType::JUST(BIT_NOT)),
-	('=', SymbolType::SYMBOLS(AHashMap::from([
-		('=', SymbolType::JUST(EQUAL)),
-		('>', SymbolType::JUST(ARROW)),
-	]), DEFINE)),
-	('<', SymbolType::SYMBOLS(AHashMap::from([
-		('=', SymbolType::JUST(SMALLER_EQUAL)),
-		('<', SymbolType::JUST(LEFT_SHIFT)),
-	]), SMALLER)),
-	('>', SymbolType::SYMBOLS(AHashMap::from([
-		('=', SymbolType::JUST(BIGGER_EQUAL)),
-		('>', SymbolType::JUST(RIGHT_SHIFT)),
-	]), BIGGER)),
-	('?', SymbolType::SYMBOLS(AHashMap::from([
-		('=', SymbolType::FUNCTION(|i| i.warning("'?=' is deprecated and was replaced with '&&='"))),
-		('>', SymbolType::JUST(SAFE_EXPRESSION)),
-		('.', SymbolType::JUST(SAFEDOT)),
-		(':', SymbolType::FUNCTION(|i| {
-			if i.compare(':') {
-				i.add_token(SAFE_DOUBLE_COLON);
-			} else {
-				i.current -= 1;
-			}
-		})),
-		('[', SymbolType::JUST(SAFE_SQUARE_BRACKET)),
-	]), QUESTION_MARK)),
-	('&', SymbolType::SYMBOLS(AHashMap::from([
-		('&', SymbolType::JUST(AND)),
-	]), BIT_AND)),
-	(':', SymbolType::SYMBOLS(AHashMap::from([
-		(':', SymbolType::JUST(DOUBLE_COLON)),
-		('=', SymbolType::FUNCTION(|i| i.warning("':=' is deprecated and was replaced with '||='"))),
-	]), COLON)),
-	('|', SymbolType::SYMBOLS(AHashMap::from([
-		('|', SymbolType::JUST(OR)),
-	]), BIT_OR)),
-	('\n', SymbolType::FUNCTION(|i| i.line += 1)),
-	('"', SymbolType::FUNCTION(|i| i.read_string('"'))),
-	('\'', SymbolType::FUNCTION(|i| i.read_string('\''))),
-	('`', SymbolType::FUNCTION(CodeInfo::read_raw_string))
-]);
+			('.', SymbolType::SYMBOLS(AHashMap::from([
+				('.', SymbolType::JUST(THREEDOTS)),
+				('=', SymbolType::JUST(CONCATENATE)),
+			]), TWODOTS))
+		]), DOT)),
+		(';', SymbolType::JUST(SEMICOLON)),
+		('+', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::JUST(INCREASE)),
+		]), PLUS)),
+		('-', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::JUST(DECREASE)),
+		]), MINUS)),
+		('*', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::JUST(MULTIPLY)),
+		]), STAR)),
+		('^', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::JUST(EXPONENTIATE)),
+			('^', SymbolType::JUST(BIT_XOR)),
+		]), CARET)),
+		('#', SymbolType::JUST(HASHTAG)),
+		('/', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::JUST(DIVIDE)),
+			('_', SymbolType::JUST(FLOOR_DIVISION)),
+		]), SLASH)),
+		('%', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::JUST(MODULATE)),
+		]), PERCENTUAL)),
+		('!', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::JUST(NOT_EQUAL)),
+		]), NOT)),
+		('~', SymbolType::JUST(BIT_NOT)),
+		('=', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::JUST(EQUAL)),
+			('>', SymbolType::JUST(ARROW)),
+		]), DEFINE)),
+		('<', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::JUST(SMALLER_EQUAL)),
+			('<', SymbolType::JUST(LEFT_SHIFT)),
+		]), SMALLER)),
+		('>', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::JUST(BIGGER_EQUAL)),
+			('>', SymbolType::JUST(RIGHT_SHIFT)),
+		]), BIGGER)),
+		('?', SymbolType::SYMBOLS(AHashMap::from([
+			('=', SymbolType::ERROR("'?=' is deprecated and was replaced with '&&='")),
+			('>', SymbolType::JUST(SAFE_EXPRESSION)),
+			('.', SymbolType::JUST(SAFEDOT)),
+			/*(':', SymbolType::FUNCTION(|i| {
+				if i.compare(':') {
+					i.add_token(SAFE_DOUBLE_COLON);
+				} else {
+					i.current -= 1;
+				}
+			})),*/
+			('[', SymbolType::JUST(SAFE_SQUARE_BRACKET)),
+		]), QUESTION_MARK)),
+		('&', SymbolType::SYMBOLS(AHashMap::from([
+			('&', SymbolType::JUST(AND)),
+		]), BIT_AND)),
+		(':', SymbolType::SYMBOLS(AHashMap::from([
+			(':', SymbolType::JUST(DOUBLE_COLON)),
+			('=', SymbolType::ERROR("':=' is deprecated and was replaced with '||='")),
+		]), COLON)),
+		('|', SymbolType::SYMBOLS(AHashMap::from([
+			('|', SymbolType::JUST(OR)),
+		]), BIT_OR)),
+	]);
 }
 
 pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
@@ -410,84 +386,111 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 		i.start = i.current;
 		let c: char = i.advance();
 		if !i.scan_char(&SYMBOLS, &c) {
-			if c.is_whitespace() {
-				continue
-			} if c.is_ascii_digit() {
-				if c == '0' {
-					match i.peek(0) {
-						'x' | 'X' => {
-							i.current += 1;
-							i.read_number(
-								|c| {
-									let c = *c;
-									c.is_ascii_digit()
-										|| ('a'..='f').contains(&c) || ('A'..='F').contains(&c)
-								},
-								false,
-							);
+			match c {
+				'/' => match i.peek(0) {
+					'/' => {
+						while i.peek(0) != '\n' && !i.ended() {
+							i.current += 1
 						}
-						'b' | 'B' => {
-							i.current += 1;
-							i.read_number(
-								|c| {
-									let c = *c;
-									c == '0' || c == '1'
-								},
-								false,
-							);
-						}
-						_ => i.read_number(char::is_ascii_digit, true),
 					}
+					'*' => {
+						while !(i.ended() || i.peek(0) == '*' && i.peek(1) == '/') {
+							if i.peek(0) == '\n' {
+								i.line += 1
+							}
+							i.current += 1;
+						}
+						if i.ended() {
+							i.warning("Unterminated comment");
+						} else {
+							i.current += 2;
+						}
+					}
+					'=' => i.add_token(DIVIDE),
+					'_' => i.add_token(FLOOR_DIVISION), 
+					_ => i.add_token(SLASH),
+				},
+				' ' | '\r' | '\t' => {}
+				'\n' => i.line += 1,
+				'"' | '\'' => i.read_string(c),
+				'`' => i.read_raw_string(),
+				_ => if c.is_ascii_digit() {
+					if c == '0' {
+						match i.peek(0) {
+							'x' | 'X' => {
+								i.current += 1;
+								i.read_number(
+									|c| {
+										let c = *c;
+										c.is_ascii_digit()
+											|| ('a'..='f').contains(&c) || ('A'..='F').contains(&c)
+									},
+									false,
+								);
+							}
+							'b' | 'B' => {
+								i.current += 1;
+								i.read_number(
+									|c| {
+										let c = *c;
+										c == '0' || c == '1'
+									},
+									false,
+								);
+							}
+							_ => i.read_number(char::is_ascii_digit, true),
+						}
+					} else {
+						i.read_number(char::is_ascii_digit, true);
+					}
+				} else if c.is_ascii_alphabetic() || c == '_' {
+					let kind: TokenType = match i.read_identifier().as_str() {
+						"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
+						"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
+						"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),
+						"do" => i.reserved("do", "'do ... end' blocks in Clue are made like this: '{ ... }'"),
+						"end" => i.reserved("end", "code blocks in Clue are closed with '}'"),
+						"function" => i.reserved("function", "functions in Clue are defined with the 'fn' keyword"),
+						"repeat" => i.reserved("repeat", "'repeat ... until x' loops in Clue are made like this: 'loop { ... } until x'"),
+						"then" => i.reserved("then", "code blocks in Clue are opened with '{'"),
+						"if" => IF,
+						"elseif" => ELSEIF,
+						"else" => ELSE,
+						"for" => FOR,
+						"in" => IN,
+						"while" => WHILE,
+						"until" => UNTIL,
+						"local" => LOCAL,
+						"return" => RETURN,
+						"true" => TRUE,
+						"false" => FALSE,
+						"nil" => NIL,
+						"break" => BREAK,
+						_ if matches!(i.last, DOT | SAFEDOT | DOUBLE_COLON | SAFE_DOUBLE_COLON) => IDENTIFIER,
+						"of" => OF,
+						"with" => WITH,
+						"meta" => META,
+						"global" => GLOBAL,
+						"fn" => FN,
+						"method" => METHOD,
+						"loop" => LOOP,
+						"static" => STATIC,
+						"enum" => ENUM,
+						"continue" => CONTINUE,
+						"try" => TRY,
+						"catch" => CATCH,
+						"match" => MATCH,
+						"default" => DEFAULT,
+						"macro" => {println!("Note: the macro keyword will be replaced by @define in 3.0!"); MACRO},
+						"constructor" => {i.warning("The struct constructor is reserved for Clue 4.0 and cannot be used."); CONSTRUCTOR},
+						"struct" => {i.warning("The struct keyword is reserved for Clue 4.0 and cannot be used."); STRUCT},
+						"extern" => {i.warning("The extern keyword is reserved for Clue 4.0 and cannot be used."); EXTERN},
+						_ => IDENTIFIER
+					};
+					i.add_token(kind);
 				} else {
-					i.read_number(char::is_ascii_digit, true);
+					i.warning(format!("Unexpected character '{c}'").as_str());
 				}
-			} else if c.is_ascii_alphabetic() || c == '_' {
-				let kind: TokenType = match i.read_identifier().as_str() {
-					"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
-					"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
-					"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),
-					"do" => i.reserved("do", "'do ... end' blocks in Clue are made like this: '{ ... }'"),
-					"end" => i.reserved("end", "code blocks in Clue are closed with '}'"),
-					"function" => i.reserved("function", "functions in Clue are defined with the 'fn' keyword"),
-					"repeat" => i.reserved("repeat", "'repeat ... until x' loops in Clue are made like this: 'loop { ... } until x'"),
-					"then" => i.reserved("then", "code blocks in Clue are opened with '{'"),
-					"if" => IF,
-					"elseif" => ELSEIF,
-					"else" => ELSE,
-					"for" => FOR,
-					"in" => IN,
-					"while" => WHILE,
-					"until" => UNTIL,
-					"local" => LOCAL,
-					"return" => RETURN,
-					"true" => TRUE,
-					"false" => FALSE,
-					"nil" => NIL,
-					"break" => BREAK,
-					_ if matches!(i.last, DOT | SAFEDOT | DOUBLE_COLON | SAFE_DOUBLE_COLON) => IDENTIFIER,
-					"of" => OF,
-					"with" => WITH,
-					"meta" => META,
-					"global" => GLOBAL,
-					"fn" => FN,
-					"method" => METHOD,
-					"loop" => LOOP,
-					"static" => STATIC,
-					"enum" => ENUM,
-					"continue" => CONTINUE,
-					"try" => TRY,
-					"catch" => CATCH,
-					"match" => MATCH,
-					"default" => DEFAULT,
-					"macro" => {println!("Note: the macro keyword will be replaced by @define in 3.0!"); MACRO},
-					"constructor" => {i.warning("The struct constructor is reserved for Clue 4.0 and cannot be used."); CONSTRUCTOR},
-					"struct" => {i.warning("The struct keyword is reserved for Clue 4.0 and cannot be used."); STRUCT},
-					"extern" => {i.warning("The extern keyword is reserved for Clue 4.0 and cannot be used."); EXTERN},
-					_ => IDENTIFIER
-				};
-				i.add_token(kind);
-			} else {
-				i.warning(format!("Unexpected character '{c}'").as_str());
 			}
 		}
 	}
