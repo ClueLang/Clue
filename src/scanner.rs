@@ -1,4 +1,5 @@
 #![allow(non_camel_case_types)]
+#![allow(clippy::upper_case_acronyms)]
 
 use self::TokenType::*;
 use ahash::AHashMap;
@@ -306,7 +307,6 @@ impl CodeInfo {
 		}
 	}
 }
-
 enum SymbolType {
 	JUST(TokenType),
 	FUNCTION(fn(&mut CodeInfo)),
@@ -406,7 +406,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 		if !i.scan_char(&SYMBOLS, &c) {
 			if c.is_whitespace() {
 				continue
-			} if c.is_ascii_digit() {
+			} else if c.is_ascii_digit() {
 				if c == '0' {
 					match i.peek(0) {
 						'x' | 'X' => {
