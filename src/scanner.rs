@@ -1,16 +1,6 @@
 #![allow(non_camel_case_types)]
 
 use self::TokenType::*;
-use ahash::AHashMap;
-use lazy_static::lazy_static;
-/*
-Slowest: 3491020 ns
-Fastest: 64360 ns
-Average: 110609 ns/iter
-Top 1% : 69556 ns/iter
-*/
-
-type SymbolsMap = AHashMap<char, SymbolType>;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[rustfmt::skip]
@@ -20,7 +10,7 @@ pub enum TokenType {
 	SQUARE_BRACKET_CLOSED, CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	COMMA, SEMICOLON, NOT, AND, OR, DOLLAR, PLUS, MINUS, STAR, SLASH,
 	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON, AT,
-	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, SAFE_EXPRESSION,
+	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, PROTECTED_GET,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
 	QUESTION_MARK, COLON, ARROW, FLOOR_DIVISION,
 
@@ -102,7 +92,7 @@ impl CodeInfo {
 		self.current += 1;
 		prev
 	}
-/*
+
 	fn compare(&mut self, expected: char) -> bool {
 		if self.ended() {
 			return false;
@@ -113,13 +103,13 @@ impl CodeInfo {
 		self.current += 1;
 		true
 	}
-*/
+
 	fn peek(&self, pos: usize) -> char {
 		let pos: usize = self.current + pos;
 		self.at(pos)
 	}
 
-	fn look_back(&self, pos: usize) -> char {
+	fn lookBack(&self, pos: usize) -> char {
 		let pos: usize = self.current - pos - 1;
 		self.at(pos)
 	}
@@ -149,6 +139,25 @@ impl CodeInfo {
 		self.tokens.push(Token::new(kind, lexeme, self.line));
 	}
 
+	fn compare_and_add(&mut self, c: char, kt: TokenType, kf: TokenType) {
+		let kind: TokenType = match self.compare(c) {
+			true => kt,
+			false => kf,
+		};
+		self.add_token(kind);
+	}
+
+	fn match_and_add(&mut self, c1: char, k1: TokenType, c2: char, k2: TokenType, kd: TokenType) {
+		let kind: TokenType = match self.compare(c1) {
+			true => k1,
+			false => match self.compare(c2) {
+				true => k2,
+				false => kd,
+			},
+		};
+		self.add_token(kind);
+	}
+
 	fn warning(&mut self, message: impl Into<String>) {
 		println!(
 			"Error in file \"{}\" at line {}!\nError: \"{}\"\n",
@@ -157,14 +166,6 @@ impl CodeInfo {
 			message.into()
 		);
 		self.errored = true;
-	}
-
-	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
-		self.warning(format!(
-			"'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}",
-			keyword, msg
-		));
-		IDENTIFIER
 	}
 
 	fn read_number(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
@@ -233,7 +234,7 @@ impl CodeInfo {
 
 	fn read_raw_string(&mut self) {
 		let mut aline = self.line;
-		while !self.ended() && (self.peek(0) != '`' || self.look_back(0) == '\\') {
+		while !self.ended() && (self.peek(0) != '`' || self.lookBack(0) == '\\') {
 			if self.peek(0) == '\n' {
 				aline += 1
 			};
@@ -263,7 +264,7 @@ impl CodeInfo {
 		self.line = aline
 	}
 
-	fn read_identifier(&mut self) -> String {
+	fn readIdentifier(&mut self) -> String {
 		while {
 			let c = self.peek(0);
 			c.is_ascii_alphanumeric() || c == '_'
@@ -273,111 +274,13 @@ impl CodeInfo {
 		self.substr(self.start, self.current)
 	}
 
-	fn scan_char(&mut self, symbols: &SymbolsMap, c: &char) -> bool {
-		if let Some(token) = symbols.get(c) {
-			match token {
-				SymbolType::JUST(kind) => self.add_token(*kind),
-				SymbolType::SYMBOLS(symbols, default) => {
-					let nextc = self.advance();
-					if !self.scan_char(symbols, &nextc) {
-						self.current -= 1;
-						self.add_token(*default);
-					}
-				},
-				SymbolType::ERROR(e) => self.warning(*e),
-				//SymbolType::FUNCTION(f) => f(self),
-			}
-			true
-		} else {
-			false
-		}
+	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
+		self.warning(format!(
+			"'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}",
+			keyword, msg
+		));
+		IDENTIFIER
 	}
-}
-
-enum SymbolType {
-	JUST(TokenType),
-	//FUNCTION(fn(&mut CodeInfo)),
-	ERROR(&'static str),
-	SYMBOLS(SymbolsMap, TokenType),
-}
-
-lazy_static! {
-	static ref SYMBOLS: SymbolsMap = AHashMap::from([
-		('(', SymbolType::JUST(ROUND_BRACKET_OPEN)),
-		(')', SymbolType::JUST(ROUND_BRACKET_CLOSED)),
-		('[', SymbolType::JUST(SQUARE_BRACKET_OPEN)),
-		(']', SymbolType::JUST(SQUARE_BRACKET_CLOSED)),
-		('{', SymbolType::JUST(CURLY_BRACKET_OPEN)),
-		('}', SymbolType::JUST(CURLY_BRACKET_CLOSED)),
-		(',', SymbolType::JUST(COMMA)),
-		('.', SymbolType::SYMBOLS(AHashMap::from([
-			('.', SymbolType::SYMBOLS(AHashMap::from([
-				('.', SymbolType::JUST(THREEDOTS)),
-				('=', SymbolType::JUST(CONCATENATE)),
-			]), TWODOTS))
-		]), DOT)),
-		(';', SymbolType::JUST(SEMICOLON)),
-		('+', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::JUST(INCREASE)),
-		]), PLUS)),
-		('-', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::JUST(DECREASE)),
-		]), MINUS)),
-		('*', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::JUST(MULTIPLY)),
-		]), STAR)),
-		('^', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::JUST(EXPONENTIATE)),
-			('^', SymbolType::JUST(BIT_XOR)),
-		]), CARET)),
-		('#', SymbolType::JUST(HASHTAG)),
-		('/', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::JUST(DIVIDE)),
-			('_', SymbolType::JUST(FLOOR_DIVISION)),
-		]), SLASH)),
-		('%', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::JUST(MODULATE)),
-		]), PERCENTUAL)),
-		('!', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::JUST(NOT_EQUAL)),
-		]), NOT)),
-		('~', SymbolType::JUST(BIT_NOT)),
-		('=', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::JUST(EQUAL)),
-			('>', SymbolType::JUST(ARROW)),
-		]), DEFINE)),
-		('<', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::JUST(SMALLER_EQUAL)),
-			('<', SymbolType::JUST(LEFT_SHIFT)),
-		]), SMALLER)),
-		('>', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::JUST(BIGGER_EQUAL)),
-			('>', SymbolType::JUST(RIGHT_SHIFT)),
-		]), BIGGER)),
-		('?', SymbolType::SYMBOLS(AHashMap::from([
-			('=', SymbolType::ERROR("'?=' is deprecated and was replaced with '&&='")),
-			('>', SymbolType::JUST(SAFE_EXPRESSION)),
-			('.', SymbolType::JUST(SAFEDOT)),
-			/*(':', SymbolType::FUNCTION(|i| {
-				if i.compare(':') {
-					i.add_token(SAFE_DOUBLE_COLON);
-				} else {
-					i.current -= 1;
-				}
-			})),*/
-			('[', SymbolType::JUST(SAFE_SQUARE_BRACKET)),
-		]), QUESTION_MARK)),
-		('&', SymbolType::SYMBOLS(AHashMap::from([
-			('&', SymbolType::JUST(AND)),
-		]), BIT_AND)),
-		(':', SymbolType::SYMBOLS(AHashMap::from([
-			(':', SymbolType::JUST(DOUBLE_COLON)),
-			('=', SymbolType::ERROR("':=' is deprecated and was replaced with '||='")),
-		]), COLON)),
-		('|', SymbolType::SYMBOLS(AHashMap::from([
-			('|', SymbolType::JUST(OR)),
-		]), BIT_OR)),
-	]);
 }
 
 pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
@@ -385,36 +288,99 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 	while !i.ended() {
 		i.start = i.current;
 		let c: char = i.advance();
-		if !i.scan_char(&SYMBOLS, &c) {
-			match c {
-				'/' => match i.peek(0) {
-					'/' => {
-						while i.peek(0) != '\n' && !i.ended() {
-							i.current += 1
-						}
+		match c {
+			'(' => i.add_token(ROUND_BRACKET_OPEN),
+			')' => i.add_token(ROUND_BRACKET_CLOSED),
+			'[' => i.add_token(SQUARE_BRACKET_OPEN),
+			']' => i.add_token(SQUARE_BRACKET_CLOSED),
+			'{' => i.add_token(CURLY_BRACKET_OPEN),
+			'}' => i.add_token(CURLY_BRACKET_CLOSED),
+			',' => i.add_token(COMMA),
+			'.' => {
+				if i.peek(0) == '.' {
+					i.current += 1;
+					let f: char = i.peek(0);
+					if f == '.' {
+						i.current += 1;
+						i.add_token(THREEDOTS);
+					} else if f == '=' {
+						i.current += 1;
+						i.add_token(CONCATENATE);
+					} else {
+						i.add_token(TWODOTS);
 					}
-					'*' => {
-						while !(i.ended() || i.peek(0) == '*' && i.peek(1) == '/') {
-							if i.peek(0) == '\n' {
-								i.line += 1
-							}
-							i.current += 1;
+				} else {
+					i.add_token(DOT);
+				}
+			}
+			';' => i.add_token(SEMICOLON),
+			'+' => i.compare_and_add('=', INCREASE, PLUS),
+			'-' => i.compare_and_add('=', DECREASE, MINUS),
+			'*' => i.compare_and_add('=', MULTIPLY, STAR),
+			'^' => i.match_and_add('=', EXPONENTIATE, '^', BIT_XOR, CARET),
+			'#' => i.add_token(HASHTAG),
+			'/' => match i.peek(0) {
+				'/' => {
+					while i.peek(0) != '\n' && !i.ended() {
+						i.current += 1
+					}
+				}
+				'*' => {
+					while !(i.ended() || i.peek(0) == '*' && i.peek(1) == '/') {
+						if i.peek(0) == '\n' {
+							i.line += 1
 						}
-						if i.ended() {
-							i.warning("Unterminated comment");
+						i.current += 1;
+					}
+					if i.ended() {
+						i.warning("Unterminated comment");
+					} else {
+						i.current += 2;
+					}
+				}
+				_ => i.match_and_add('=', DIVIDE, '_', FLOOR_DIVISION, SLASH),
+			},
+			'%' => i.compare_and_add('=', MODULATE, PERCENTUAL),
+			'!' => i.compare_and_add('=', NOT_EQUAL, NOT),
+			'~' => i.add_token(BIT_NOT),
+			'=' => i.match_and_add('=', EQUAL, '>', ARROW, DEFINE),
+			'<' => i.match_and_add('=', SMALLER_EQUAL, '<', LEFT_SHIFT, SMALLER),
+			'>' => i.match_and_add('=', BIGGER_EQUAL, '>', RIGHT_SHIFT, BIGGER),
+			'?' => {
+				let kind = match i.advance() {
+					'=' => DEFINE_AND,
+					'>' => {
+						i.warning("?> is deprecated");
+						PROTECTED_GET
+					}
+					'.' => SAFEDOT,
+					':' => {
+						if i.compare(':') {
+							SAFE_DOUBLE_COLON
 						} else {
-							i.current += 2;
+							i.current -= 1;
+							continue;
 						}
 					}
-					'=' => i.add_token(DIVIDE),
-					'_' => i.add_token(FLOOR_DIVISION), 
-					_ => i.add_token(SLASH),
-				},
-				' ' | '\r' | '\t' => {}
-				'\n' => i.line += 1,
-				'"' | '\'' => i.read_string(c),
-				'`' => i.read_raw_string(),
-				_ => if c.is_ascii_digit() {
+					'[' => SAFE_SQUARE_BRACKET,
+					_ => {
+						i.current -= 1;
+						QUESTION_MARK
+					}
+				};
+				i.add_token(kind);
+			}
+			'&' => i.compare_and_add('&', AND, BIT_AND),
+			':' => i.match_and_add(':', DOUBLE_COLON, '=', DEFINE_OR, COLON),
+			'|' => i.compare_and_add('|', OR, BIT_OR),
+			'$' => i.add_token(DOLLAR),
+			'@' => i.add_token(AT),
+			' ' | '\r' | '\t' => {}
+			'\n' => i.line += 1,
+			'"' | '\'' => i.read_string(c),
+			'`' => i.read_raw_string(),
+			_ => {
+				if c.is_ascii_digit() {
 					if c == '0' {
 						match i.peek(0) {
 							'x' | 'X' => {
@@ -444,7 +410,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 						i.read_number(char::is_ascii_digit, true);
 					}
 				} else if c.is_ascii_alphabetic() || c == '_' {
-					let kind: TokenType = match i.read_identifier().as_str() {
+					let kind: TokenType = match i.readIdentifier().as_str() {
 						"and" => i.reserved("and", "'and' operators in Clue are made with '&&'"),
 						"not" => i.reserved("not", "'not' operators in Clue are made with '!'"),
 						"or" => i.reserved("or", "'or' operators in Clue are made with '||'"),

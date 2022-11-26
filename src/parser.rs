@@ -521,7 +521,7 @@ impl ParserInfo {
 		checkback: bool,
 	) -> Result<(), String> {
 		if match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | SAFE_EXPRESSION | TRUE | FALSE | MINUS
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | FALSE | MINUS
 			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT | THREEDOTS | MATCH => false,
 			CURLY_BRACKET_OPEN => {
 				*notable = false;
@@ -607,7 +607,7 @@ impl ParserInfo {
 
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | SAFE_EXPRESSION | TRUE | BIT_NOT | FALSE
+			NUMBER | IDENTIFIER | STRING | DOLLAR | PROTECTED_GET | TRUE | BIT_NOT | FALSE
 			| NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
@@ -712,7 +712,7 @@ impl ParserInfo {
 					}
 					expr.push_back(SYMBOL(String::from("#")))
 				}
-				/*SAFE_EXPRESSION => {
+				/*PROTECTED_GET => {
 					self.assert(ROUND_BRACKET_OPEN, "(")?;
 					self.current += 1;
 					expr.push_back(PGET(self.build_identifier(true)?));
