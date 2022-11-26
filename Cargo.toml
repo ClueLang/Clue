@@ -20,7 +20,6 @@ ahash = "0.8.2"
 num_cpus = "1.14.0"
 devtimer = {version = "4.0.1", optional = true}
 rpmalloc = {version = "0.2.2", optional = true}
-phf = {version = "0.11", features = ["macros"]}
 mlua = {version = "0.8.3", features = ["luajit", "vendored"], optional = true}
 
 [features]
