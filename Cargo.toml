@@ -3,15 +3,11 @@ name = "clue"
 version = "3.0.0-beta"
 description = "C/Rust like programming language that compiles into Lua code"
 edition = "2021"
-build = "build.rs"
 authors = ["Maiori"]
 repository = "https://github.com/ClueLang/Clue"
 license = "MIT"
 keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
 categories = ["compilers"]
-
-[build-dependencies]
-winres = "0.1"
 
 [dependencies]
 clap = {version = "3.2.23", features = ["derive"]}
@@ -28,4 +24,5 @@ bench = ["devtimer", "rpmalloc"]
 interpreter = ["mlua"]
 
 [profile.release]
+opt-level = 2
 lto = true
