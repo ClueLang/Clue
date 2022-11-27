@@ -3,9 +3,22 @@
 
 use self::TokenType::*;
 use ahash::AHashMap;
+use std::{cmp, fmt};
 use lazy_static::lazy_static;
 
-type SymbolsMap = AHashMap<char, SymbolType>;
+type SymbolsMap = Vec<Option<SymbolType>>;
+
+fn generate_map(elements: &[(char, SymbolType)]) -> SymbolsMap {
+	let mut map: SymbolsMap = vec![None; 127];
+	let mut biggestkey = 0usize;
+	for (key, value) in elements {
+		let key = *key as usize;
+		map[key] = Some(value.clone());
+		biggestkey = cmp::max(biggestkey, key);
+	}
+	map.truncate(biggestkey + 1);
+	map
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[rustfmt::skip]
@@ -288,13 +301,13 @@ impl CodeInfo {
 		}
 	}
 
-	fn scan_char(&mut self, symbols: &SymbolsMap, c: &char) -> bool {
-		if let Some(token) = symbols.get(c) {
+	fn scan_char(&mut self, symbols: &SymbolsMap, c: char) -> bool {
+		if let Some(Some(token)) = symbols.get(c as usize) {
 			match token {
 				SymbolType::JUST(kind) => self.add_token(*kind),
 				SymbolType::SYMBOLS(symbols, default) => {
 					let nextc = self.advance();
-					if !self.scan_char(symbols, &nextc) {
+					if !self.scan_char(symbols, nextc) {
 						self.current -= 1;
 						self.add_token(*default);
 					}
@@ -307,10 +320,22 @@ impl CodeInfo {
 		}
 	}
 }
+
+#[derive(Clone)]
 enum SymbolType {
 	JUST(TokenType),
 	FUNCTION(fn(&mut CodeInfo)),
 	SYMBOLS(SymbolsMap, TokenType),
+}
+
+impl fmt::Debug for SymbolType {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+			SymbolType::JUST(kind) => format!("{kind:?}"),
+			SymbolType::FUNCTION(_) => String::from("FUNCTION({...})"),
+			SymbolType::SYMBOLS(symbols, kind) => format!("({symbols:#?}, {kind:?})")
+		})
+    }
 }
 
 enum KeywordType {
@@ -321,7 +346,7 @@ enum KeywordType {
 }
 
 lazy_static! {
-	static ref SYMBOLS: SymbolsMap = AHashMap::from([
+	static ref SYMBOLS: SymbolsMap = generate_map(&[
 		('(', SymbolType::JUST(ROUND_BRACKET_OPEN)),
 		(')', SymbolType::JUST(ROUND_BRACKET_CLOSED)),
 		('[', SymbolType::JUST(SQUARE_BRACKET_OPEN)),
@@ -329,53 +354,53 @@ lazy_static! {
 		('{', SymbolType::JUST(CURLY_BRACKET_OPEN)),
 		('}', SymbolType::JUST(CURLY_BRACKET_CLOSED)),
 		(',', SymbolType::JUST(COMMA)),
-		('.', SymbolType::SYMBOLS(AHashMap::from([
-			('.', SymbolType::SYMBOLS(AHashMap::from([
+		('.', SymbolType::SYMBOLS(generate_map(&[
+			('.', SymbolType::SYMBOLS(generate_map(&[
 				('.', SymbolType::JUST(THREEDOTS)),
 				('=', SymbolType::JUST(CONCATENATE)),
 			]), TWODOTS))
 		]), DOT)),
 		(';', SymbolType::JUST(SEMICOLON)),
-		('+', SymbolType::SYMBOLS(AHashMap::from([
+		('+', SymbolType::SYMBOLS(generate_map(&[
 			('=', SymbolType::JUST(INCREASE)),
 		]), PLUS)),
-		('-', SymbolType::SYMBOLS(AHashMap::from([
+		('-', SymbolType::SYMBOLS(generate_map(&[
 			('=', SymbolType::JUST(DECREASE)),
 		]), MINUS)),
-		('*', SymbolType::SYMBOLS(AHashMap::from([
+		('*', SymbolType::SYMBOLS(generate_map(&[
 			('=', SymbolType::JUST(MULTIPLY)),
 		]), STAR)),
-		('^', SymbolType::SYMBOLS(AHashMap::from([
+		('^', SymbolType::SYMBOLS(generate_map(&[
 			('=', SymbolType::JUST(EXPONENTIATE)),
 			('^', SymbolType::JUST(BIT_XOR)),
 		]), CARET)),
 		('#', SymbolType::JUST(HASHTAG)),
-		('/', SymbolType::SYMBOLS(AHashMap::from([
+		('/', SymbolType::SYMBOLS(generate_map(&[
 			('/', SymbolType::FUNCTION(CodeInfo::read_comment)),
 			('*', SymbolType::FUNCTION(CodeInfo::read_multiline_comment)),
 			('=', SymbolType::JUST(DIVIDE)),
 			('_', SymbolType::JUST(FLOOR_DIVISION)),
 		]), SLASH)),
-		('%', SymbolType::SYMBOLS(AHashMap::from([
+		('%', SymbolType::SYMBOLS(generate_map(&[
 			('=', SymbolType::JUST(MODULATE)),
 		]), PERCENTUAL)),
-		('!', SymbolType::SYMBOLS(AHashMap::from([
+		('!', SymbolType::SYMBOLS(generate_map(&[
 			('=', SymbolType::JUST(NOT_EQUAL)),
 		]), NOT)),
 		('~', SymbolType::JUST(BIT_NOT)),
-		('=', SymbolType::SYMBOLS(AHashMap::from([
+		('=', SymbolType::SYMBOLS(generate_map(&[
 			('=', SymbolType::JUST(EQUAL)),
 			('>', SymbolType::JUST(ARROW)),
 		]), DEFINE)),
-		('<', SymbolType::SYMBOLS(AHashMap::from([
+		('<', SymbolType::SYMBOLS(generate_map(&[
 			('=', SymbolType::JUST(SMALLER_EQUAL)),
 			('<', SymbolType::JUST(LEFT_SHIFT)),
 		]), SMALLER)),
-		('>', SymbolType::SYMBOLS(AHashMap::from([
+		('>', SymbolType::SYMBOLS(generate_map(&[
 			('=', SymbolType::JUST(BIGGER_EQUAL)),
 			('>', SymbolType::JUST(RIGHT_SHIFT)),
 		]), BIGGER)),
-		('?', SymbolType::SYMBOLS(AHashMap::from([
+		('?', SymbolType::SYMBOLS(generate_map(&[
 			('=', SymbolType::FUNCTION(|i| i.warning("'?=' is deprecated and was replaced with '&&='"))),
 			('>', SymbolType::JUST(SAFE_EXPRESSION)),
 			('.', SymbolType::JUST(SAFEDOT)),
@@ -388,14 +413,14 @@ lazy_static! {
 			})),
 			('[', SymbolType::JUST(SAFE_SQUARE_BRACKET)),
 		]), QUESTION_MARK)),
-		('&', SymbolType::SYMBOLS(AHashMap::from([
+		('&', SymbolType::SYMBOLS(generate_map(&[
 			('&', SymbolType::JUST(AND)),
 		]), BIT_AND)),
-		(':', SymbolType::SYMBOLS(AHashMap::from([
+		(':', SymbolType::SYMBOLS(generate_map(&[
 			(':', SymbolType::JUST(DOUBLE_COLON)),
 			('=', SymbolType::FUNCTION(|i| i.warning("':=' is deprecated and was replaced with '||='"))),
 		]), COLON)),
-		('|', SymbolType::SYMBOLS(AHashMap::from([
+		('|', SymbolType::SYMBOLS(generate_map(&[
 			('|', SymbolType::JUST(OR)),
 		]), BIT_OR)),
 		('\n', SymbolType::FUNCTION(|i| i.line += 1)),
@@ -452,7 +477,7 @@ pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
 	while !i.ended() {
 		i.start = i.current;
 		let c: char = i.advance();
-		if !i.scan_char(&SYMBOLS, &c) {
+		if !i.scan_char(&SYMBOLS, c) {
 			if c.is_whitespace() {
 				continue
 			} else if c.is_ascii_digit() {

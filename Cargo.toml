@@ -24,5 +24,4 @@ bench = ["devtimer", "rpmalloc"]
 interpreter = ["mlua"]
 
 [profile.release]
-opt-level = 2
 lto = true
