@@ -9,6 +9,10 @@ license = "MIT"
 keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
 categories = ["compilers"]
 
+[workspace]
+members = ["macros"]
+default-members = ["macros"]
+
 [dependencies]
 clap = {version = "3.2.23", features = ["derive"]}
 lazy_static = "1.4.0"
