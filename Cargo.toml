@@ -1,31 +1,6 @@
-[package]
-name = "clue"
-version = "3.0.0-beta"
-description = "C/Rust like programming language that compiles into Lua code"
-edition = "2021"
-authors = ["Maiori"]
-repository = "https://github.com/ClueLang/Clue"
-license = "MIT"
-keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
-categories = ["compilers"]
-
 [workspace]
-members = ["macros"]
-default-members = ["macros"]
-
-[dependencies]
-clap = {version = "3.2.23", features = ["derive"]}
-lazy_static = "1.4.0"
-ahash = "0.8.2"
-num_cpus = "1.14.0"
-devtimer = {version = "4.0.1", optional = true}
-rpmalloc = {version = "0.2.2", optional = true}
-mlua = {version = "0.8.3", features = ["luajit", "vendored"], optional = true}
-
-[features]
-default = ["mlua", "rpmalloc"]
-bench = ["devtimer", "rpmalloc"]
-interpreter = ["mlua"]
+members = ["cli", "core", "macros"]
+default-members = ["cli", "core", "macros"]
 
 [profile.release]
 lto = true
