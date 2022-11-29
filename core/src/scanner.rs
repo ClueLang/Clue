@@ -7,7 +7,8 @@ use std::{cmp, fmt};
 use lazy_static::lazy_static;
 use clue_macros::generate_map;
 
-generate_map!([1, 2, 3]);
+//FOR TESTING
+generate_map!([('A', SymbolType::JUST(COMMA)), ('B', SymbolType::JUST(DOT))]);
 
 type SymbolsMap = Vec<Option<SymbolType>>;
 
