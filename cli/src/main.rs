@@ -462,6 +462,6 @@ mod test {
 
 	#[test]
 	fn compilation_success() {
-		compile_folder("examples/", String::new()).unwrap();
+		compile_folder("../examples/", String::new()).unwrap();
 	}
 }
