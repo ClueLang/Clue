@@ -1,0 +1,14 @@
+[package]
+name = "clue_cli"
+version = "2.0.0"
+
+[dependencies]
+num_cpus = "1.14.0"
+clue = {path = "../core"}
+clue_macros = {path = "../macros", features = ["version"]}
+clap = {version = "3.2.23", features = ["derive"]}
+mlua = {version = "0.8.3", features = ["luajit", "vendored"], optional = true}
+devtimer = {version = "4.0.1", optional = true}
+
+[features]
+bench = ["devtimer"]

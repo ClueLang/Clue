@@ -1,0 +1,21 @@
+[package]
+name = "clue"
+version = "3.0.0-beta"
+description = "C/Rust like programming language that compiles into Lua code"
+edition = "2021"
+authors = ["Maiori"]
+repository = "https://github.com/ClueLang/Clue"
+license = "MIT"
+keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
+categories = ["compilers"]
+
+[dependencies]
+clue_macros = {path = "../macros", features = ["map"]}
+lazy_static = "1.4.0"
+ahash = "0.8.2"
+clap = {version = "3.2.23", features = ["derive"]}
+rpmalloc = {version = "0.2.2", optional = true}
+
+[features]
+default = ["rpmalloc"]
+bench = ["rpmalloc"]
