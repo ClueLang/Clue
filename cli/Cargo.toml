@@ -1,11 +1,18 @@
 [package]
-name = "clue_cli"
-version = "2.0.0"
+name = "clue"
+version = "3.0.0-beta"
+description = "C/Rust like programming language that compiles into Lua code"
+edition = "2021"
+authors = ["Maiori"]
+readme = "../README.md"
+repository = "https://github.com/ClueLang/Clue"
+license = "MIT"
+keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
+categories = ["compilers"]
 
 [dependencies]
 num_cpus = "1.14.0"
-clue = {path = "../core"}
-clue_macros = {path = "../macros", features = ["version"]}
+clue_core = {path = "../core"}
 clap = {version = "3.2.23", features = ["derive"]}
 mlua = {version = "0.8.3", features = ["luajit", "vendored"], optional = true}
 devtimer = {version = "4.0.1", optional = true}

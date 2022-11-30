@@ -1,14 +1,18 @@
 [package]
 name = "clue_macros"
 version = "1.0.0-beta"
+description = "Procedural macro for the Clue programming language"
+edition = "2021"
+authors = ["Maiori"]
+readme = "./README.md"
+repository = "https://github.com/ClueLang/Clue"
+license = "MIT"
 
 [lib]
 proc-macro = true
 
 [dependencies]
 litrs = {version = "0.2.3", optional = true}
-toml = {version = "0.5.9", optional = true}
 
 [features]
 map = ["litrs"]
-version = ["toml"]

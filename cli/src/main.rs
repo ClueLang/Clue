@@ -1,6 +1,4 @@
-extern crate clue;
-extern crate clap;
-
+use clue_core as clue;
 use clap::Parser;
 use clue::env::ContinueMode;
 use clue::{
@@ -21,8 +19,7 @@ macro_rules! println {
 
 #[derive(Parser)]
 #[clap(
-	name = "clue",
-	version = clue_macros::clue_version!(),
+	version,
 	about = "C/Rust like programming language that compiles into Lua code\nMade by Maiori\nhttps://github.com/ClueLang/Clue",
 	long_about = None
 )]
