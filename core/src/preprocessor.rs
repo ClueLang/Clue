@@ -76,6 +76,22 @@ fn assert_word(chars: CodeChars, line: &mut usize, filename: &String) -> Result<
 	}
 }
 
+fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<LinkedString, String> {
+	reach(chars, '"', line, filename)?;
+	let mut arg = String::new();
+	while {
+		if let Some(c) = chars.peek() {
+			*c != '"'
+		} else {
+			return Err(expected_before("\"", "<end>", *line, filename))
+		}
+	} {
+		arg.push(chars.next().unwrap())
+	}
+	chars.next();
+	preprocess_code(arg, filename)
+}
+
 fn read_block(chars: CodeChars, mut line: usize, filename: &String) -> Result<String, String> {
 	reach(chars, '{', &mut line, filename)?;
 	let mut block = String::new();
@@ -133,8 +149,7 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 				let directive = read_word(chars);
 				prev = match directive.as_str() {
 					"ifos" => {
-						let target_os =
-							assert_word(chars, &mut line, filename)?.to_ascii_lowercase();
+						let target_os = assert_word(chars, &mut line, filename)?.to_ascii_lowercase();
 						keep_block(
 							chars,
 							&mut code,
@@ -146,6 +161,17 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 					"ifdef" => {
 						let var = assert_word(chars, &mut line, filename)?;
 						keep_block(chars, &mut code, env::var(var).is_ok(), line, filename)?
+					}
+					"ifcmp" => {
+						let arg1 = read_arg(chars, &mut line, filename)?;
+						let condition = assert_word(chars, &mut line, filename)?;
+						let arg2 = read_arg(chars, &mut line, filename)?;
+						let result = match condition.as_str() {
+							"==" => arg1 == arg2,
+							"!=" => arg1 != arg2,
+							_ => return Err(expected("==", &condition, line, filename))
+						};
+						keep_block(chars, &mut code, result, line, filename)?
 					}
 					"else" => keep_block(chars, &mut code, !prev, line, filename)?,
 					"" => return Err(error("Expected directive name", line, filename)),
