@@ -4,6 +4,7 @@ use crate::format_clue;
 
 pub type LinkedString = std::collections::LinkedList<char>;
 type CodeChars<'a, 'b> = &'a mut Peekable<Chars<'b>>;
+type Line<'a> = &'a mut usize;
 
 fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
 	println!("Error in file \"{filename}\" at line {line}!");
@@ -26,7 +27,7 @@ fn expected_before(expected: &str, before: &str, line: usize, filename: &String)
 	)
 }
 
-fn skip_whitespace(chars: CodeChars, line: &mut usize) {
+fn skip_whitespace(chars: CodeChars, line: Line) {
 	while let Some(c) = chars.peek() {
 		if c.is_whitespace() {
 			if *c == '\n' {
@@ -39,7 +40,7 @@ fn skip_whitespace(chars: CodeChars, line: &mut usize) {
 	}
 }
 
-fn reach(chars: CodeChars, end: char, line: &mut usize, filename: &String) -> Result<(), String> {
+fn reach(chars: CodeChars, end: char, line: Line, filename: &String) -> Result<(), String> {
 	skip_whitespace(chars, line);
 	if let Some(c) = chars.next() {
 		if end != c {
@@ -66,7 +67,7 @@ fn read_word(chars: CodeChars) -> String {
 	word
 }
 
-fn assert_word(chars: CodeChars, line: &mut usize, filename: &String) -> Result<String, String> {
+fn assert_word(chars: CodeChars, line: Line, filename: &String) -> Result<String, String> {
 	skip_whitespace(chars, line);
 	let word = read_word(chars);
 	if word.is_empty() {
@@ -76,7 +77,7 @@ fn assert_word(chars: CodeChars, line: &mut usize, filename: &String) -> Result<
 	}
 }
 
-fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<LinkedString, String> {
+fn read_arg(chars: CodeChars, line: Line, filename: &String) -> Result<LinkedString, String> {
 	reach(chars, '"', line, filename)?;
 	let mut arg = String::new();
 	while {
@@ -89,67 +90,67 @@ fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<Lin
 		arg.push(chars.next().unwrap())
 	}
 	chars.next();
-	preprocess_code(arg, filename)
+	preprocess_code(arg, line, filename)
 }
 
-fn read_block(chars: CodeChars, mut line: usize, filename: &String) -> Result<String, String> {
-	reach(chars, '{', &mut line, filename)?;
+fn read_block(chars: CodeChars, line: Line, filename: &String) -> Result<(usize, String), String> {
+	reach(chars, '{', line, filename)?;
+	let blockline = line.clone();
 	let mut block = String::new();
 	let mut cscope = 1u8;
 	for c in chars.by_ref() {
 		block.push(c);
 		match c {
-			'\n' => line += 1,
+			'\n' => *line += 1,
 			'{' => cscope += 1,
 			'}' => {
 				cscope -= 1;
 				if cscope == 0 {
 					block.pop();
-					return Ok(block);
+					return Ok((blockline, block));
 				}
 			}
 			_ => {}
 		}
 	}
-	Err(expected_before("}", "<end>", line, filename))
+	Err(expected_before("}", "<end>", *line, filename))
 }
 
 fn keep_block(
 	chars: CodeChars,
 	code: &mut LinkedString,
 	cond: bool,
-	line: usize,
+	line: Line,
 	filename: &String,
 ) -> Result<bool, String> {
-	let block = read_block(chars, line, filename)?;
+	let (mut line, block) = read_block(chars, line, filename)?;
 	if cond {
-		code.append(&mut preprocess_code(block, filename)?);
+		code.append(&mut preprocess_code(block, &mut line, filename)?);
 	}
 	Ok(cond)
 }
 
-pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedString, String> {
+pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result<LinkedString, String> {
 	let mut code = LinkedString::new();
-	let mut line = 1usize;
 	let mut prev = false;
-	let mut prevline = 1usize;
+	let mut prevline = *line;
 	let chars = &mut rawcode.chars().peekable();
 	while let Some(c) = chars.next() {
 		code.push_back(c);
 		match c {
 			'\n' => {
-				for _ in 0..line - prevline {
+				for _ in 0..*line - prevline {
 					code.push_back('\n');
 				}
-				line += 1;
-				prevline = line;
+				*line += 1;
+				prevline = *line;
 			}
 			'@' => {
 				code.pop_back();
 				let directive = read_word(chars);
 				prev = match directive.as_str() {
 					"ifos" => {
-						let target_os = assert_word(chars, &mut line, filename)?.to_ascii_lowercase();
+						let target_os = assert_word(chars, line, filename)?.to_ascii_lowercase();
 						keep_block(
 							chars,
 							&mut code,
@@ -159,26 +160,26 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 						)?
 					}
 					"ifdef" => {
-						let var = assert_word(chars, &mut line, filename)?;
+						let var = assert_word(chars, line, filename)?;
 						keep_block(chars, &mut code, env::var(var).is_ok(), line, filename)?
 					}
 					"ifcmp" => {
-						let arg1 = read_arg(chars, &mut line, filename)?;
-						let condition = assert_word(chars, &mut line, filename)?;
-						let arg2 = read_arg(chars, &mut line, filename)?;
+						let arg1 = read_arg(chars, line, filename)?;
+						let condition = assert_word(chars, line, filename)?;
+						let arg2 = read_arg(chars, line, filename)?;
 						let result = match condition.as_str() {
 							"==" => arg1 == arg2,
 							"!=" => arg1 != arg2,
-							_ => return Err(expected("==", &condition, line, filename))
+							_ => return Err(expected("==", &condition, *line, filename))
 						};
 						keep_block(chars, &mut code, result, line, filename)?
 					}
 					"else" => keep_block(chars, &mut code, !prev, line, filename)?,
-					"" => return Err(error("Expected directive name", line, filename)),
+					"" => return Err(error("Expected directive name", *line, filename)),
 					_ => {
 						return Err(error(
 							format_clue!("Unknown directive '", directive, "'"),
-							line,
+							*line,
 							filename,
 						))
 					}
@@ -201,11 +202,11 @@ pub fn preprocess_code(rawcode: String, filename: &String) -> Result<LinkedStrin
 							code.pop_back();
 							chars.next();
 							while {
-								let word = assert_word(chars, &mut line, filename);
+								let word = assert_word(chars, line, filename);
 								word.is_err() || !word.unwrap().ends_with("*/")
 							} {
 								if chars.peek().is_none() {
-									return Err(error("Unterminated comment", line, filename));
+									return Err(error("Unterminated comment", *line, filename));
 								}
 							}
 						}
