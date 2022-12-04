@@ -130,6 +130,54 @@ fn keep_block(
 	Ok(cond)
 }
 
+fn handle_directive(
+	chars: CodeChars,
+	code: &mut LinkedString,
+	prev: bool,
+	directive: &str,
+	line: Line,
+	filename: &String
+) -> Result<bool, String> {
+	Ok(match directive {
+		"ifos" => {
+			let target_os = assert_word(chars, line, filename)?.to_ascii_lowercase();
+			keep_block(chars, code, env::consts::OS == target_os, line, filename)?
+		}
+		"ifdef" => {
+			let var = assert_word(chars, line, filename)?;
+			keep_block(chars, code, env::var(var).is_ok(), line, filename)?
+		}
+		"ifcmp" => {
+			let arg1 = read_arg(chars, line, filename)?;
+			let condition = assert_word(chars, line, filename)?;
+			let arg2 = read_arg(chars, line, filename)?;
+			let result = match condition.as_str() {
+				"==" => arg1 == arg2,
+				"!=" => arg1 != arg2,
+				_ => return Err(expected("==", &condition, *line, filename))
+			};
+			keep_block(chars, code, result, line, filename)?
+		}
+		"if" => todo!(),
+		"else" => keep_block(chars, code, !prev, line, filename)?,
+		"define" => todo!(),
+		"error" => todo!(),
+		"print" => todo!(),
+		"execute" => todo!(),
+		"eval" => todo!(),
+		"include" => todo!(),
+		"macro" => todo!(),
+		"" => return Err(error("Expected directive name", *line, filename)),
+		_ => {
+			return Err(error(
+				format_clue!("Unknown directive '", directive, "'"),
+				*line,
+				filename,
+			))
+		}
+	})
+}
+
 pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result<LinkedString, String> {
 	let mut code = LinkedString::new();
 	let mut prev = false;
@@ -148,42 +196,7 @@ pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result
 			'@' => {
 				code.pop_back();
 				let directive = read_word(chars);
-				prev = match directive.as_str() {
-					"ifos" => {
-						let target_os = assert_word(chars, line, filename)?.to_ascii_lowercase();
-						keep_block(
-							chars,
-							&mut code,
-							env::consts::OS == target_os,
-							line,
-							filename,
-						)?
-					}
-					"ifdef" => {
-						let var = assert_word(chars, line, filename)?;
-						keep_block(chars, &mut code, env::var(var).is_ok(), line, filename)?
-					}
-					"ifcmp" => {
-						let arg1 = read_arg(chars, line, filename)?;
-						let condition = assert_word(chars, line, filename)?;
-						let arg2 = read_arg(chars, line, filename)?;
-						let result = match condition.as_str() {
-							"==" => arg1 == arg2,
-							"!=" => arg1 != arg2,
-							_ => return Err(expected("==", &condition, *line, filename))
-						};
-						keep_block(chars, &mut code, result, line, filename)?
-					}
-					"else" => keep_block(chars, &mut code, !prev, line, filename)?,
-					"" => return Err(error("Expected directive name", *line, filename)),
-					_ => {
-						return Err(error(
-							format_clue!("Unknown directive '", directive, "'"),
-							*line,
-							filename,
-						))
-					}
-				}
+				prev = handle_directive(chars, &mut code, prev, directive.as_str(), line, filename)?;
 			}
 			'/' => {
 				if let Some(nextc) = chars.peek() {
