@@ -77,20 +77,24 @@ fn assert_word(chars: CodeChars, line: Line, filename: &String) -> Result<String
 	}
 }
 
-fn read_arg(chars: CodeChars, line: Line, filename: &String) -> Result<LinkedString, String> {
-	reach(chars, '"', line, filename)?;
+fn read_until(chars: CodeChars, end: char, line: Line, filename: &String) -> Result<String, String> {
 	let mut arg = String::new();
 	while {
 		if let Some(c) = chars.peek() {
-			*c != '"'
+			*c != end
 		} else {
-			return Err(expected_before("\"", "<end>", *line, filename))
+			return Err(expected_before(&end.to_string(), "<end>", *line, filename))
 		}
 	} {
 		arg.push(chars.next().unwrap())
 	}
 	chars.next();
-	preprocess_code(arg, line, filename)
+	Ok(arg)
+}
+
+fn read_arg(chars: CodeChars, line: Line, filename: &String) -> Result<LinkedString, String> {
+	reach(chars, '"', line, filename)?;
+	preprocess_code(read_until(chars, '"', line, filename)?, line, filename)
 }
 
 fn read_block(chars: CodeChars, line: Line, filename: &String) -> Result<(usize, String), String> {
@@ -160,7 +164,43 @@ fn handle_directive(
 		}
 		"if" => todo!(),
 		"else" => keep_block(chars, code, !prev, line, filename)?,
-		"define" => todo!(),
+		"define" => {
+			let name = assert_word(chars, line, filename)?;
+			if name.contains('=') {
+				return Err(error("Value name cannot use '='", *line, filename));
+			}
+			let value = {
+				skip_whitespace(chars, line);
+				let c = chars.peek();
+				let valuef = match c {
+					Some(c) if *c == '\'' => |
+						chars: CodeChars,
+						end: char,
+						line: Line,
+						filename: &String
+					|  -> Result<String, String> {
+						chars.next();
+						read_until(chars, end, line, filename)
+					},
+					Some(c) if *c == '"' => |
+						chars: CodeChars,
+						_: char,
+						line: Line,
+						filename: &String
+					| -> Result<String, String> {
+						Ok(read_arg(chars, line, filename)?
+							.iter()
+							.collect::<String>())
+					},
+					Some(c) => return Err(expected("'' or '\"'", &c.to_string(), *line, filename)),
+					None => return Err(expected("'' or '\"'", "<end>", *line, filename))
+				};
+				let c = *c.unwrap();
+				valuef(chars, c, line, filename)?
+			};
+			env::set_var(name, value);
+			true
+		},
 		"error" => todo!(),
 		"print" => todo!(),
 		"execute" => todo!(),
