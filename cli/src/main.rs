@@ -118,7 +118,7 @@ fn add_to_output(string: &str) {
 fn compile_code(mut code: String, name: String, scope: usize) -> Result<String, String> {
 	let time = Instant::now();
 	if code.contains('@') || code.contains('$') {
-		code = preprocess_code(code, &mut 1usize, &name)?.iter().collect();
+		code = preprocess_code(code, &mut 1usize, &name)?.0.iter().collect();
 	}
 	let tokens: Vec<Token> = scan_code(code, name.clone())?;
 	if flag!(env_tokens) {

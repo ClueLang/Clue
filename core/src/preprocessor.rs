@@ -5,6 +5,7 @@ use crate::format_clue;
 pub type LinkedString = std::collections::LinkedList<char>;
 type CodeChars<'a, 'b> = &'a mut Peekable<Chars<'b>>;
 type Line<'a> = &'a mut usize;
+type PreProcessResult = (LinkedString, bool);
 
 fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
 	println!("Error in file \"{filename}\" at line {line}!");
@@ -92,7 +93,7 @@ fn read_until(chars: CodeChars, end: char, line: Line, filename: &String) -> Res
 	Ok(arg)
 }
 
-fn read_arg(chars: CodeChars, line: Line, filename: &String) -> Result<LinkedString, String> {
+fn read_arg(chars: CodeChars, line: Line, filename: &String) -> Result<PreProcessResult, String> {
 	reach(chars, '"', line, filename)?;
 	preprocess_code(read_until(chars, '"', line, filename)?, line, filename)
 }
@@ -129,7 +130,7 @@ fn keep_block(
 ) -> Result<bool, String> {
 	let (mut line, block) = read_block(chars, line, filename)?;
 	if cond {
-		code.append(&mut preprocess_code(block, &mut line, filename)?);
+		code.append(&mut preprocess_code(block, &mut line, filename)?.0);
 	}
 	Ok(cond)
 }
@@ -188,12 +189,12 @@ fn handle_directive(
 						line: Line,
 						filename: &String
 					| -> Result<String, String> {
-						Ok(read_arg(chars, line, filename)?
+						Ok(read_arg(chars, line, filename)?.0
 							.iter()
 							.collect::<String>())
 					},
-					Some(c) => return Err(expected("'' or '\"'", &c.to_string(), *line, filename)),
-					None => return Err(expected("'' or '\"'", "<end>", *line, filename))
+					Some(c) => return Err(expected("'' or '\"", &c.to_string(), *line, filename)),
+					None => return Err(expected("'' or '\"", "<end>", *line, filename))
 				};
 				let c = *c.unwrap();
 				valuef(chars, c, line, filename)?
@@ -201,8 +202,20 @@ fn handle_directive(
 			env::set_var(name, value);
 			true
 		},
-		"error" => todo!(),
-		"print" => todo!(),
+		"error" => {
+			let msg = read_arg(chars, line, filename)?.0.iter().collect::<String>();
+			return Err(error(&msg, *line, filename))
+		},
+		"warning" => {
+			let (msg, result) = read_arg(chars, line, filename)?;
+			println!("Warning: \"{}\"", msg.iter().collect::<String>());
+			result
+		},
+		"print" => {
+			let (msg, result) = read_arg(chars, line, filename)?;
+			println!("{}", msg.iter().collect::<String>());
+			result
+		},
 		"execute" => todo!(),
 		"eval" => todo!(),
 		"include" => todo!(),
@@ -218,9 +231,9 @@ fn handle_directive(
 	})
 }
 
-pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result<LinkedString, String> {
+pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result<PreProcessResult, String> {
 	let mut code = LinkedString::new();
-	let mut prev = false;
+	let mut prev = true;
 	let mut prevline = *line;
 	let chars = &mut rawcode.chars().peekable();
 	while let Some(c) = chars.next() {
@@ -270,5 +283,5 @@ pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result
 			_ => {}
 		}
 	}
-	Ok(code)
+	Ok((code, prev))
 }
