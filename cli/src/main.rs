@@ -1,5 +1,5 @@
 use clue_core as clue;
-use clap::Parser;
+use clap::{Parser, crate_version};
 use clue::env::ContinueMode;
 use clue::{
 	check, format_clue, preprocessor::*, compiler::*, flag, parser::*, scanner::*,
@@ -248,6 +248,7 @@ fn execute_lua_code(code: &str) {
 
 #[cfg(not(feature = "devtimer"))]
 fn main() -> Result<(), String> {
+	std::env::set_var("CLUE_VERSION", crate_version!());
 	let cli = Cli::parse();
 	if cli.license {
 		println!(include_str!("../../LICENSE"));
