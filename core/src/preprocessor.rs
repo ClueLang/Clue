@@ -172,7 +172,9 @@ fn handle_directive(
 		"define" => {
 			let name = assert_word(chars, line, filename)?;
 			if name.contains('=') {
-				return Err(error("Value name cannot use '='", *line, filename));
+				return Err(error("The value's name cannot contain '='", *line, filename));
+			} else if name.ends_with('!') {
+				return Err(error("The value's name cannot end with '!'", *line, filename));
 			}
 			let value = {
 				skip_whitespace(chars, line);
