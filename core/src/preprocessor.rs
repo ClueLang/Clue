@@ -100,19 +100,17 @@ fn read_arg(chars: CodeChars, line: Line, filename: &String) -> Result<PreProces
 
 fn read_block(chars: CodeChars, line: Line, filename: &String) -> Result<(usize, String), String> {
 	reach(chars, '{', line, filename)?;
-	let blockline = line.clone();
 	let mut block = String::new();
 	let mut cscope = 1u8;
 	for c in chars.by_ref() {
 		block.push(c);
 		match c {
-			'\n' => *line += 1,
 			'{' => cscope += 1,
 			'}' => {
 				cscope -= 1;
 				if cscope == 0 {
 					block.pop();
-					return Ok((blockline, block));
+					return Ok((*line, block));
 				}
 			}
 			_ => {}
@@ -129,9 +127,15 @@ fn keep_block(
 	filename: &String,
 ) -> Result<bool, String> {
 	let (mut line, block) = read_block(chars, line, filename)?;
-	if cond {
-		code.append(&mut preprocess_code(block, &mut line, filename)?.0);
-	}
+	code.append(&mut if cond {
+		preprocess_code(block, &mut line, filename)?.0
+	} else {
+		let mut lines = LinkedString::new();
+		for _ in 0..block.matches('\n').count() {
+			lines.push_back('\n');
+		}
+		lines
+	});
 	Ok(cond)
 }
 
@@ -237,25 +241,25 @@ pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result
 	let mut prevline = *line;
 	let chars = &mut rawcode.chars().peekable();
 	while let Some(c) = chars.next() {
-		code.push_back(c);
 		match c {
 			'\n' => {
-				for _ in 0..*line - prevline {
+				for _ in 0..=*line - prevline {
 					code.push_back('\n');
 				}
 				*line += 1;
 				prevline = *line;
 			}
 			'@' => {
-				code.pop_back();
 				let directive = read_word(chars);
 				prev = handle_directive(chars, &mut code, prev, directive.as_str(), line, filename)?;
+			}
+			'$' => {
+				
 			}
 			'/' => {
 				if let Some(nextc) = chars.peek() {
 					match *nextc {
 						'/' => {
-							code.pop_back();
 							chars.next();
 							while let Some(c) = chars.peek() {
 								if *c == '\n' {
@@ -276,11 +280,11 @@ pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result
 								}
 							}
 						}
-						_ => {}
+						_ => code.push_back('/'),
 					}
 				}
 			}
-			_ => {}
+			_ => code.push_back(c),
 		}
 	}
 	Ok((code, prev))
