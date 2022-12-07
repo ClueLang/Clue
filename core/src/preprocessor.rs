@@ -199,7 +199,7 @@ fn handle_directive(
 				let c = *c.unwrap();
 				valuef(chars, c, line, filename)?
 			};
-			env::set_var(name, value);
+			env::set_var(format_clue!("_CLUE_", name), value);
 			true
 		},
 		"error" => {
