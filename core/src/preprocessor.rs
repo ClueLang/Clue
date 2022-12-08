@@ -256,7 +256,27 @@ pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result
 				prev = handle_directive(chars, &mut code, prev, directive.as_str(), line, filename)?;
 			}
 			'$' => {
-				
+				let name = read_word(chars);
+				if name.is_empty() {
+					return Err(error("Expected '<name>'", *line, filename))
+				} else if let Ok(_num) = name.parse::<u8>() {
+					//ADD PSEUDO VARIABLES LATER
+				} else {
+					let value = if let Ok(value) = env::var(&name) {
+						value
+					} else if let Ok(value) = env::var(format_clue!("_CLUE_", name)) {
+						value
+					} else {
+						return Err(error(
+							format_clue!("Value '", name, "' not found"),
+							*line,
+							filename
+						));
+					};
+					let (mut value, newprev) = preprocess_code(value, line, filename)?;
+					code.append(&mut value);
+					prev = newprev;
+				}
 			}
 			'/' => {
 				if let Some(nextc) = chars.peek() {
