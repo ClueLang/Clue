@@ -54,18 +54,22 @@ fn reach(chars: CodeChars, end: char, line: Line, filename: &String) -> Result<(
 	}
 }
 
-fn read_word(chars: CodeChars) -> String {
-	let mut word = String::new();
+fn read_with(chars: CodeChars, mut f: impl FnMut(&char) -> bool) -> String {
+	let mut result = String::new();
 	while {
 		if let Some(c) = chars.peek() {
-			!c.is_whitespace()
+			f(c)
 		} else {
 			false
 		}
 	} {
-		word.push(chars.next().unwrap())
+		result.push(chars.next().unwrap())
 	}
-	word
+	result
+}
+
+fn read_word(chars: CodeChars) -> String {
+	read_with(chars, |c| !c.is_whitespace())
 }
 
 fn assert_word(chars: CodeChars, line: Line, filename: &String) -> Result<String, String> {
@@ -79,17 +83,10 @@ fn assert_word(chars: CodeChars, line: Line, filename: &String) -> Result<String
 }
 
 fn read_until(chars: CodeChars, end: char, line: Line, filename: &String) -> Result<String, String> {
-	let mut arg = String::new();
-	while {
-		if let Some(c) = chars.peek() {
-			*c != end
-		} else {
-			return Err(expected_before(&end.to_string(), "<end>", *line, filename))
-		}
-	} {
-		arg.push(chars.next().unwrap())
+	let arg = read_with(chars, |c| *c != end);
+	if let None = chars.next() {
+		return Err(expected_before(&end.to_string(), "<end>", *line, filename))
 	}
-	chars.next();
 	Ok(arg)
 }
 
