@@ -258,6 +258,7 @@ pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result
 					return Err(error("Expected '<name>'", *line, filename))
 				} else if let Ok(_num) = name.parse::<u8>() {
 					//ADD PSEUDO VARIABLES LATER
+					todo!()
 				} else {
 					let value = if let Ok(value) = env::var(&name) {
 						value
