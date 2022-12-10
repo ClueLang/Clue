@@ -253,7 +253,7 @@ pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result
 				prev = handle_directive(chars, &mut code, prev, directive.as_str(), line, filename)?;
 			}
 			'$' => {
-				let name = read_word(chars);
+				let name = read_with(chars, |c| c.is_ascii_alphanumeric() || *c == '_');
 				if name.is_empty() {
 					return Err(error("Expected '<name>'", *line, filename))
 				} else if let Ok(_num) = name.parse::<u8>() {
