@@ -1,6 +1,6 @@
 [workspace]
-members = ["cli", "core", "macros"]
-default-members = ["cli", "core", "macros"]
+members = ["cli", "core"]
+default-members = ["cli", "core"]
 
 [profile.release]
 lto = true

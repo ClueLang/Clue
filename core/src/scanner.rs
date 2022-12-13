@@ -5,10 +5,6 @@ use self::TokenType::*;
 use ahash::AHashMap;
 use std::{cmp, fmt};
 use lazy_static::lazy_static;
-use clue_macros::generate_map;
-
-//FOR TESTING
-generate_map!([('A', SymbolType::JUST(COMMA)), ('B', SymbolType::JUST(DOT))]);
 
 type SymbolsMap = Vec<Option<SymbolType>>;
 
