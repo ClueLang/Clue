@@ -4,8 +4,6 @@ use crate::format_clue;
 
 pub type LinkedString = std::collections::LinkedList<char>;
 type CodeChars<'a, 'b> = &'a mut Peekable<Chars<'b>>;
-type Line<'a> = &'a mut usize;
-type PreProcessResult = (LinkedString, bool);
 
 fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
 	println!("Error in file \"{filename}\" at line {line}!");
@@ -28,7 +26,7 @@ fn expected_before(expected: &str, before: &str, line: usize, filename: &String)
 	)
 }
 
-fn skip_whitespace(chars: CodeChars, line: Line) {
+fn skip_whitespace(chars: CodeChars, line: &mut usize) {
 	while let Some(c) = chars.peek() {
 		if c.is_whitespace() {
 			if *c == '\n' {
@@ -41,7 +39,7 @@ fn skip_whitespace(chars: CodeChars, line: Line) {
 	}
 }
 
-fn reach(chars: CodeChars, end: char, line: Line, filename: &String) -> Result<(), String> {
+fn reach(chars: CodeChars, end: char, line: &mut usize, filename: &String) -> Result<(), String> {
 	skip_whitespace(chars, line);
 	if let Some(c) = chars.next() {
 		if end != c {
@@ -72,7 +70,7 @@ fn read_word(chars: CodeChars) -> String {
 	read_with(chars, |c| !c.is_whitespace())
 }
 
-fn assert_word(chars: CodeChars, line: Line, filename: &String) -> Result<String, String> {
+fn assert_word(chars: CodeChars, line: &mut usize, filename: &String) -> Result<String, String> {
 	skip_whitespace(chars, line);
 	let word = read_word(chars);
 	if word.is_empty() {
@@ -82,20 +80,20 @@ fn assert_word(chars: CodeChars, line: Line, filename: &String) -> Result<String
 	}
 }
 
-fn read_until(chars: CodeChars, end: char, line: Line, filename: &String) -> Result<String, String> {
+fn read_until(chars: CodeChars, end: char, line: &mut usize, filename: &String) -> Result<String, String> {
 	let arg = read_with(chars, |c| *c != end);
-	if let None = chars.next() {
+	if chars.next().is_none() {
 		return Err(expected_before(&end.to_string(), "<end>", *line, filename))
 	}
 	Ok(arg)
 }
 
-fn read_arg(chars: CodeChars, line: Line, filename: &String) -> Result<PreProcessResult, String> {
+fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(LinkedString, bool), String> {
 	reach(chars, '"', line, filename)?;
-	preprocess_code(read_until(chars, '"', line, filename)?, line, filename)
+	preprocess_code(read_until(chars, '"', line, filename)?, Vec::new(), line, filename)
 }
 
-fn read_block(chars: CodeChars, line: Line, filename: &String) -> Result<(usize, String), String> {
+fn read_block(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(usize, String), String> {
 	reach(chars, '{', line, filename)?;
 	let mut block = String::new();
 	let mut cscope = 1u8;
@@ -120,12 +118,12 @@ fn keep_block(
 	chars: CodeChars,
 	code: &mut LinkedString,
 	cond: bool,
-	line: Line,
+	line: &mut usize,
 	filename: &String,
 ) -> Result<bool, String> {
 	let (mut line, block) = read_block(chars, line, filename)?;
 	code.append(&mut if cond {
-		preprocess_code(block, &mut line, filename)?.0
+		preprocess_code(block, Vec::new(), &mut line, filename)?.0
 	} else {
 		let mut lines = LinkedString::new();
 		for _ in 0..block.matches('\n').count() {
@@ -136,105 +134,12 @@ fn keep_block(
 	Ok(cond)
 }
 
-fn handle_directive(
-	chars: CodeChars,
-	code: &mut LinkedString,
-	prev: bool,
-	directive: &str,
-	line: Line,
+pub fn preprocess_code(
+	rawcode: String,
+	pseudos: Vec<String>,
+	line: &mut usize,
 	filename: &String
-) -> Result<bool, String> {
-	Ok(match directive {
-		"ifos" => {
-			let target_os = assert_word(chars, line, filename)?.to_ascii_lowercase();
-			keep_block(chars, code, env::consts::OS == target_os, line, filename)?
-		}
-		"ifdef" => {
-			let var = assert_word(chars, line, filename)?;
-			keep_block(chars, code, env::var(var).is_ok(), line, filename)?
-		}
-		"ifcmp" => {
-			let arg1 = read_arg(chars, line, filename)?;
-			let condition = assert_word(chars, line, filename)?;
-			let arg2 = read_arg(chars, line, filename)?;
-			let result = match condition.as_str() {
-				"==" => arg1 == arg2,
-				"!=" => arg1 != arg2,
-				_ => return Err(expected("==", &condition, *line, filename))
-			};
-			keep_block(chars, code, result, line, filename)?
-		}
-		"if" => todo!(),
-		"else" => keep_block(chars, code, !prev, line, filename)?,
-		"define" => {
-			let name = assert_word(chars, line, filename)?;
-			if name.contains('=') {
-				return Err(error("The value's name cannot contain '='", *line, filename));
-			} else if name.ends_with('!') {
-				return Err(error("The value's name cannot end with '!'", *line, filename));
-			}
-			let value = {
-				skip_whitespace(chars, line);
-				let c = chars.peek();
-				let valuef = match c {
-					Some(c) if *c == '\'' => |
-						chars: CodeChars,
-						end: char,
-						line: Line,
-						filename: &String
-					|  -> Result<String, String> {
-						chars.next();
-						read_until(chars, end, line, filename)
-					},
-					Some(c) if *c == '"' => |
-						chars: CodeChars,
-						_: char,
-						line: Line,
-						filename: &String
-					| -> Result<String, String> {
-						Ok(read_arg(chars, line, filename)?.0
-							.iter()
-							.collect::<String>())
-					},
-					Some(c) => return Err(expected("'' or '\"", &c.to_string(), *line, filename)),
-					None => return Err(expected("'' or '\"", "<end>", *line, filename))
-				};
-				let c = *c.unwrap();
-				valuef(chars, c, line, filename)?
-			};
-			env::set_var(format_clue!("_CLUE_", name), value);
-			true
-		},
-		"error" => {
-			let msg = read_arg(chars, line, filename)?.0.iter().collect::<String>();
-			return Err(error(&msg, *line, filename))
-		},
-		"warning" => {
-			let (msg, result) = read_arg(chars, line, filename)?;
-			println!("Warning: \"{}\"", msg.iter().collect::<String>());
-			result
-		},
-		"print" => {
-			let (msg, result) = read_arg(chars, line, filename)?;
-			println!("{}", msg.iter().collect::<String>());
-			result
-		},
-		"execute" => todo!(),
-		"eval" => todo!(),
-		"include" => todo!(),
-		"macro" => todo!(),
-		"" => return Err(error("Expected directive name", *line, filename)),
-		_ => {
-			return Err(error(
-				format_clue!("Unknown directive '", directive, "'"),
-				*line,
-				filename,
-			))
-		}
-	})
-}
-
-pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result<PreProcessResult, String> {
+) -> Result<(LinkedString, bool), String> {
 	let mut code = LinkedString::new();
 	let mut prev = true;
 	let mut prevline = *line;
@@ -250,15 +155,101 @@ pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result
 			}
 			'@' => {
 				let directive = read_word(chars);
-				prev = handle_directive(chars, &mut code, prev, directive.as_str(), line, filename)?;
+				prev = match directive.as_str() {
+					"ifos" => {
+						let target_os = assert_word(chars, line, filename)?.to_ascii_lowercase();
+						keep_block(chars, &mut code, env::consts::OS == target_os, line, filename)?
+					}
+					"ifdef" => {
+						let var = assert_word(chars, line, filename)?;
+						keep_block(chars, &mut code, env::var(var).is_ok(), line, filename)?
+					}
+					"ifcmp" => {
+						let arg1 = read_arg(chars, line, filename)?;
+						let condition = assert_word(chars, line, filename)?;
+						let arg2 = read_arg(chars, line, filename)?;
+						let result = match condition.as_str() {
+							"==" => arg1 == arg2,
+							"!=" => arg1 != arg2,
+							_ => return Err(expected("==", &condition, *line, filename))
+						};
+						keep_block(chars, &mut code, result, line, filename)?
+					}
+					"if" => todo!(),
+					"else" => keep_block(chars, &mut code, !prev, line, filename)?,
+					"define" => {
+						let name = assert_word(chars, line, filename)?;
+						if name.contains('=') {
+							return Err(error("The value's name cannot contain '='", *line, filename));
+						} else if name.ends_with('!') {
+							return Err(error("The value's name cannot end with '!'", *line, filename));
+						}
+						let value = {
+							skip_whitespace(chars, line);
+							let c = chars.peek();
+							let valuef = match c {
+								Some(c) if *c == '\'' => |
+									chars: CodeChars,
+									end: char,
+									line: &mut usize,
+									filename: &String
+								|  -> Result<String, String> {
+									chars.next();
+									read_until(chars, end, line, filename)
+								},
+								Some(c) if *c == '"' => |
+									chars: CodeChars,
+									_: char,
+									line: &mut usize,
+									filename: &String
+								| -> Result<String, String> {
+									Ok(read_arg(chars, line, filename)?.0
+										.iter()
+										.collect::<String>())
+								},
+								Some(c) => return Err(expected("'' or '\"", &c.to_string(), *line, filename)),
+								None => return Err(expected("'' or '\"", "<end>", *line, filename))
+							};
+							let c = *c.unwrap();
+							valuef(chars, c, line, filename)?
+						};
+						env::set_var(format_clue!("_CLUE_", name), value);
+						true
+					},
+					"error" => {
+						let msg = read_arg(chars, line, filename)?.0.iter().collect::<String>();
+						return Err(error(&msg, *line, filename))
+					},
+					"warning" => {
+						let (msg, result) = read_arg(chars, line, filename)?;
+						println!("Warning: \"{}\"", msg.iter().collect::<String>());
+						result
+					},
+					"print" => {
+						let (msg, result) = read_arg(chars, line, filename)?;
+						println!("{}", msg.iter().collect::<String>());
+						result
+					},
+					"execute" => todo!(),
+					"eval" => todo!(),
+					"include" => todo!(),
+					"macro" => todo!(),
+					"" => return Err(error("Expected directive name", *line, filename)),
+					_ => {
+						return Err(error(
+							format_clue!("Unknown directive '", directive, "'"),
+							*line,
+							filename,
+						))
+					}
+				};
 			}
 			'$' => {
 				let name = read_with(chars, |c| c.is_ascii_alphanumeric() || *c == '_');
 				if name.is_empty() {
 					return Err(error("Expected '<name>'", *line, filename))
 				} else if let Ok(_num) = name.parse::<u8>() {
-					//ADD PSEUDO VARIABLES LATER
-					todo!()
+					
 				} else {
 					let value = if let Ok(value) = env::var(&name) {
 						value
@@ -271,7 +262,7 @@ pub fn preprocess_code(rawcode: String, line: Line, filename: &String) -> Result
 							filename
 						));
 					};
-					let (mut value, newprev) = preprocess_code(value, line, filename)?;
+					let (mut value, newprev) = preprocess_code(value, Vec::new(), line, filename)?;
 					code.append(&mut value);
 					prev = newprev;
 				}
