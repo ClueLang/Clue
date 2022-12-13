@@ -211,7 +211,9 @@ pub fn preprocess_code(
 								None => return Err(expected("'' or '\"", "<end>", *line, filename))
 							};
 							let c = *c.unwrap();
-							valuef(chars, c, line, filename)?
+							let mut value = valuef(chars, c, line, filename)?;
+							value.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
+							value
 						};
 						env::set_var(format_clue!("_CLUE_", name), value);
 						true
