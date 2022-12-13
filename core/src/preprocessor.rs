@@ -136,7 +136,7 @@ fn keep_block(
 
 pub fn preprocess_code(
 	rawcode: String,
-	pseudos: Vec<String>,
+	pseudos: Vec<LinkedString>,
 	line: &mut usize,
 	filename: &String
 ) -> Result<(LinkedString, bool), String> {
@@ -250,8 +250,11 @@ pub fn preprocess_code(
 				let name = read_with(chars, |c| c.is_ascii_alphanumeric() || *c == '_');
 				if name.is_empty() {
 					return Err(error("Expected '<name>'", *line, filename))
-				} else if let Ok(_num) = name.parse::<u8>() {
-					
+				} else if let Ok(index) = name.parse::<usize>() {
+					let mut var = pseudos.get(index)
+						.cloned()
+						.unwrap_or_else(|| LinkedString::from(['n', 'i', 'l']));
+					code.append(&mut var);
 				} else {
 					let value = if let Ok(value) = env::var(&name) {
 						value
