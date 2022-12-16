@@ -80,6 +80,16 @@ fn assert_word(chars: CodeChars, line: &mut usize, filename: &String) -> Result<
 	}
 }
 
+fn assert_name(chars: CodeChars, line: &mut usize, filename: &String) -> Result<String, String> {
+	let name = assert_word(chars, line, filename)?;
+	if name.contains('=') {
+		return Err(error("The value's name cannot contain '='", *line, filename));
+	} else if name.ends_with('!') {
+		return Err(error("The value's name cannot end with '!'", *line, filename));
+	}
+	Ok(format_clue!("_CLUE_", name))
+}
+
 fn read_until(chars: CodeChars, end: char, line: &mut usize, filename: &String) -> Result<String, String> {
 	let arg = read_with(chars, |c| *c != end);
 	if chars.next().is_none() {
@@ -182,16 +192,20 @@ pub fn preprocess_code(
 					"if" => todo!(),
 					"else" => keep_block(chars, &mut code, !prev, line, filename)?,
 					"define" => {
-						let name = assert_word(chars, line, filename)?;
-						if name.contains('=') {
-							return Err(error("The value's name cannot contain '='", *line, filename));
-						} else if name.ends_with('!') {
-							return Err(error("The value's name cannot end with '!'", *line, filename));
-						}
+						let name = assert_name(chars, line, filename)?;
 						let mut value = read_arg(chars, line, filename)?.0.iter().collect::<String>();
 						value.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
-						env::set_var(format_clue!("_CLUE_", name), value);
+						env::set_var(name, value);
 						true
+					},
+					"undef" => {
+						let name = assert_name(chars, line, filename)?;
+						if env::var(&name).is_ok() {
+							env::remove_var(name);
+							true
+						} else {
+							false
+						}
 					},
 					"error" => {
 						let msg = read_arg(chars, line, filename)?.0.iter().collect::<String>();
