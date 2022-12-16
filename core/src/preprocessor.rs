@@ -98,9 +98,11 @@ fn read_until(chars: CodeChars, end: char, line: &mut usize, filename: &String) 
 	Ok(arg)
 }
 
-fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(LinkedString, bool), String> {
+fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(String, bool), String> {
 	reach(chars, '"', line, filename)?;
-	preprocess_code(read_until(chars, '"', line, filename)?, Vec::new(), line, filename)
+	let rawarg = read_until(chars, '"', line, filename)?;
+	let (arg, result) = preprocess_code(rawarg, Vec::new(), line, filename)?;
+	Ok((arg.iter().collect::<String>(), result))
 }
 
 fn read_block(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(usize, String), String> {
@@ -193,7 +195,7 @@ pub fn preprocess_code(
 					"else" => keep_block(chars, &mut code, !prev, line, filename)?,
 					"define" => {
 						let name = assert_name(chars, line, filename)?;
-						let mut value = read_arg(chars, line, filename)?.0.iter().collect::<String>();
+						let mut value = read_arg(chars, line, filename)?.0;
 						value.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
 						env::set_var(name, value);
 						true
@@ -208,17 +210,17 @@ pub fn preprocess_code(
 						}
 					},
 					"error" => {
-						let msg = read_arg(chars, line, filename)?.0.iter().collect::<String>();
+						let msg = read_arg(chars, line, filename)?.0;
 						return Err(error(&msg, *line, filename))
 					},
 					"warning" => {
 						let (msg, result) = read_arg(chars, line, filename)?;
-						println!("Warning: \"{}\"", msg.iter().collect::<String>());
+						println!("Warning: \"{}\"", msg);
 						result
 					},
 					"print" => {
 						let (msg, result) = read_arg(chars, line, filename)?;
-						println!("{}", msg.iter().collect::<String>());
+						println!("{}", msg);
 						result
 					},
 					"execute" => todo!(),
