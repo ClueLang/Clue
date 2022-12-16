@@ -266,6 +266,11 @@ pub fn preprocess_code(
 					code.append(&mut value);
 				}
 			}
+			'!' => if let Some(c) = chars.peek() {
+				if *c == '{' {
+					code.append(&mut read_block(chars, line, filename)?.1.chars().collect())
+				}
+			}
 			'/' => {
 				if let Some(nextc) = chars.peek() {
 					match *nextc {
