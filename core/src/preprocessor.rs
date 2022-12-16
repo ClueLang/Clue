@@ -134,6 +134,10 @@ fn keep_block(
 	Ok(cond)
 }
 
+pub fn to_preprocess(code: &str) -> bool {
+	code.contains('@') || code.contains('$')
+}
+
 pub fn preprocess_code(
 	rawcode: String,
 	pseudos: Vec<LinkedString>,
@@ -184,37 +188,8 @@ pub fn preprocess_code(
 						} else if name.ends_with('!') {
 							return Err(error("The value's name cannot end with '!'", *line, filename));
 						}
-						let value = {
-							skip_whitespace(chars, line);
-							let c = chars.peek();
-							let valuef = match c {
-								Some(c) if *c == '\'' => |
-									chars: CodeChars,
-									end: char,
-									line: &mut usize,
-									filename: &String
-								|  -> Result<String, String> {
-									chars.next();
-									read_until(chars, end, line, filename)
-								},
-								Some(c) if *c == '"' => |
-									chars: CodeChars,
-									_: char,
-									line: &mut usize,
-									filename: &String
-								| -> Result<String, String> {
-									Ok(read_arg(chars, line, filename)?.0
-										.iter()
-										.collect::<String>())
-								},
-								Some(c) => return Err(expected("'' or '\"", &c.to_string(), *line, filename)),
-								None => return Err(expected("'' or '\"", "<end>", *line, filename))
-							};
-							let c = *c.unwrap();
-							let mut value = valuef(chars, c, line, filename)?;
-							value.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
-							value
-						};
+						let mut value = read_arg(chars, line, filename)?.0.iter().collect::<String>();
+						value.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
 						env::set_var(format_clue!("_CLUE_", name), value);
 						true
 					},
@@ -256,20 +231,25 @@ pub fn preprocess_code(
 						.unwrap_or_else(|| LinkedString::from(['n', 'i', 'l']));
 					code.append(&mut var);
 				} else {
-					let value = if let Ok(value) = env::var(&name) {
-						value
-					} else if let Ok(value) = env::var(format_clue!("_CLUE_", name)) {
-						value
-					} else {
-						return Err(error(
-							format_clue!("Value '", name, "' not found"),
-							*line,
-							filename
-						));
+					let mut value = {
+						let value = if let Ok(value) = env::var(&name) {
+							value
+						} else if let Ok(value) = env::var(format_clue!("_CLUE_", name)) {
+							value
+						} else {
+							return Err(error(
+								format_clue!("Value '", name, "' not found"),
+								*line,
+								filename
+							));
+						};
+						if to_preprocess(&value) {
+							preprocess_code(value, Vec::new(), line, filename)?.0
+						} else {
+							value.chars().collect()
+						}
 					};
-					let (mut value, newprev) = preprocess_code(value, Vec::new(), line, filename)?;
 					code.append(&mut value);
-					prev = newprev;
 				}
 			}
 			'/' => {
