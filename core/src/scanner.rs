@@ -274,7 +274,7 @@ impl CodeInfo {
 	fn read_identifier(&mut self) -> String {
 		while {
 			let c = self.peek(0);
-			c.is_ascii_alphanumeric() || c == '_'
+			c.is_identifier()
 		} {
 			self.current += 1
 		}
@@ -470,6 +470,16 @@ lazy_static! {
 		("struct", KeywordType::ERROR("'struct' is reserved for Clue 4.0 and cannot be used")),
 		("extern", KeywordType::ERROR("'extern' is reserved for Clue 4.0 and cannot be used")),
 	]);
+}
+
+pub trait CharExt {
+	fn is_identifier(self) -> bool;
+}
+
+impl CharExt for char {
+	fn is_identifier(self) -> bool {
+		self.is_ascii_alphanumeric() || self == '_'
+	}
 }
 
 pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {

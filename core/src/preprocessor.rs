@@ -1,6 +1,5 @@
-use std::{env, iter::Peekable, str, str::Chars};
-
-use crate::format_clue;
+use std::{env, iter::{Peekable, Rev}, str, str::Chars, collections::linked_list::Iter};
+use crate::{format_clue, scanner::CharExt};
 
 pub type LinkedString = std::collections::LinkedList<char>;
 type CodeChars<'a, 'b> = &'a mut Peekable<Chars<'b>>;
@@ -52,11 +51,11 @@ fn reach(chars: CodeChars, end: char, line: &mut usize, filename: &String) -> Re
 	}
 }
 
-fn read_with(chars: CodeChars, mut f: impl FnMut(&char) -> bool) -> String {
+fn read_with(chars: CodeChars, mut f: impl FnMut(char) -> bool) -> String {
 	let mut result = String::new();
 	while {
 		if let Some(c) = chars.peek() {
-			f(c)
+			f(*c)
 		} else {
 			false
 		}
@@ -91,7 +90,7 @@ fn assert_name(chars: CodeChars, line: &mut usize, filename: &String) -> Result<
 }
 
 fn read_until(chars: CodeChars, end: char, line: &mut usize, filename: &String) -> Result<String, String> {
-	let arg = read_with(chars, |c| *c != end);
+	let arg = read_with(chars, |c| c != end);
 	if chars.next().is_none() {
 		return Err(expected_before(&end.to_string(), "<end>", *line, filename))
 	}
@@ -101,7 +100,7 @@ fn read_until(chars: CodeChars, end: char, line: &mut usize, filename: &String) 
 fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(String, bool), String> {
 	reach(chars, '"', line, filename)?;
 	let rawarg = read_until(chars, '"', line, filename)?;
-	let (arg, result) = preprocess_code(rawarg, Vec::new(), line, filename)?;
+	let (arg, result) = preprocess_code(rawarg, None, line, filename)?;
 	Ok((arg.iter().collect::<String>(), result))
 }
 
@@ -135,7 +134,7 @@ fn keep_block(
 ) -> Result<bool, String> {
 	let (mut line, block) = read_block(chars, line, filename)?;
 	code.append(&mut if cond {
-		preprocess_code(block, Vec::new(), &mut line, filename)?.0
+		preprocess_code(block, None, &mut line, filename)?.0
 	} else {
 		let mut lines = LinkedString::new();
 		for _ in 0..block.matches('\n').count() {
@@ -146,16 +145,67 @@ fn keep_block(
 	Ok(cond)
 }
 
+fn skip_whitespace_backwards(code: &mut Peekable<Rev<Iter<char>>>) {
+	while let Some(c) = code.peek() {
+		if c.is_whitespace() {
+			code.next();
+		} else {
+			break;
+		}
+	}
+}
+
+fn read_pseudos(mut code: Peekable<Rev<Iter<char>>>) -> Vec<LinkedString> {
+	let mut newpseudos: Vec<LinkedString> = Vec::new();
+	while {
+		if let Some(c) = code.next() {
+			if *c == '=' {
+				if let Some(c) = code.next() {
+					matches!(c, '!' | '=')
+				} else {
+					return newpseudos
+				}
+			} else {
+				true
+			}
+		} else {
+			return newpseudos
+		}
+	} {}
+	skip_whitespace_backwards(&mut code);
+	while {
+		let mut name = LinkedString::new();
+		while {
+			if let Some(c) = code.peek() {
+				c.is_identifier()
+			} else {
+				false
+			}
+		} {
+			name.push_front(*code.next().unwrap())
+		}
+		newpseudos.push(name);
+		skip_whitespace_backwards(&mut code);
+		if let Some(c) = code.next() {
+			*c == ','
+		} else {
+			false
+		}
+	} {}
+	newpseudos
+}
+
 pub fn to_preprocess(code: &str) -> bool {
 	code.contains('@') || code.contains('$')
 }
 
 pub fn preprocess_code(
 	rawcode: String,
-	pseudos: Vec<LinkedString>,
+	mut pseudos: Option<Vec<LinkedString>>,
 	line: &mut usize,
 	filename: &String
 ) -> Result<(LinkedString, bool), String> {
+	let mut fullcode = LinkedString::new();
 	let mut code = LinkedString::new();
 	let mut prev = true;
 	let mut prevline = *line;
@@ -238,11 +288,21 @@ pub fn preprocess_code(
 				};
 			}
 			'$' => {
-				let name = read_with(chars, |c| c.is_ascii_alphanumeric() || *c == '_');
-				if name.is_empty() {
-					return Err(error("Expected '<name>'", *line, filename))
-				} else if let Ok(index) = name.parse::<usize>() {
-					let mut var = pseudos.get(index)
+				let name = {
+					let name = read_with(chars, char::is_identifier);
+					if name.is_empty() {
+						String::from("1")
+					} else {
+						name
+					}
+				};
+				if let Ok(index) = name.parse::<usize>() {
+					if pseudos.is_none() {
+						pseudos = Some(read_pseudos(code.iter().rev().peekable()));
+						fullcode.append(&mut code);
+					}
+					let pseudos = pseudos.as_ref().unwrap();
+					let mut var = pseudos.get(pseudos.len() - index)
 						.cloned()
 						.unwrap_or_else(|| LinkedString::from(['n', 'i', 'l']));
 					code.append(&mut var);
@@ -260,7 +320,7 @@ pub fn preprocess_code(
 							));
 						};
 						if to_preprocess(&value) {
-							preprocess_code(value, Vec::new(), line, filename)?.0
+							preprocess_code(value, None, line, filename)?.0
 						} else {
 							value.chars().collect()
 						}
@@ -301,8 +361,19 @@ pub fn preprocess_code(
 					}
 				}
 			}
+			'=' => {
+				code.push_back(c);
+				if let Some(nc) = chars.peek() {
+					if let Some(pc) = code.back() {
+						if *pc != '!' && !matches!(*nc, '=' | '!') {
+							pseudos = None;
+						}
+					}
+				}
+			}
 			_ => code.push_back(c),
 		}
 	}
-	Ok((code, prev))
+	fullcode.append(&mut code);
+	Ok((fullcode, prev))
 }
