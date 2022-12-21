@@ -353,19 +353,7 @@ pub fn preprocess_code(
 					}
 				}
 			}
-			'!' => {
-				if let Some(nc) = chars.peek() {
-					if *nc == '{' {
-						code.append(&mut read_block(chars, line, filename)?.1.chars().collect());
-					} else {
-						code.push_back('!');
-						if *nc == '=' {
-							code.push_back(chars.next().unwrap());
-						}
-					}
-				}
-			}
-			'>' | '<' => {
+			'!' | '>' | '<' => {
 				code.push_back(c);
 				if let Some(nc) = chars.peek() {
 					if *nc == '=' {
