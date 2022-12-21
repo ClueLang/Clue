@@ -9,6 +9,7 @@ use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
+use ahash::AHashMap;
 
 macro_rules! println {
     ($($rest:tt)*) => {
@@ -118,7 +119,7 @@ fn add_to_output(string: &str) {
 fn compile_code(mut code: String, name: String, scope: usize) -> Result<String, String> {
 	let time = Instant::now();
 	if to_preprocess(&code) {
-		code = preprocess_code(code, None, &mut 1usize, &name)?.0.iter().collect();
+		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?.0.iter().collect();
 	}
 	let tokens: Vec<Token> = scan_code(code, name.clone())?;
 	if flag!(env_tokens) {

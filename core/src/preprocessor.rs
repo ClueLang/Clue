@@ -1,4 +1,5 @@
 use std::{env, iter::{Peekable, Rev}, str, str::Chars, collections::linked_list::Iter};
+use ahash::AHashMap;
 use crate::{format_clue, scanner::CharExt};
 
 pub type LinkedString = std::collections::LinkedList<char>;
@@ -86,7 +87,7 @@ fn assert_name(chars: CodeChars, line: &mut usize, filename: &String) -> Result<
 	} else if name.ends_with('!') {
 		return Err(error("The value's name cannot end with '!'", *line, filename));
 	}
-	Ok(format_clue!("_CLUE_", name))
+	Ok(name)
 }
 
 fn read_until(chars: CodeChars, end: char, line: &mut usize, filename: &String) -> Result<String, String> {
@@ -100,7 +101,7 @@ fn read_until(chars: CodeChars, end: char, line: &mut usize, filename: &String) 
 fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(String, bool), String> {
 	reach(chars, '"', line, filename)?;
 	let rawarg = read_until(chars, '"', line, filename)?;
-	let (arg, result) = preprocess_code(rawarg, None, line, filename)?;
+	let (arg, result) = preprocess_code(rawarg, None, AHashMap::new(), line, filename)?;
 	Ok((arg.iter().collect::<String>(), result))
 }
 
@@ -134,7 +135,7 @@ fn keep_block(
 ) -> Result<bool, String> {
 	let (mut line, block) = read_block(chars, line, filename)?;
 	code.append(&mut if cond {
-		preprocess_code(block, None, &mut line, filename)?.0
+		preprocess_code(block, None, AHashMap::new(), &mut line, filename)?.0
 	} else {
 		let mut lines = LinkedString::new();
 		for _ in 0..block.matches('\n').count() {
@@ -202,6 +203,7 @@ pub fn to_preprocess(code: &str) -> bool {
 pub fn preprocess_code(
 	rawcode: String,
 	mut pseudos: Option<Vec<LinkedString>>,
+	mut values: AHashMap<String, String>,
 	line: &mut usize,
 	filename: &String
 ) -> Result<(LinkedString, bool), String> {
@@ -227,7 +229,8 @@ pub fn preprocess_code(
 					}
 					"ifdef" => {
 						let var = assert_word(chars, line, filename)?;
-						keep_block(chars, &mut code, env::var(var).is_ok(), line, filename)?
+						let conditon = values.contains_key(&var) || env::var(var).is_ok();
+						keep_block(chars, &mut code, conditon, line, filename)?
 					}
 					"ifcmp" => {
 						let arg1 = read_arg(chars, line, filename)?;
@@ -246,17 +249,12 @@ pub fn preprocess_code(
 						let name = assert_name(chars, line, filename)?;
 						let mut value = read_arg(chars, line, filename)?.0;
 						value.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
-						env::set_var(name, value);
+						values.insert(name, value);
 						true
 					},
 					"undef" => {
 						let name = assert_name(chars, line, filename)?;
-						if env::var(&name).is_ok() {
-							env::remove_var(name);
-							true
-						} else {
-							false
-						}
+						values.remove(&name).is_some()
 					},
 					"error" => {
 						let msg = read_arg(chars, line, filename)?.0;
@@ -311,19 +309,16 @@ pub fn preprocess_code(
 						.unwrap_or_else(|| LinkedString::from(['n', 'i', 'l']));
 					code.append(&mut var);
 				} else {
-					let mut value = {
-						let value = if let Ok(value) = env::var(&name) {
-							value
-						} else if let Ok(value) = env::var(format_clue!("_CLUE_", name)) {
-							value
-						} else {
-							return Err(error(
-								format_clue!("Value '", name, "' not found"),
-								*line,
-								filename
-							));
-						};
+					let mut value = if let Some(value) = values.get(&name) {
 						value.chars().collect()
+					} else if let Ok(value) = env::var(&name) {
+						value.chars().collect()
+					} else {
+						return Err(error(
+							format_clue!("Value '", name, "' not found"),
+							*line,
+							filename
+						));
 					};
 					code.append(&mut value);
 				}
