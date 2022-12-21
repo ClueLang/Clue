@@ -26,11 +26,7 @@ fn indentate_if<T: Iterator>(ctokens: &mut Peekable<T>, scope: usize) -> String 
 	}
 }
 
-fn compile_list<T>(
-	list: Vec<T>,
-	separator: &str,
-	tostring: &mut impl FnMut(T) -> String,
-) -> String {
+fn compile_list<T>(list: Vec<T>, separator: &str, tostring: &mut impl FnMut(T) -> String) -> String {
 	let mut result = String::new();
 	let end = list.len();
 	let mut start = 0usize;
@@ -48,26 +44,17 @@ fn compile_identifiers(names: Vec<String>) -> String {
 	compile_list(names, ", ", &mut |name| name)
 }
 
-fn compile_expressions(
-	scope: usize,
-	names: Option<&Vec<String>>,
-	values: Vec<Expression>,
-) -> String {
+fn compile_expressions(scope: usize, values: Vec<Expression>) -> String {
 	compile_list(values, ", ", &mut |expr| {
-		compile_expression(scope, names, expr)
+		compile_expression(scope, expr)
 	})
 }
 
-fn compile_function(
-	scope: usize,
-	names: Option<&Vec<String>>,
-	args: FunctionArgs,
-	code: CodeBlock,
-) -> (String, String) {
+fn compile_function(scope: usize, args: FunctionArgs, code: CodeBlock) -> (String, String) {
 	let mut code = compile_code_block(scope, "", code);
 	let args = compile_list(args, ", ", &mut |(arg, default)| {
 		if let Some((default, line)) = default {
-			let default = compile_expression(scope + 2, names, default);
+			let default = compile_expression(scope + 2, default);
 			let pre = indentate(scope + 1);
 			let debug = compile_debug_line(line, scope + 2);
 			let line = compile_debug_comment(line);
@@ -125,7 +112,7 @@ fn compile_debug_line(line: usize, scope: usize) -> String {
 	}
 }
 
-fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
+fn compile_identifier(scope: usize, expr: Expression) -> String {
 	let mut result = String::with_capacity(32);
 	let mut checked = String::with_capacity(32);
 	let mut iter = expr.into_iter().peekable();
@@ -146,7 +133,7 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 						result += &(checked.clone() + " and ");
 						let texpr = iter.next();
 						let rexpr = if let Some(EXPR(expr)) = texpr {
-							compile_expression(scope, names, expr.clone())
+							compile_expression(scope, expr.clone())
 						} else {
 							panic!("This message should never appear");
 						};
@@ -158,10 +145,10 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 				}
 			}
 			EXPR(expr) => {
-				let expr = compile_expression(scope, names, expr);
+				let expr = compile_expression(scope, expr);
 				checked.push_str(&format_clue!("(", expr, ")]"));
 			}
-			CALL(args) => write!(checked, "({})", compile_expressions(scope, names, args))
+			CALL(args) => write!(checked, "({})", compile_expressions(scope, args))
 				.expect("something really unexpected happened"),
 			_ => {}
 		}
@@ -173,29 +160,22 @@ fn compile_identifier(scope: usize, names: Option<&Vec<String>>, expr: Expressio
 	}
 }
 
-fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expression) -> String {
+fn compile_expression(mut scope: usize, expr: Expression) -> String {
 	let mut result = String::with_capacity(64);
 	for t in expr {
 		result += &match t {
 			MACRO_CALL { expr, args } => {
-				let args = {
+				let _args = {
 					let mut strings: Vec<String> = Vec::new();
 					for arg in args {
-						strings.push(compile_expression(scope, names, arg))
+						strings.push(compile_expression(scope, arg))
 					}
 					strings
 				};
-				let expr = compile_expression(scope, Some(&args), expr);
+				let expr = compile_expression(scope, expr);
 				format_clue!("(", expr, ")")
 			}
 			SYMBOL(lexeme) => lexeme,
-			PSEUDO(num) => match names {
-				Some(names) => names
-					.get(num - 1)
-					.unwrap_or(&String::from("nil"))
-					.to_string(),
-				None => String::from("nil"),
-			},
 			TABLE {
 				values,
 				metas,
@@ -208,7 +188,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 					String::new()
 				} else {
 					compile_list(values, ", ", &mut |(name, value, line)| {
-						let value = compile_expression(scope, names, value);
+						let value = compile_expression(scope, value);
 						let l = if prevline != 0 {
 							compile_debug_comment(prevline)
 						} else {
@@ -216,7 +196,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 						};
 						prevline = line;
 						if let Some(name) = name {
-							let name = compile_expression(scope, names, name);
+							let name = compile_expression(scope, name);
 							format_clue!(l, "\n", pre1, name, " = ", value)
 						} else {
 							format_clue!(l, "\n", pre1, value)
@@ -235,7 +215,7 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 					}
 				} else {
 					let metas = compile_list(metas, ", ", &mut |(name, value, line)| {
-						let value = compile_expression(scope, names, value);
+						let value = compile_expression(scope, value);
 						let l = if prevline != 0 {
 							compile_debug_comment(prevline)
 						} else {
@@ -253,12 +233,12 @@ fn compile_expression(mut scope: usize, names: Option<&Vec<String>>, expr: Expre
 				}
 			}
 			LAMBDA { args, code } => {
-				let (code, args) = compile_function(scope, names, args, code);
+				let (code, args) = compile_function(scope, args, code);
 				format_clue!("function(", args, ")", code, "end")
 			}
-			IDENT { expr, .. } => compile_identifier(scope, names, expr),
-			CALL(args) => format!("({})", compile_expressions(scope, names, args)),
-			EXPR(expr) => format!("({})", compile_expression(scope, names, expr)),
+			IDENT { expr, .. } => compile_identifier(scope, expr),
+			CALL(args) => format!("({})", compile_expressions(scope, args)),
+			EXPR(expr) => format!("({})", compile_expression(scope, expr)),
 			_ => {
 				panic!("Unexpected ComplexToken found")
 			}
@@ -273,7 +253,7 @@ fn compile_elseif_chain(
 	code: CodeBlock,
 	next: Option<Box<ComplexToken>>,
 ) -> String {
-	let condition = compile_expression(scope, None, condition);
+	let condition = compile_expression(scope, condition);
 	let code = compile_code_block(scope, "then", code);
 	let next = if let Some(next) = next {
 		String::from("else")
@@ -312,7 +292,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 					let namesit = &mut names.iter().peekable();
 					while let Some(name) = namesit.next() {
 						let value = if let Some(value) = valuesit.next() {
-							compile_expression(scope, Some(&names), value.clone())
+							compile_expression(scope, value.clone())
 						} else {
 							String::from("nil")
 						};
@@ -339,7 +319,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 						let ident = compile_identifiers(names);
 						format_clue!(debug, pre, ident, ";", line, end)
 					} else {
-						let values = compile_expressions(scope, Some(&names), values);
+						let values = compile_expressions(scope, values);
 						let names = compile_identifiers(names);
 						format_clue!(debug, pre, names, " = ", values, ";", line, end)
 					}
@@ -354,7 +334,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				let iter = names.into_iter();
 				let mut names: Vec<String> = Vec::new();
 				for name in iter {
-					names.push(compile_expression(scope, None, name))
+					names.push(compile_expression(scope, name))
 				}
 				let mut i = 0usize;
 				let values = compile_list(values, ", ", &mut |expr| {
@@ -379,7 +359,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 							MODULATE => " % ",
 							_ => panic!("Unexpected alter type found"),
 						}
-					}) + &compile_expression(scope, Some(&names), expr)
+					}) + &compile_expression(scope, expr)
 				});
 				let names = compile_identifiers(names);
 				let debug = compile_debug_line(line, scope);
@@ -402,8 +382,8 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 			} => {
 				let pre = if local { "local " } else { "" };
 				let end = indentate_if(ctokens, scope);
-				let name = compile_expression(scope, None, name);
-				let (code, args) = compile_function(scope, None, args, code);
+				let name = compile_expression(scope, name);
+				let (code, args) = compile_function(scope, args, code);
 				format_clue!(pre, "function ", name, "(", args, ")", code, "end", end)
 			}
 			IF_STATEMENT {
@@ -420,7 +400,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				branches,
 				line,
 			} => {
-				let value = compile_expression(scope, None, value);
+				let value = compile_expression(scope, value);
 				let debug = compile_debug_line(line, scope);
 				let line = compile_debug_comment(line);
 				let branches = {
@@ -432,12 +412,12 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 						let pre = if default { "else" } else { "if" };
 						let condition = {
 							let mut condition = compile_list(conditions, "or ", &mut |expr| {
-								let expr = compile_expression(scope, None, expr);
+								let expr = compile_expression(scope, expr);
 								format_clue!("(", name, " == ", expr, ") ")
 							});
 							if let Some(extraif) = extraif {
 								condition.pop();
-								let extraif = compile_expression(scope, None, extraif);
+								let extraif = compile_expression(scope, extraif);
 								if empty {
 									extraif + " "
 								} else {
@@ -467,7 +447,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				format_clue!(debug, "local ", name, " = ", value, ";", line, "\n", branches, end)
 			}
 			WHILE_LOOP { condition, code } => {
-				let condition = compile_expression(scope, None, condition);
+				let condition = compile_expression(scope, condition);
 				let code = compile_code_block(scope, "do", code);
 				format_clue!(
 					"while ",
@@ -479,7 +459,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				)
 			}
 			LOOP_UNTIL { condition, code } => {
-				let condition = compile_expression(scope, None, condition);
+				let condition = compile_expression(scope, condition);
 				let code = compile_code_block(scope, "", code);
 				format_clue!(
 					"repeat ",
@@ -496,9 +476,9 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				alter,
 				code,
 			} => {
-				let start = compile_expression(scope, None, start);
-				let endexpr = compile_expression(scope, None, end);
-				let alter = compile_expression(scope, None, alter);
+				let start = compile_expression(scope, start);
+				let endexpr = compile_expression(scope, end);
+				let alter = compile_expression(scope, alter);
 				let code = compile_code_block(scope, "do", code);
 				let end = indentate_if(ctokens, scope);
 				format_clue!(
@@ -511,7 +491,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				expr,
 				code,
 			} => {
-				let expr = compile_expression(scope, Some(&iterators), expr);
+				let expr = compile_expression(scope, expr);
 				let iterators = compile_identifiers(iterators);
 				let code = compile_code_block(scope, "do", code);
 				format_clue!(
@@ -563,16 +543,13 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 				}
 			}
 			IDENT { expr, line } => {
-				let expr = compile_identifier(scope, None, expr);
+				let expr = compile_identifier(scope, expr);
 				let debug = compile_debug_line(line, scope);
 				let line = compile_debug_comment(line);
 				format_clue!(debug, expr, ";", line, indentate_if(ctokens, scope))
 			}
-			/*CALL(args) => {
-				format!("({}){}", compile_expressions(scope, None, args), indentate_if(ctokens, scope))
-			}*/
 			EXPR(expr) => {
-				format!("({})", compile_expression(scope, None, expr))
+				format!("({})", compile_expression(scope, expr))
 			}
 			DO_BLOCK(code) => {
 				format!(
@@ -583,7 +560,7 @@ pub fn compile_tokens(scope: usize, ctokens: Expression) -> String {
 			}
 			RETURN_EXPR(exprs) => {
 				if let Some(exprs) = exprs {
-					format!("return {};", compile_expressions(scope, None, exprs))
+					format!("return {};", compile_expressions(scope, exprs))
 				} else {
 					String::from("return;")
 				}

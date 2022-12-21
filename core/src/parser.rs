@@ -113,7 +113,6 @@ pub enum ComplexToken {
 	},
 
 	SYMBOL(String),
-	PSEUDO(usize),
 	CALL(Vec<Expression>),
 	EXPR(Expression),
 	DO_BLOCK(CodeBlock),
@@ -527,7 +526,7 @@ impl ParserInfo {
 		checkback: bool,
 	) -> Result<(), String> {
 		if match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | SAFE_EXPRESSION | TRUE | FALSE | MINUS
+			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | FALSE | MINUS
 			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT | THREEDOTS | MATCH => false,
 			CURLY_BRACKET_OPEN => {
 				*notable = false;
@@ -545,8 +544,8 @@ impl ParserInfo {
 				self.look_back(1).kind(),
 				NUMBER
 					| IDENTIFIER | STRING
-					| DOLLAR | TRUE | FALSE
-					| NIL | ROUND_BRACKET_CLOSED
+					| TRUE | FALSE | NIL
+					| ROUND_BRACKET_CLOSED
 					| SQUARE_BRACKET_CLOSED
 					| THREEDOTS | CURLY_BRACKET_CLOSED
 			) {
@@ -613,7 +612,7 @@ impl ParserInfo {
 
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | DOLLAR | SAFE_EXPRESSION | TRUE | BIT_NOT | FALSE
+			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | BIT_NOT | FALSE
 			| NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
@@ -821,35 +820,6 @@ impl ParserInfo {
 					let fname = self.build_identifier()?;
 					expr.push_back(fname);
 					self.current -= 1;
-				}
-				DOLLAR => {
-					let nt = self.peek(0);
-					let mut num = 1usize;
-					if nt.kind() == NUMBER {
-						num = match nt.lexeme().parse() {
-							Ok(n) => n,
-							Err(_) => {
-								return Err(self.error(
-									format!(
-										"Pseudo variables cannot point to the {}th variable",
-										nt.lexeme()
-									),
-									nt.line(),
-								))
-							}
-						};
-						self.current += 1;
-						if num == 0 {
-							return Err(self.error(
-								"Pseudo variables cannot point to the 0th variable",
-								nt.line(),
-							));
-						}
-					}
-					expr.push_back(PSEUDO(num));
-					if self.check_val() {
-						break t;
-					}
 				}
 				FN => {
 					let /*(*/args/*, types)*/ = if self.advance_if(ROUND_BRACKET_OPEN)
