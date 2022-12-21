@@ -205,7 +205,6 @@ pub fn preprocess_code(
 	line: &mut usize,
 	filename: &String
 ) -> Result<(LinkedString, bool), String> {
-	let mut fullcode = LinkedString::new();
 	let mut code = LinkedString::new();
 	let mut prev = true;
 	let mut prevline = *line;
@@ -299,7 +298,6 @@ pub fn preprocess_code(
 				if let Ok(index) = name.parse::<usize>() {
 					if pseudos.is_none() {
 						pseudos = Some(read_pseudos(code.iter().rev().peekable()));
-						fullcode.append(&mut code);
 					}
 					let pseudos = pseudos.as_ref().unwrap();
 					let mut var = pseudos.get(pseudos.len() - index)
@@ -322,11 +320,6 @@ pub fn preprocess_code(
 						value.chars().collect()
 					};
 					code.append(&mut value);
-				}
-			}
-			'!' => if let Some(c) = chars.peek() {
-				if *c == '{' {
-					code.append(&mut read_block(chars, line, filename)?.1.chars().collect())
 				}
 			}
 			'/' => {
@@ -358,18 +351,37 @@ pub fn preprocess_code(
 				}
 			}
 			'=' => {
+				code.push_back('=');
+				if let Some(nc) = chars.peek() {
+					if matches!(nc, '=' | '>') {
+						code.push_back(chars.next().unwrap());
+					} else {
+						pseudos = None;
+					}
+				}
+			}
+			'!' => {
+				if let Some(nc) = chars.peek() {
+					if *nc == '{' {
+						code.append(&mut read_block(chars, line, filename)?.1.chars().collect());
+					} else {
+						code.push_back('!');
+						if *nc == '=' {
+							code.push_back(chars.next().unwrap());
+						}
+					}
+				}
+			}
+			'>' | '<' => {
 				code.push_back(c);
 				if let Some(nc) = chars.peek() {
-					if let Some(pc) = code.back() {
-						if *pc != '!' && !matches!(*nc, '=' | '!') {
-							pseudos = None;
-						}
+					if *nc == '=' {
+						code.push_back(chars.next().unwrap());
 					}
 				}
 			}
 			_ => code.push_back(c),
 		}
 	}
-	fullcode.append(&mut code);
-	Ok((fullcode, prev))
+	Ok((code, prev))
 }
