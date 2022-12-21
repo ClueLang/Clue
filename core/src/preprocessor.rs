@@ -51,11 +51,11 @@ fn reach(chars: CodeChars, end: char, line: &mut usize, filename: &String) -> Re
 	}
 }
 
-fn read_with(chars: CodeChars, mut f: impl FnMut(char) -> bool) -> String {
+fn read_with(chars: CodeChars, mut f: impl FnMut(&char) -> bool) -> String {
 	let mut result = String::new();
 	while {
 		if let Some(c) = chars.peek() {
-			f(*c)
+			f(c)
 		} else {
 			false
 		}
@@ -90,7 +90,7 @@ fn assert_name(chars: CodeChars, line: &mut usize, filename: &String) -> Result<
 }
 
 fn read_until(chars: CodeChars, end: char, line: &mut usize, filename: &String) -> Result<String, String> {
-	let arg = read_with(chars, |c| c != end);
+	let arg = read_with(chars, |c| *c != end);
 	if chars.next().is_none() {
 		return Err(expected_before(&end.to_string(), "<end>", *line, filename))
 	}

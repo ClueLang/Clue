@@ -473,12 +473,12 @@ lazy_static! {
 }
 
 pub trait CharExt {
-	fn is_identifier(self) -> bool;
+	fn is_identifier(&self) -> bool;
 }
 
 impl CharExt for char {
-	fn is_identifier(self) -> bool {
-		self.is_ascii_alphanumeric() || self == '_'
+	fn is_identifier(&self) -> bool {
+		self.is_ascii_alphanumeric() || *self == '_'
 	}
 }
 
