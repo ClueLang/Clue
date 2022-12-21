@@ -172,7 +172,7 @@ struct ParserInfo {
 	filename: String,
 	expr: Expression,
 	testing: Option<usize>,
-	localid: u8,
+	internal_var_id: u8,
 	statics: String,
 	macros: AHashMap<String, Expression>,
 	//locals: LocalsList,
@@ -187,7 +187,7 @@ impl ParserInfo {
 			filename,
 			expr: Expression::new(),
 			testing: None,
-			localid: 0,
+			internal_var_id: 0,
 			statics: String::new(),
 			macros: AHashMap::default(),
 			// locals,
@@ -342,6 +342,12 @@ impl ParserInfo {
 			Ok(luatype)
 		}
 	*/
+
+	fn get_next_internal_var(&mut self) -> String {
+		self.internal_var_id += 1;
+		format_clue!("_internal", self.internal_var_id.to_string())
+	}
+
 	fn build_call(&mut self) -> Result<Vec<Expression>, String> {
 		let args: Vec<Expression> = if self.advance_if(ROUND_BRACKET_CLOSED) {
 			Vec::new()
@@ -735,9 +741,8 @@ impl ParserInfo {
 					expr.push_back(SYMBOL(String::from("not ")))
 				}
 				MATCH => {
-					let name = format!("_match{}", self.localid);
+					let name = self.get_next_internal_var();
 					let ident = SYMBOL(name.clone());
-					self.localid += 1;
 					let ctoken = self.build_match_block(name, &|i /*, _*/| {
 						let start = i.peek(0).line();
 						let expr = i.build_expression(None)?;
@@ -766,7 +771,7 @@ impl ParserInfo {
 					let t2 = self.look_back(0);
 					let exprfalse = self.build_expression(end)?;
 					self.current -= 1;
-					let name = format!("_t{}", self.localid);
+					let name = self.get_next_internal_var();
 					self.expr.push_back(VARIABLE {
 						line: t.line(),
 						local: true,
@@ -798,7 +803,6 @@ impl ParserInfo {
 						}))),
 					});
 					expr.push_back(name);
-					self.localid += 1;
 					if self.check_val() {
 						break t;
 					}
