@@ -319,11 +319,7 @@ pub fn preprocess_code(
 								filename
 							));
 						};
-						if to_preprocess(&value) {
-							preprocess_code(value, None, line, filename)?.0
-						} else {
-							value.chars().collect()
-						}
+						value.chars().collect()
 					};
 					code.append(&mut value);
 				}
