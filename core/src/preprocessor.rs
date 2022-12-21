@@ -272,6 +272,12 @@ pub fn preprocess_code(
 						println!("{}", msg);
 						result
 					},
+					"stop" => {
+						for c in chars {
+							code.push_back(c);	
+						}
+						return Ok((code, prev))
+					}
 					"execute" => todo!(),
 					"eval" => todo!(),
 					"include" => todo!(),
