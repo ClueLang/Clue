@@ -234,7 +234,7 @@ impl CodeInfo {
 			self.current += 1;
 			let mut literal: String = self.substr(self.start, self.current);
 			literal.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
-			self.add_literal_token(STRING, literal);
+			self.add_literal_token(STRING, literal.replace("\\@", "@").replace("\\$", "$"));
 		}
 		self.line = aline;
 	}

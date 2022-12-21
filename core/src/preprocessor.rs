@@ -196,7 +196,15 @@ fn read_pseudos(mut code: Peekable<Rev<Iter<char>>>) -> Vec<LinkedString> {
 }
 
 pub fn to_preprocess(code: &str) -> bool {
-	code.contains('@') || code.contains('$')
+	let mut code = code.as_bytes().iter();
+	while let Some(c) = code.next() {
+		match *c as char {
+			'\\' => {code.next();}
+			'$' | '@' => return true, 
+			_ => {}
+		}
+	}
+	false
 }
 
 pub fn preprocess_code(
@@ -342,6 +350,19 @@ pub fn preprocess_code(
 						_ => code.push_back('/'),
 					}
 				}
+			}
+			'\\' => {
+				code.push_back(
+					if let Some(nc) = chars.peek() {
+						if matches!(nc, '@' | '$') {
+							chars.next().unwrap()
+						} else {
+							'\\'
+						}
+					} else {
+						'\\'
+					}
+				);
 			}
 			'=' => {
 				code.push_back('=');
