@@ -98,11 +98,12 @@ fn read_until(chars: CodeChars, end: char, line: &mut usize, filename: &String) 
 	Ok(arg)
 }
 
-fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(String, bool), String> {
+fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(LinkedString, bool), String> {
 	reach(chars, '"', line, filename)?;
-	let rawarg = read_until(chars, '"', line, filename)?;
+	let mut rawarg = read_until(chars, '"', line, filename)?;
+	rawarg.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
 	let (arg, result) = preprocess_code(rawarg, None, AHashMap::new(), line, filename)?;
-	Ok((arg.iter().collect::<String>(), result))
+	Ok((arg, result))
 }
 
 fn read_block(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(usize, String), String> {
@@ -203,7 +204,7 @@ pub fn to_preprocess(code: &str) -> bool {
 pub fn preprocess_code(
 	rawcode: String,
 	mut pseudos: Option<Vec<LinkedString>>,
-	mut values: AHashMap<String, String>,
+	mut values: AHashMap<String, LinkedString>,
 	line: &mut usize,
 	filename: &String
 ) -> Result<(LinkedString, bool), String> {
@@ -233,9 +234,9 @@ pub fn preprocess_code(
 						keep_block(chars, &mut code, conditon, line, filename)?
 					}
 					"ifcmp" => {
-						let arg1 = read_arg(chars, line, filename)?;
+						let arg1 = read_arg(chars, line, filename)?.0;
 						let condition = assert_word(chars, line, filename)?;
-						let arg2 = read_arg(chars, line, filename)?;
+						let arg2 = read_arg(chars, line, filename)?.0;
 						let result = match condition.as_str() {
 							"==" => arg1 == arg2,
 							"!=" => arg1 != arg2,
@@ -247,8 +248,7 @@ pub fn preprocess_code(
 					"else" => keep_block(chars, &mut code, !prev, line, filename)?,
 					"define" => {
 						let name = assert_name(chars, line, filename)?;
-						let mut value = read_arg(chars, line, filename)?.0;
-						value.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
+						let value = read_arg(chars, line, filename)?.0;
 						values.insert(name, value);
 						true
 					},
@@ -258,16 +258,16 @@ pub fn preprocess_code(
 					},
 					"error" => {
 						let msg = read_arg(chars, line, filename)?.0;
-						return Err(error(&msg, *line, filename))
+						return Err(error(&msg.iter().collect::<String>(), *line, filename))
 					},
 					"warning" => {
 						let (msg, result) = read_arg(chars, line, filename)?;
-						println!("Warning: \"{}\"", msg);
+						println!("Warning: \"{}\"", msg.iter().collect::<String>());
 						result
 					},
 					"print" => {
 						let (msg, result) = read_arg(chars, line, filename)?;
-						println!("{}", msg);
+						println!("{}", msg.iter().collect::<String>());
 						result
 					},
 					"stop" => {
@@ -310,7 +310,7 @@ pub fn preprocess_code(
 					code.append(&mut var);
 				} else {
 					let mut value = if let Some(value) = values.get(&name) {
-						value.chars().collect()
+						value.clone()
 					} else if let Ok(value) = env::var(&name) {
 						value.chars().collect()
 					} else {
