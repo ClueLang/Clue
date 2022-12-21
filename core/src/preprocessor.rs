@@ -84,8 +84,6 @@ fn assert_name(chars: CodeChars, line: &mut usize, filename: &String) -> Result<
 	let name = assert_word(chars, line, filename)?;
 	if name.contains('=') {
 		return Err(error("The value's name cannot contain '='", *line, filename));
-	} else if name.ends_with('!') {
-		return Err(error("The value's name cannot end with '!'", *line, filename));
 	}
 	Ok(name)
 }
