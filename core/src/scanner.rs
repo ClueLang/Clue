@@ -414,14 +414,18 @@ lazy_static! {
 			('[', SymbolType::JUST(SAFE_SQUARE_BRACKET)),
 		]), QUESTION_MARK)),
 		('&', SymbolType::SYMBOLS(generate_map(&[
-			('&', SymbolType::JUST(AND)),
+			('&', SymbolType::SYMBOLS(generate_map(&[
+				('=', SymbolType::JUST(DEFINE_AND))
+			]), AND)),
 		]), BIT_AND)),
 		(':', SymbolType::SYMBOLS(generate_map(&[
 			(':', SymbolType::JUST(DOUBLE_COLON)),
 			('=', SymbolType::FUNCTION(|i| i.warning("':=' is deprecated and was replaced with '||='"))),
 		]), COLON)),
 		('|', SymbolType::SYMBOLS(generate_map(&[
-			('|', SymbolType::JUST(OR)),
+			('|', SymbolType::SYMBOLS(generate_map(&[
+				('=', SymbolType::JUST(DEFINE_OR))
+			]), OR)),
 		]), BIT_OR)),
 		('\n', SymbolType::FUNCTION(|i| i.line += 1)),
 		('"', SymbolType::FUNCTION(|i| i.read_string('"'))),
