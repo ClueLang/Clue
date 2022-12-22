@@ -764,6 +764,38 @@ impl ParserInfo {
 					self.expr.push_back(ctoken);
 					expr.push_back(ident);
 				}
+				COALESCE => {
+					let mut leftexpr = Expression::new();
+					leftexpr.append(&mut expr);
+					let rightexpr = self.build_expression(end)?;
+					self.current -= 1;
+					let name = self.get_next_internal_var();
+					self.expr.push_back(VARIABLE {
+						line: self.at(start).line(),
+						local: true,
+						names: vec![name.clone()],
+						values: vec![leftexpr],
+					});
+					let name = SYMBOL(name);
+					self.expr.push_back(IF_STATEMENT {
+						condition: expression![name.clone(), SYMBOL(String::from(" == nil"))],
+						code: CodeBlock {
+							start: t.line(),
+							code: expression![ALTER {
+								kind: DEFINE,
+								line: t.line(),
+								names: vec![expression![name.clone()]],
+								values: vec![rightexpr]
+							}],
+							end: self.at(self.current).line(),
+						},
+						next: None,
+					});
+					expr.push_back(name);
+					if self.check_val() {
+						break t;
+					}
+				}
 				QUESTION_MARK => {
 					let mut condition = Expression::new();
 					condition.append(&mut expr);
