@@ -6,12 +6,22 @@ use crate::scanner::TokenType::*;
 use crate::scanner::{Token, TokenType};
 use crate::{check, compiler::compile_tokens, flag, format_clue, ENV_DATA};
 use ahash::AHashMap;
-use std::{cmp, collections::LinkedList};
+use std::{cmp, collections::{LinkedList, VecDeque}};
 
 macro_rules! expression {
 	($($x: expr),*) => {
 		{
 			let mut expr = Expression::new();
+			$(expr.push_back($x);)*
+			expr
+		}
+	};
+}
+
+macro_rules! vecdeque {
+	($($x: expr),*) => {
+		{
+			let mut expr = VecDeque::new();
 			$(expr.push_back($x);)*
 			expr
 		}
@@ -36,7 +46,7 @@ pub enum ComplexToken {
 
 	ALTER {
 		kind: TokenType,
-		names: Vec<Expression>,
+		names: VecDeque<Expression>,
 		values: Vec<Expression>,
 		line: usize,
 	},
@@ -753,7 +763,7 @@ impl ParserInfo {
 						Ok(CodeBlock {
 							code: expression![ALTER {
 								kind: DEFINE,
-								names: vec![expression![ident.clone()]],
+								names: vecdeque![expression![ident.clone()]],
 								values: vec![expr],
 								line: end
 							}],
@@ -784,7 +794,7 @@ impl ParserInfo {
 							code: expression![ALTER {
 								kind: DEFINE,
 								line: t.line(),
-								names: vec![expression![name.clone()]],
+								names: vecdeque![expression![name.clone()]],
 								values: vec![rightexpr]
 							}],
 							end: self.at(self.current).line(),
@@ -818,7 +828,7 @@ impl ParserInfo {
 							code: expression![ALTER {
 								kind: DEFINE,
 								line: t.line(),
-								names: vec![expression![name.clone()]],
+								names: vecdeque![expression![name.clone()]],
 								values: vec![exprtrue]
 							}],
 							end: t2.line(),
@@ -828,7 +838,7 @@ impl ParserInfo {
 							code: expression![ALTER {
 								kind: DEFINE,
 								line: t.line(),
-								names: vec![expression![name.clone()]],
+								names: vecdeque![expression![name.clone()]],
 								values: vec![exprfalse]
 							}],
 							end: self.at(self.current).line(),
@@ -1089,7 +1099,7 @@ impl ParserInfo {
 				ContinueMode::MOONSCRIPT => {
 					code.push_back(ALTER {
 						kind: DEFINE,
-						names: vec![expression![SYMBOL(String::from("_continue"))]],
+						names: vecdeque![expression![SYMBOL(String::from("_continue"))]],
 						values: vec![expression![SYMBOL(String::from("true"))]],
 						line: end,
 					});
@@ -1541,27 +1551,51 @@ impl ParserInfo {
 			};
 		}
 		self.current += 1;
-		let mut names: Vec<Expression> = Vec::new();
+		let mut names = VecDeque::new();
 		while {
-			names.push(self.build_name()?);
+			names.push_back(self.build_name()?);
 			self.current += 1;
 			self.look_back(1).kind() == COMMA
 		} {}
 		self.current -= 1;
 		let checkt = self.look_back(0);
-		let check = checkt.kind() as u8;
-		if check < DEFINE as u8 || check > MODULATE as u8 {
+		let check = checkt.kind();
+		if check < DEFINE || check > MODULATE {
 			return Err(self.expected("=", &checkt.lexeme(), checkt.line()));
 		}
-		let values: Vec<Expression> = self.find_expressions(COMMA, None)?;
-		self.expr.push_back(ALTER {
-			kind: checkt.kind(),
-			line: t.line(),
-			names,
-			values,
-		});
+		let values = self.find_expressions(COMMA, None)?;
+		if check == DEFINE_COALESCE {
+			for value in values {
+				if let Some(name) = names.pop_front() {
+					let mut condition = name.clone();
+					condition.push_back(SYMBOL(String::from(" == nil")));
+					self.expr.push_back(IF_STATEMENT {
+						condition,
+						code: CodeBlock {
+							start: t.line(),
+							code: expression![ALTER {
+								kind: DEFINE,
+								names: vecdeque![name],
+								values: vec![value],
+								line: t.line()
+							}],
+							end: t.line()
+						},
+						next: None
+					});
+				} else {
+					break
+				}
+			}
+		} else {
+			self.expr.push_back(ALTER {
+				kind: check,
+				line: t.line(),
+				names,
+				values,
+			});
+		}
 		self.current -= 1;
-
 		Ok(())
 	}
 

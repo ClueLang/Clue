@@ -22,7 +22,7 @@ fn generate_map(elements: &[(char, SymbolType)]) -> SymbolsMap {
 	map
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[rustfmt::skip]
 pub enum TokenType {
 	//symbols
@@ -36,7 +36,7 @@ pub enum TokenType {
 
 	//definition and comparison
 	DEFINE, DEFINE_AND, DEFINE_OR, INCREASE, DECREASE, MULTIPLY, DIVIDE,
-	EXPONENTIATE, CONCATENATE, MODULATE, DEFINE_COALESCE,
+	DEFINE_COALESCE, EXPONENTIATE, CONCATENATE, MODULATE,
 	BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL, EQUAL, NOT_EQUAL,
 
 	//literals
