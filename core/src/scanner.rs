@@ -1,6 +1,8 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
+use crate::format_clue;
+
 use self::TokenType::*;
 use ahash::AHashMap;
 use std::{cmp, fmt};
@@ -80,14 +82,13 @@ struct CodeInfo {
 
 impl CodeInfo {
 	fn new(code: String, filename: String) -> CodeInfo {
-		let chars = code.chars();
+		let code: Vec<char> = code.chars().collect();
 		CodeInfo {
 			line: 1,
 			start: 0,
 			current: 0,
-			size: chars.clone().count(),
-			code: chars.collect(),
-			filename,
+			size: code.len(),
+			code, filename,
 			tokens: Vec::new(),
 			last: EOF,
 			errored: false,
@@ -143,6 +144,21 @@ impl CodeInfo {
 				break;
 			}
 			result.push(self.at(i));
+		}
+		result
+	}
+
+	fn read_string_literal(&self, start: usize, end: usize, backslashes: &[char]) -> String {
+		let mut result: String = String::new();
+		for i in start..end {
+			if i >= self.size {
+				break;
+			}
+			let c = self.at(i);
+			if c == '\\' && backslashes.contains(&self.at(i + 1)) {
+				continue;
+			}
+			result.push(c);
 		}
 		result
 	}
@@ -232,9 +248,9 @@ impl CodeInfo {
 			self.warning("Unterminated string");
 		} else {
 			self.current += 1;
-			let mut literal: String = self.substr(self.start, self.current);
+			let mut literal = self.read_string_literal(self.start, self.current, &['@', '$']);
 			literal.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
-			self.add_literal_token(STRING, literal.replace("\\@", "@").replace("\\$", "$"));
+			self.add_literal_token(STRING, literal);
 		}
 		self.line = aline;
 	}
@@ -251,21 +267,16 @@ impl CodeInfo {
 			self.warning("Unterminated string");
 		} else {
 			self.current += 1;
-			let literal: String = self.substr(self.start + 1, self.current - 1);
+			let literal = self.read_string_literal(self.start + 1, self.current - 1, &['`', '@', '$']);
 			let mut brackets = String::new();
 			let mut must = literal.ends_with(']');
-			while must || literal.contains(&format!("]{brackets}]")) {
+			while must || literal.contains(&format_clue!("]", brackets, "]")) {
 				brackets += "=";
 				must = false;
 			}
 			self.add_literal_token(
 				STRING,
-				format!(
-					"[{}[{}]{}]",
-					brackets,
-					literal.replace("\\`", "`"),
-					brackets
-				),
+				format_clue!("[", brackets, "[", literal, "]", brackets, "]")
 			);
 		}
 		self.line = aline
