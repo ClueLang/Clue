@@ -16,9 +16,7 @@ ahash.workspace = true
 clue_core = {path = "../core"}
 clap.workspace = true
 mlua = {version = "0.8.3", features = ["luajit", "vendored"], optional = true}
-devtimer = {version = "4.0.1", optional = true}
 
 [features]
 default = ["interpreter"]
 interpreter = ["mlua"]
-bench = ["devtimer"]
