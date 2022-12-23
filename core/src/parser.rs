@@ -362,7 +362,7 @@ impl ParserInfo {
 		let args: Vec<Expression> = if self.advance_if(ROUND_BRACKET_CLOSED) {
 			Vec::new()
 		} else {
-			self.find_expressions(Some((ROUND_BRACKET_CLOSED, ")")))?
+			self.find_expressions(Some((ROUND_BRACKET_CLOSED, ")")))?.0
 		};
 		Ok(args)
 	}
@@ -370,14 +370,18 @@ impl ParserInfo {
 	fn find_expressions(
 		&mut self,
 		end: OptionalEnd,
-	) -> Result<Vec<Expression>, String> {
+	) -> Result<(Vec<Expression>, Vec<usize>), String> {
 		let mut exprs: Vec<Expression> = Vec::new();
+		let mut lines: Vec<usize> = Vec::new();
+		lines.push(self.at(self.current).line());
 		loop {
 			let expr = self.build_expression(None)?;
 			let t = self.look_back(0);
 			exprs.push(expr);
 			if t.kind() != COMMA {
-				return self.assert_end(&t, end, exprs);
+				return self.assert_end(&t, end, (exprs, lines));
+			} else {
+				lines.push(t.line());
 			}
 		}
 	}
@@ -386,10 +390,7 @@ impl ParserInfo {
 		let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
 		let mut metas: Vec<(String, Expression, usize)> = Vec::new();
 		let mut metatable: Option<String> = None;
-		loop {
-			if self.advance_if(CURLY_BRACKET_CLOSED) {
-				break;
-			}
+		while !self.advance_if(CURLY_BRACKET_CLOSED) {
 			let start = self.current;
 			let mut qscope = 1u8;
 			let mut iskey = false;
@@ -682,6 +683,28 @@ impl ParserInfo {
 					}
 					expr.push_back(self.build_table()?);
 					*notable = true;
+					if self.check_val() {
+						break t;
+					}
+				}
+				SQUARE_BRACKET_OPEN => {
+					let (mut exprs, lines) = self.find_expressions(Some((SQUARE_BRACKET_CLOSED, "]")))?;
+					let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
+					for i in 0..exprs.len() {
+						let key = expression![
+							SYMBOL(String::from("[")),
+							SYMBOL(i.to_string()),
+							SYMBOL(String::from("]"))
+						];
+						let mut value = Expression::new();
+						value.append(exprs.get_mut(i).unwrap());
+						values.push((Some(key), value, lines[i]));
+					}
+					expr.push_back(TABLE {
+						values,
+						metas: Vec::new(),
+						metatable: None
+					});
 					if self.check_val() {
 						break t;
 					}
@@ -1347,7 +1370,7 @@ impl ParserInfo {
 				return Ok(SYMBOL(String::new()));
 			}
 		} else {
-			self.find_expressions(None)?
+			self.find_expressions(None)?.0
 		};
 		self.current -= 1;
 		Ok(VARIABLE {
@@ -1562,7 +1585,7 @@ impl ParserInfo {
 		if check < DEFINE || check > MODULATE {
 			return Err(self.expected("=", &checkt.lexeme(), checkt.line()));
 		}
-		let values = self.find_expressions(None)?;
+		let values = self.find_expressions(None)?.0;
 		if check == DEFINE_COALESCE {
 			for value in values {
 				if let Some(name) = names.pop_front() {
@@ -1742,7 +1765,7 @@ impl ParserInfo {
 		let expr = if self.ended() || self.advance_if(SEMICOLON) {
 			None
 		} else {
-			Some(self.find_expressions(None)?)
+			Some(self.find_expressions(None)?.0)
 		};
 		self.expr.push_back(RETURN_EXPR(expr));
 
