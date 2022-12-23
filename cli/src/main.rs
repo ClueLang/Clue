@@ -1,19 +1,18 @@
-use clue_core as clue;
-use clap::{Parser, crate_version};
+use ahash::AHashMap;
+use clap::{crate_version, Parser};
 use clue::env::ContinueMode;
 use clue::{
-	check, format_clue, preprocessor::*, compiler::*, flag, parser::*, scanner::*,
-	ENV_DATA /*, LUA_G*/
+	check, compiler::*, flag, format_clue, parser::*, preprocessor::*, scanner::*,
+	ENV_DATA, /*, LUA_G*/
 };
+use clue_core as clue;
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::thread::spawn;
 use std::{ffi::OsStr, fmt::Display, fs, fs::File, io::prelude::*, path::Path, time::Instant};
-use ahash::AHashMap;
 
 macro_rules! println {
     ($($rest:tt)*) => {
-        #[cfg(not(feature = "devtimer"))]
         std::println!($($rest)*)
     }
 }
@@ -119,7 +118,10 @@ fn add_to_output(string: &str) {
 fn compile_code(mut code: String, name: String, scope: usize) -> Result<String, String> {
 	let time = Instant::now();
 	if to_preprocess(&code) {
-		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?.0.iter().collect();
+		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?
+			.0
+			.iter()
+			.collect();
 	}
 	let tokens: Vec<Token> = scan_code(code, name.clone())?;
 	if flag!(env_tokens) {
@@ -158,7 +160,10 @@ where
 	compile_code(code, name, scope)
 }
 
-fn check_for_files<P: AsRef<Path>>(path: P, rpath: String) -> Result<Vec<(String, String)>, std::io::Error>
+fn check_for_files<P: AsRef<Path>>(
+	path: P,
+	rpath: String,
+) -> Result<Vec<(String, String)>, std::io::Error>
 where
 	P: AsRef<OsStr> + Display,
 {
@@ -184,7 +189,6 @@ where
 	Ok(files)
 }
 
-#[cfg(not(feature = "devtimer"))]
 fn compile_folder<P: AsRef<Path>>(path: P, rpath: String) -> Result<(), String>
 where
 	P: AsRef<OsStr> + Display,
@@ -247,7 +251,6 @@ fn execute_lua_code(code: &str) {
 	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 }
 
-#[cfg(not(feature = "devtimer"))]
 fn main() -> Result<(), String> {
 	std::env::set_var("CLUE_VERSION", crate_version!());
 	let cli = Cli::parse();
@@ -344,7 +347,8 @@ fn main() -> Result<(), String> {
 		)?;
 		add_to_output(&code);
 		if !cli.dontsave {
-			compiledname = String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
+			compiledname =
+				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
 			check!(fs::write(
 				&compiledname,
 				ENV_DATA.read().expect("Can't lock env_data").output_code()
@@ -368,91 +372,6 @@ fn main() -> Result<(), String> {
 		}
 	}
 	Ok(())
-}
-
-#[cfg(feature = "devtimer")]
-fn compile_multi_files_bench(files: Vec<String>) {
-	let threads_count = min(files.len(), num_cpus::get() * 2);
-	let files = Arc::new(Mutex::new(files));
-	let mut threads = Vec::with_capacity(threads_count);
-
-	for _ in 0..threads_count {
-		// this `.clone()` is used to create a new pointer to the outside `files`
-		// that can be used from inside the newly created thread
-		let files = files.clone();
-
-		let thread = spawn(move || loop {
-			let file: String;
-
-			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
-			{
-				let mut files = files.lock().unwrap();
-
-				if files.is_empty() {
-					break;
-				}
-
-				file = files.pop().unwrap();
-			}
-
-			compile_code(file, String::new(), 2).unwrap();
-		});
-
-		threads.push(thread);
-	}
-
-	for thread in threads {
-		thread.join().unwrap();
-	}
-}
-
-#[cfg(feature = "devtimer")]
-fn run_benchmark(iters: usize, func: impl Fn()) -> Vec<u128> {
-	let mut timer = devtimer::SimpleTimer::new();
-	let mut results = Vec::with_capacity(iters);
-
-	for i in 0..iters {
-		std::println!("Running iter {} ...", i + 1);
-		timer.start();
-		func();
-		timer.stop();
-		results.push(timer.time_in_nanos().unwrap());
-	}
-
-	results.sort();
-
-	results
-}
-
-#[cfg(feature = "devtimer")]
-fn main() {
-	let files = check_for_files("examples/", String::new())
-		.expect("Unexpected error happened in checking for files to compile")
-		.iter()
-		.map(|file| fs::read_to_string(file.0.clone()).unwrap())
-		.collect::<Vec<String>>();
-
-	let bench_results = run_benchmark(10000, || compile_multi_files_bench(files.clone()));
-
-	let mut avg = 0;
-	let mut top_avg = 0;
-	let top_len = bench_results.len() as f64 * 0.01;
-
-	for (i, value) in bench_results.iter().enumerate() {
-		if (i as f64) <= top_len {
-			top_avg += value;
-		}
-		avg += value;
-	}
-
-	avg /= bench_results.len() as u128;
-	top_avg /= top_len as u128;
-
-	std::println!();
-	std::println!("Slowest: {} ns", bench_results.last().unwrap());
-	std::println!("Fastest: {} ns", bench_results.first().unwrap());
-	std::println!("Average: {} ns/iter", avg);
-	std::println!("Top 1% : {} ns/iter", top_avg);
 }
 
 #[cfg(test)]
