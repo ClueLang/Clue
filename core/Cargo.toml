@@ -1,19 +1,19 @@
 [package]
 name = "clue_core"
-version = "3.0.0-beta"
-description = "C/Rust like programming language that compiles into Lua code"
-edition = "2021"
-authors = ["Maiori"]
+version.workspace = true
+description.workspace = true
+edition.workspace = true
+authors.workspace = true
 readme = "./README.md"
-repository = "https://github.com/ClueLang/Clue"
-license = "MIT"
-keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
-categories = ["compilers"]
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 lazy_static = "1.4.0"
-ahash = "0.8.2"
-clap = {version = "3.2.23", features = ["derive"]}
+ahash.workspace = true
+clap.workspace = true
 rpmalloc = {version = "0.2.2", optional = true}
 
 [features]

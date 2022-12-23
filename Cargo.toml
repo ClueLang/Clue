@@ -2,5 +2,19 @@
 members = ["cli", "core"]
 default-members = ["cli", "core"]
 
+[workspace.package]
+version = "3.0.0-beta"
+description = "C/Rust like programming language that compiles into Lua code"
+edition = "2021"
+authors = ["Maiori"]
+repository = "https://github.com/ClueLang/Clue"
+license = "MIT"
+keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
+categories = ["compilers"]
+
+[workspace.dependencies]
+ahash = "0.8.2"
+clap = {version = "3.2.23", features = ["derive", "cargo"]}
+
 [profile.release]
 lto = true
