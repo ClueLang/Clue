@@ -362,14 +362,13 @@ impl ParserInfo {
 		let args: Vec<Expression> = if self.advance_if(ROUND_BRACKET_CLOSED) {
 			Vec::new()
 		} else {
-			self.find_expressions(COMMA, Some((ROUND_BRACKET_CLOSED, ")")))?
+			self.find_expressions(Some((ROUND_BRACKET_CLOSED, ")")))?
 		};
 		Ok(args)
 	}
 
 	fn find_expressions(
 		&mut self,
-		separator: TokenType,
 		end: OptionalEnd,
 	) -> Result<Vec<Expression>, String> {
 		let mut exprs: Vec<Expression> = Vec::new();
@@ -377,7 +376,7 @@ impl ParserInfo {
 			let expr = self.build_expression(None)?;
 			let t = self.look_back(0);
 			exprs.push(expr);
-			if t.kind() != separator {
+			if t.kind() != COMMA {
 				return self.assert_end(&t, end, exprs);
 			}
 		}
@@ -1348,7 +1347,7 @@ impl ParserInfo {
 				return Ok(SYMBOL(String::new()));
 			}
 		} else {
-			self.find_expressions(COMMA, None)?
+			self.find_expressions(None)?
 		};
 		self.current -= 1;
 		Ok(VARIABLE {
@@ -1563,7 +1562,7 @@ impl ParserInfo {
 		if check < DEFINE || check > MODULATE {
 			return Err(self.expected("=", &checkt.lexeme(), checkt.line()));
 		}
-		let values = self.find_expressions(COMMA, None)?;
+		let values = self.find_expressions(None)?;
 		if check == DEFINE_COALESCE {
 			for value in values {
 				if let Some(name) = names.pop_front() {
@@ -1743,7 +1742,7 @@ impl ParserInfo {
 		let expr = if self.ended() || self.advance_if(SEMICOLON) {
 			None
 		} else {
-			Some(self.find_expressions(COMMA, None)?)
+			Some(self.find_expressions(None)?)
 		};
 		self.expr.push_back(RETURN_EXPR(expr));
 
