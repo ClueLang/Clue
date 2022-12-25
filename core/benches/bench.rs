@@ -1,6 +1,7 @@
 use ahash::AHashMap;
 use clue_core::{
-	compiler::compile_tokens,
+	compiler::Compiler,
+	env::Options,
 	parser::parse_tokens,
 	preprocessor::{preprocess_code, to_preprocess},
 	scanner::{scan_code, Token},
@@ -17,6 +18,39 @@ use std::{
 	thread::spawn,
 };
 
+fn compile_code(
+	mut code: String,
+	name: String,
+	scope: usize,
+	options: Options,
+) -> Result<String, String> {
+	let compiler = Compiler::new(options.clone());
+	if to_preprocess(&code) {
+		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?
+			.0
+			.iter()
+			.collect();
+	}
+	let tokens: Vec<Token> = scan_code(code, name.clone())?;
+	if options.env_tokens {
+		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
+	}
+	let ctokens = parse_tokens(
+		tokens,
+		/*if flag!(env_types) != TypesMode::NONE {
+			Some(AHashMap::default())
+		} else {
+			None
+		},*/
+		name.clone(),
+		options.clone(),
+	)?;
+
+	let code = compiler.compile_tokens(scope, ctokens);
+
+	Ok(code)
+}
+
 fn check_for_files<P: AsRef<Path>>(
 	path: P,
 	rpath: String,
@@ -25,7 +59,6 @@ where
 	P: AsRef<OsStr> + Display,
 {
 	let mut files = vec![];
-
 	for entry in fs::read_dir(&path)? {
 		let entry = entry?;
 		let name = entry
@@ -45,29 +78,6 @@ where
 		}
 	}
 	Ok(files)
-}
-
-fn compile_code(mut code: String, name: String, scope: usize) -> Result<String, String> {
-	if to_preprocess(&code) {
-		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?
-			.0
-			.iter()
-			.collect();
-	}
-	let tokens: Vec<Token> = scan_code(code, name.clone())?;
-
-	let ctokens = parse_tokens(
-		tokens,
-		/*if flag!(env_types) != TypesMode::NONE {
-			Some(AHashMap::default())
-		} else {
-			None
-		},*/
-		name.clone(),
-	)?;
-
-	let code = compile_tokens(scope, ctokens);
-	Ok(code)
 }
 
 fn compile_multi_files_bench(files: Vec<String>) {
@@ -94,7 +104,7 @@ fn compile_multi_files_bench(files: Vec<String>) {
 				file = files.pop().unwrap();
 			}
 
-			compile_code(file, String::new(), 2).unwrap();
+			compile_code(file, String::new(), 2, Options::default()).unwrap();
 		});
 
 		threads.push(thread);
