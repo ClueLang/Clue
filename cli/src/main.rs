@@ -110,7 +110,7 @@ fn compile_code(
 	name: String,
 	scope: usize,
 	options: &Options,
-) -> Result<String, String> {
+) -> Result<(String, String), String> {
 	let time = Instant::now();
 	if to_preprocess(&code) {
 		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?
@@ -148,7 +148,7 @@ fn compile_code(
 		name,
 		time.elapsed().as_secs_f32()
 	);
-	Ok(statics + &code)
+	Ok((code, statics))
 }
 
 fn compile_file<P: AsRef<Path>>(
@@ -156,7 +156,7 @@ fn compile_file<P: AsRef<Path>>(
 	name: String,
 	scope: usize,
 	options: &Options,
-) -> Result<String, String>
+) -> Result<(String, String), String>
 where
 	P: AsRef<OsStr> + Display,
 {
@@ -198,14 +198,19 @@ fn compile_folder<P: AsRef<Path>>(
 	path: P,
 	rpath: String,
 	options: &Options,
-) -> Result<Vec<String>, String>
+) -> Result<(String, String), String>
 where
 	P: AsRef<OsStr> + Display,
 {
 	let files = Arc::new(Mutex::new(check!(check_for_files(path, rpath))));
 	let threads_count = min(files.lock().unwrap().len(), num_cpus::get() * 2);
 	let errored = Arc::new(Mutex::new(0u8));
-	let output = Arc::new(Mutex::new(Vec::with_capacity(files.lock().unwrap().len())));
+	let output = Arc::new(Mutex::new(String::with_capacity(
+		files.lock().unwrap().len() * 512,
+	)));
+	let statics = Arc::new(Mutex::new(String::with_capacity(
+		files.lock().unwrap().len() * 512,
+	)));
 
 	let mut threads = Vec::with_capacity(threads_count);
 	for _ in 0..threads_count {
@@ -215,6 +220,7 @@ where
 		let files = files.clone();
 		let errored = errored.clone();
 		let output = output.clone();
+		let statics = statics.clone();
 
 		let thread = spawn(move || loop {
 			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
@@ -225,7 +231,7 @@ where
 				}
 				files.pop().unwrap()
 			};
-			let code = match compile_file(&filename, filename.clone(), 2, &options) {
+			let (code, static_vars) = match compile_file(&filename, filename.clone(), 2, &options) {
 				Ok(t) => t,
 				Err(e) => {
 					*errored.lock().unwrap() += 1;
@@ -241,7 +247,10 @@ where
 				code,
 				"\n\tend,\n"
 			);
-			output.lock().unwrap().push(string);
+
+			let mut output = output.lock().unwrap();
+			*statics.lock().unwrap() = static_vars;
+			*output = output.clone() + &string;
 		});
 		threads.push(thread);
 	}
@@ -252,7 +261,10 @@ where
 
 	let errored = *errored.lock().unwrap();
 	match errored {
-		0 => Ok(output.lock().unwrap().drain(..).collect()),
+		0 => Ok((
+			output.lock().unwrap().drain(..).collect(),
+			statics.lock().unwrap().drain(..).collect(),
+		)),
 		1 => Err(String::from("1 file failed to compile!")),
 		n => Err(format!("{n} files failed to compile!")),
 	}
@@ -303,7 +315,8 @@ fn main() -> Result<(), String> {
 	}*/
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
-		let code = compile_code(codepath, String::from("(command line)"), 0, &options)?;
+		let (code, statics) = compile_code(codepath, String::from("(command line)"), 0, &options)?;
+		let code = code + &statics;
 		println!("{}", code);
 		#[cfg(feature = "mlua")]
 		if cli.execute {
@@ -315,11 +328,7 @@ fn main() -> Result<(), String> {
 	let mut compiledname = String::new();
 
 	if path.is_dir() {
-		code += "--STATICS\n";
-		for file in compile_folder(&codepath, String::new(), &options)? {
-			code += &file;
-		}
-		let (statics, output) = code.rsplit_once("--STATICS").unwrap();
+		let (output, statics) = compile_folder(&codepath, String::new(), &options)?;
 
 		code = match cli.base {
 			Some(filename) => {
@@ -329,12 +338,12 @@ fn main() -> Result<(), String> {
 				};
 				check!(std::str::from_utf8(&base))
 					.to_string()
-					.replace("--STATICS\n", statics)
-					.replace('§', output)
+					.replace("--STATICS\n", &statics)
+					.replace('§', &output)
 			}
 			None => include_str!("base.lua")
-				.replace("--STATICS\n", statics)
-				.replace('§', output),
+				.replace("--STATICS\n", &statics)
+				.replace('§', &output),
 		};
 		if !cli.dontsave {
 			let output_name = &format!(
@@ -353,12 +362,14 @@ fn main() -> Result<(), String> {
 			check!(fs::write(&compiledname, &code))
 		}
 	} else if path.is_file() {
-		code = compile_file(
+		let (output, statics) = compile_file(
 			&codepath,
 			path.file_name().unwrap().to_string_lossy().into_owned(),
 			0,
 			&options,
 		)?;
+
+		code = statics + &output;
 
 		if !cli.dontsave {
 			compiledname =
