@@ -1,6 +1,12 @@
-use std::{env, iter::{Peekable, Rev}, str, str::Chars, collections::linked_list::Iter};
-use ahash::AHashMap;
 use crate::{format_clue, scanner::CharExt};
+use ahash::AHashMap;
+use std::{
+	collections::linked_list::Iter,
+	env,
+	iter::{Peekable, Rev},
+	str,
+	str::Chars,
+};
 
 pub type LinkedString = std::collections::LinkedList<char>;
 type CodeChars<'a, 'b> = &'a mut Peekable<Chars<'b>>;
@@ -83,20 +89,33 @@ fn assert_word(chars: CodeChars, line: &mut usize, filename: &String) -> Result<
 fn assert_name(chars: CodeChars, line: &mut usize, filename: &String) -> Result<String, String> {
 	let name = assert_word(chars, line, filename)?;
 	if name.contains('=') {
-		return Err(error("The value's name cannot contain '='", *line, filename));
+		return Err(error(
+			"The value's name cannot contain '='",
+			*line,
+			filename,
+		));
 	}
 	Ok(name)
 }
 
-fn read_until(chars: CodeChars, end: char, line: &mut usize, filename: &String) -> Result<String, String> {
+fn read_until(
+	chars: CodeChars,
+	end: char,
+	line: &mut usize,
+	filename: &String,
+) -> Result<String, String> {
 	let arg = read_with(chars, |c| *c != end);
 	if chars.next().is_none() {
-		return Err(expected_before(&end.to_string(), "<end>", *line, filename))
+		return Err(expected_before(&end.to_string(), "<end>", *line, filename));
 	}
 	Ok(arg)
 }
 
-fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(LinkedString, bool), String> {
+fn read_arg(
+	chars: CodeChars,
+	line: &mut usize,
+	filename: &String,
+) -> Result<(LinkedString, bool), String> {
 	reach(chars, '"', line, filename)?;
 	let mut rawarg = read_until(chars, '"', line, filename)?;
 	rawarg.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
@@ -104,7 +123,11 @@ fn read_arg(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(Li
 	Ok((arg, result))
 }
 
-fn read_block(chars: CodeChars, line: &mut usize, filename: &String) -> Result<(usize, String), String> {
+fn read_block(
+	chars: CodeChars,
+	line: &mut usize,
+	filename: &String,
+) -> Result<(usize, String), String> {
 	reach(chars, '{', line, filename)?;
 	let mut block = String::new();
 	let mut cscope = 1u8;
@@ -163,13 +186,13 @@ fn read_pseudos(mut code: Peekable<Rev<Iter<char>>>) -> Vec<LinkedString> {
 				if let Some(c) = code.next() {
 					matches!(c, '!' | '=')
 				} else {
-					return newpseudos
+					return newpseudos;
 				}
 			} else {
 				true
 			}
 		} else {
-			return newpseudos
+			return newpseudos;
 		}
 	} {}
 	skip_whitespace_backwards(&mut code);
@@ -199,8 +222,10 @@ pub fn to_preprocess(code: &str) -> bool {
 	let mut code = code.as_bytes().iter();
 	while let Some(c) = code.next() {
 		match *c as char {
-			'\\' => {code.next();}
-			'$' | '@' => return true, 
+			'\\' => {
+				code.next();
+			}
+			'$' | '@' => return true,
 			_ => {}
 		}
 	}
@@ -212,7 +237,7 @@ pub fn preprocess_code(
 	mut pseudos: Option<Vec<LinkedString>>,
 	mut values: AHashMap<String, LinkedString>,
 	line: &mut usize,
-	filename: &String
+	filename: &String,
 ) -> Result<(LinkedString, bool), String> {
 	let mut code = LinkedString::new();
 	let mut prev = true;
@@ -232,7 +257,13 @@ pub fn preprocess_code(
 				prev = match directive.as_str() {
 					"ifos" => {
 						let target_os = assert_word(chars, line, filename)?.to_ascii_lowercase();
-						keep_block(chars, &mut code, env::consts::OS == target_os, line, filename)?
+						keep_block(
+							chars,
+							&mut code,
+							env::consts::OS == target_os,
+							line,
+							filename,
+						)?
 					}
 					"ifdef" => {
 						let var = assert_word(chars, line, filename)?;
@@ -246,7 +277,7 @@ pub fn preprocess_code(
 						let result = match condition.as_str() {
 							"==" => arg1 == arg2,
 							"!=" => arg1 != arg2,
-							_ => return Err(expected("==", &condition, *line, filename))
+							_ => return Err(expected("==", &condition, *line, filename)),
 						};
 						keep_block(chars, &mut code, result, line, filename)?
 					}
@@ -257,25 +288,25 @@ pub fn preprocess_code(
 						let value = read_arg(chars, line, filename)?.0;
 						values.insert(name, value);
 						true
-					},
+					}
 					"undef" => {
 						let name = assert_name(chars, line, filename)?;
 						values.remove(&name).is_some()
-					},
+					}
 					"error" => {
 						let msg = read_arg(chars, line, filename)?.0;
-						return Err(error(&msg.iter().collect::<String>(), *line, filename))
-					},
+						return Err(error(msg.iter().collect::<String>(), *line, filename));
+					}
 					"warning" => {
 						let (msg, result) = read_arg(chars, line, filename)?;
 						println!("Warning: \"{}\"", msg.iter().collect::<String>());
 						result
-					},
+					}
 					"print" => {
 						let (msg, result) = read_arg(chars, line, filename)?;
 						println!("{}", msg.iter().collect::<String>());
 						result
-					},
+					}
 					"execute" => todo!(),
 					"eval" => todo!(),
 					"include" => todo!(),
@@ -304,7 +335,8 @@ pub fn preprocess_code(
 						pseudos = Some(read_pseudos(code.iter().rev().peekable()));
 					}
 					let pseudos = pseudos.as_ref().unwrap();
-					let mut var = pseudos.get(pseudos.len() - index)
+					let mut var = pseudos
+						.get(pseudos.len() - index)
 						.cloned()
 						.unwrap_or_else(|| LinkedString::from(['n', 'i', 'l']));
 					code.append(&mut var);
@@ -317,7 +349,7 @@ pub fn preprocess_code(
 						return Err(error(
 							format_clue!("Value '", name, "' not found"),
 							*line,
-							filename
+							filename,
 						));
 					};
 					code.append(&mut value);
@@ -352,17 +384,15 @@ pub fn preprocess_code(
 				}
 			}
 			'\\' => {
-				code.push_back(
-					if let Some(nc) = chars.peek() {
-						if matches!(nc, '@' | '$') {
-							chars.next().unwrap()
-						} else {
-							'\\'
-						}
+				code.push_back(if let Some(nc) = chars.peek() {
+					if matches!(nc, '@' | '$') {
+						chars.next().unwrap()
 					} else {
 						'\\'
 					}
-				);
+				} else {
+					'\\'
+				});
 			}
 			'=' => {
 				code.push_back('=');

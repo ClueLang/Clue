@@ -706,14 +706,14 @@ impl<'a> ParserInfo<'a> {
 					let (mut exprs, lines) =
 						self.find_expressions(Some((SQUARE_BRACKET_CLOSED, "]")))?;
 					let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
-					for i in 0..exprs.len() {
+					for (i, expr) in exprs.iter_mut().enumerate() {
 						let key = expression![
 							SYMBOL(String::from("[")),
 							SYMBOL(i.to_string()),
 							SYMBOL(String::from("]"))
 						];
 						let mut value = Expression::new();
-						value.append(exprs.get_mut(i).unwrap());
+						value.append(expr);
 						values.push((Some(key), value, lines[i]));
 					}
 					expr.push_back(TABLE {
