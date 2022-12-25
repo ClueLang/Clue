@@ -179,8 +179,8 @@ pub enum LuaType {
 	NUMBER,
 }
 */
-struct ParserInfo {
-	options: Options,
+struct ParserInfo<'a> {
+	options: &'a Options,
 	current: usize,
 	size: usize,
 	tokens: Vec<Token>,
@@ -190,16 +190,16 @@ struct ParserInfo {
 	internal_var_id: u8,
 	statics: String,
 	macros: AHashMap<String, Expression>,
-	compiler: Compiler,
+	compiler: Compiler<'a>,
 	//locals: LocalsList,
 }
 
-impl ParserInfo {
+impl<'a> ParserInfo<'a> {
 	fn new(
 		tokens: Vec<Token>, /*, locals: LocalsList*/
 		filename: String,
-		options: Options,
-	) -> ParserInfo {
+		options: &'a Options,
+	) -> ParserInfo<'a> {
 		ParserInfo {
 			current: 0,
 			size: tokens.len() - 1,
@@ -210,7 +210,7 @@ impl ParserInfo {
 			internal_var_id: 0,
 			statics: String::new(),
 			macros: AHashMap::default(),
-			compiler: Compiler::new(options.clone()),
+			compiler: Compiler::new(options),
 			options,
 			// locals,
 		}
@@ -1046,7 +1046,7 @@ impl ParserInfo {
 			Ok(parse_tokens(
 				tokens, /*, locals*/
 				self.filename.clone(),
-				self.options.clone(),
+				self.options,
 			)?)
 		}
 	}
@@ -1406,7 +1406,7 @@ impl ParserInfo {
 	fn build_match_case(
 		&mut self,
 		pexpr: Option<Expression>,
-		func: &impl Fn(&mut ParserInfo /*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo<'a> /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<MatchCase, String> {
 		let mut conditions: Vec<Expression> = Vec::new();
 		let mut current = Expression::new();
@@ -1438,7 +1438,7 @@ impl ParserInfo {
 	fn build_match_block(
 		&mut self,
 		name: String,
-		func: &impl Fn(&mut ParserInfo /*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo<'a> /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<ComplexToken, String> {
 		let line = self.peek(0).line();
 		let value = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
@@ -1837,9 +1837,9 @@ pub fn parse_tokens(
 	tokens: Vec<Token>,
 	//locals: Option<AHashMap<String, LuaType>>,
 	filename: String,
-	options: Options,
+	options: &Options,
 ) -> Result<Expression, String> {
-	let mut i = ParserInfo::new(tokens /*, locals*/, filename, options.clone());
+	let mut i = ParserInfo::new(tokens /*, locals*/, filename, options);
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {

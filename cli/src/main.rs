@@ -119,10 +119,9 @@ fn compile_code(
 	mut code: String,
 	name: String,
 	scope: usize,
-	options: Options,
+	options: &Options,
 ) -> Result<String, String> {
 	let time = Instant::now();
-	let compiler = Compiler::new(options.clone());
 	if to_preprocess(&code) {
 		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?
 			.0
@@ -141,12 +140,16 @@ fn compile_code(
 			None
 		},*/
 		name.clone(),
-		options.clone(),
+		options,
 	)?;
+
 	if options.env_struct {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
+
+	let compiler = Compiler::new(options);
 	let code = compiler.compile_tokens(scope, ctokens);
+
 	if options.env_output {
 		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
 	}
@@ -162,7 +165,7 @@ fn compile_file<P: AsRef<Path>>(
 	path: P,
 	name: String,
 	scope: usize,
-	options: Options,
+	options: &Options,
 ) -> Result<String, String>
 where
 	P: AsRef<OsStr> + Display,
@@ -201,7 +204,7 @@ where
 	Ok(files)
 }
 
-fn compile_folder<P: AsRef<Path>>(path: P, rpath: String, options: Options) -> Result<(), String>
+fn compile_folder<P: AsRef<Path>>(path: P, rpath: String, options: &Options) -> Result<(), String>
 where
 	P: AsRef<OsStr> + Display,
 {
@@ -212,9 +215,9 @@ where
 	for _ in 0..threads_count {
 		// this `.clone()` is used to create a new pointer to the outside `files`
 		// that can be used from inside the newly created thread
+		let options = options.clone();
 		let files = files.clone();
 		let errored = errored.clone();
-		let options = options.clone();
 		let thread = spawn(move || loop {
 			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
 			let (filename, realname) = {
@@ -224,7 +227,7 @@ where
 				}
 				files.pop().unwrap()
 			};
-			let code = match compile_file(&filename, filename.clone(), 2, options.clone()) {
+			let code = match compile_file(&filename, filename.clone(), 2, &options) {
 				Ok(t) => t,
 				Err(e) => {
 					*errored.lock().unwrap() += 1;
@@ -296,7 +299,7 @@ fn main() -> Result<(), String> {
 	}*/
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
-		let code = compile_code(codepath, String::from("(command line)"), 0, options.clone())?;
+		let code = compile_code(codepath, String::from("(command line)"), 0, &options)?;
 		println!("{}", code);
 		#[cfg(feature = "mlua")]
 		if cli.execute {
@@ -308,7 +311,7 @@ fn main() -> Result<(), String> {
 	let mut compiledname = String::new();
 	if path.is_dir() {
 		add_to_output("--STATICS\n");
-		compile_folder(&codepath, String::new(), options.clone())?;
+		compile_folder(&codepath, String::new(), &options)?;
 		let output = ENV_DATA
 			.read()
 			.expect("Can't lock env_data")
@@ -357,7 +360,7 @@ fn main() -> Result<(), String> {
 			&codepath,
 			path.file_name().unwrap().to_string_lossy().into_owned(),
 			0,
-			options.clone(),
+			&options,
 		)?;
 		add_to_output(&code);
 		if !cli.dontsave {
@@ -396,6 +399,6 @@ mod test {
 
 	#[test]
 	fn compilation_success() {
-		compile_folder("../examples/", String::new(), Options::default()).unwrap();
+		compile_folder("../examples/", String::new(), &Options::default()).unwrap();
 	}
 }

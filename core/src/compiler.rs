@@ -9,12 +9,12 @@ use crate::{
 	scanner::TokenType::*,
 };
 
-pub struct Compiler {
-	options: Options,
+pub struct Compiler<'a> {
+	options: &'a Options,
 }
 
-impl Compiler {
-	pub fn new(options: Options) -> Self {
+impl<'a> Compiler<'a> {
+	pub fn new(options: &'a Options) -> Self {
 		Self { options }
 	}
 

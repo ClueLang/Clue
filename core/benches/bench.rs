@@ -22,9 +22,9 @@ fn compile_code(
 	mut code: String,
 	name: String,
 	scope: usize,
-	options: Options,
+	options: &Options,
 ) -> Result<String, String> {
-	let compiler = Compiler::new(options.clone());
+	let compiler = Compiler::new(options);
 	if to_preprocess(&code) {
 		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?
 			.0
@@ -43,7 +43,7 @@ fn compile_code(
 			None
 		},*/
 		name.clone(),
-		options.clone(),
+		&options,
 	)?;
 
 	let code = compiler.compile_tokens(scope, ctokens);
@@ -104,7 +104,7 @@ fn compile_multi_files_bench(files: Vec<String>) {
 				file = files.pop().unwrap();
 			}
 
-			compile_code(file, String::new(), 2, Options::default()).unwrap();
+			compile_code(file, String::new(), 2, &Options::default()).unwrap();
 		});
 
 		threads.push(thread);
