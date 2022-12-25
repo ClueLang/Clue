@@ -1,7 +1,3 @@
-use crate::env::EnvData;
-use lazy_static::lazy_static;
-use std::sync::RwLock;
-
 #[cfg(feature = "rpmalloc")]
 #[global_allocator]
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
@@ -11,11 +7,6 @@ pub mod env;
 pub mod parser;
 pub mod preprocessor;
 pub mod scanner;
-
-lazy_static! {
-	pub static ref ENV_DATA: RwLock<EnvData> = RwLock::new(EnvData::new());
-	//pub static ref LUA_G: RwLock<parser::LocalsList> = RwLock::new(None);
-}
 
 #[macro_export]
 macro_rules! check {

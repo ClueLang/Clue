@@ -5,7 +5,7 @@ use crate::compiler::Compiler;
 use crate::env::{ContinueMode, Options};
 use crate::scanner::TokenType::*;
 use crate::scanner::{Token, TokenType};
-use crate::{check, format_clue, ENV_DATA};
+use crate::{check, format_clue};
 use ahash::AHashMap;
 use std::{
 	cmp,
@@ -1035,7 +1035,7 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_code_block(
-		&self,
+		&mut self,
 		mut tokens: Vec<Token>,
 		//locals: LocalsList,
 	) -> Result<Expression, String> {
@@ -1043,11 +1043,9 @@ impl<'a> ParserInfo<'a> {
 			Ok(Expression::new())
 		} else {
 			tokens.push(self.tokens.last().unwrap().clone());
-			Ok(parse_tokens(
-				tokens, /*, locals*/
-				self.filename.clone(),
-				self.options,
-			)?)
+			let (ctokens, statics) = parse_tokens(tokens, self.filename.clone(), self.options)?;
+			self.statics += &statics;
+			Ok(ctokens)
 		}
 	}
 
@@ -1838,7 +1836,7 @@ pub fn parse_tokens(
 	//locals: Option<AHashMap<String, LuaType>>,
 	filename: String,
 	options: &Options,
-) -> Result<Expression, String> {
+) -> Result<(Expression, String), String> {
 	let mut i = ParserInfo::new(tokens /*, locals*/, filename, options);
 	while !i.ended() {
 		let t = i.advance();
@@ -1866,26 +1864,14 @@ pub fn parse_tokens(
 		}
 	}
 
-	if !i.statics.is_empty() {
-		let debug = options.env_debug;
-		let output = ENV_DATA
-			.write()
-			.expect("Can't lock env_data")
-			.output_code()
-			.to_string();
-		ENV_DATA
-			.write()
-			.expect("Can't lock env_data")
-			.rewrite_output_code(
-				if debug {
-					format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
-				} else {
-					i.statics
-				} + &output,
-			);
-	}
-
 	//println!("LOCALS = {:#?}", i.locals);
 
-	Ok(i.expr)
+	Ok((
+		i.expr,
+		if !i.statics.is_empty() && options.env_debug {
+			format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
+		} else {
+			i.statics
+		},
+	))
 }

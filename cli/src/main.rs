@@ -1,10 +1,7 @@
 use ahash::AHashMap;
 use clap::{crate_version, Parser};
 use clue::env::{ContinueMode, Options};
-use clue::{
-	check, compiler::*, format_clue, parser::*, preprocessor::*, scanner::*,
-	ENV_DATA, /*, LUA_G*/
-};
+use clue::{check, compiler::*, format_clue, parser::*, preprocessor::*, scanner::*, /*, LUA_G*/};
 use clue_core as clue;
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
@@ -108,13 +105,6 @@ struct Cli {
 	execute: bool,
 }
 
-fn add_to_output(string: &str) {
-	ENV_DATA
-		.write()
-		.expect("Can't lock env_data")
-		.add_output_code(String::from(string));
-}
-
 fn compile_code(
 	mut code: String,
 	name: String,
@@ -132,7 +122,7 @@ fn compile_code(
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
-	let ctokens = parse_tokens(
+	let (ctokens, statics) = parse_tokens(
 		tokens,
 		/*if flag!(env_types) != TypesMode::NONE {
 			Some(AHashMap::default())
@@ -158,7 +148,7 @@ fn compile_code(
 		name,
 		time.elapsed().as_secs_f32()
 	);
-	Ok(code)
+	Ok(statics + &code)
 }
 
 fn compile_file<P: AsRef<Path>>(
@@ -204,13 +194,19 @@ where
 	Ok(files)
 }
 
-fn compile_folder<P: AsRef<Path>>(path: P, rpath: String, options: &Options) -> Result<(), String>
+fn compile_folder<P: AsRef<Path>>(
+	path: P,
+	rpath: String,
+	options: &Options,
+) -> Result<Vec<String>, String>
 where
 	P: AsRef<OsStr> + Display,
 {
 	let files = Arc::new(Mutex::new(check!(check_for_files(path, rpath))));
 	let threads_count = min(files.lock().unwrap().len(), num_cpus::get() * 2);
 	let errored = Arc::new(Mutex::new(0u8));
+	let output = Arc::new(Mutex::new(Vec::with_capacity(files.lock().unwrap().len())));
+
 	let mut threads = Vec::with_capacity(threads_count);
 	for _ in 0..threads_count {
 		// this `.clone()` is used to create a new pointer to the outside `files`
@@ -218,6 +214,8 @@ where
 		let options = options.clone();
 		let files = files.clone();
 		let errored = errored.clone();
+		let output = output.clone();
+
 		let thread = spawn(move || loop {
 			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
 			let (filename, realname) = {
@@ -235,22 +233,26 @@ where
 					continue;
 				}
 			};
-			add_to_output(&format_clue!(
+
+			let string = format_clue!(
 				"\t[\"",
 				realname.strip_suffix(".clue").unwrap(),
 				"\"] = function()\n",
 				code,
 				"\n\tend,\n"
-			));
+			);
+			output.lock().unwrap().push(string);
 		});
 		threads.push(thread);
 	}
+
 	for thread in threads {
 		thread.join().unwrap();
 	}
+
 	let errored = *errored.lock().unwrap();
 	match errored {
-		0 => Ok(()),
+		0 => Ok(output.lock().unwrap().drain(..).collect()),
 		1 => Err(String::from("1 file failed to compile!")),
 		n => Err(format!("{n} files failed to compile!")),
 	}
@@ -288,8 +290,10 @@ fn main() -> Result<(), String> {
 		env_output: cli.output,
 	};
 
+	let mut code = String::with_capacity(512);
+
 	if let Some(bit) = &options.env_jitbit {
-		add_to_output(&format!("local {bit} = require(\"bit\");\n"));
+		code += &format!("local {bit} = require(\"bit\");\n");
 	}
 	/*if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
@@ -309,33 +313,29 @@ fn main() -> Result<(), String> {
 	}
 	let path: &Path = Path::new(&codepath);
 	let mut compiledname = String::new();
+
 	if path.is_dir() {
-		add_to_output("--STATICS\n");
-		compile_folder(&codepath, String::new(), &options)?;
-		let output = ENV_DATA
-			.read()
-			.expect("Can't lock env_data")
-			.output_code()
-			.to_string();
-		let (statics, output) = output.rsplit_once("--STATICS").unwrap();
-		ENV_DATA
-			.write()
-			.expect("Can't lock env_data")
-			.rewrite_output_code(match cli.base {
-				Some(filename) => {
-					let base = match fs::read(filename) {
-						Ok(base) => base,
-						Err(_) => return Err(String::from("The given custom base was not found!")),
-					};
-					check!(std::str::from_utf8(&base))
-						.to_string()
-						.replace("--STATICS\n", statics)
-						.replace('§', output)
-				}
-				None => include_str!("base.lua")
+		code += "--STATICS\n";
+		for file in compile_folder(&codepath, String::new(), &options)? {
+			code += &file;
+		}
+		let (statics, output) = code.rsplit_once("--STATICS").unwrap();
+
+		code = match cli.base {
+			Some(filename) => {
+				let base = match fs::read(filename) {
+					Ok(base) => base,
+					Err(_) => return Err(String::from("The given custom base was not found!")),
+				};
+				check!(std::str::from_utf8(&base))
+					.to_string()
 					.replace("--STATICS\n", statics)
-					.replace('§', output),
-			});
+					.replace('§', output)
+			}
+			None => include_str!("base.lua")
+				.replace("--STATICS\n", statics)
+				.replace('§', output),
+		};
 		if !cli.dontsave {
 			let output_name = &format!(
 				"{}.lua",
@@ -350,33 +350,27 @@ fn main() -> Result<(), String> {
 			} else {
 				format!("{display}/{output_name}")
 			};
-			check!(fs::write(
-				&compiledname,
-				ENV_DATA.read().expect("Can't lock env_data").output_code()
-			))
+			check!(fs::write(&compiledname, &code))
 		}
 	} else if path.is_file() {
-		let code = compile_file(
+		code = compile_file(
 			&codepath,
 			path.file_name().unwrap().to_string_lossy().into_owned(),
 			0,
 			&options,
 		)?;
-		add_to_output(&code);
+
 		if !cli.dontsave {
 			compiledname =
 				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-			check!(fs::write(
-				&compiledname,
-				ENV_DATA.read().expect("Can't lock env_data").output_code()
-			))
+			check!(fs::write(&compiledname, &code))
 		}
 	} else {
 		return Err(String::from("The given path doesn't exist"));
 	}
-	let output = ENV_DATA.read().expect("Can't lock env_data");
+
 	if options.env_debug {
-		let newoutput = format!(include_str!("debug.lua"), output.output_code());
+		let newoutput = format!(include_str!("debug.lua"), &code);
 		check!(fs::write(compiledname, &newoutput));
 		#[cfg(feature = "mlua")]
 		if cli.execute {
@@ -385,7 +379,7 @@ fn main() -> Result<(), String> {
 	} else {
 		#[cfg(feature = "mlua")]
 		if cli.execute {
-			execute_lua_code(output.output_code())
+			execute_lua_code(&code)
 		}
 	}
 	Ok(())

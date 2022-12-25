@@ -35,7 +35,7 @@ fn compile_code(
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
-	let ctokens = parse_tokens(
+	let (ctokens, statics) = parse_tokens(
 		tokens,
 		/*if flag!(env_types) != TypesMode::NONE {
 			Some(AHashMap::default())
@@ -48,7 +48,7 @@ fn compile_code(
 
 	let code = compiler.compile_tokens(scope, ctokens);
 
-	Ok(code)
+	Ok(statics + &code)
 }
 
 fn check_for_files<P: AsRef<Path>>(

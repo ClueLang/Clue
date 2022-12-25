@@ -30,37 +30,6 @@ pub enum LuaSTD {
 }
 */
 
-pub struct EnvData {
-	output_code: String,
-}
-
-impl EnvData {
-	pub fn new() -> Self {
-		Self {
-			output_code: String::with_capacity(512),
-			//env_types: TypesMode::NONE,
-			//env_std: LuaSTD::NONE,
-		}
-	}
-	pub fn output_code(&self) -> &str {
-		&self.output_code
-	}
-
-	pub fn add_output_code(&mut self, add: String) {
-		self.output_code.push_str(&add);
-	}
-
-	pub fn rewrite_output_code(&mut self, output: String) {
-		self.output_code = output
-	}
-}
-
-impl Default for EnvData {
-	fn default() -> Self {
-		Self::new()
-	}
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct Options {
 	pub env_tokens: bool,
