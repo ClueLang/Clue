@@ -25,9 +25,9 @@ macro_rules! expression {
 macro_rules! vecdeque {
 	($($x: expr),*) => {
 		{
-			let mut expr = VecDeque::new();
-			$(expr.push_back($x);)*
-			expr
+			let mut temp_vecdeque = VecDeque::new();
+			$(temp_vecdeque.push_back($x);)*
+			temp_vecdeque
 		}
 	};
 }
