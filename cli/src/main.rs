@@ -137,8 +137,7 @@ fn compile_code(
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
 
-	let compiler = Compiler::new(options);
-	let code = compiler.compile_tokens(scope, ctokens);
+	let code = Compiler::new(options).compile_tokens(scope, ctokens);
 
 	if options.env_output {
 		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
