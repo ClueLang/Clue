@@ -205,12 +205,10 @@ where
 	let files = Arc::new(Mutex::new(check!(check_for_files(path, rpath))));
 	let threads_count = min(files.lock().unwrap().len(), num_cpus::get() * 2);
 	let errored = Arc::new(Mutex::new(0u8));
-	let output = Arc::new(Mutex::new(String::with_capacity(
-		files.lock().unwrap().len() * 512,
-	)));
-	let statics = Arc::new(Mutex::new(String::with_capacity(
-		files.lock().unwrap().len() * 512,
-	)));
+	let output = Arc::new(Mutex::new(
+		String::with_capacity(files.lock().unwrap().len() * 512) + "\n",
+	));
+	let statics = Arc::new(Mutex::new(String::with_capacity(512)));
 
 	let mut threads = Vec::with_capacity(threads_count);
 	for _ in 0..threads_count {
