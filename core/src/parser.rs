@@ -1,12 +1,16 @@
 #![allow(non_camel_case_types)]
 
 use self::ComplexToken::*;
-use crate::env::ContinueMode;
+use crate::compiler::Compiler;
+use crate::env::{ContinueMode, Options};
 use crate::scanner::TokenType::*;
 use crate::scanner::{Token, TokenType};
-use crate::{check, compiler::compile_tokens, flag, format_clue, ENV_DATA};
+use crate::{check, format_clue};
 use ahash::AHashMap;
-use std::{cmp, collections::{LinkedList, VecDeque}};
+use std::{
+	cmp,
+	collections::{LinkedList, VecDeque},
+};
 
 macro_rules! expression {
 	($($x: expr),*) => {
@@ -175,7 +179,8 @@ pub enum LuaType {
 	NUMBER,
 }
 */
-struct ParserInfo {
+struct ParserInfo<'a> {
+	options: &'a Options,
 	current: usize,
 	size: usize,
 	tokens: Vec<Token>,
@@ -185,11 +190,16 @@ struct ParserInfo {
 	internal_var_id: u8,
 	statics: String,
 	macros: AHashMap<String, Expression>,
+	compiler: Compiler<'a>,
 	//locals: LocalsList,
 }
 
-impl ParserInfo {
-	fn new(tokens: Vec<Token> /*, locals: LocalsList*/, filename: String) -> ParserInfo {
+impl<'a> ParserInfo<'a> {
+	fn new(
+		tokens: Vec<Token>, /*, locals: LocalsList*/
+		filename: String,
+		options: &'a Options,
+	) -> ParserInfo<'a> {
 		ParserInfo {
 			current: 0,
 			size: tokens.len() - 1,
@@ -200,6 +210,8 @@ impl ParserInfo {
 			internal_var_id: 0,
 			statics: String::new(),
 			macros: AHashMap::default(),
+			compiler: Compiler::new(options),
+			options,
 			// locals,
 		}
 	}
@@ -367,10 +379,7 @@ impl ParserInfo {
 		Ok(args)
 	}
 
-	fn find_expressions(
-		&mut self,
-		end: OptionalEnd,
-	) -> Result<Vec<Expression>, String> {
+	fn find_expressions(&mut self, end: OptionalEnd) -> Result<Vec<Expression>, String> {
 		let mut exprs: Vec<Expression> = Vec::new();
 		loop {
 			let expr = self.build_expression(None)?;
@@ -542,8 +551,8 @@ impl ParserInfo {
 		checkback: bool,
 	) -> Result<(), String> {
 		if match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | FALSE | MINUS
-			| BIT_NOT | NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT | THREEDOTS | MATCH => false,
+			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | FALSE | MINUS | BIT_NOT
+			| NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT | THREEDOTS | MATCH => false,
 			CURLY_BRACKET_OPEN => {
 				*notable = false;
 				false
@@ -560,8 +569,7 @@ impl ParserInfo {
 				self.look_back(1).kind(),
 				NUMBER
 					| IDENTIFIER | STRING
-					| TRUE | FALSE | NIL
-					| ROUND_BRACKET_CLOSED
+					| TRUE | FALSE | NIL | ROUND_BRACKET_CLOSED
 					| SQUARE_BRACKET_CLOSED
 					| THREEDOTS | CURLY_BRACKET_CLOSED
 			) {
@@ -600,7 +608,7 @@ impl ParserInfo {
 		notable: &mut bool,
 	) -> Result<(), String> {
 		self.check_operator(t, notable, true)?;
-		if let Some(bit) = flag!(env_jitbit) {
+		if let Some(bit) = &self.options.env_jitbit {
 			self.build_function_op(t, expr, format!("{bit}.{fname}"), end, notable)?
 		} else {
 			expr.push_back(SYMBOL(t.lexeme()))
@@ -628,8 +636,8 @@ impl ParserInfo {
 
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | BIT_NOT | FALSE
-			| NIL | NOT | HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
+			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | BIT_NOT | FALSE | NIL | NOT
+			| HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
 			}
@@ -703,7 +711,7 @@ impl ParserInfo {
 					expr.push_back(TABLE {
 						values,
 						metas: Vec::new(),
-						metatable: None
+						metatable: None,
 					});
 					if self.check_val() {
 						break t;
@@ -730,7 +738,7 @@ impl ParserInfo {
 				BIT_XOR => self.build_bitwise_op(&t, &mut expr, "bxor", end, notable)?,
 				BIT_NOT => {
 					self.check_operator(&t, notable, false)?;
-					if let Some(bit) = flag!(env_jitbit) {
+					if let Some(bit) = self.options.env_jitbit.clone() {
 						let arg = self.build_expression(end)?;
 						expr.push_back(SYMBOL(bit.clone() + ".bnot"));
 						expr.push_back(CALL(vec![arg]));
@@ -1022,7 +1030,7 @@ impl ParserInfo {
 	}
 
 	fn parse_code_block(
-		&self,
+		&mut self,
 		mut tokens: Vec<Token>,
 		//locals: LocalsList,
 	) -> Result<Expression, String> {
@@ -1030,10 +1038,9 @@ impl ParserInfo {
 			Ok(Expression::new())
 		} else {
 			tokens.push(self.tokens.last().unwrap().clone());
-			Ok(parse_tokens(
-				tokens, /*, locals*/
-				self.filename.clone(),
-			)?)
+			let (ctokens, statics) = parse_tokens(tokens, self.filename.clone(), self.options)?;
+			self.statics += &statics;
+			Ok(ctokens)
 		}
 	}
 
@@ -1103,7 +1110,7 @@ impl ParserInfo {
 				CONTINUE if !is_in_other_loop => {
 					hascontinue = true;
 					let line = t.line();
-					if flag!(env_continue) == ContinueMode::MOONSCRIPT {
+					if self.options.env_continue == ContinueMode::MOONSCRIPT {
 						tokens.push(Token::new(IDENTIFIER, "_continue", line));
 						tokens.push(Token::new(DEFINE, "=", line));
 						tokens.push(Token::new(TRUE, "true", line));
@@ -1118,7 +1125,7 @@ impl ParserInfo {
 		}
 		let mut code = self.parse_code_block(tokens /*, self.locals.clone()*/)?;
 		if hascontinue {
-			match flag!(env_continue) {
+			match self.options.env_continue {
 				ContinueMode::SIMPLE => {}
 				ContinueMode::LUAJIT => code.push_back(SYMBOL(String::from("::continue::"))),
 				ContinueMode::MOONSCRIPT => {
@@ -1385,14 +1392,14 @@ impl ParserInfo {
 	}
 
 	fn compile_static(&mut self, expr: Expression) {
-		let code = compile_tokens(0, expr);
+		let code = self.compiler.compile_tokens(0, expr);
 		self.statics += &(code + "\n");
 	}
 
 	fn build_match_case(
 		&mut self,
 		pexpr: Option<Expression>,
-		func: &impl Fn(&mut ParserInfo /*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo<'a> /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<MatchCase, String> {
 		let mut conditions: Vec<Expression> = Vec::new();
 		let mut current = Expression::new();
@@ -1424,7 +1431,7 @@ impl ParserInfo {
 	fn build_match_block(
 		&mut self,
 		name: String,
-		func: &impl Fn(&mut ParserInfo /*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo<'a> /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<ComplexToken, String> {
 		let line = self.peek(0).line();
 		let value = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
@@ -1604,12 +1611,12 @@ impl ParserInfo {
 								values: vec![value],
 								line: t.line()
 							}],
-							end: t.line()
+							end: t.line(),
 						},
-						next: None
+						next: None,
 					});
 				} else {
-					break
+					break;
 				}
 			}
 		} else {
@@ -1823,8 +1830,9 @@ pub fn parse_tokens(
 	tokens: Vec<Token>,
 	//locals: Option<AHashMap<String, LuaType>>,
 	filename: String,
-) -> Result<Expression, String> {
-	let mut i = ParserInfo::new(tokens /*, locals*/, filename);
+	options: &Options,
+) -> Result<(Expression, String), String> {
+	let mut i = ParserInfo::new(tokens /*, locals*/, filename, options);
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {
@@ -1851,26 +1859,14 @@ pub fn parse_tokens(
 		}
 	}
 
-	if !i.statics.is_empty() {
-		let debug = flag!(env_debug);
-		let output = ENV_DATA
-			.write()
-			.expect("Can't lock env_data")
-			.output_code()
-			.to_string();
-		ENV_DATA
-			.write()
-			.expect("Can't lock env_data")
-			.rewrite_output_code(
-				if debug {
-					format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
-				} else {
-					i.statics
-				} + &output,
-			);
-	}
-
 	//println!("LOCALS = {:#?}", i.locals);
 
-	Ok(i.expr)
+	Ok((
+		i.expr,
+		if !i.statics.is_empty() && options.env_debug {
+			format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
+		} else {
+			i.statics
+		},
+	))
 }

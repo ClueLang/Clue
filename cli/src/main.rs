@@ -1,10 +1,7 @@
 use ahash::AHashMap;
 use clap::{crate_version, Parser};
-use clue::env::ContinueMode;
-use clue::{
-	check, compiler::*, flag, format_clue, parser::*, preprocessor::*, scanner::*,
-	ENV_DATA, /*, LUA_G*/
-};
+use clue::env::{ContinueMode, Options};
+use clue::{check, compiler::*, format_clue, parser::*, preprocessor::*, scanner::*, /*, LUA_G*/};
 use clue_core as clue;
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
@@ -108,14 +105,12 @@ struct Cli {
 	execute: bool,
 }
 
-fn add_to_output(string: &str) {
-	ENV_DATA
-		.write()
-		.expect("Can't lock env_data")
-		.add_output_code(String::from(string));
-}
-
-fn compile_code(mut code: String, name: String, scope: usize) -> Result<String, String> {
+fn compile_code(
+	mut code: String,
+	name: String,
+	scope: usize,
+	options: &Options,
+) -> Result<(String, String), String> {
 	let time = Instant::now();
 	if to_preprocess(&code) {
 		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?
@@ -124,10 +119,10 @@ fn compile_code(mut code: String, name: String, scope: usize) -> Result<String, 
 			.collect();
 	}
 	let tokens: Vec<Token> = scan_code(code, name.clone())?;
-	if flag!(env_tokens) {
+	if options.env_tokens {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
-	let ctokens = parse_tokens(
+	let (ctokens, statics) = parse_tokens(
 		tokens,
 		/*if flag!(env_types) != TypesMode::NONE {
 			Some(AHashMap::default())
@@ -135,12 +130,17 @@ fn compile_code(mut code: String, name: String, scope: usize) -> Result<String, 
 			None
 		},*/
 		name.clone(),
+		options,
 	)?;
-	if flag!(env_struct) {
+
+	if options.env_struct {
 		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
 	}
-	let code = compile_tokens(scope, ctokens);
-	if flag!(env_output) {
+
+	let compiler = Compiler::new(options);
+	let code = compiler.compile_tokens(scope, ctokens);
+
+	if options.env_output {
 		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
 	}
 	println!(
@@ -148,16 +148,21 @@ fn compile_code(mut code: String, name: String, scope: usize) -> Result<String, 
 		name,
 		time.elapsed().as_secs_f32()
 	);
-	Ok(code)
+	Ok((code, statics))
 }
 
-fn compile_file<P: AsRef<Path>>(path: P, name: String, scope: usize) -> Result<String, String>
+fn compile_file<P: AsRef<Path>>(
+	path: P,
+	name: String,
+	scope: usize,
+	options: &Options,
+) -> Result<(String, String), String>
 where
 	P: AsRef<OsStr> + Display,
 {
 	let mut code: String = String::with_capacity(512);
 	check!(check!(File::open(path)).read_to_string(&mut code));
-	compile_code(code, name, scope)
+	compile_code(code, name, scope, options)
 }
 
 fn check_for_files<P: AsRef<Path>>(
@@ -189,19 +194,32 @@ where
 	Ok(files)
 }
 
-fn compile_folder<P: AsRef<Path>>(path: P, rpath: String) -> Result<(), String>
+fn compile_folder<P: AsRef<Path>>(
+	path: P,
+	rpath: String,
+	options: &Options,
+) -> Result<(String, String), String>
 where
 	P: AsRef<OsStr> + Display,
 {
 	let files = Arc::new(Mutex::new(check!(check_for_files(path, rpath))));
 	let threads_count = min(files.lock().unwrap().len(), num_cpus::get() * 2);
 	let errored = Arc::new(Mutex::new(0u8));
+	let output = Arc::new(Mutex::new(
+		String::with_capacity(files.lock().unwrap().len() * 512) + "\n",
+	));
+	let statics = Arc::new(Mutex::new(String::with_capacity(512)));
+
 	let mut threads = Vec::with_capacity(threads_count);
 	for _ in 0..threads_count {
 		// this `.clone()` is used to create a new pointer to the outside `files`
 		// that can be used from inside the newly created thread
+		let options = options.clone();
 		let files = files.clone();
 		let errored = errored.clone();
+		let output = output.clone();
+		let statics = statics.clone();
+
 		let thread = spawn(move || loop {
 			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
 			let (filename, realname) = {
@@ -211,7 +229,7 @@ where
 				}
 				files.pop().unwrap()
 			};
-			let code = match compile_file(&filename, filename.clone(), 2) {
+			let (code, static_vars) = match compile_file(&filename, filename.clone(), 2, &options) {
 				Ok(t) => t,
 				Err(e) => {
 					*errored.lock().unwrap() += 1;
@@ -219,22 +237,32 @@ where
 					continue;
 				}
 			};
-			add_to_output(&format_clue!(
+
+			let string = format_clue!(
 				"\t[\"",
 				realname.strip_suffix(".clue").unwrap(),
 				"\"] = function()\n",
 				code,
 				"\n\tend,\n"
-			));
+			);
+
+			let mut output = output.lock().unwrap();
+			*statics.lock().unwrap() = static_vars;
+			*output = output.clone() + &string;
 		});
 		threads.push(thread);
 	}
+
 	for thread in threads {
 		thread.join().unwrap();
 	}
+
 	let errored = *errored.lock().unwrap();
 	match errored {
-		0 => Ok(()),
+		0 => Ok((
+			output.lock().unwrap().drain(..).collect(),
+			statics.lock().unwrap().drain(..).collect(),
+		)),
 		1 => Err(String::from("1 file failed to compile!")),
 		n => Err(format!("{n} files failed to compile!")),
 	}
@@ -261,19 +289,21 @@ fn main() -> Result<(), String> {
 		//TEMPORARY PLACEHOLDER UNTIL 4.0
 		return Err(String::from("Type checking is not supported yet!"));
 	}
-	ENV_DATA.write().expect("Can't lock env_data").set_data(
-		cli.tokens,
-		cli.r#struct,
-		cli.output,
-		cli.jitbit,
-		cli.r#continue,
-		cli.rawsetglobals,
-		cli.debug,
-		//cli.types,
-		//cli.std,
-	);
-	if let Some(bit) = &flag!(env_jitbit) {
-		add_to_output(&format!("local {bit} = require(\"bit\");\n"));
+
+	let options = Options {
+		env_tokens: cli.tokens,
+		env_struct: cli.r#struct,
+		env_jitbit: cli.jitbit.clone(),
+		env_continue: cli.r#continue,
+		env_rawsetglobals: cli.rawsetglobals,
+		env_debug: cli.debug,
+		env_output: cli.output,
+	};
+
+	let mut code = String::with_capacity(512);
+
+	if let Some(bit) = &options.env_jitbit {
+		code += &format!("local {bit} = require(\"bit\");\n");
 	}
 	/*if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
@@ -283,7 +313,8 @@ fn main() -> Result<(), String> {
 	}*/
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
-		let code = compile_code(codepath, String::from("(command line)"), 0)?;
+		let (code, statics) = compile_code(codepath, String::from("(command line)"), 0, &options)?;
+		let code = code + &statics;
 		println!("{}", code);
 		#[cfg(feature = "mlua")]
 		if cli.execute {
@@ -293,33 +324,25 @@ fn main() -> Result<(), String> {
 	}
 	let path: &Path = Path::new(&codepath);
 	let mut compiledname = String::new();
+
 	if path.is_dir() {
-		add_to_output("--STATICS\n");
-		compile_folder(&codepath, String::new())?;
-		let output = ENV_DATA
-			.read()
-			.expect("Can't lock env_data")
-			.output_code()
-			.to_string();
-		let (statics, output) = output.rsplit_once("--STATICS").unwrap();
-		ENV_DATA
-			.write()
-			.expect("Can't lock env_data")
-			.rewrite_output_code(match cli.base {
-				Some(filename) => {
-					let base = match fs::read(filename) {
-						Ok(base) => base,
-						Err(_) => return Err(String::from("The given custom base was not found!")),
-					};
-					check!(std::str::from_utf8(&base))
-						.to_string()
-						.replace("--STATICS\n", statics)
-						.replace('§', output)
-				}
-				None => include_str!("base.lua")
-					.replace("--STATICS\n", statics)
-					.replace('§', output),
-			});
+		let (output, statics) = compile_folder(&codepath, String::new(), &options)?;
+
+		code = match cli.base {
+			Some(filename) => {
+				let base = match fs::read(filename) {
+					Ok(base) => base,
+					Err(_) => return Err(String::from("The given custom base was not found!")),
+				};
+				check!(std::str::from_utf8(&base))
+					.to_string()
+					.replace("--STATICS\n", &statics)
+					.replace('§', &output)
+			}
+			None => include_str!("base.lua")
+				.replace("--STATICS\n", &statics)
+				.replace('§', &output),
+		};
 		if !cli.dontsave {
 			let output_name = &format!(
 				"{}.lua",
@@ -334,32 +357,29 @@ fn main() -> Result<(), String> {
 			} else {
 				format!("{display}/{output_name}")
 			};
-			check!(fs::write(
-				&compiledname,
-				ENV_DATA.read().expect("Can't lock env_data").output_code()
-			))
+			check!(fs::write(&compiledname, &code))
 		}
 	} else if path.is_file() {
-		let code = compile_file(
+		let (output, statics) = compile_file(
 			&codepath,
 			path.file_name().unwrap().to_string_lossy().into_owned(),
 			0,
+			&options,
 		)?;
-		add_to_output(&code);
+
+		code = statics + &output;
+
 		if !cli.dontsave {
 			compiledname =
 				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-			check!(fs::write(
-				&compiledname,
-				ENV_DATA.read().expect("Can't lock env_data").output_code()
-			))
+			check!(fs::write(&compiledname, &code))
 		}
 	} else {
 		return Err(String::from("The given path doesn't exist"));
 	}
-	let output = ENV_DATA.read().expect("Can't lock env_data");
-	if flag!(env_debug) {
-		let newoutput = format!(include_str!("debug.lua"), output.output_code());
+
+	if options.env_debug {
+		let newoutput = format!(include_str!("debug.lua"), &code);
 		check!(fs::write(compiledname, &newoutput));
 		#[cfg(feature = "mlua")]
 		if cli.execute {
@@ -368,7 +388,7 @@ fn main() -> Result<(), String> {
 	} else {
 		#[cfg(feature = "mlua")]
 		if cli.execute {
-			execute_lua_code(output.output_code())
+			execute_lua_code(&code)
 		}
 	}
 	Ok(())
@@ -376,10 +396,12 @@ fn main() -> Result<(), String> {
 
 #[cfg(test)]
 mod test {
+	use clue_core::env::Options;
+
 	use crate::compile_folder;
 
 	#[test]
 	fn compilation_success() {
-		compile_folder("../examples/", String::new()).unwrap();
+		compile_folder("../examples/", String::new(), &Options::default()).unwrap();
 	}
 }
