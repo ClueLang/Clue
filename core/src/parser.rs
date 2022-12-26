@@ -795,6 +795,9 @@ impl ParserInfo {
 					})?;
 					self.expr.push_back(ctoken);
 					expr.push_back(ident);
+					if self.check_val() {
+						break t;
+					}
 				}
 				COALESCE => {
 					let mut leftexpr = Expression::new();
