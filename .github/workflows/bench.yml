@@ -1,4 +1,4 @@
-name: Test
+name: Bench
 on:
   push:
   workflow_dispatch:
@@ -16,7 +16,5 @@ jobs:
           toolchain: stable
       - name: Cache build
         uses: Swatinem/rust-cache@v2
-      - name: Test dev build
-        run: cargo test
       - name: Test release build
-        run: cargo bench --release
+        run: cargo bench
