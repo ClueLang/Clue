@@ -493,8 +493,9 @@ pub fn analyze_file<P: AsRef<Path>>(
 where
 	P: AsRef<OsStr> + Display,
 {
-	let mut code: String = String::with_capacity(512);
-	let mut file = PeekableBufReader::new(check!(File::open(path)));
+	let file = check!(File::open(path));
+	let mut code = String::with_capacity(check!(file.metadata()).len() as usize);
+	let mut file = PeekableBufReader::new(file);
 	let mut line = 1usize;
 	while let Some(c) = check!(file.read_char()) {
 		if match c {
