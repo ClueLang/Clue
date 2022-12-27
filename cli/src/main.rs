@@ -164,7 +164,7 @@ where
 	compile_code(code, name, scope, options)
 }
 
-fn check_for_files<P: AsRef<Path>>(
+/*fn check_for_files<P: AsRef<Path>>(
 	path: P,
 	rpath: String,
 ) -> Result<Vec<(String, String)>, std::io::Error>
@@ -266,7 +266,7 @@ where
 		n => Err(format!("{n} files failed to compile!")),
 	}
 }
-
+*/
 #[cfg(feature = "mlua")]
 fn execute_lua_code(code: &str) {
 	println!("Running compiled code...");
@@ -324,7 +324,7 @@ fn main() -> Result<(), String> {
 	let path: &Path = Path::new(&codepath);
 	let mut compiledname = String::new();
 
-	if path.is_dir() {
+	if path.is_dir() {/*
 		let (output, statics) = compile_folder(&codepath, String::new(), &options)?;
 
 		code = match cli.base {
@@ -357,8 +357,10 @@ fn main() -> Result<(), String> {
 				format!("{display}/{output_name}")
 			};
 			check!(fs::write(&compiledname, &code))
-		}
+		}*/
 	} else if path.is_file() {
+		
+
 		let (output, statics) = compile_file(
 			&codepath,
 			path.file_name().unwrap().to_string_lossy().into_owned(),
@@ -392,7 +394,7 @@ fn main() -> Result<(), String> {
 	}
 	Ok(())
 }
-
+/*
 #[cfg(test)]
 mod test {
 	use clue_core::env::Options;
@@ -403,4 +405,4 @@ mod test {
 	fn compilation_success() {
 		compile_folder("../examples/", String::new(), &Options::default()).unwrap();
 	}
-}
+}*/
