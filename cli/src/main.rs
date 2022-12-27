@@ -150,20 +150,6 @@ fn compile_code(
 	Ok((code, statics))
 }
 
-fn compile_file<P: AsRef<Path>>(
-	path: P,
-	name: String,
-	scope: usize,
-	options: &Options,
-) -> Result<(String, String), String>
-where
-	P: AsRef<OsStr> + Display,
-{
-	let mut code: String = String::with_capacity(512);
-	check!(check!(File::open(path)).read_to_string(&mut code));
-	compile_code(code, name, scope, options)
-}
-
 /*fn check_for_files<P: AsRef<Path>>(
 	path: P,
 	rpath: String,
@@ -359,13 +345,9 @@ fn main() -> Result<(), String> {
 			check!(fs::write(&compiledname, &code))
 		}*/
 	} else if path.is_file() {
-		
-
-		let (output, statics) = compile_file(
-			&codepath,
-			path.file_name().unwrap().to_string_lossy().into_owned(),
-			0,
-			&options,
+		let name = path.file_name().unwrap().to_string_lossy().into_owned();
+		let (output, statics) = compile_code(
+			analyze_file(&codepath, &name)?, name, 0, &options
 		)?;
 
 		code = statics + &output;

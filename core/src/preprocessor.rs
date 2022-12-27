@@ -1,4 +1,4 @@
-use crate::{format_clue, scanner::CharExt};
+use crate::{format_clue, scanner::CharExt, check};
 use ahash::AHashMap;
 use std::{
 	collections::linked_list::Iter,
@@ -6,6 +6,11 @@ use std::{
 	iter::{Peekable, Rev},
 	str,
 	str::Chars,
+	path::Path,
+	ffi::OsStr,
+	fmt::Display,
+	fs::File,
+	io::{self, BufRead, BufReader, Read, ErrorKind},
 };
 
 pub type LinkedString = std::collections::LinkedList<char>;
@@ -416,4 +421,120 @@ pub fn preprocess_code(
 		}
 	}
 	Ok((code, prev))
+}
+
+struct PeekableBufReader<R> {
+	buffer: BufReader<R>,
+	peeked: Option<char>,
+}
+
+impl<R: Read> PeekableBufReader<R> {
+	fn new(inner: R) -> Self {
+		Self {
+			buffer: BufReader::new(inner),
+			peeked: None
+		}
+	}
+
+	fn read_char(&mut self) -> io::Result<Option<char>> {
+		if self.peeked.is_some() {
+			let peeked = self.peeked;
+			self.peeked = None;
+			Ok(peeked)
+		} else {
+			let mut buf = [0];
+			match self.buffer.read_exact(&mut buf) {
+				Ok(_) => {
+					Ok(Some(buf[0] as char))
+				}
+				Err(e) if e.kind() == ErrorKind::UnexpectedEof => Ok(None),
+				Err(e) => return Err(e)
+			}
+		}
+	}
+
+	fn peek_char(&mut self) -> io::Result<Option<char>> {
+		if self.peeked.is_none() {
+			self.peeked = self.read_char()?;
+		}
+		Ok(self.peeked)
+	}
+}
+
+impl<R: Read> Read for PeekableBufReader<R> {
+	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+		self.buffer.read(buf)
+	}
+}
+
+impl<R: Read> BufRead for PeekableBufReader<R> {
+	fn fill_buf(&mut self) -> io::Result<&[u8]> {
+		self.buffer.fill_buf()
+	}
+
+	fn consume(&mut self, amt: usize) {
+		self.buffer.consume(amt)
+	}
+}
+
+fn add_newlines(code: &mut String, newlines: Vec<u8>, line: &mut usize) {
+	for c in newlines {
+		if c == b'\n' {
+			code.push('\n');
+			*line += 1;
+		}
+	}
+}
+
+pub fn analyze_file<P: AsRef<Path>>(
+	path: P,
+	filename: &String,
+) -> Result<String, String>
+where
+	P: AsRef<OsStr> + Display,
+{
+	let mut code: String = String::with_capacity(512);
+	let mut file = PeekableBufReader::new(check!(File::open(path)));
+	let mut line = 1usize;
+	while let Some(c) = check!(file.read_char()) {
+		if match c {
+			'\n' => {line += 1; true}
+			'/' => {
+				if let Some(nc) = check!(file.peek_char()) {
+					match nc {
+						'/' => {
+							file.read_char().unwrap();
+							check!(file.read_line(&mut String::new()));
+							code.push('\n');
+							line += 1;
+							false
+						}
+						'*' => {
+							file.read_char().unwrap();
+							let mut newlines = Vec::new();
+							while {
+								check!(file.read_until(b'*', &mut newlines));
+								if let Some(fc) = check!(file.read_char()) {
+									fc != '/'
+								} else {
+									add_newlines(&mut code, newlines, &mut line);
+									return Err(error("Unterminated comment", line, filename))
+								}
+							} {}
+							add_newlines(&mut code, newlines, &mut line);
+							false
+						}
+						_ => true
+					}
+				} else {
+					true
+				}
+			}
+			_ if c.is_ascii() => true,
+			_ => {return Err(error("Invalid ascii character", line, filename))}
+		} {
+			code.push(c)
+		}
+	}
+	Ok(code)
 }
