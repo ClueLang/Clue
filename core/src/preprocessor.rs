@@ -1,6 +1,6 @@
 use crate::{format_clue, scanner::CharExt};
 use ahash::AHashMap;
-use utf8_decode::Decoder;
+use utf8_decode::{Decoder, decode};
 use std::{
 	collections::linked_list::Iter,
 	env,
@@ -537,7 +537,13 @@ where
 				}
 			}
 			_ if c.is_ascii() => true,
-			_ => {return Err(analyze_error("Invalid ascii character", line, filename))}
+			_ => {
+				let mut buf = [0; 3];
+				file.read(&mut buf)?;
+				let buf = [c as u8, buf[0], buf[1], buf[2]];
+				let c = decode(&mut buf.into_iter()).unwrap_or(Ok('�'))?;
+				return Err(analyze_error(format!("Invalid character '{c}'"), line, filename))
+			}
 		} {
 			code.push(c)
 		}
