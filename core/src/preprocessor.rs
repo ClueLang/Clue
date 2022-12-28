@@ -361,6 +361,21 @@ pub fn preprocess_code(
 					code.append(&mut value);
 				}
 			}
+			'\'' | '"' | '`' => {
+				code.push_back(c);
+				while let Some(stringc) = chars.next() {
+					if stringc == '\n' {
+						*line += 1;
+						prevline += 1;
+					} else if stringc == '\\' {
+						chars.next();
+					}
+					code.push_back(stringc);
+					if stringc == c {
+						break
+					}
+				}
+			}
 			'/' => {
 				if let Some(nextc) = chars.peek() {
 					match *nextc {
@@ -510,7 +525,7 @@ where
 				let mut rawstring = Vec::new();
 				while {
 					file.read_until(c as u8, &mut rawstring)?;
-					rawstring[rawstring.len() - 2] == b'\\'
+					rawstring.len() >= 2 && rawstring[rawstring.len() - 2] == b'\\'
 				} {}
 				for c in Decoder::new(rawstring.into_iter()) {
 					let c = c?;
