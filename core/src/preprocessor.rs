@@ -368,7 +368,15 @@ pub fn preprocess_code(
 						*line += 1;
 						prevline += 1;
 					} else if stringc == '\\' {
-						chars.next();
+						if let Some(nextc) = chars.peek() {
+							let nextc = *nextc;
+							if nextc == c {
+								code.push_back(stringc);
+								code.push_back(nextc);
+								chars.next();
+								continue;
+							}
+						}
 					}
 					code.push_back(stringc);
 					if stringc == c {

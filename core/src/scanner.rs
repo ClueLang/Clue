@@ -148,21 +148,6 @@ impl CodeInfo {
 		result
 	}
 
-	fn read_string_literal(&self, start: usize, end: usize, backslashes: &[char]) -> String {
-		let mut result: String = String::new();
-		for i in start..end {
-			if i >= self.size {
-				break;
-			}
-			let c = self.at(i);
-			if c == '\\' && backslashes.contains(&self.at(i + 1)) {
-				continue;
-			}
-			result.push(c);
-		}
-		result
-	}
-
 	fn add_literal_token(&mut self, kind: TokenType, literal: String) {
 		self.tokens.push(Token::new(kind, literal, self.line));
 	}
@@ -236,10 +221,8 @@ impl CodeInfo {
 
 	fn read_string(&mut self, strend: char) {
 		let mut aline = self.line;
-		while !self.ended() && self.peek(0) != strend {
-			if self.peek(0) == '\\' {
-				self.current += 1;
-			} else if self.peek(0) == '\n' {
+		while !self.ended() && (self.peek(0) != strend || self.look_back(0) == '\\') {
+			if self.peek(0) == '\n' {
 				aline += 1
 			};
 			self.current += 1;
@@ -248,7 +231,7 @@ impl CodeInfo {
 			self.warning("Unterminated string");
 		} else {
 			self.current += 1;
-			let mut literal = self.read_string_literal(self.start, self.current, &['@', '$']);
+			let mut literal = self.substr(self.start, self.current);
 			literal.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
 			self.add_literal_token(STRING, literal);
 		}
@@ -267,7 +250,7 @@ impl CodeInfo {
 			self.warning("Unterminated string");
 		} else {
 			self.current += 1;
-			let literal = self.read_string_literal(self.start + 1, self.current - 1, &['`', '@', '$']);
+			let literal = self.substr(self.start + 1, self.current - 1);
 			let mut brackets = String::new();
 			let mut must = literal.ends_with(']');
 			while must || literal.contains(&format_clue!("]", brackets, "]")) {
