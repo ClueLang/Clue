@@ -1,5 +1,6 @@
-use crate::{format_clue, scanner::CharExt, check};
+use crate::{format_clue, scanner::CharExt};
 use ahash::AHashMap;
+use utf8_decode::Decoder;
 use std::{
 	collections::linked_list::Iter,
 	env,
@@ -477,6 +478,10 @@ impl<R: Read> BufRead for PeekableBufReader<R> {
 	}
 }
 
+fn analyze_error(msg: impl Into<String>, line: usize, filename: &String) -> io::Error {
+	io::Error::new(io::ErrorKind::Other, error(msg.into(), line, filename))
+}
+
 fn add_newlines(code: &mut String, newlines: Vec<u8>, line: &mut usize) {
 	for c in newlines {
 		if c == b'\n' {
@@ -489,23 +494,23 @@ fn add_newlines(code: &mut String, newlines: Vec<u8>, line: &mut usize) {
 pub fn analyze_file<P: AsRef<Path>>(
 	path: P,
 	filename: &String,
-) -> Result<String, String>
+) -> Result<String, io::Error>
 where
 	P: AsRef<OsStr> + Display,
 {
-	let file = check!(File::open(path));
-	let mut code = String::with_capacity(check!(file.metadata()).len() as usize);
+	let file = File::open(path)?;
+	let mut code = String::with_capacity(file.metadata()?.len() as usize);
 	let mut file = PeekableBufReader::new(file);
 	let mut line = 1usize;
-	while let Some(c) = check!(file.read_char()) {
+	while let Some(c) = file.read_char()? {
 		if match c {
 			'\n' => {line += 1; true}
 			'/' => {
-				if let Some(nc) = check!(file.peek_char()) {
+				if let Some(nc) = file.peek_char()? {
 					match nc {
 						'/' => {
 							file.read_char().unwrap();
-							check!(file.read_line(&mut String::new()));
+							file.read_line(&mut String::new())?;
 							code.push('\n');
 							line += 1;
 							false
@@ -514,12 +519,12 @@ where
 							file.read_char().unwrap();
 							let mut newlines = Vec::new();
 							while {
-								check!(file.read_until(b'*', &mut newlines));
-								if let Some(fc) = check!(file.read_char()) {
+								file.read_until(b'*', &mut newlines)?;
+								if let Some(fc) = file.read_char()? {
 									fc != '/'
 								} else {
 									add_newlines(&mut code, newlines, &mut line);
-									return Err(error("Unterminated comment", line, filename))
+									return Err(analyze_error("Unterminated comment", line, filename))
 								}
 							} {}
 							add_newlines(&mut code, newlines, &mut line);
@@ -532,7 +537,7 @@ where
 				}
 			}
 			_ if c.is_ascii() => true,
-			_ => {return Err(error("Invalid ascii character", line, filename))}
+			_ => {return Err(analyze_error("Invalid ascii character", line, filename))}
 		} {
 			code.push(c)
 		}

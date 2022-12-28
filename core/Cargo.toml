@@ -12,6 +12,7 @@ categories.workspace = true
 
 [dependencies]
 lazy_static = "1.4.0"
+utf8-decode = "1.0.0"
 ahash.workspace = true
 clap.workspace = true
 rpmalloc = {version = "0.2.2", optional = true}

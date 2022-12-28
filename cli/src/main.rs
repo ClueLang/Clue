@@ -347,7 +347,7 @@ fn main() -> Result<(), String> {
 	} else if path.is_file() {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
 		let (output, statics) = compile_code(
-			analyze_file(&codepath, &name)?, name, 0, &options
+			check!(analyze_file(&codepath, &name)), name, 0, &options
 		)?;
 
 		code = statics + &output;
