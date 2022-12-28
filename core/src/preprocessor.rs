@@ -505,6 +505,22 @@ where
 	while let Some(c) = file.read_char()? {
 		if match c {
 			'\n' => {line += 1; true}
+			'\'' | '"' | '`' => {
+				code.push(c);
+				let mut rawstring = Vec::new();
+				while {
+					file.read_until(c as u8, &mut rawstring)?;
+					rawstring[rawstring.len() - 2] == b'\\'
+				} {}
+				for c in Decoder::new(rawstring.into_iter()) {
+					let c = c?;
+					if c == '\n' {
+						line += 1;
+					}
+					code.push(c)
+				}
+				false
+			}
 			'/' => {
 				if let Some(nc) = file.peek_char()? {
 					match nc {
