@@ -1,5 +1,5 @@
 use crate::{format_clue, scanner::CharExt};
-use ahash::AHashMap;
+use ahash::{AHashMap, HashMap};
 use utf8_decode::{Decoder, decode};
 use std::{
 	collections::linked_list::Iter,
@@ -16,6 +16,10 @@ use std::{
 
 pub type LinkedString = std::collections::LinkedList<char>;
 type CodeChars<'a, 'b> = &'a mut Peekable<Chars<'b>>;
+
+pub enum PPVar {
+	Simple(String)
+}
 
 fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
 	println!("Error in file \"{filename}\" at line {line}!");
@@ -222,20 +226,6 @@ fn read_pseudos(mut code: Peekable<Rev<Iter<char>>>) -> Vec<LinkedString> {
 		}
 	} {}
 	newpseudos
-}
-
-pub fn to_preprocess(code: &str) -> bool {
-	let mut code = code.as_bytes().iter();
-	while let Some(c) = code.next() {
-		match *c as char {
-			'\\' => {
-				code.next();
-			}
-			'$' | '@' => return true,
-			_ => {}
-		}
-	}
-	false
 }
 
 pub fn preprocess_code(
@@ -517,7 +507,7 @@ fn add_newlines(code: &mut String, newlines: Vec<u8>, line: &mut usize) {
 pub fn analyze_file<P: AsRef<Path>>(
 	path: P,
 	filename: &String,
-) -> Result<String, io::Error>
+) -> Result<(String, Option<AHashMap<String, PPVar>>), io::Error>
 where
 	P: AsRef<OsStr> + Display,
 {
@@ -525,9 +515,20 @@ where
 	let mut code = String::with_capacity(file.metadata()?.len() as usize);
 	let mut file = PeekableBufReader::new(file);
 	let mut line = 1usize;
+	let mut variables = None;
 	while let Some(c) = file.read_char()? {
 		if match c {
 			'\n' => {line += 1; true}
+			'@' => {
+				if variables.is_none() {
+					variables = Some(AHashMap::new());
+				}
+				true
+			}
+			'$' if variables.is_none() => {
+				variables = Some(AHashMap::new());
+				true
+			}
 			'\'' | '"' | '`' => {
 				code.push(c);
 				let mut rawstring = Vec::new();
@@ -587,5 +588,5 @@ where
 			code.push(c)
 		}
 	}
-	Ok(code)
+	Ok((code, variables))
 }

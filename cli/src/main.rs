@@ -107,12 +107,13 @@ struct Cli {
 
 fn compile_code(
 	mut code: String,
+	variables: &Option<AHashMap<String, PPVar>>,
 	name: String,
 	scope: usize,
 	options: &Options,
 ) -> Result<(String, String), String> {
 	let time = Instant::now();
-	if to_preprocess(&code) {
+	if variables.is_some() {
 		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?
 			.0
 			.iter()
@@ -298,7 +299,7 @@ fn main() -> Result<(), String> {
 	}*/
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
-		let (code, statics) = compile_code(codepath, String::from("(command line)"), 0, &options)?;
+		let (code, statics) = compile_code(codepath, &None, String::from("(command line)"), 0, &options)?;
 		let code = code + &statics;
 		println!("{}", code);
 		#[cfg(feature = "mlua")]
@@ -346,12 +347,9 @@ fn main() -> Result<(), String> {
 		}*/
 	} else if path.is_file() {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
-		let (output, statics) = compile_code(
-			check!(analyze_file(&codepath, &name)), name, 0, &options
-		)?;
-
+		let (rawcode, variables) = check!(analyze_file(&codepath, &name));
+		let (output, statics) = compile_code(rawcode, &variables, name, 0, &options)?;
 		code = statics + &output;
-
 		if !cli.dontsave {
 			compiledname =
 				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
