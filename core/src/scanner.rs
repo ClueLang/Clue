@@ -275,26 +275,6 @@ impl CodeInfo {
 		self.substr(self.start, self.current)
 	}
 
-	fn read_comment(&mut self) {
-		while self.peek(0) != '\n' && !self.ended() {
-			self.current += 1
-		}
-	}
-
-	fn read_multiline_comment(&mut self) {
-		while !(self.ended() || self.peek(0) == '*' && self.peek(1) == '/') {
-			if self.peek(0) == '\n' {
-				self.line += 1
-			}
-			self.current += 1;
-		}
-		if self.ended() {
-			self.warning("Unterminated comment");
-		} else {
-			self.current += 2;
-		}
-	}
-
 	fn scan_char(&mut self, symbols: &SymbolsMap, c: char) -> bool {
 		if let Some(Some(token)) = symbols.get(c as usize) {
 			match token {
@@ -370,8 +350,6 @@ lazy_static! {
 		]), CARET)),
 		('#', SymbolType::JUST(HASHTAG)),
 		('/', SymbolType::SYMBOLS(generate_map(&[
-			('/', SymbolType::FUNCTION(CodeInfo::read_comment)),
-			('*', SymbolType::FUNCTION(CodeInfo::read_multiline_comment)),
 			('=', SymbolType::JUST(DIVIDE)),
 			('_', SymbolType::JUST(FLOOR_DIVISION)),
 		]), SLASH)),

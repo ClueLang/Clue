@@ -374,45 +374,6 @@ pub fn preprocess_code(
 					}
 				}
 			}
-			'/' => {
-				if let Some(nextc) = chars.peek() {
-					match *nextc {
-						'/' => {
-							chars.next();
-							while let Some(c) = chars.peek() {
-								if *c == '\n' {
-									break;
-								}
-								chars.next();
-							}
-						}
-						'*' => {
-							code.pop_back();
-							chars.next();
-							while {
-								let word = assert_word(chars, line, filename);
-								word.is_err() || !word.unwrap().ends_with("*/")
-							} {
-								if chars.peek().is_none() {
-									return Err(error("Unterminated comment", *line, filename));
-								}
-							}
-						}
-						_ => code.push_back('/'),
-					}
-				}
-			}
-			'\\' => {
-				code.push_back(if let Some(nc) = chars.peek() {
-					if matches!(nc, '@' | '$') {
-						chars.next().unwrap()
-					} else {
-						'\\'
-					}
-				} else {
-					'\\'
-				});
-			}
 			'=' => {
 				code.push_back('=');
 				if let Some(nc) = chars.peek() {
