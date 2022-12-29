@@ -299,7 +299,9 @@ fn main() -> Result<(), String> {
 	}*/
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
-		let (code, statics) = compile_code(codepath, &None, String::from("(command line)"), 0, &options)?;
+		let filename = String::from("(command line)");
+		let (rawcode, variables) = check!(analyze_code(codepath.as_bytes(), codepath.len(), &filename));
+		let (code, statics) = compile_code(rawcode, &variables, filename, 0, &options)?;
 		let code = code + &statics;
 		println!("{}", code);
 		#[cfg(feature = "mlua")]

@@ -1,5 +1,5 @@
 use crate::{format_clue, scanner::CharExt};
-use ahash::{AHashMap, HashMap};
+use ahash::AHashMap;
 use utf8_decode::{Decoder, decode};
 use std::{
 	collections::linked_list::Iter,
@@ -512,8 +512,17 @@ where
 	P: AsRef<OsStr> + Display,
 {
 	let file = File::open(path)?;
-	let mut code = String::with_capacity(file.metadata()?.len() as usize);
-	let mut file = PeekableBufReader::new(file);
+	let len = file.metadata()?.len() as usize;
+	analyze_code(file, len, filename)
+}
+
+pub fn analyze_code<R: Read>(
+	code: R,
+	len: usize,
+	filename: &String,
+) -> Result<(String, Option<AHashMap<String, PPVar>>), io::Error> {
+	let mut finalcode = String::with_capacity(len);
+	let mut file = PeekableBufReader::new(code);
 	let mut line = 1usize;
 	let mut variables = None;
 	while let Some(c) = file.read_char()? {
@@ -530,7 +539,7 @@ where
 				true
 			}
 			'\'' | '"' | '`' => {
-				code.push(c);
+				finalcode.push(c);
 				let mut rawstring = Vec::new();
 				while {
 					file.read_until(c as u8, &mut rawstring)?;
@@ -541,7 +550,7 @@ where
 					if c == '\n' {
 						line += 1;
 					}
-					code.push(c)
+					finalcode.push(c)
 				}
 				false
 			}
@@ -551,7 +560,7 @@ where
 						'/' => {
 							file.read_char().unwrap();
 							file.read_line(&mut String::new())?;
-							code.push('\n');
+							finalcode.push('\n');
 							line += 1;
 							false
 						}
@@ -563,11 +572,11 @@ where
 								if let Some(fc) = file.read_char()? {
 									fc != '/'
 								} else {
-									add_newlines(&mut code, newlines, &mut line);
+									add_newlines(&mut finalcode, newlines, &mut line);
 									return Err(analyze_error("Unterminated comment", line, filename))
 								}
 							} {}
-							add_newlines(&mut code, newlines, &mut line);
+							add_newlines(&mut finalcode, newlines, &mut line);
 							false
 						}
 						_ => true
@@ -585,8 +594,8 @@ where
 				return Err(analyze_error(format!("Invalid character '{c}'"), line, filename))
 			}
 		} {
-			code.push(c)
+			finalcode.push(c)
 		}
 	}
-	Ok((code, variables))
+	Ok((finalcode, variables))
 }
