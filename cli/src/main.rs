@@ -107,14 +107,14 @@ struct Cli {
 
 fn compile_code(
 	mut code: String,
-	variables: &Option<AHashMap<String, PPVar>>,
-	name: String,
+	variables: &Option<PPVars>,
+	name: &String,
 	scope: usize,
 	options: &Options,
 ) -> Result<(String, String), String> {
 	let time = Instant::now();
-	if variables.is_some() {
-		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?
+	if let Some(variables) = variables {
+		code = PreProcessor::start(code, variables, &name)?
 			.0
 			.iter()
 			.collect();
@@ -301,7 +301,7 @@ fn main() -> Result<(), String> {
 	if cli.pathiscode {
 		let filename = String::from("(command line)");
 		let (rawcode, variables) = check!(analyze_code(codepath.as_bytes(), codepath.len(), &filename));
-		let (code, statics) = compile_code(rawcode, &variables, filename, 0, &options)?;
+		let (code, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
 		let code = code + &statics;
 		println!("{}", code);
 		#[cfg(feature = "mlua")]
@@ -350,7 +350,7 @@ fn main() -> Result<(), String> {
 	} else if path.is_file() {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
 		let (rawcode, variables) = check!(analyze_file(&codepath, &name));
-		let (output, statics) = compile_code(rawcode, &variables, name, 0, &options)?;
+		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
 		code = statics + &output;
 		if !cli.dontsave {
 			compiledname =
