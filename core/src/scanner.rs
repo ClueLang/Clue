@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
-use crate::format_clue;
+use crate::{format_clue, Code};
 
 use self::TokenType::*;
 use ahash::AHashMap;
@@ -73,7 +73,7 @@ struct CodeInfo {
 	start: usize,
 	current: usize,
 	size: usize,
-	code: Vec<char>,
+	code: Code,
 	filename: String,
 	tokens: Vec<Token>,
 	last: TokenType,
@@ -81,8 +81,7 @@ struct CodeInfo {
 }
 
 impl CodeInfo {
-	fn new(code: String, filename: String) -> CodeInfo {
-		let code: Vec<char> = code.chars().collect();
+	fn new(code: Code, filename: String) -> CodeInfo {
 		CodeInfo {
 			line: 1,
 			start: 0,
@@ -103,7 +102,7 @@ impl CodeInfo {
 		if pos >= self.size {
 			return 0 as char;
 		}
-		self.code[pos]
+		self.code[pos].0
 	}
 
 	fn advance(&mut self) -> char {
@@ -461,7 +460,7 @@ impl CharExt for char {
 	}
 }
 
-pub fn scan_code(code: String, filename: String) -> Result<Vec<Token>, String> {
+pub fn scan_code(code: Code, filename: String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() {
 		i.start = i.current;

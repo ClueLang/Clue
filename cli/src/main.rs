@@ -1,7 +1,7 @@
 use ahash::AHashMap;
 use clap::{crate_version, Parser};
 use clue::env::{ContinueMode, Options};
-use clue::{check, compiler::*, format_clue, parser::*, preprocessor::*, scanner::*, /*, LUA_G*/};
+use clue::{check, compiler::*, format_clue, parser::*, preprocessor::*, scanner::*, Code, /*, LUA_G*/};
 use clue_core as clue;
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
@@ -106,7 +106,7 @@ struct Cli {
 }
 
 fn compile_code(
-	mut code: String,
+	mut code: Code,
 	variables: &Option<PPVars>,
 	name: &String,
 	scope: usize,
@@ -114,10 +114,11 @@ fn compile_code(
 ) -> Result<(String, String), String> {
 	let time = Instant::now();
 	if let Some(variables) = variables {
-		code = PreProcessor::start(code, variables, &name)?
-			.0
-			.iter()
-			.collect();
+		let linkedcode = PreProcessor::start(code, variables, &name)?.0;
+		code = Code::new();
+		for c in linkedcode {
+			code.push(c);
+		}
 	}
 	let tokens: Vec<Token> = scan_code(code, name.clone())?;
 	if options.env_tokens {

@@ -1,4 +1,4 @@
-use crate::{format_clue, scanner::CharExt, check};
+use crate::{format_clue, scanner::CharExt, check, CodeChar, Code, CodeExt};
 use ahash::AHashMap;
 use utf8_decode::{Decoder, decode};
 use std::{
@@ -6,7 +6,6 @@ use std::{
 	env,
 	iter::{Peekable, Rev},
 	str,
-	str::Chars,
 	path::Path,
 	ffi::OsStr,
 	fmt::Display,
@@ -14,8 +13,27 @@ use std::{
 	io::{self, BufRead, BufReader, Read, ErrorKind},
 };
 
-pub type LinkedString = std::collections::LinkedList<char>;
+pub type LinkedString = std::collections::LinkedList<CodeChar>;
 pub type PPVars = AHashMap<Vec<u8>, PPVar>;
+type CodeChars<'a, 'b> = &'a mut Peekable<std::slice::Iter<'b, CodeChar>>;
+
+impl CodeExt for LinkedString {
+	fn to_string(&self) -> String {
+		let mut result = String::new();
+        for (c, _) in self {
+            result.push(*c)
+        }
+        result
+	}
+
+	fn from_str(chars: &str, line: usize) -> Self {
+        let mut result = Self::new();
+        for c in chars.chars() {
+            result.push_back((c, line));
+        }
+        result
+    }
+}
 
 pub enum PPVar {
 	Simple(LinkedString)
@@ -26,8 +44,8 @@ fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
 	msg.into()
 }
 
-fn skip_whitespace_backwards(code: &mut Peekable<Rev<Iter<char>>>) {
-	while let Some(c) = code.peek() {
+fn skip_whitespace_backwards(code: &mut Peekable<Rev<Iter<CodeChar>>>) {
+	while let Some((c, _)) = code.peek() {
 		if c.is_whitespace() {
 			code.next();
 		} else {
@@ -36,12 +54,12 @@ fn skip_whitespace_backwards(code: &mut Peekable<Rev<Iter<char>>>) {
 	}
 }
 
-fn read_pseudos(mut code: Peekable<Rev<Iter<char>>>) -> Vec<LinkedString> {
+fn read_pseudos(mut code: Peekable<Rev<Iter<CodeChar>>>) -> Vec<LinkedString> {
 	let mut newpseudos: Vec<LinkedString> = Vec::new();
 	while {
-		if let Some(c) = code.next() {
+		if let Some((c, _)) = code.next() {
 			if *c == '=' {
-				if let Some(c) = code.next() {
+				if let Some((c, _)) = code.next() {
 					matches!(c, '!' | '=')
 				} else {
 					return newpseudos;
@@ -57,7 +75,7 @@ fn read_pseudos(mut code: Peekable<Rev<Iter<char>>>) -> Vec<LinkedString> {
 	while {
 		let mut name = LinkedString::new();
 		while {
-			if let Some(c) = code.peek() {
+			if let Some((c, _)) = code.peek() {
 				c.is_identifier()
 			} else {
 				false
@@ -67,7 +85,7 @@ fn read_pseudos(mut code: Peekable<Rev<Iter<char>>>) -> Vec<LinkedString> {
 		}
 		newpseudos.push(name);
 		skip_whitespace_backwards(&mut code);
-		if let Some(c) = code.next() {
+		if let Some((c, _)) = code.next() {
 			*c == ','
 		} else {
 			false
@@ -83,7 +101,7 @@ pub struct PreProcessor<'a, 'b> {
 
 impl<'a, 'b> PreProcessor<'a, 'b> {
 	pub fn start(
-		rawcode: String,
+		rawcode: Code,
 		values: &'a PPVars,
 		filename: &'b String
 	) -> Result<(LinkedString, bool), String> {
@@ -106,8 +124,8 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 		)
 	}
 
-	fn skip_whitespace(&mut self, chars: &mut Peekable<Chars>, line: &mut usize) {
-		while let Some(c) = chars.peek() {
+	fn skip_whitespace(&mut self, chars: CodeChars, line: &mut usize) {
+		while let Some((c, _)) = chars.peek() {
 			if c.is_whitespace() {
 				if *c == '\n' {
 					*line += 1;
@@ -119,10 +137,10 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 		}
 	}
 
-	fn reach(&mut self, chars: &mut Peekable<Chars>, end: char, line: &mut usize) -> Result<(), String> {
+	fn reach(&mut self, chars: CodeChars, end: char, line: &mut usize) -> Result<(), String> {
 		self.skip_whitespace(chars, line);
-		if let Some(c) = chars.next() {
-			if end != c {
+		if let Some((c, _)) = chars.next() {
+			if end != *c {
 				Err(self.expected(&end.to_string(), &c.to_string(), *line))
 			} else {
 				Ok(())
@@ -132,8 +150,8 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 		}
 	}
 
-	fn read_with(&mut self, chars: &mut Peekable<Chars>, mut f: impl FnMut(&char) -> bool) -> String {
-		let mut result = String::new();
+	fn read_with(&mut self, chars: CodeChars, mut f: impl FnMut(&(char, usize)) -> bool) -> Code {
+		let mut result = Code::new();
 		while {
 			if let Some(c) = chars.peek() {
 				f(c)
@@ -141,16 +159,16 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 				false
 			}
 		} {
-			result.push(chars.next().unwrap())
+			result.push(*chars.next().unwrap())
 		}
 		result
 	}
 
-	fn read_word(&mut self, chars: &mut Peekable<Chars>) -> String {
-		self.read_with(chars, |c| !c.is_whitespace())
+	fn read_word(&mut self, chars: CodeChars) -> Code {
+		self.read_with(chars, |(c, _)| !c.is_whitespace())
 	}
 
-	fn assert_word(&mut self, chars: &mut Peekable<Chars>, line: &mut usize) -> Result<String, String> {
+	fn assert_word(&mut self, chars: CodeChars, line: &mut usize) -> Result<Code, String> {
 		self.skip_whitespace(chars, line);
 		let word = self.read_word(chars);
 		if word.is_empty() {
@@ -160,41 +178,28 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 		}
 	}
 
-	fn read_until(
-		&mut self,
-		chars: &mut Peekable<Chars>,
-		end: char,
-		line: &mut usize
-	) -> Result<String, String> {
-		let arg = self.read_with(chars, |c| *c != end);
+	fn read_until(&mut self, chars: CodeChars, end: char, line: &mut usize) -> Result<Code, String> {
+		let arg = self.read_with(chars, |(c, _)| *c != end);
 		if chars.next().is_none() {
 			return Err(self.expected_before(&end.to_string(), "<end>", *line));
 		}
 		Ok(arg)
 	}
 
-	fn read_arg(
-		&mut self,
-		chars: &mut Peekable<Chars>,
-		line: &mut usize
-	) -> Result<(LinkedString, bool), String> {
+	fn read_arg(&mut self, chars: CodeChars, line: &mut usize) -> Result<(LinkedString, bool), String> {
 		self.reach(chars, '"', line)?;
 		let rawarg = self.read_until(chars, '"', line)?;
 		let (arg, result) = self.preprocess_code(rawarg, line, None)?;
 		Ok((arg, result))
 	}
 
-	fn read_block(
-		&mut self,
-		chars: &mut Peekable<Chars>,
-		line: &mut usize
-	) -> Result<(usize, String), String> {
+	fn read_block(&mut self, chars: CodeChars, line: &mut usize) -> Result<(usize, Code), String> {
 		self.reach(chars, '{', line)?;
-		let mut block = String::new();
+		let mut block = Code::new();
 		let mut cscope = 1u8;
 		for c in chars.by_ref() {
-			block.push(c);
-			match c {
+			block.push(*c);
+			match c.0 {
 				'{' => cscope += 1,
 				'}' => {
 					cscope -= 1;
@@ -211,7 +216,7 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 
 	fn keep_block(
 		&mut self,
-		chars: &mut Peekable<Chars>,
+		chars: CodeChars,
 		line: &mut usize,
 		code: &mut LinkedString,
 		cond: bool
@@ -221,8 +226,10 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 			self.preprocess_code(block, &mut line, None)?.0
 		} else {
 			let mut lines = LinkedString::new();
-			for _ in 0..block.matches('\n').count() {
-				lines.push_back('\n');
+			for c in block {
+				if c.0 == '\n' {
+					lines.push_back(c);
+				}
 			}
 			lines
 		});
@@ -231,32 +238,34 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 
 	pub fn preprocess_code(
 		&mut self,
-		rawcode: String,
+		rawcode: Code,
 		line: &mut usize,
 		mut pseudos: Option<Vec<LinkedString>>,
 	) -> Result<(LinkedString, bool), String> {
 		let mut code = LinkedString::new();
 		let mut prev = true;
 		let mut prevline = *line;
-		let mut chars = rawcode.chars().peekable();
-		while let Some(c) = chars.next() {
+		let mut chars = rawcode.iter().peekable();
+		while let Some((c, _)) = chars.next() {
 			match c {
 				'\n' => {
 					for _ in 0..=*line - prevline {
-						code.push_back('\n');
+						code.push_back(('\n', *line));
 					}
 					*line += 1;
 					prevline = *line;
 				}
 				'@' => {
 					let directive = self.read_word(&mut chars);
-					prev = match directive.as_str() {
+					prev = match directive.to_string().as_str() {
 						"ifos" => {
-							let target_os = self.assert_word(&mut chars,line)?.to_ascii_lowercase();
+							let target_os = self.assert_word(&mut chars,line)?
+								.to_string()
+								.to_ascii_lowercase();
 							self.keep_block(&mut chars, line, &mut code, env::consts::OS == target_os)?
 						}
 						"ifdef" => {
-							let var = self.assert_word(&mut chars, line)?;
+							let var = self.assert_word(&mut chars, line)?.to_string();
 							let conditon =
 								env::var(&var).is_ok() || self.values.contains_key(&var.into_bytes());
 							self.keep_block(&mut chars, line, &mut code, conditon)?
@@ -265,10 +274,10 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 							let arg1 = self.read_arg(&mut chars, line)?.0;
 							let condition = self.assert_word(&mut chars, line)?;
 							let arg2 = self.read_arg(&mut chars, line)?.0;
-							let result = match condition.as_str() {
+							let result = match condition.to_string().as_str() {
 								"==" => arg1 == arg2,
 								"!=" => arg1 != arg2,
-								_ => return Err(self.expected("==", &condition, *line)),
+								_ => return Err(self.expected("==", &condition.to_string(), *line)),
 							};
 							self.keep_block(&mut chars, line, &mut code, result)?
 						}
@@ -276,16 +285,16 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 						"else" => self.keep_block(&mut chars, line, &mut code, !prev)?,
 						"error" => {
 							let msg = self.read_arg(&mut chars, line)?.0;
-							return Err(error(msg.iter().collect::<String>(), *line, self.filename));
+							return Err(error(msg.to_string(), *line, self.filename));
 						}
 						"warning" => {
 							let (msg, result) = self.read_arg(&mut chars, line)?;
-							println!("Warning: \"{}\"", msg.iter().collect::<String>());
+							println!("Warning: \"{}\"", msg.to_string());
 							result
 						}
 						"print" => {
 							let (msg, result) = self.read_arg(&mut chars, line)?;
-							println!("{}", msg.iter().collect::<String>());
+							println!("{}", msg.to_string());
 							result
 						}
 						"execute" => todo!(),
@@ -295,7 +304,7 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 						"" => return Err(error("Expected directive name", *line, self.filename)),
 						_ => {
 							return Err(error(
-								format_clue!("Unknown directive '", directive, "'"),
+								format_clue!("Unknown directive '", directive.to_string(), "'"),
 								*line,
 								self.filename,
 							))
@@ -304,11 +313,11 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 				}
 				'$' => {
 					let name = {
-						let name = self.read_with(&mut chars, char::is_identifier);
+						let name = self.read_with(&mut chars, |(c, _)| c.is_identifier());
 						if name.is_empty() {
 							String::from("1")
 						} else {
-							name
+							name.to_string()
 						}
 					};
 					if let Ok(index) = name.parse::<usize>() {
@@ -319,12 +328,12 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 						let mut var = pseudos
 							.get(pseudos.len() - index)
 							.cloned()
-							.unwrap_or_else(|| LinkedString::from(['n', 'i', 'l']));
+							.unwrap_or_else(|| LinkedString::from_str("nil", *line));
 						code.append(&mut var);
 					} else {
 						let name_bytes;
 						let mut value = if let Ok(value) = env::var(&name) {
-							value.chars().collect()
+							LinkedString::from_str(&value, *line)
 						} else if let Some(PPVar::Simple(value)) = self.values.get({
 							name_bytes = name.into_bytes();
 							&name_bytes
@@ -342,47 +351,46 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 					}
 				}
 				'\'' | '"' | '`' => {
-					code.push_back(c);
-					while let Some(stringc) = chars.next() {
-						if stringc == '\n' {
+					code.push_back((*c, *line));
+					while let Some((stringc, _)) = chars.next() {
+						if *stringc == '\n' {
 							*line += 1;
 							prevline += 1;
-						} else if stringc == '\\' {
-							if let Some(nextc) = chars.peek() {
-								let nextc = *nextc;
+						} else if *stringc == '\\' {
+							if let Some((nextc, _)) = chars.peek() {
 								if nextc == c {
-									code.push_back(stringc);
-									code.push_back(nextc);
+									code.push_back((*stringc, *line));
+									code.push_back((*nextc, *line));
 									chars.next();
 									continue;
 								}
 							}
 						}
-						code.push_back(stringc);
+						code.push_back((*stringc, *line));
 						if stringc == c {
 							break
 						}
 					}
 				}
 				'=' => {
-					code.push_back('=');
-					if let Some(nc) = chars.peek() {
+					code.push_back(('=', *line));
+					if let Some((nc, _)) = chars.peek() {
 						if matches!(nc, '=' | '>') {
-							code.push_back(chars.next().unwrap());
+							code.push_back(*chars.next().unwrap());
 						} else {
 							pseudos = None;
 						}
 					}
 				}
 				'!' | '>' | '<' => {
-					code.push_back(c);
-					if let Some(nc) = chars.peek() {
+					code.push_back((*c, *line));
+					if let Some((nc, _)) = chars.peek() {
 						if *nc == '=' {
-							code.push_back(chars.next().unwrap());
+							code.push_back(*chars.next().unwrap());
 						}
 					}
 				}
-				_ => code.push_back(c),
+				_ => code.push_back((*c, *line)),
 			}
 		}
 		Ok((code, prev))
@@ -402,20 +410,19 @@ impl<R: Read> PeekableBufReader<R> {
 		}
 	}
 
-	fn skip_whitespace(&mut self, finalcode: &mut String) -> io::Result<usize> {
-		let mut newlines = 0;
+	fn skip_whitespace(&mut self, line: &mut usize, finalcode: &mut Code) -> io::Result<()> {
 		while let Some(c) = self.peek_char()? {
 			if c.is_ascii_whitespace() {
 				if c == '\n' {
-					finalcode.push('\n');
-					newlines += 1;
+					finalcode.push(('\n', *line));
+					*line += 1;
 				}
 				self.read_char()?;
 			} else {
 				break;
 			}
 		}
-		Ok(newlines)
+		Ok(())
 	}
 
 	fn read_byte(&mut self) -> io::Result<Option<u8>> {
@@ -483,10 +490,10 @@ fn analyze_error(msg: impl Into<String>, line: usize, filename: &String) -> io::
 	io::Error::new(io::ErrorKind::Other, error(msg.into(), line, filename))
 }
 
-fn add_newlines(code: &mut String, newlines: Vec<u8>, line: &mut usize) {
+fn add_newlines(code: &mut Code, newlines: Vec<u8>, line: &mut usize) {
 	for c in newlines {
 		if c == b'\n' {
-			code.push('\n');
+			code.push(('\n', *line));
 			*line += 1;
 		}
 	}
@@ -495,7 +502,7 @@ fn add_newlines(code: &mut String, newlines: Vec<u8>, line: &mut usize) {
 pub fn analyze_file<P: AsRef<Path>>(
 	path: P,
 	filename: &String,
-) -> Result<(String, Option<PPVars>), io::Error>
+) -> Result<(Code, Option<PPVars>), io::Error>
 where
 	P: AsRef<OsStr> + Display,
 {
@@ -508,8 +515,8 @@ pub fn analyze_code<R: Read>(
 	code: R,
 	len: usize,
 	filename: &String,
-) -> Result<(String, Option<PPVars>), io::Error> {
-	let mut finalcode = String::with_capacity(len);
+) -> Result<(Code, Option<PPVars>), io::Error> {
+	let mut finalcode = Code::with_capacity(len);
 	let mut code = PeekableBufReader::new(code);
 	let mut line = 1usize;
 	let mut variables = None;
@@ -525,17 +532,17 @@ pub fn analyze_code<R: Read>(
 				code.read_until(b' ', &mut directive)?;
 				match directive[..] {
 					[b'd', b'e', b'f', b'i', b'n', b'e'] => {
-						line += code.skip_whitespace(&mut finalcode)?;
+						code.skip_whitespace(&mut line, &mut finalcode)?;
 						let name = code.read_identifier(line, filename)?;
 						let mut value = String::new();
 						code.read_line(&mut value)?;
-						let value = LinkedString::from_iter(value.trim().chars());
+						let value = LinkedString::from_str(value.trim(), line);
 						variables.insert(name, PPVar::Simple(value));
 					}
 					_ => {
-						finalcode.push('@');
+						finalcode.push(('@', line));
 						for c in directive {
-							finalcode.push(c as char);
+							finalcode.push((c as char, line));
 						}
 					},
 				}
@@ -546,7 +553,7 @@ pub fn analyze_code<R: Read>(
 				true
 			}
 			'\'' | '"' | '`' => {
-				finalcode.push(c);
+				finalcode.push((c, line));
 				let mut rawstring = Vec::new();
 				while {
 					code.read_until(c as u8, &mut rawstring)?;
@@ -554,10 +561,10 @@ pub fn analyze_code<R: Read>(
 				} {}
 				for c in Decoder::new(rawstring.into_iter()) {
 					let c = c?;
+					finalcode.push((c, line));
 					if c == '\n' {
 						line += 1;
 					}
-					finalcode.push(c)
 				}
 				false
 			}
@@ -567,7 +574,7 @@ pub fn analyze_code<R: Read>(
 						'/' => {
 							code.read_char().unwrap();
 							code.read_line(&mut String::new())?;
-							finalcode.push('\n');
+							finalcode.push(('\n', line));
 							line += 1;
 							false
 						}
@@ -601,7 +608,7 @@ pub fn analyze_code<R: Read>(
 				return Err(analyze_error(format!("Invalid character '{c}'"), line, filename))
 			}
 		} {
-			finalcode.push(c)
+			finalcode.push((c, line))
 		}
 	}
 	Ok((finalcode, variables))
