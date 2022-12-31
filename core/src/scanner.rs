@@ -68,20 +68,20 @@ impl Token {
 	}
 }
 
-struct CodeInfo {
+struct CodeInfo<'a> {
 	line: usize,
 	start: usize,
 	current: usize,
 	size: usize,
 	code: Code,
-	filename: String,
+	filename: &'a String,
 	tokens: Vec<Token>,
 	last: TokenType,
 	errored: bool,
 }
 
-impl CodeInfo {
-	fn new(code: Code, filename: String) -> CodeInfo {
+impl<'a> CodeInfo<'a> {
+	fn new(code: Code, filename: &'a String) -> CodeInfo {
 		CodeInfo {
 			line: 1,
 			start: 0,
@@ -394,7 +394,7 @@ lazy_static! {
 		]), BIT_OR)),
 		('"', SymbolType::FUNCTION(|i| i.read_string('"'))),
 		('\'', SymbolType::FUNCTION(|i| i.read_string('\''))),
-		('`', SymbolType::FUNCTION(CodeInfo::read_raw_string))
+		('`', SymbolType::FUNCTION(|i| i.read_raw_string()))
 	]);
 
 	static ref KEYWORDS: AHashMap<&'static str, KeywordType> = AHashMap::from([
@@ -450,7 +450,7 @@ impl CharExt for char {
 	}
 }
 
-pub fn scan_code(code: Code, filename: String) -> Result<Vec<Token>, String> {
+pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() {
 		i.start = i.current;

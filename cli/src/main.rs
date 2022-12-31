@@ -114,13 +114,13 @@ fn compile_code(
 ) -> Result<(String, String), String> {
 	let time = Instant::now();
 	if let Some(variables) = variables {
-		let linkedcode = PreProcessor::start(code, variables, &name)?.0;
+		let linkedcode = PreProcessor::start(code, variables, name)?.0;
 		code = Code::new();
 		for c in linkedcode {
 			code.push(c);
 		}
 	}
-	let tokens: Vec<Token> = scan_code(code, name.clone())?;
+	let tokens: Vec<Token> = scan_code(code, &name)?;
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}
@@ -131,7 +131,7 @@ fn compile_code(
 		} else {
 			None
 		},*/
-		name.clone(),
+		name,
 		options,
 	)?;
 
