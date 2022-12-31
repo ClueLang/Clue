@@ -13,11 +13,45 @@ use std::{
 	io::{self, BufRead, BufReader, Read, ErrorKind},
 };
 
-pub type LinkedString = std::collections::LinkedList<CodeChar>;
+pub type LinkedCode = std::collections::LinkedList<CodeChar>;
 pub type PPVars = AHashMap<Vec<u8>, PPVar>;
-type CodeChars<'a, 'b> = &'a mut Peekable<std::slice::Iter<'b, CodeChar>>;
+struct CodeChars<'a> {
+	iter: Peekable<std::slice::Iter<'a, CodeChar>>,
+	line: usize,
+}
 
-impl CodeExt for LinkedString {
+impl<'a> CodeChars<'a> {
+	fn new(rawcode: &'a Code) -> Self {
+		Self {
+			iter: rawcode.iter().peekable(),
+			line: 0
+		}
+	}
+
+	fn peek(&mut self) -> Option<&&CodeChar> {
+		if let Some(c) = self.iter.peek() {
+			self.line = c.1;
+			Some(c)
+		} else {
+			None
+		}
+	}
+}
+
+impl<'a> Iterator for CodeChars<'a> {
+	type Item = &'a CodeChar;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		if let Some(c) = self.iter.next() {
+			self.line = c.1;
+			Some(c)
+		} else {
+			None
+		}
+	}
+}
+
+impl CodeExt for LinkedCode {
 	fn to_string(&self) -> String {
 		let mut result = String::new();
         for (c, _) in self {
@@ -36,7 +70,7 @@ impl CodeExt for LinkedString {
 }
 
 pub enum PPVar {
-	Simple(LinkedString)
+	Simple(LinkedCode)
 }
 
 fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
@@ -54,8 +88,8 @@ fn skip_whitespace_backwards(code: &mut Peekable<Rev<Iter<CodeChar>>>) {
 	}
 }
 
-fn read_pseudos(mut code: Peekable<Rev<Iter<CodeChar>>>) -> Vec<LinkedString> {
-	let mut newpseudos: Vec<LinkedString> = Vec::new();
+fn read_pseudos(mut code: Peekable<Rev<Iter<CodeChar>>>) -> Vec<LinkedCode> {
+	let mut newpseudos: Vec<LinkedCode> = Vec::new();
 	while {
 		if let Some((c, _)) = code.next() {
 			if *c == '=' {
@@ -73,7 +107,7 @@ fn read_pseudos(mut code: Peekable<Rev<Iter<CodeChar>>>) -> Vec<LinkedString> {
 	} {}
 	skip_whitespace_backwards(&mut code);
 	while {
-		let mut name = LinkedString::new();
+		let mut name = LinkedCode::new();
 		while {
 			if let Some((c, _)) = code.peek() {
 				c.is_identifier()
@@ -104,8 +138,8 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 		rawcode: Code,
 		values: &'a PPVars,
 		filename: &'b String
-	) -> Result<(LinkedString, bool), String> {
-		(Self { values, filename }).preprocess_code(rawcode, &mut 1, None)
+	) -> Result<(LinkedCode, bool), String> {
+		(Self { values, filename }).preprocess_code(rawcode, None)
 	}
 
 	fn expected(&self, expected: &str, got: &str, line: usize) -> String {
@@ -124,12 +158,9 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 		)
 	}
 
-	fn skip_whitespace(&mut self, chars: CodeChars, line: &mut usize) {
+	fn skip_whitespace(&mut self, chars: &mut CodeChars) {
 		while let Some((c, _)) = chars.peek() {
 			if c.is_whitespace() {
-				if *c == '\n' {
-					*line += 1;
-				}
 				chars.next();
 			} else {
 				break;
@@ -137,23 +168,23 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 		}
 	}
 
-	fn reach(&mut self, chars: CodeChars, end: char, line: &mut usize) -> Result<(), String> {
-		self.skip_whitespace(chars, line);
-		if let Some((c, _)) = chars.next() {
+	fn reach(&mut self, chars: &mut CodeChars, end: char) -> Result<(), String> {
+		self.skip_whitespace(chars);
+		if let Some((c, line)) = chars.next() {
 			if end != *c {
 				Err(self.expected(&end.to_string(), &c.to_string(), *line))
 			} else {
 				Ok(())
 			}
 		} else {
-			Err(self.expected_before(&end.to_string(), "<end>", *line))
+			Err(self.expected_before(&end.to_string(), "<end>", chars.line))
 		}
 	}
 
-	fn read_with(&mut self, chars: CodeChars, mut f: impl FnMut(&(char, usize)) -> bool) -> Code {
+	fn read_with(&mut self, chars: &mut CodeChars, mut f: impl FnMut(&char) -> bool) -> Code {
 		let mut result = Code::new();
 		while {
-			if let Some(c) = chars.peek() {
+			if let Some((c, _)) = chars.peek() {
 				f(c)
 			} else {
 				false
@@ -164,37 +195,37 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 		result
 	}
 
-	fn read_word(&mut self, chars: CodeChars) -> Code {
-		self.read_with(chars, |(c, _)| !c.is_whitespace())
+	fn read_word(&mut self, chars: &mut CodeChars) -> Code {
+		self.read_with(chars, |c| !c.is_whitespace())
 	}
 
-	fn assert_word(&mut self, chars: CodeChars, line: &mut usize) -> Result<Code, String> {
-		self.skip_whitespace(chars, line);
+	fn assert_word(&mut self, chars: &mut CodeChars) -> Result<Code, String> {
+		self.skip_whitespace(chars);
 		let word = self.read_word(chars);
 		if word.is_empty() {
-			Err(error("Word expected", *line, self.filename))
+			Err(error("Word expected", chars.line, self.filename))
 		} else {
 			Ok(word)
 		}
 	}
 
-	fn read_until(&mut self, chars: CodeChars, end: char, line: &mut usize) -> Result<Code, String> {
-		let arg = self.read_with(chars, |(c, _)| *c != end);
+	fn read_until(&mut self, chars: &mut CodeChars, end: char) -> Result<Code, String> {
+		let arg = self.read_with(chars, |c| *c != end);
 		if chars.next().is_none() {
-			return Err(self.expected_before(&end.to_string(), "<end>", *line));
+			return Err(self.expected_before(&end.to_string(), "<end>", chars.line));
 		}
 		Ok(arg)
 	}
 
-	fn read_arg(&mut self, chars: CodeChars, line: &mut usize) -> Result<(LinkedString, bool), String> {
-		self.reach(chars, '"', line)?;
-		let rawarg = self.read_until(chars, '"', line)?;
-		let (arg, result) = self.preprocess_code(rawarg, line, None)?;
+	fn read_arg(&mut self, chars: &mut CodeChars) -> Result<(LinkedCode, bool), String> {
+		self.reach(chars, '"')?;
+		let rawarg = self.read_until(chars, '"')?;
+		let (arg, result) = self.preprocess_code(rawarg, None)?;
 		Ok((arg, result))
 	}
 
-	fn read_block(&mut self, chars: CodeChars, line: &mut usize) -> Result<(usize, Code), String> {
-		self.reach(chars, '{', line)?;
+	fn read_block(&mut self, chars: &mut CodeChars) -> Result<Code, String> {
+		self.reach(chars, '{')?;
 		let mut block = Code::new();
 		let mut cscope = 1u8;
 		for c in chars.by_ref() {
@@ -205,27 +236,26 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 					cscope -= 1;
 					if cscope == 0 {
 						block.pop();
-						return Ok((*line, block));
+						return Ok(block);
 					}
 				}
 				_ => {}
 			}
 		}
-		Err(self.expected_before("}", "<end>", *line))
+		Err(self.expected_before("}", "<end>", chars.line))
 	}
 
 	fn keep_block(
 		&mut self,
-		chars: CodeChars,
-		line: &mut usize,
-		code: &mut LinkedString,
+		chars: &mut CodeChars,
+		code: &mut LinkedCode,
 		cond: bool
 	) -> Result<bool, String> {
-		let (mut line, block) = self.read_block(chars, line)?;
+		let block = self.read_block(chars)?;
 		code.append(&mut if cond {
-			self.preprocess_code(block, &mut line, None)?.0
+			self.preprocess_code(block, None)?.0
 		} else {
-			let mut lines = LinkedString::new();
+			let mut lines = LinkedCode::new();
 			for c in block {
 				if c.0 == '\n' {
 					lines.push_back(c);
@@ -239,61 +269,52 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 	pub fn preprocess_code(
 		&mut self,
 		rawcode: Code,
-		line: &mut usize,
-		mut pseudos: Option<Vec<LinkedString>>,
-	) -> Result<(LinkedString, bool), String> {
-		let mut code = LinkedString::new();
+		mut pseudos: Option<Vec<LinkedCode>>,
+	) -> Result<(LinkedCode, bool), String> {
+		let mut code = LinkedCode::new();
 		let mut prev = true;
-		let mut prevline = *line;
-		let mut chars = rawcode.iter().peekable();
-		while let Some((c, _)) = chars.next() {
+		let mut chars = CodeChars::new(&rawcode);
+		while let Some((c, line)) = chars.next() {
 			match c {
-				'\n' => {
-					for _ in 0..=*line - prevline {
-						code.push_back(('\n', *line));
-					}
-					*line += 1;
-					prevline = *line;
-				}
 				'@' => {
 					let directive = self.read_word(&mut chars);
 					prev = match directive.to_string().as_str() {
 						"ifos" => {
-							let target_os = self.assert_word(&mut chars,line)?
+							let target_os = self.assert_word(&mut chars)?
 								.to_string()
 								.to_ascii_lowercase();
-							self.keep_block(&mut chars, line, &mut code, env::consts::OS == target_os)?
+							self.keep_block(&mut chars, &mut code, env::consts::OS == target_os)?
 						}
 						"ifdef" => {
-							let var = self.assert_word(&mut chars, line)?.to_string();
+							let var = self.assert_word(&mut chars)?.to_string();
 							let conditon =
 								env::var(&var).is_ok() || self.values.contains_key(&var.into_bytes());
-							self.keep_block(&mut chars, line, &mut code, conditon)?
+							self.keep_block(&mut chars, &mut code, conditon)?
 						}
 						"ifcmp" => {
-							let arg1 = self.read_arg(&mut chars, line)?.0;
-							let condition = self.assert_word(&mut chars, line)?;
-							let arg2 = self.read_arg(&mut chars, line)?.0;
+							let arg1 = self.read_arg(&mut chars)?.0;
+							let condition = self.assert_word(&mut chars)?;
+							let arg2 = self.read_arg(&mut chars)?.0;
 							let result = match condition.to_string().as_str() {
 								"==" => arg1 == arg2,
 								"!=" => arg1 != arg2,
 								_ => return Err(self.expected("==", &condition.to_string(), *line)),
 							};
-							self.keep_block(&mut chars, line, &mut code, result)?
+							self.keep_block(&mut chars, &mut code, result)?
 						}
 						"if" => todo!(),
-						"else" => self.keep_block(&mut chars, line, &mut code, !prev)?,
+						"else" => self.keep_block(&mut chars, &mut code, !prev)?,
 						"error" => {
-							let msg = self.read_arg(&mut chars, line)?.0;
+							let msg = self.read_arg(&mut chars)?.0;
 							return Err(error(msg.to_string(), *line, self.filename));
 						}
 						"warning" => {
-							let (msg, result) = self.read_arg(&mut chars, line)?;
+							let (msg, result) = self.read_arg(&mut chars)?;
 							println!("Warning: \"{}\"", msg.to_string());
 							result
 						}
 						"print" => {
-							let (msg, result) = self.read_arg(&mut chars, line)?;
+							let (msg, result) = self.read_arg(&mut chars)?;
 							println!("{}", msg.to_string());
 							result
 						}
@@ -313,7 +334,7 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 				}
 				'$' => {
 					let name = {
-						let name = self.read_with(&mut chars, |(c, _)| c.is_identifier());
+						let name = self.read_with(&mut chars, |c| c.is_identifier());
 						if name.is_empty() {
 							String::from("1")
 						} else {
@@ -328,12 +349,12 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 						let mut var = pseudos
 							.get(pseudos.len() - index)
 							.cloned()
-							.unwrap_or_else(|| LinkedString::from_str("nil", *line));
+							.unwrap_or_else(|| LinkedCode::from_str("nil", *line));
 						code.append(&mut var);
 					} else {
 						let name_bytes;
 						let mut value = if let Ok(value) = env::var(&name) {
-							LinkedString::from_str(&value, *line)
+							LinkedCode::from_str(&value, *line)
 						} else if let Some(PPVar::Simple(value)) = self.values.get({
 							name_bytes = name.into_bytes();
 							&name_bytes
@@ -352,21 +373,18 @@ impl<'a, 'b> PreProcessor<'a, 'b> {
 				}
 				'\'' | '"' | '`' => {
 					code.push_back((*c, *line));
-					while let Some((stringc, _)) = chars.next() {
-						if *stringc == '\n' {
-							*line += 1;
-							prevline += 1;
-						} else if *stringc == '\\' {
-							if let Some((nextc, _)) = chars.peek() {
+					while let Some((stringc, stringline)) = chars.next() {
+						if *stringc == '\\' {
+							if let Some((nextc, nextline)) = chars.peek() {
 								if nextc == c {
-									code.push_back((*stringc, *line));
-									code.push_back((*nextc, *line));
+									code.push_back((*stringc, *stringline));
+									code.push_back((*nextc, *nextline));
 									chars.next();
 									continue;
 								}
 							}
 						}
-						code.push_back((*stringc, *line));
+						code.push_back((*stringc, *stringline));
 						if stringc == c {
 							break
 						}
@@ -536,13 +554,16 @@ pub fn analyze_code<R: Read>(
 						let name = code.read_identifier(line, filename)?;
 						let mut value = String::new();
 						code.read_line(&mut value)?;
-						let value = LinkedString::from_str(value.trim(), line);
+						let value = LinkedCode::from_str(value.trim(), line);
 						variables.insert(name, PPVar::Simple(value));
 					}
 					_ => {
 						finalcode.push(('@', line));
 						for c in directive {
 							finalcode.push((c as char, line));
+							if c == b'\n' {
+								line += 1;
+							}
 						}
 					},
 				}

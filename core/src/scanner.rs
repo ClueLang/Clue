@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
-use crate::{format_clue, Code};
+use crate::{format_clue, Code, CodeChar};
 
 use self::TokenType::*;
 use ahash::AHashMap;
@@ -98,15 +98,16 @@ impl CodeInfo {
 		self.current >= self.size
 	}
 
-	fn at(&self, pos: usize) -> char {
+	fn at(&self, pos: usize) -> CodeChar {
 		if pos >= self.size {
-			return 0 as char;
+			return ('\0', self.code[self.code.len() - 1].1);
 		}
-		self.code[pos].0
+		self.code[pos]
 	}
 
 	fn advance(&mut self) -> char {
-		let prev: char = self.at(self.current);
+		let (prev, line) = self.at(self.current);
+		self.line = line;
 		self.current += 1;
 		prev
 	}
@@ -115,21 +116,21 @@ impl CodeInfo {
 		if self.ended() {
 			return false;
 		}
-		if self.at(self.current) != expected {
+		if self.at(self.current).0 != expected {
 			return false;
 		}
-		self.current += 1;
+		self.advance();
 		true
 	}
 
 	fn peek(&self, pos: usize) -> char {
 		let pos: usize = self.current + pos;
-		self.at(pos)
+		self.at(pos).0
 	}
 
 	fn look_back(&self, pos: usize) -> char {
 		let pos: usize = self.current - pos - 1;
-		self.at(pos)
+		self.at(pos).0
 	}
 
 	//isNumber: c.is_ascii_digit()
@@ -142,7 +143,7 @@ impl CodeInfo {
 			if i >= self.size {
 				break;
 			}
-			result.push(self.at(i));
+			result.push(self.at(i).0);
 		}
 		result
 	}
@@ -181,7 +182,7 @@ impl CodeInfo {
 			self.current += 1
 		}
 		if self.peek(0) == '.' && check(&self.peek(1)) {
-			self.current += 1;
+			self.advance();
 			while check(&self.peek(0)) {
 				self.current += 1
 			}
@@ -192,12 +193,12 @@ impl CodeInfo {
 				let c = self.peek(1);
 				if !c.is_ascii_digit() {
 					if c == '-' && self.peek(2).is_ascii_digit() {
-						self.current += 1;
+						self.advance();
 					} else {
 						self.warning("Malformed number");
 					}
 				}
-				self.current += 1;
+				self.advance();
 				while self.peek(0).is_ascii_digit() {
 					self.current += 1
 				}
@@ -219,36 +220,27 @@ impl CodeInfo {
 	}
 
 	fn read_string(&mut self, strend: char) {
-		let mut aline = self.line;
 		while !self.ended() && (self.peek(0) != strend || self.look_back(0) == '\\') {
-			if self.peek(0) == '\n' {
-				aline += 1
-			};
-			self.current += 1;
+			self.advance();
 		}
 		if self.ended() {
 			self.warning("Unterminated string");
 		} else {
-			self.current += 1;
+			self.advance();
 			let mut literal = self.substr(self.start, self.current);
 			literal.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
 			self.add_literal_token(STRING, literal);
 		}
-		self.line = aline;
 	}
 
 	fn read_raw_string(&mut self) {
-		let mut aline = self.line;
 		while !self.ended() && (self.peek(0) != '`' || self.look_back(0) == '\\') {
-			if self.peek(0) == '\n' {
-				aline += 1
-			};
-			self.current += 1;
+			self.advance();
 		}
 		if self.ended() {
 			self.warning("Unterminated string");
 		} else {
-			self.current += 1;
+			self.advance();
 			let literal = self.substr(self.start + 1, self.current - 1);
 			let mut brackets = String::new();
 			let mut must = literal.ends_with(']');
@@ -261,7 +253,6 @@ impl CodeInfo {
 				format_clue!("[", brackets, "[", literal, "]", brackets, "]")
 			);
 		}
-		self.line = aline
 	}
 
 	fn read_identifier(&mut self) -> String {
@@ -401,7 +392,6 @@ lazy_static! {
 				('=', SymbolType::JUST(DEFINE_OR))
 			]), OR)),
 		]), BIT_OR)),
-		('\n', SymbolType::FUNCTION(|i| i.line += 1)),
 		('"', SymbolType::FUNCTION(|i| i.read_string('"'))),
 		('\'', SymbolType::FUNCTION(|i| i.read_string('\''))),
 		('`', SymbolType::FUNCTION(CodeInfo::read_raw_string))
