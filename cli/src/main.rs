@@ -119,7 +119,7 @@ fn compile_code(
 		let mut code = Code::new();
 		for (codepart, uses_vars) in codes {
 			code.append(if uses_vars {
-				preprocess_variables((&codepart).into_iter().peekable(), variables, name)?
+				preprocess_variables(0, (&codepart).into_iter().peekable(), variables, name)?
 			} else {
 				codepart
 			})

@@ -8,7 +8,7 @@ use std::{
 	path::Path,
 	ffi::OsStr,
 	fmt::Display,
-	fs, hash::Hash,
+	fs, hash::Hash, u8::MAX,
 };
 
 pub type CodeChar = (u8, usize);
@@ -457,6 +457,7 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>) -> Vec<VecDeque<u
 
 
 pub fn preprocess_variables(
+	stacklevel: u8,
 	mut chars: Peekable<Iter<CodeChar>>,
 	variables: &PPVars,
 	filename: &String,
@@ -482,7 +483,15 @@ pub fn preprocess_variables(
 					}
 					result.push((b'"', c.1));
 				} else if let Some(PPVar::Simple(value)) = variables.get(&name) {
-					result.append(preprocess_variables(value.into_iter().peekable(), variables, filename)?)
+					if stacklevel == MAX {
+						return Err(error("Too many variables called (likely recursive)", c.1, filename));
+					}
+					result.append(preprocess_variables(
+						stacklevel + 1,
+						value.into_iter().peekable(),
+						variables,
+						filename
+					)?)
 				} else {
 					return Err(error(
 						format_clue!("Value '", name.to_string(), "' not found"),
