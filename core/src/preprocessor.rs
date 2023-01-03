@@ -14,6 +14,7 @@ use std::{
 pub type CodeChar = (u8, usize);
 pub type PPVars = AHashMap<Code, PPVar>;
 
+#[derive(Clone)]
 pub enum PPVar {
 	Simple(Code)
 }
@@ -31,7 +32,7 @@ fn expected(expected: &str, got: &str, line: usize, filename: &String) -> String
 	)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Code {
 	pub list: LinkedList<CodeChar>
 }
