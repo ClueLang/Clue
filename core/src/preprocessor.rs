@@ -247,23 +247,24 @@ impl<'a> CodeFile<'a> {
 		&mut self,
 		end: u8,
 		f: impl Fn(&mut Self) -> Result<Option<CodeChar>, String>
-	) -> Result<Code, String> {
+	) -> Result<Option<Code>, String> {
 		let mut result = Code::new();
 		while let Some(c) = f(self)? {
 			if c.0 == end {
-				return Ok(result)
+				return Ok(Some(result))
 			}
 			result.push(c);
 		}
-		Err(expected(&end.to_string(), "<end>", self.line, self.filename))
+		Ok(None)
 	}
 
-	fn read_until_unchecked(&mut self, end: u8) -> Result<Code, String> {
-		self.read_until_with(end, |s| Ok(s.read_char_unchecked()))
+	fn read_until_unchecked(&mut self, end: u8) -> Option<Code> {
+		self.read_until_with(end, |s| Ok(s.read_char_unchecked())).unwrap()
 	}
 
 	fn read_until(&mut self, end: u8) -> Result<Code, String> {
-		self.read_until_with(end, Self::read_char)
+		self.read_until_with(end, Self::read_char)?
+			.ok_or_else(|| expected(&end.to_string(), "<end>", self.line, self.filename))
 	}
 }
 
@@ -337,8 +338,8 @@ pub fn preprocess_code(
 				let mut string = Code::new();
 				while {
 					string.append(match code.read_until_unchecked(c.0) {
-						Ok(string) => string,
-						Err(_) => return Err(error("Unterminated string", code.line, filename))
+						Some(string) => string,
+						None => return Err(error("Unterminated string", c.1, filename))
 					});
 					!string.is_empty() && string.last().unwrap().0 == b'\\'
 				} {
@@ -371,18 +372,19 @@ pub fn preprocess_code(
 				if let Some((nc, _)) = code.peek_char()? {
 					match nc {
 						b'/' => {
-							code.read_until_unchecked(b'\n')?;
-							currentcode.push((b'\n', c.1));
+							if let Some(_) = code.read_until_unchecked(b'\n') {
+								currentcode.push((b'\n', c.1));
+							}
 							false
 						}
 						b'*' => {
 							code.read_char().unwrap();
 							while {
-								code.read_until_unchecked(b'*')?;
+								code.read_until_unchecked(b'*');
 								if let Some((fc, _)) = code.read_char_unchecked() {
 									fc != b'/'
 								} else {
-									return Err(error("Unterminated comment", code.line, filename))
+									return Err(error("Unterminated comment", c.1, filename))
 								}
 							} {}
 							false
