@@ -12,7 +12,6 @@ use std::{
 	fs,
 	path::Path,
 	time::Instant,
-	marker::Send,
 };
 
 macro_rules! println {
@@ -194,48 +193,6 @@ where
 	Ok(files)
 }
 
-fn run_threads<T1: Send + 'static, T2: Send + 'static, T3: Send + 'static>(
-	files: Arc<Mutex<Vec<T1>>>,
-	threads_count: usize,
-	to_return1: Arc<Mutex<T2>>,
-	to_return2: Arc<Mutex<T3>>,
-	f: impl Fn(T1, Arc<Mutex<T2>>, Arc<Mutex<T3>>) -> Result<(), String> + Send + Sync + 'static,
-) -> Result<(Arc<Mutex<T2>>, Arc<Mutex<T3>>), String> {
-	let errored = Arc::new(Mutex::new(0u8));
-	let f = Arc::new(f);
-	let mut threads = Vec::with_capacity(threads_count);
-	for _ in 0..threads_count {
-		let files = files.clone();
-		let errored = errored.clone();
-		let to_return1 = to_return1.clone();
-		let to_return2 = to_return2.clone();
-		let f = f.clone();
-		threads.push(thread::spawn(move || loop {
-			let code = {
-				let mut files = files.lock().unwrap();
-				if files.is_empty() {
-					break;
-				}
-				files.pop().unwrap()
-			};
-			if let Err(e) = f(code, to_return1.clone(), to_return2.clone()) {
-				*errored.lock().unwrap() += 1;
-				println!("Error: {e}");
-				continue;
-			}
-		}));
-	}
-	for thread in threads {
-		thread.join().unwrap();
-	}
-	let errored = *errored.lock().unwrap();
-	match errored {
-		0 => Ok((to_return1, to_return2)),
-		1 => Err(String::from("1 file failed to compile!")),
-		n => Err(format!("{n} files failed to compile!")),
-	}
-}
-
 fn compile_folder<P: AsRef<Path>>(
 	path: P,
 	rpath: String,
@@ -245,52 +202,30 @@ where
 	P: AsRef<OsStr> + Display,
 {
 	let files = check!(check_for_files(path, rpath));
-	let num_files = files.len();
+	let threads_count = min(files.len(), num_cpus::get() * 2);
+	let codes = Arc::new(Mutex::new(Vec::with_capacity(files.len())));
 	let files = Arc::new(Mutex::new(files));
-	let threads_count = min(files.lock().unwrap().len(), num_cpus::get() * 2);
-	let (files, variables) = run_threads(
-		files,
-		threads_count,
-		Arc::new(Mutex::new(Vec::with_capacity(num_files))),
-		Arc::new(Mutex::new(AHashMap::new())),
-		|(path, realname), files, variables| {
-			let (rawcode, mut file_variables) = read_file(path.clone(), &path)?;
-			files.lock().unwrap().push((rawcode, path, realname));
-			file_variables.shrink_to_fit();
-			let mut variables = variables.lock().unwrap();
-			for (k, v) in file_variables {
-				variables.insert(k, v);
-			}
-			Ok(())
-		}
-	)?;
-	let variables = check!(variables.lock()).clone();
-	let (output, statics) = run_threads(
-		files,
-		threads_count,
-		Arc::new(Mutex::new(String::with_capacity(num_files * 512) + "\n")),
-		Arc::new(Mutex::new(String::with_capacity(512))),
-		|(codes, filename, realname), output, statics| {
-			let (code, static_vars) = compile_code(codes, &variables, &filename, 2, options)?;
-			let string = format_clue!(
-				"\t[\"",
-				realname.strip_suffix(".clue").unwrap(),
-				"\"] = function()\n",
-				code,
-				"\n\tend,\n"
-			);
-			let mut output = output.lock().unwrap();
-			*statics.lock().unwrap() = static_vars;
-			*output = output.clone() + &string;
-			Ok(())
-		}
-	)?;
-	Ok((
-		output.lock().unwrap().drain(..).collect(),
-		statics.lock().unwrap().drain(..).collect(),
-	))
-	/*
-			let (code, static_vars) = match compile_file(&filename, filename.clone(), 2, &options) {
+	let errored = Arc::new(Mutex::new(0u8));
+	let variables = Arc::new(Mutex::new(Vec::new()));
+	let output = Arc::new(Mutex::new(
+		String::with_capacity(files.lock().unwrap().len() * 512) + "\n",
+	));
+	let statics = Arc::new(Mutex::new(String::with_capacity(512)));
+	let mut threads = Vec::with_capacity(threads_count);
+	for _ in 0..threads_count {
+		let files = files.clone();
+		let errored = errored.clone();
+		let codes = codes.clone();
+		let variables = variables.clone();
+		let thread = thread::spawn(move || loop {
+			let (filename, realname) = {
+				let mut files = files.lock().unwrap();
+				if files.is_empty() {
+					break;
+				}
+				files.pop().unwrap()
+			};
+			let (file_codes, file_variables) = match read_file(&filename, &filename) {
 				Ok(t) => t,
 				Err(e) => {
 					*errored.lock().unwrap() += 1;
@@ -298,7 +233,56 @@ where
 					continue;
 				}
 			};
-
+			codes.lock().unwrap().push((file_codes, realname));
+			variables.lock().unwrap().push(file_variables);
+		});
+		threads.push(thread);
+	}
+	for thread in threads {
+		thread.join().unwrap();
+	}
+	match *errored.lock().unwrap() {
+		0 => {},
+		1 => return Err(String::from("1 file failed to compile!")),
+		n => return Err(format!("{n} files failed to compile!")),
+	}
+	let variables = Arc::new({
+		let mut total_vars = AHashMap::new();
+		let mut variables = variables.lock().unwrap();
+		while let Some(file_variables) = variables.pop() {
+			for (k, v) in file_variables {
+				total_vars.insert(k, v);
+			}
+		}
+		total_vars
+	});
+	let mut threads = Vec::new();
+	for _ in 0..threads_count {
+		// this `.clone()` is used to create a new pointer to the outside `files`
+		// that can be used from inside the newly created thread
+		let options = options.clone();
+		let codes = codes.clone();
+		let variables = variables.clone();
+		let errored = errored.clone();
+		let output = output.clone();
+		let statics = statics.clone();
+		let thread = thread::spawn(move || loop {
+			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
+			let (codes, realname) = {
+				let mut codes = codes.lock().unwrap();
+				if codes.is_empty() {
+					break;
+				}
+				codes.pop().unwrap()
+			};
+			let (code, static_vars) = match compile_code(codes, &variables, &realname, 2, &options) {
+				Ok(t) => t,
+				Err(e) => {
+					*errored.lock().unwrap() += 1;
+					println!("Error: {}", e);
+					continue;
+				}
+			};
 			let string = format_clue!(
 				"\t[\"",
 				realname.strip_suffix(".clue").unwrap(),
@@ -306,18 +290,15 @@ where
 				code,
 				"\n\tend,\n"
 			);
-
 			let mut output = output.lock().unwrap();
 			*statics.lock().unwrap() = static_vars;
 			*output = output.clone() + &string;
 		});
 		threads.push(thread);
 	}
-
 	for thread in threads {
 		thread.join().unwrap();
 	}
-
 	let errored = *errored.lock().unwrap();
 	match errored {
 		0 => Ok((
@@ -326,7 +307,7 @@ where
 		)),
 		1 => Err(String::from("1 file failed to compile!")),
 		n => Err(format!("{n} files failed to compile!")),
-	}*/
+	}
 }
 
 #[cfg(feature = "mlua")]
