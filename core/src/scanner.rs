@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
-use crate::{format_clue, Code, CodeChar};
+use crate::{format_clue, preprocessor::{Code, CodeChar}};
 
 use self::TokenType::*;
 use ahash::AHashMap;
@@ -73,7 +73,7 @@ struct CodeInfo<'a> {
 	start: usize,
 	current: usize,
 	size: usize,
-	code: Code,
+	code: Vec<CodeChar>,
 	filename: &'a String,
 	tokens: Vec<Token>,
 	last: TokenType,
@@ -82,6 +82,13 @@ struct CodeInfo<'a> {
 
 impl<'a> CodeInfo<'a> {
 	fn new(code: Code, filename: &'a String) -> CodeInfo {
+		let code = {
+			let mut newcode = Vec::new();
+			for c in code {
+				newcode.push(c);
+			}
+			newcode
+		};
 		CodeInfo {
 			line: 1,
 			start: 0,
@@ -100,7 +107,7 @@ impl<'a> CodeInfo<'a> {
 
 	fn at(&self, pos: usize) -> CodeChar {
 		if pos >= self.size {
-			return ('\0', self.code[self.code.len() - 1].1);
+			return (b'\0', self.code[self.code.len() - 1].1);
 		}
 		self.code[pos]
 	}
@@ -109,14 +116,14 @@ impl<'a> CodeInfo<'a> {
 		let (prev, line) = self.at(self.current);
 		self.line = line;
 		self.current += 1;
-		prev
+		prev as char
 	}
 
 	fn compare(&mut self, expected: char) -> bool {
 		if self.ended() {
 			return false;
 		}
-		if self.at(self.current).0 != expected {
+		if self.at(self.current).0 as char != expected {
 			return false;
 		}
 		self.advance();
@@ -125,12 +132,12 @@ impl<'a> CodeInfo<'a> {
 
 	fn peek(&self, pos: usize) -> char {
 		let pos: usize = self.current + pos;
-		self.at(pos).0
+		self.at(pos).0 as char
 	}
 
 	fn look_back(&self, pos: usize) -> char {
 		let pos: usize = self.current - pos - 1;
-		self.at(pos).0
+		self.at(pos).0 as char
 	}
 
 	//isNumber: c.is_ascii_digit()
@@ -143,7 +150,7 @@ impl<'a> CodeInfo<'a> {
 			if i >= self.size {
 				break;
 			}
-			result.push(self.at(i).0);
+			result.push(self.at(i).0 as char);
 		}
 		result
 	}
@@ -258,7 +265,7 @@ impl<'a> CodeInfo<'a> {
 	fn read_identifier(&mut self) -> String {
 		while {
 			let c = self.peek(0);
-			c.is_identifier()
+			c.is_ascii_alphanumeric() || c == '_'
 		} {
 			self.current += 1
 		}
@@ -438,16 +445,6 @@ lazy_static! {
 		("struct", KeywordType::ERROR("'struct' is reserved for Clue 4.0 and cannot be used")),
 		("extern", KeywordType::ERROR("'extern' is reserved for Clue 4.0 and cannot be used")),
 	]);
-}
-
-pub trait CharExt {
-	fn is_identifier(&self) -> bool;
-}
-
-impl CharExt for char {
-	fn is_identifier(&self) -> bool {
-		self.is_ascii_alphanumeric() || *self == '_'
-	}
 }
 
 pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {

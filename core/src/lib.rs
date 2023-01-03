@@ -8,31 +8,6 @@ pub mod parser;
 pub mod preprocessor;
 pub mod scanner;
 
-pub type CodeChar = (char, usize);
-pub type Code = Vec<CodeChar>;
-pub trait CodeExt {
-	fn to_string(&self) -> String;
-	fn from_str(value: &str, line: usize) -> Self;
-}
-
-impl CodeExt for Code {
-	fn to_string(&self) -> String {
-		let mut result = String::new();
-		for (c, _) in self {
-			result.push(*c);
-		}
-		result
-	}
-	
-	fn from_str(chars: &str, line: usize) -> Self {
-		let mut result = Self::new();
-		for c in chars.chars() {
-			result.push((c, line));
-		}
-		result
-	}
-}
-
 #[macro_export]
 macro_rules! check {
 	($tocheck: expr) => {

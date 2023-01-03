@@ -1,7 +1,7 @@
 use ahash::AHashMap;
 use clap::{crate_version, Parser};
 use clue::env::{ContinueMode, Options};
-use clue::{check, compiler::*, format_clue, parser::*, preprocessor::*, scanner::*, Code, /*, LUA_G*/};
+use clue::{check, compiler::*, format_clue, parser::*, preprocessor::*, scanner::*, /*, LUA_G*/};
 use clue_core as clue;
 use std::cmp::min;
 use std::sync::{Arc, Mutex};
@@ -106,20 +106,26 @@ struct Cli {
 }
 
 fn compile_code(
-	mut code: Code,
-	variables: &Option<PPVars>,
+	mut codes: Vec<(Code, bool)>,
+	variables: &PPVars,
 	name: &String,
 	scope: usize,
 	options: &Options,
 ) -> Result<(String, String), String> {
 	let time = Instant::now();
-	if let Some(variables) = variables {
-		let linkedcode = PreProcessor::start(code, variables, name)?.0;
-		code = Code::new();
-		for c in linkedcode {
-			code.push(c);
+	let code = if codes.len() == 1 {
+		codes.pop().unwrap().0
+	} else {
+		let mut code = Code::new();
+		for (codepart, uses_vars) in codes {
+			code.append(if uses_vars {
+				preprocess_variables((&codepart).into_iter().peekable(), variables, name)?
+			} else {
+				codepart
+			})
 		}
-	}
+		code
+	};
 	let tokens: Vec<Token> = scan_code(code, &name)?;
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
@@ -301,7 +307,7 @@ fn main() -> Result<(), String> {
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
 		let filename = String::from("(command line)");
-		let (rawcode, variables) = check!(analyze_code(codepath.as_bytes(), codepath.len(), &filename));
+		let (rawcode, variables) = read_file(codepath, &filename)?;
 		let (code, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
 		let code = code + &statics;
 		println!("{}", code);
@@ -350,7 +356,7 @@ fn main() -> Result<(), String> {
 		}*/
 	} else if path.is_file() {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
-		let (rawcode, variables) = check!(analyze_file(&codepath, &name));
+		let (rawcode, variables) = check!(read_file(&codepath, &name));
 		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
 		code = statics + &output;
 		if !cli.dontsave {
