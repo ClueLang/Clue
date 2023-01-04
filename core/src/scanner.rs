@@ -226,13 +226,23 @@ impl<'a> CodeInfo<'a> {
 		self.add_token(NUMBER);
 	}
 
-	fn read_string(&mut self, strend: char) {
-		while !self.ended() && (self.peek(0) != strend || self.look_back(0) == '\\') {
+	fn read_string_contents(&mut self, strend: char) -> bool {
+		while !self.ended() && self.peek(0) != strend {
 			self.advance();
+			if self.look_back(0) == '\\' {
+				self.advance();
+			}
 		}
 		if self.ended() {
 			self.warning("Unterminated string");
+			false
 		} else {
+			true
+		}
+	}
+
+	fn read_string(&mut self, strend: char) {
+		if self.read_string_contents(strend) {
 			self.advance();
 			let mut literal = self.substr(self.start, self.current);
 			literal.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
@@ -241,12 +251,7 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	fn read_raw_string(&mut self) {
-		while !self.ended() && (self.peek(0) != '`' || self.look_back(0) == '\\') {
-			self.advance();
-		}
-		if self.ended() {
-			self.warning("Unterminated string");
-		} else {
+		if self.read_string_contents('`') {
 			self.advance();
 			let literal = self.substr(self.start + 1, self.current - 1);
 			let mut brackets = String::new();
@@ -257,7 +262,7 @@ impl<'a> CodeInfo<'a> {
 			}
 			self.add_literal_token(
 				STRING,
-				format_clue!("[", brackets, "[", literal, "]", brackets, "]")
+				format_clue!("[", brackets, "[", literal.replace("\\`", "`"), "]", brackets, "]")
 			);
 		}
 	}

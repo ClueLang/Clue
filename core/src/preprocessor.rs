@@ -233,30 +233,49 @@ impl<'a> CodeFile<'a> {
 		self.is_ascii(c)
 	}
 
-	fn read_identifier(&mut self) -> Result<Code, String> {
-		let mut ident = Code::new();
-		while let Some((c, _)) = self.peek_char()? {
-			if !(c.is_ascii_alphanumeric() || c == b'_') {
+	fn read(
+		&mut self,
+		mut get: impl FnMut(&mut Self) -> Result<Option<CodeChar>, String>,
+		mut check: impl FnMut(&mut Self, CodeChar) -> bool,
+	) -> Result<Code, String> {
+		let mut code = Code::new();
+		while let Some(c) = get(self)? {
+			if check(self, c) {
 				break
 			}
-			ident.push(self.read_char_unchecked().unwrap())
+			code.push(c)
 		}
-		Ok(ident)
+		Ok(code)
+	}
+
+	fn read_identifier(&mut self) -> Result<Code, String> {
+		self.read(Self::peek_char, |code, (c, _)| if c.is_ascii_alphanumeric() || c == b'_' {
+			code.read_char_unchecked().unwrap();
+			false
+		} else {
+			true
+		})
 	}
 
 	fn read_until_with(
 		&mut self,
 		end: u8,
-		f: impl Fn(&mut Self) -> Result<Option<CodeChar>, String>
+		f: impl FnMut(&mut Self) -> Result<Option<CodeChar>, String>
 	) -> Result<Option<Code>, String> {
-		let mut result = Code::new();
-		while let Some(c) = f(self)? {
-			if c.0 == end {
-				return Ok(Some(result))
+		let mut reached = false;
+		let result = self.read(f, |_, (c, _)| {
+			if c == end {
+				reached = true;
+				true
+			} else {
+				false
 			}
-			result.push(c);
-		}
-		Ok(None)
+		})?;
+		Ok(if reached {
+			Some(result)
+		} else {
+			None
+		})
 	}
 
 	fn read_until_unchecked(&mut self, end: u8) -> Option<Code> {
@@ -336,17 +355,29 @@ pub fn preprocess_code(
 			}
 			b'\'' | b'"' | b'`' => {
 				currentcode.push(c);
-				let mut string = Code::new();
-				while {
-					string.append(match code.read_until_unchecked(c.0) {
-						Some(string) => string,
-						None => return Err(error("Unterminated string", c.1, filename))
-					});
-					!string.is_empty() && string.last().unwrap().0 == b'\\'
-				} {
-					string.push((c.0, code.line));
-				}
-				currentcode.append(string);
+				let mut skip_next = false;
+				currentcode.append(code.read(|code| {
+					let stringc = code.read_char()?;
+					if stringc.is_none() {
+						Err(error("Unterminated string", c.1, filename))
+					} else {
+						Ok(stringc)
+					}
+				}, |_, (stringc, _)| {
+					if stringc == b'\n' {
+						false
+					} else if skip_next {
+						skip_next = false;
+						false
+					} else if !skip_next && stringc == c.0 {
+						true
+					} else {
+						if stringc == b'\\' {
+							skip_next = true;
+						}
+						false
+					}
+				})?);
 				true
 			}
 			b'=' => {
@@ -457,8 +488,6 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>) -> Vec<VecDeque<u
 	newpseudos
 }
 
-
-
 pub fn preprocess_variables(
 	stacklevel: u8,
 	mut chars: Peekable<Iter<CodeChar>>,
@@ -502,6 +531,21 @@ pub fn preprocess_variables(
 						filename,
 					));
 				};
+			}
+			b'\'' | b'"' | b'`' => {
+				result.push(*c);
+				while let Some(stringc) = chars.next() {
+					result.push(*stringc);
+					let stringc = stringc.0;
+					if stringc == b'\\' {
+						if let Some(nextc) = chars.next() {
+							result.push(*nextc)
+						}
+					} else if stringc == c.0 {
+						break
+					}
+				}
+				//return Err(error("Unterminated string", c.1, filename));
 			}
 			/*'\'' | '"' | '`' => {
 				code.push_back((*c, *line));
