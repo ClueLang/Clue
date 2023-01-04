@@ -132,7 +132,7 @@ fn compile_code(
 		}
 		code
 	};
-	let tokens: Vec<Token> = scan_code(code, &name)?;
+	let tokens: Vec<Token> = scan_code(code, name)?;
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
 	}

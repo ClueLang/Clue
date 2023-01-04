@@ -32,7 +32,7 @@ fn expected(expected: &str, got: &str, line: usize, filename: &String) -> String
 	)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Code {
 	pub list: LinkedList<CodeChar>
 }
@@ -67,9 +67,9 @@ impl ToString for Code {
 
 impl<'a> From<(std::collections::vec_deque::Iter<'a, u8>, usize)> for Code {
 	fn from(value: (std::collections::vec_deque::Iter<u8>, usize)) -> Self {
-		let (mut iter, line) = value;
+		let (iter, line) = value;
 		let mut result = Code::new();
-		while let Some(c) = iter.next() {
+		for c in iter {
 			result.push((*c, line))
 		}
 		result
@@ -119,7 +119,7 @@ impl Code {
 		self.list.append(&mut other.list)
 	}
 
-	fn is_empty(&self) -> bool {
+	pub fn is_empty(&self) -> bool {
 		self.list.is_empty()
 	}
 
@@ -202,17 +202,15 @@ impl<'a> CodeFile<'a> {
 			let peeked = self.peeked;
 			self.peeked = None;
 			peeked
-		} else {
-			if let Some(c) = self.code.get(self.read).copied() {
-				self.read += 1;
-				let result = (c, self.line);
-				if c == b'\n' {
-					self.line += 1;
-				}
-				return Some(result);
-			} else {
-				return None;
+		} else if let Some(c) = self.code.get(self.read).copied() {
+			self.read += 1;
+			let result = (c, self.line);
+			if c == b'\n' {
+				self.line += 1;
 			}
+			return Some(result);
+		} else {
+			return None;
 		}
 	}
 
@@ -298,6 +296,7 @@ where
 	preprocess_code(check!(fs::read(path)), filename)
 }
 
+#[allow(clippy::blocks_in_if_conditions)]
 pub fn preprocess_code(
 	code: Vec<u8>,
 	filename: &String,
@@ -353,6 +352,7 @@ pub fn preprocess_code(
 				}
 				false
 			}
+			
 			b'\'' | b'"' | b'`' => {
 				currentcode.push(c);
 				let mut skip_next = false;
@@ -404,7 +404,7 @@ pub fn preprocess_code(
 				if let Some((nc, _)) = code.peek_char()? {
 					match nc {
 						b'/' => {
-							if let Some(_) = code.read_until_unchecked(b'\n') {
+							if code.read_until_unchecked(b'\n').is_some() {
 								currentcode.push((b'\n', c.1));
 							}
 							false
@@ -508,7 +508,7 @@ pub fn preprocess_variables(
 					}
 					name
 				};
-				if let Ok(value) = env::var(&name.to_string()) {
+				if let Ok(value) = env::var(name.to_string()) {
 					result.push((b'"', c.1));
 					for strc in value.as_bytes() {
 						result.push((*strc, c.1));
