@@ -1,8 +1,16 @@
 use ahash::AHashMap;
 use clap::{crate_version, Parser};
-use clue::env::{ContinueMode, Options};
-use clue::{check, compiler::*, format_clue, parser::*, preprocessor::*, scanner::*, /*, LUA_G*/};
 use clue_core as clue;
+use clue::{
+	check,
+	compiler::*,
+	format_clue,
+	parser::*,
+	preprocessor::*,
+	scanner::*,
+	env::{ContinueMode, Options}/*,
+	LUA_G*/
+};
 use std::{
 	cmp::min,
 	sync::{Arc, Mutex},
@@ -213,11 +221,14 @@ where
 	let statics = Arc::new(Mutex::new(String::with_capacity(512)));
 	let mut threads = Vec::with_capacity(threads_count);
 	for _ in 0..threads_count {
+		// this `.clone()` is used to create new pointers
+		// that can be used from inside the newly created thread
 		let files = files.clone();
 		let errored = errored.clone();
 		let codes = codes.clone();
 		let variables = variables.clone();
 		let thread = thread::spawn(move || loop {
+			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
 			let (filename, realname) = {
 				let mut files = files.lock().unwrap();
 				if files.is_empty() {
@@ -256,10 +267,8 @@ where
 		}
 		total_vars
 	});
-	let mut threads = Vec::new();
+	let mut threads = Vec::with_capacity(threads_count);
 	for _ in 0..threads_count {
-		// this `.clone()` is used to create a new pointer to the outside `files`
-		// that can be used from inside the newly created thread
 		let options = options.clone();
 		let codes = codes.clone();
 		let variables = variables.clone();
@@ -267,7 +276,6 @@ where
 		let output = output.clone();
 		let statics = statics.clone();
 		let thread = thread::spawn(move || loop {
-			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
 			let (codes, realname) = {
 				let mut codes = codes.lock().unwrap();
 				if codes.is_empty() {

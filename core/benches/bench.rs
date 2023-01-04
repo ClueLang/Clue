@@ -1,54 +1,47 @@
 use ahash::AHashMap;
-use clue_core::{
-	compiler::Compiler,
-	env::Options,
-	parser::parse_tokens,
-	preprocessor::{preprocess_code, to_preprocess},
-	scanner::{scan_code, Token},
-};
 use criterion::{criterion_group, criterion_main, Criterion};
-use std::env;
+use clue_core as clue;
+use clue::{
+	compiler::*,
+	parser::*,
+	preprocessor::*,
+	scanner::*,
+	env::Options
+};
 use std::{
 	cmp::min,
+	sync::{Arc, Mutex},
+	thread,
 	ffi::OsStr,
 	fmt::Display,
 	fs,
 	path::Path,
-	sync::{Arc, Mutex},
-	thread::spawn,
 };
 
 fn compile_code(
-	mut code: String,
-	name: String,
+	mut codes: Vec<(Code, bool)>,
+	variables: &PPVars,
+	name: &String,
 	scope: usize,
 	options: &Options,
-) -> Result<String, String> {
-	let compiler = Compiler::new(options);
-	if to_preprocess(&code) {
-		code = preprocess_code(code, None, AHashMap::new(), &mut 1usize, &name)?
-			.0
-			.iter()
-			.collect();
-	}
-	let tokens: Vec<Token> = scan_code(code, name.clone())?;
-	if options.env_tokens {
-		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
-	}
-	let (ctokens, statics) = parse_tokens(
-		tokens,
-		/*if flag!(env_types) != TypesMode::NONE {
-			Some(AHashMap::default())
-		} else {
-			None
-		},*/
-		name.clone(),
-		&options,
-	)?;
-
-	let code = compiler.compile_tokens(scope, ctokens);
-
-	Ok(statics + &code)
+) -> Result<(String, String), String> {
+	let code = if codes.len() == 1 {
+		codes.pop().unwrap().0
+	} else {
+		let mut code = Code::new();
+		for (codepart, uses_vars) in codes {
+			code.append(if uses_vars {
+				preprocess_variables(0, (&codepart).into_iter().peekable(), variables, name)?
+			} else {
+				codepart
+			})
+		}
+		code
+	};
+	let tokens: Vec<Token> = scan_code(code, name)?;
+	let (ctokens, statics) = parse_tokens(tokens, name, options)?;
+	let code = Compiler::new(options).compile_tokens(scope, ctokens);
+	Ok((code, statics))
 }
 
 fn check_for_files<P: AsRef<Path>>(
@@ -80,36 +73,59 @@ where
 	Ok(files)
 }
 
-fn compile_multi_files_bench(files: Vec<String>) {
+fn compile_multi_files_bench(files: Vec<(String, String)>) {
 	let threads_count = min(files.len(), num_cpus::get() * 2);
+	let codes = Arc::new(Mutex::new(Vec::with_capacity(files.len())));
 	let files = Arc::new(Mutex::new(files));
+	let variables = Arc::new(Mutex::new(Vec::new()));
 	let mut threads = Vec::with_capacity(threads_count);
-
 	for _ in 0..threads_count {
-		// this `.clone()` is used to create a new pointer to the outside `files`
-		// that can be used from inside the newly created thread
 		let files = files.clone();
-
-		let thread = spawn(move || loop {
-			let file: String;
-
-			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
-			{
+		let codes = codes.clone();
+		let variables = variables.clone();
+		let thread = thread::spawn(move || loop {
+			let (filename, realname) = {
 				let mut files = files.lock().unwrap();
-
 				if files.is_empty() {
 					break;
 				}
-
-				file = files.pop().unwrap();
-			}
-
-			compile_code(file, String::new(), 2, &Options::default()).unwrap();
+				files.pop().unwrap()
+			};
+			let (file_codes, file_variables) = read_file(&filename, &filename).unwrap();
+			codes.lock().unwrap().push((file_codes, realname));
+			variables.lock().unwrap().push(file_variables);
 		});
-
 		threads.push(thread);
 	}
-
+	for thread in threads {
+		thread.join().unwrap();
+	}
+	let variables = Arc::new({
+		let mut total_vars = AHashMap::new();
+		let mut variables = variables.lock().unwrap();
+		while let Some(file_variables) = variables.pop() {
+			for (k, v) in file_variables {
+				total_vars.insert(k, v);
+			}
+		}
+		total_vars
+	});
+	let mut threads = Vec::with_capacity(threads_count);
+	for _ in 0..threads_count {
+		let codes = codes.clone();
+		let variables = variables.clone();
+		let thread = thread::spawn(move || loop {
+			let (codes, realname) = {
+				let mut codes = codes.lock().unwrap();
+				if codes.is_empty() {
+					break;
+				}
+				codes.pop().unwrap()
+			};
+			compile_code(codes, &variables, &realname, 2, &Options::default()).unwrap();
+		});
+		threads.push(thread);
+	}
 	for thread in threads {
 		thread.join().unwrap();
 	}
@@ -120,10 +136,7 @@ fn benchmark(c: &mut Criterion) {
 		env!("CARGO_MANIFEST_DIR").to_owned() + "/../" + "examples/",
 		String::new(),
 	)
-	.expect("Unexpected error happened in checking for files to compile")
-	.iter()
-	.map(|file| fs::read_to_string(file.0.clone()).unwrap())
-	.collect::<Vec<String>>();
+	.expect("Unexpected error happened in checking for files to compile");
 
 	c.bench_function("compile_multi_files_bench", |b| {
 		b.iter(|| compile_multi_files_bench(files.clone()))
