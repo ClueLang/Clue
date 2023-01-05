@@ -12,7 +12,7 @@ use clue::{
 	LUA_G*/
 };
 use std::{
-	cmp::min,
+	cmp,
 	sync::{Arc, Mutex},
 	thread,
 	ffi::OsStr,
@@ -210,7 +210,7 @@ where
 	P: AsRef<OsStr> + Display,
 {
 	let files = check!(check_for_files(path, rpath));
-	let threads_count = min(files.len(), num_cpus::get() * 2);
+	let threads_count = cmp::min(files.len(), num_cpus::get() * 2);
 	let codes = Arc::new(Mutex::new(Vec::with_capacity(files.len())));
 	let files = Arc::new(Mutex::new(files));
 	let errored = Arc::new(Mutex::new(0u8));
@@ -298,9 +298,8 @@ where
 				code,
 				"\n\tend,\n"
 			);
-			let mut output = output.lock().unwrap();
-			*statics.lock().unwrap() = static_vars;
-			*output = output.clone() + &string;
+			*output.lock().unwrap() += &string;
+			*statics.lock().unwrap() += &static_vars;
 		});
 		threads.push(thread);
 	}
