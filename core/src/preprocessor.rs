@@ -24,9 +24,9 @@ fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
 	msg.into()
 }
 
-fn expected(expected: &str, got: &str, line: usize, filename: &String) -> String {
+fn expected_before(expected: &str, before: &str, line: usize, filename: &String) -> String {
 	error(
-		format_clue!("Expected '", expected, "', got '", got, "'"),
+		format_clue!("Expected '", expected, "' before '", before, "'"),
 		line,
 		filename,
 	)
@@ -89,13 +89,28 @@ impl<'a> From<(&'a str, usize)> for Code {
 
 impl PartialEq for Code {
 	fn eq(&self, other: &Self) -> bool {
-		let mut eq = false;
 		self.len() == other.len() && {
 			let mut other = other.into_iter();
 			for (c, _) in self {
-				eq = *c == other.next().unwrap().0
+				if *c != other.next().unwrap().0 {
+					return false;
+				}
 			}
-			eq
+			true
+		}
+	}
+}
+
+impl PartialEq<&str> for Code {
+	fn eq(&self, other: &&str) -> bool {
+		self.len() == other.len() && {
+			let mut other = other.bytes().peekable();
+			for (c, _) in self {
+				if *c != other.next().unwrap() {
+					return false;
+				}
+			}
+			true
 		}
 	}
 }
@@ -264,6 +279,32 @@ impl<'a> CodeFile<'a> {
 		})
 	}
 
+	fn read_string(&mut self, c: CodeChar) -> Result<Code, String> {
+		let mut skip_next = false;
+		self.read(|code| {
+			let stringc = code.read_char()?;
+			if stringc.is_none() {
+				Err(error("Unterminated string", c.1, self.filename))
+			} else {
+				Ok(stringc)
+			}
+		}, |_, (stringc, _)| {
+			if stringc == b'\n' {
+				false
+			} else if skip_next {
+				skip_next = false;
+				false
+			} else if !skip_next && stringc == c.0 {
+				true
+			} else {
+				if stringc == b'\\' {
+					skip_next = true;
+				}
+				false
+			}
+		})
+	}
+
 	fn read_until_with(
 		&mut self,
 		end: u8,
@@ -291,7 +332,28 @@ impl<'a> CodeFile<'a> {
 
 	fn read_until(&mut self, end: u8) -> Result<Code, String> {
 		self.read_until_with(end, Self::read_char)?
-			.ok_or_else(|| expected(&(end as char).to_string(), "<end>", self.line, self.filename))
+			.ok_or_else(|| expected_before(&(end as char).to_string(), "<end>", self.line, self.filename))
+	}
+
+	fn skip_block(&mut self) -> Result<(), String> {
+		while let Some(c) = self.read_char()? {
+			match c.0 {
+				b'{' => self.skip_block()?,
+				b'}' => return Ok(()),
+				b'\'' | b'"' | b'`' => {self.read_string(c)?;},
+				_ => {}
+			}
+		}
+		Err(expected_before("}", "<end>", self.line, self.filename))
+	}
+
+	fn keep_block(&mut self, to_keep: bool) -> Result<u8, String> {
+		if to_keep {
+			Ok(1)
+		} else {
+			self.skip_block()?;
+			Ok(0)
+		}
 	}
 }
 
@@ -315,12 +377,17 @@ pub fn preprocess_code(
 	let mut code = CodeFile::new(code, filename);
 	let mut variables = AHashMap::new();
 	let mut pseudos: Option<Vec<VecDeque<u8>>> = None;
+	let mut cscope = 0;
 	while let Some(c) = code.read_char()? {
 		if match c.0 {
 			b'@' => {
 				let directive = code.read_identifier()?.to_string();
 				code.skip_whitespace()?;
 				match directive.as_str() {
+					"ifos" => {
+						let checked_os = code.read_until(b'{')?.trim();
+						cscope += code.keep_block(checked_os == env::consts::OS)?;
+					}
 					"define" => {
 						let name = code.read_identifier()?;
 						let value = code.read_line()?;
@@ -361,32 +428,9 @@ pub fn preprocess_code(
 				}
 				false
 			}
-			
 			b'\'' | b'"' | b'`' => {
 				currentcode.push(c);
-				let mut skip_next = false;
-				currentcode.append(code.read(|code| {
-					let stringc = code.read_char()?;
-					if stringc.is_none() {
-						Err(error("Unterminated string", c.1, filename))
-					} else {
-						Ok(stringc)
-					}
-				}, |_, (stringc, _)| {
-					if stringc == b'\n' {
-						false
-					} else if skip_next {
-						skip_next = false;
-						false
-					} else if !skip_next && stringc == c.0 {
-						true
-					} else {
-						if stringc == b'\\' {
-							skip_next = true;
-						}
-						false
-					}
-				})?);
+				currentcode.append(code.read_string(c)?);
 				true
 			}
 			b'=' => {
@@ -436,10 +480,15 @@ pub fn preprocess_code(
 					true
 				}
 			}
+			b'{' if cscope > 0 => {cscope += 1; true}
+			b'}' if cscope > 0 => {cscope -= 1; cscope != 0}
 			_ => true,
 		} {
 			currentcode.push(c)
 		}
+	}
+	if cscope > 0 {
+		return Err(expected_before("}", "<end>", code.line, filename))
 	}
 	if !currentcode.is_empty() {
 		finalcode.push((currentcode, false))
