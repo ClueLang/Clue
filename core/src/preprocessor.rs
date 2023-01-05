@@ -1,5 +1,6 @@
 use crate::{format_clue, check};
 use ahash::AHashMap;
+use utf8_decode::decode;
 use std::{
 	collections::{linked_list::{IntoIter, Iter}, LinkedList, VecDeque},
 	env,
@@ -200,11 +201,14 @@ impl<'a> CodeFile<'a> {
 		}
 	}
 
-	fn is_ascii(&self, c: Option<CodeChar>) -> Result<Option<CodeChar>, String> {
+	fn is_ascii(&mut self, c: Option<CodeChar>) -> Result<Option<CodeChar>, String> {
 		match c {
 			None => Ok(None),
 			Some(c) if c.0.is_ascii() => Ok(Some(c)),
-			Some((c, line)) => Err(error(format!("Invalid character '{c}'"), line, self.filename))
+			Some((_, line)) => {
+				let c = check!(decode(&mut self.code.iter().skip(self.read - 1).copied()).unwrap());
+				Err(error(format!("Invalid character '{c}'"), line, self.filename))
+			}
 		}
 	}
 
@@ -284,7 +288,7 @@ impl<'a> CodeFile<'a> {
 	fn read_string(&mut self, c: CodeChar) -> Result<Code, String> {
 		let mut skip_next = false;
 		self.read(|code| {
-			let stringc = code.read_char()?;
+			let stringc = code.read_char_unchecked();
 			if stringc.is_none() {
 				Err(error("Unterminated string", c.1, self.filename))
 			} else {
