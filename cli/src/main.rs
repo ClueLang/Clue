@@ -439,7 +439,7 @@ fn main() -> Result<(), String> {
 	}
 	Ok(())
 }
-/*
+
 #[cfg(test)]
 mod test {
 	use clue_core::env::Options;
@@ -450,4 +450,4 @@ mod test {
 	fn compilation_success() {
 		compile_folder("../examples/", String::new(), &Options::default()).unwrap();
 	}
-}*/
+}
