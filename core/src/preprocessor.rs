@@ -305,6 +305,36 @@ impl<'a> CodeFile<'a> {
 		})
 	}
 
+	fn skip_comment(&mut self, c: CodeChar, code: Option<&mut Code>) -> Result<bool, String> {
+		Ok(if let Some((nc, _)) = self.peek_char()? {
+			match nc {
+				b'/' => {
+					if self.read_until_unchecked(b'\n').is_some() {
+						if let Some(code) = code {
+							code.push((b'\n', c.1));
+						}
+					}
+					false
+				}
+				b'*' => {
+					self.read_char().unwrap();
+					while {
+						self.read_until_unchecked(b'*');
+						if let Some((fc, _)) = self.read_char_unchecked() {
+							fc != b'/'
+						} else {
+							return Err(error("Unterminated comment", c.1, self.filename))
+						}
+					} {}
+					false
+				}
+				_ => true
+			}
+		} else {
+			true
+		})
+	}
+
 	fn read_until_with(
 		&mut self,
 		end: u8,
@@ -340,7 +370,8 @@ impl<'a> CodeFile<'a> {
 			match c.0 {
 				b'{' => self.skip_block()?,
 				b'}' => return Ok(()),
-				b'\'' | b'"' | b'`' => {self.read_string(c)?;},
+				b'\'' | b'"' | b'`' => {self.read_string(c)?;}
+				b'/' => {self.skip_comment(c, None)?;}
 				_ => {}
 			}
 		}
@@ -461,33 +492,7 @@ pub fn preprocess_code(
 				}
 				false
 			}
-			b'/' => {
-				if let Some((nc, _)) = code.peek_char()? {
-					match nc {
-						b'/' => {
-							if code.read_until_unchecked(b'\n').is_some() {
-								currentcode.push((b'\n', c.1));
-							}
-							false
-						}
-						b'*' => {
-							code.read_char().unwrap();
-							while {
-								code.read_until_unchecked(b'*');
-								if let Some((fc, _)) = code.read_char_unchecked() {
-									fc != b'/'
-								} else {
-									return Err(error("Unterminated comment", c.1, filename))
-								}
-							} {}
-							false
-						}
-						_ => true
-					}
-				} else {
-					true
-				}
-			}
+			b'/' => code.skip_comment(c, Some(&mut currentcode))?,
 			b'{' if cscope > 0 => {cscope += 1; true}
 			b'}' if cscope > 0 => {cscope -= 1; cscope != 0}
 			_ => true,
