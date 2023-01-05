@@ -251,6 +251,10 @@ impl<'a> CodeFile<'a> {
 		Ok(code)
 	}
 
+	fn read_line(&mut self) -> Result<Code, String> {
+		self.read(Self::read_char, |_, (c, _)| c == b'\n')
+	}
+
 	fn read_identifier(&mut self) -> Result<Code, String> {
 		self.read(Self::peek_char, |code, (c, _)| if c.is_ascii_alphanumeric() || c == b'_' {
 			code.read_char_unchecked().unwrap();
@@ -319,8 +323,14 @@ pub fn preprocess_code(
 				match directive.as_str() {
 					"define" => {
 						let name = code.read_identifier()?;
-						let value = code.read_until(b'\n')?;
+						let value = code.read_line()?;
 						variables.insert(name, PPVar::Simple(value.trim()));
+					}
+					"error" => {
+						return Err(error(code.read_line()?.to_string(), c.1, filename))
+					}
+					"print" => {
+						println!("{}", code.read_line()?.to_string());
 					}
 					_ => return Err(error(format!("Unknown directive '{directive}'"), c.1, filename)),
 				}
