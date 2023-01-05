@@ -183,7 +183,8 @@ struct CodeFile<'a> {
 	read: usize,
 	peeked: Option<CodeChar>,
 	line: usize,
-	filename: &'a String
+	filename: &'a String,
+	last_if: bool,
 }
 
 impl<'a> CodeFile<'a> {
@@ -194,7 +195,8 @@ impl<'a> CodeFile<'a> {
 			read: 0,
 			peeked: None,
 			line: 1,
-			filename
+			filename,
+			last_if: false,
 		}
 	}
 
@@ -379,6 +381,7 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn keep_block(&mut self, to_keep: bool) -> Result<u8, String> {
+		self.last_if = to_keep;
 		if to_keep {
 			Ok(1)
 		} else {
@@ -419,12 +422,24 @@ pub fn preprocess_code(
 						let checked_os = code.read_until(b'{')?.trim();
 						cscope += code.keep_block(checked_os == env::consts::OS)?;
 					}
-					"ifdef" => todo!(),
+					"ifdef" => {
+						let to_check = code.read_until(b'{')?.trim();
+						cscope += code.keep_block(env::var(to_check.to_string()).is_ok())?;
+					},
 					"ifcmp" => todo!(),
 					"if" => todo!(),
-					"else" => todo!(),
-					"else_ifos" => todo!(),
-					"else_ifdef" => todo!(),
+					"else" => {
+						code.read_until(b'{')?;
+						cscope += code.keep_block(!code.last_if)?;
+					},
+					"else_ifos" => {
+						let checked_os = code.read_until(b'{')?.trim();
+						cscope += code.keep_block(!code.last_if && checked_os == env::consts::OS)?;
+					},
+					"else_ifdef" => {
+						let to_check = code.read_until(b'{')?.trim();
+						cscope += code.keep_block(!code.last_if && env::var(to_check.to_string()).is_ok())?;
+					},
 					"else_ifcmp" => todo!(),
 					"else_if" => todo!(),
 					"define" => {
