@@ -388,6 +388,14 @@ pub fn preprocess_code(
 						let checked_os = code.read_until(b'{')?.trim();
 						cscope += code.keep_block(checked_os == env::consts::OS)?;
 					}
+					"ifdef" => todo!(),
+					"ifcmp" => todo!(),
+					"if" => todo!(),
+					"else" => todo!(),
+					"else_ifos" => todo!(),
+					"else_ifdef" => todo!(),
+					"else_ifcmp" => todo!(),
+					"else_if" => todo!(),
 					"define" => {
 						let name = code.read_identifier()?;
 						let value = code.read_line()?;
