@@ -139,7 +139,11 @@ impl Code {
 		self.list.pop_back()
 	}
 
-	fn trim(&mut self) {
+	fn push_start(&mut self, c: CodeChar) {
+		self.list.push_front(c)
+	}
+
+	fn trim(mut self) -> Self {
 		while let Some((c, _)) = self.list.front() {
 			if c.is_ascii_whitespace() {
 				self.list.pop_front();
@@ -154,6 +158,7 @@ impl Code {
 				break
 			}
 		}
+		self
 	}
 }
 
@@ -282,7 +287,7 @@ impl<'a> CodeFile<'a> {
 
 	fn read_until(&mut self, end: u8) -> Result<Code, String> {
 		self.read_until_with(end, Self::read_char)?
-			.ok_or_else(|| expected(&end.to_string(), "<end>", self.line, self.filename))
+			.ok_or_else(|| expected(&(end as char).to_string(), "<end>", self.line, self.filename))
 	}
 }
 
@@ -309,19 +314,15 @@ pub fn preprocess_code(
 	while let Some(c) = code.read_char()? {
 		if match c.0 {
 			b'@' => {
-				let directive = code.read_until(b' ')?;
-				match directive.to_string().as_str() {
+				let directive = code.read_identifier()?.to_string();
+				code.skip_whitespace()?;
+				match directive.as_str() {
 					"define" => {
-						code.skip_whitespace()?;
 						let name = code.read_identifier()?;
-						let mut value = code.read_until(b'\n')?;
-						value.trim();
-						variables.insert(name, PPVar::Simple(value));
+						let value = code.read_until(b'\n')?;
+						variables.insert(name, PPVar::Simple(value.trim()));
 					}
-					_ => {
-						currentcode.push(c);
-						currentcode.append(directive)
-					},
+					_ => return Err(error(format!("Unknown directive '{directive}'"), c.1, filename)),
 				}
 				false
 			}
@@ -344,10 +345,8 @@ pub fn preprocess_code(
 					}
 				} else {
 					finalcode.push((currentcode, false));
-					currentcode = Code::new();
-					currentcode.push(c);
-					currentcode.append(name);
-					finalcode.push((currentcode, true));
+					name.push_start(c);
+					finalcode.push((name, true));
 					currentcode = Code::new();
 				}
 				false
