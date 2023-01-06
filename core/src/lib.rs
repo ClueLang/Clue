@@ -2,6 +2,7 @@
 #[global_allocator]
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
+pub mod code;
 pub mod compiler;
 pub mod env;
 pub mod parser;

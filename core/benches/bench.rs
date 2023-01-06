@@ -2,6 +2,7 @@ use ahash::AHashMap;
 use criterion::{criterion_group, criterion_main, Criterion};
 use clue_core as clue;
 use clue::{
+	code::*,
 	compiler::*,
 	parser::*,
 	preprocessor::*,

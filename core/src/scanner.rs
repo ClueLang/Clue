@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
-use crate::{format_clue, preprocessor::{Code, CodeChar}};
+use crate::{format_clue, code::{Code, CodeChar}};
 
 use self::TokenType::*;
 use ahash::AHashMap;

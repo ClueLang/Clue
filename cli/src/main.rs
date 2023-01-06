@@ -3,6 +3,7 @@ use clap::{crate_version, Parser};
 use clue_core as clue;
 use clue::{
 	check,
+	code::*,
 	compiler::*,
 	format_clue,
 	parser::*,
