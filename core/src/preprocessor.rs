@@ -24,6 +24,14 @@ fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
 	msg.into()
 }
 
+fn expected(expected: &str, got: &str, line: usize, filename: &String) -> String {
+	error(
+		format_clue!("Expected '", expected, "', got '", got, "'"),
+		line,
+		filename,
+	)
+}
+
 fn expected_before(expected: &str, before: &str, line: usize, filename: &String) -> String {
 	error(
 		format_clue!("Expected '", expected, "' before '", before, "'"),
@@ -225,13 +233,6 @@ impl<'a> CodeFile<'a> {
 			.ok_or_else(|| expected_before(&(end as char).to_string(), "<end>", self.line, self.filename))
 	}
 
-	fn read_env_var(&mut self) -> Result<Code, String> {
-		match self.read_until_with(b'{', |s| Ok(s.read_char_unchecked()))? {
-			Some(name) => Ok(name.trim()),
-			None => return Err(expected_before("{", "<end>", self.line, self.filename))
-		}
-	}
-
 	fn skip_block(&mut self) -> Result<(), String> {
 		while let Some(c) = self.read_char()? {
 			match c.0 {
@@ -288,10 +289,34 @@ pub fn preprocess_code(
 						cscope += code.keep_block(checked_os == env::consts::OS)?;
 					}
 					"ifdef" => {
-						let to_check = code.read_env_var()?;
+						let to_check = code.read_until(b'{')?.trim();
 						cscope += code.keep_block(env::var_os(to_check.to_string()).is_some())?;
-					},
-					"ifcmp" => todo!(),
+					}
+					"ifcmp" => {
+						let Some(to_compare1) = env::var_os(code.read_identifier()?.to_string()) else {
+							code.read_until(b'{')?;
+							code.skip_block()?;
+							continue;
+						};
+						code.skip_whitespace()?;
+						let comparison = [
+							code.read_char_unchecked()
+								.ok_or_else(|| expected("==' or '!=", "<end>", code.line, filename))?.0,
+							code.read_char_unchecked()
+								.ok_or_else(|| expected("==' or '!=", "<end>", code.line, filename))?.0
+						];
+						let to_compare2 = code.read_until(b'{')?.trim();
+						cscope += code.keep_block(match &comparison {
+							b"==" => to_compare2 == to_compare1,
+							b"!=" => to_compare2 != to_compare1,
+							_ => return Err(expected(
+								"==' or '!=",
+								&String::from_utf8_lossy(&comparison),
+								code.line,
+								filename
+							))
+						})?;
+					}
 					"if" => todo!(),
 					"else" => {
 						code.read_until(b'{')?;
@@ -300,11 +325,11 @@ pub fn preprocess_code(
 					"else_ifos" => {
 						let checked_os = code.read_until(b'{')?.trim();
 						cscope += code.keep_block(!code.last_if && checked_os == env::consts::OS)?;
-					},
+					}
 					"else_ifdef" => {
-						let to_check = code.read_env_var()?;
+						let to_check = code.read_until(b'{')?.trim();
 						cscope += code.keep_block(!code.last_if && env::var_os(to_check.to_string()).is_some())?;
-					},
+					}
 					"else_ifcmp" => todo!(),
 					"else_if" => todo!(),
 					"define" => {

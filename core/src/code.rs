@@ -1,6 +1,6 @@
 use std::{
 	collections::linked_list::{LinkedList, Iter, IntoIter},
-	hash::Hash,
+	hash::Hash, ffi::OsString,
 };
 
 use utf8_decode::Decoder;
@@ -91,6 +91,21 @@ impl PartialEq for Code {
 impl PartialEq<&str> for Code {
 	fn eq(&self, other: &&str) -> bool {
 		self.len() == other.len() && {
+			let mut other = other.bytes();
+			for (c, _) in self {
+				if *c != other.next().unwrap() {
+					return false;
+				}
+			}
+			true
+		}
+	}
+}
+
+impl PartialEq<OsString> for Code {
+	fn eq(&self, other: &OsString) -> bool {
+		self.len() == other.len() && {
+			let other = other.clone().into_string().unwrap();
 			let mut other = other.bytes();
 			for (c, _) in self {
 				if *c != other.next().unwrap() {
