@@ -67,9 +67,9 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn skip_whitespace(&mut self) -> Result<(), String> {
-		while let Some((c, _)) = self.peek_char()? {
+		while let Some((c, _)) = self.peek_char_unchecked() {
 			if c.is_ascii_whitespace() {
-				self.read_char().unwrap();
+				self.read_char()?;
 			} else {
 				break;
 			}
@@ -127,7 +127,7 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn read_line(&mut self) -> Result<Code, String> {
-		self.read(Self::read_char, |_, (c, _)| c == b'\n')
+		self.read(|code| Ok(code.read_char_unchecked()), |_, (c, _)| c == b'\n')
 	}
 
 	fn read_identifier(&mut self) -> Result<Code, String> {
@@ -225,6 +225,13 @@ impl<'a> CodeFile<'a> {
 			.ok_or_else(|| expected_before(&(end as char).to_string(), "<end>", self.line, self.filename))
 	}
 
+	fn read_env_var(&mut self) -> Result<Code, String> {
+		match self.read_until_with(b'{', |s| Ok(s.read_char_unchecked()))? {
+			Some(name) => Ok(name.trim()),
+			None => return Err(expected_before("{", "<end>", self.line, self.filename))
+		}
+	}
+
 	fn skip_block(&mut self) -> Result<(), String> {
 		while let Some(c) = self.read_char()? {
 			match c.0 {
@@ -281,8 +288,8 @@ pub fn preprocess_code(
 						cscope += code.keep_block(checked_os == env::consts::OS)?;
 					}
 					"ifdef" => {
-						let to_check = code.read_until(b'{')?.trim();
-						cscope += code.keep_block(env::var(to_check.to_string()).is_ok())?;
+						let to_check = code.read_env_var()?;
+						cscope += code.keep_block(env::var_os(to_check.to_string()).is_some())?;
 					},
 					"ifcmp" => todo!(),
 					"if" => todo!(),
@@ -295,8 +302,8 @@ pub fn preprocess_code(
 						cscope += code.keep_block(!code.last_if && checked_os == env::consts::OS)?;
 					},
 					"else_ifdef" => {
-						let to_check = code.read_until(b'{')?.trim();
-						cscope += code.keep_block(!code.last_if && env::var(to_check.to_string()).is_ok())?;
+						let to_check = code.read_env_var()?;
+						cscope += code.keep_block(!code.last_if && env::var_os(to_check.to_string()).is_some())?;
 					},
 					"else_ifcmp" => todo!(),
 					"else_if" => todo!(),
@@ -305,12 +312,8 @@ pub fn preprocess_code(
 						let value = code.read_line()?;
 						variables.insert(name, PPVar::Simple(value.trim()));
 					}
-					"error" => {
-						return Err(error(code.read_line()?.to_string(), c.1, filename))
-					}
-					"print" => {
-						println!("{}", code.read_line()?.to_string());
-					}
+					"error" => return Err(error(code.read_line()?.to_string(), c.1, filename)),
+					"print" => println!("{}", code.read_line()?.to_string()),
 					_ => return Err(error(format!("Unknown directive '{directive}'"), c.1, filename)),
 				}
 				false
