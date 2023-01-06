@@ -283,7 +283,7 @@ pub fn preprocess_code(
 			b'@' => {
 				let directive_name = code.read_identifier()?.to_string();
 				code.skip_whitespace()?;
-				let (directive, prev) = if directive_name.starts_with("else_") {
+				let (directive, prev) = if directive_name.starts_with("else_if") {
 					(directive_name.strip_prefix("else_").unwrap(), !code.last_if)
 				} else {
 					(directive_name.as_str(), true)
@@ -334,7 +334,7 @@ pub fn preprocess_code(
 					}
 					"error" => return Err(error(code.read_line()?.to_string(), c.1, filename)),
 					"print" => println!("{}", code.read_line()?.to_string()),
-					_ => return Err(error(format!("Unknown directive '{directive}'"), c.1, filename)),
+					_ => return Err(error(format!("Unknown directive '{directive_name}'"), c.1, filename)),
 				}
 				false
 			}
