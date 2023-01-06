@@ -3,11 +3,25 @@ use std::{
 	hash::Hash,
 };
 
+use utf8_decode::Decoder;
+
 pub type CodeChar = (u8, usize);
 
 #[derive(Debug, Clone, Default)]
 pub struct Code {
-	pub list: LinkedList<CodeChar>
+	list: LinkedList<CodeChar>
+}
+
+pub struct CodeBytes {
+	code: Code,
+}
+
+impl Iterator for CodeBytes {
+	type Item = u8;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.code.pop_start().and_then(|(c, _)| Some(c))
+	}
 }
 
 impl<'a> IntoIterator for &'a Code {
@@ -30,11 +44,11 @@ impl IntoIterator for Code {
 
 impl ToString for Code {
 	fn to_string(&self) -> String {
-		let mut result = String::new();
-        for (c, _) in self {
-            result.push(*c as char)
-        }
-        result
+		let mut result = String::with_capacity(self.len());
+		for c in self.clone().chars() {
+			result.push(c.unwrap_or('\u{FFFD}'));
+		}
+		result
 	}
 }
 
@@ -77,7 +91,7 @@ impl PartialEq for Code {
 impl PartialEq<&str> for Code {
 	fn eq(&self, other: &&str) -> bool {
 		self.len() == other.len() && {
-			let mut other = other.bytes().peekable();
+			let mut other = other.bytes();
 			for (c, _) in self {
 				if *c != other.next().unwrap() {
 					return false;
@@ -129,6 +143,17 @@ impl Code {
 
 	pub fn push_start(&mut self, c: CodeChar) {
 		self.list.push_front(c)
+	}
+	pub fn pop_start(&mut self) -> Option<CodeChar> {
+		self.list.pop_front()
+	}
+
+	pub fn bytes(self) -> CodeBytes {
+		CodeBytes { code: self }
+	}
+
+	pub fn chars(self) -> Decoder<CodeBytes> {
+		Decoder::new(self.bytes())
 	}
 
 	pub fn trim(mut self) -> Self {
