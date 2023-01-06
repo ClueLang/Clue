@@ -59,7 +59,7 @@ impl<'a> CodeFile<'a> {
 			peeked: None,
 			line: 1,
 			filename,
-			last_if: false,
+			last_if: true,
 		}
 	}
 
@@ -281,16 +281,21 @@ pub fn preprocess_code(
 	while let Some(c) = code.read_char()? {
 		if match c.0 {
 			b'@' => {
-				let directive = code.read_identifier()?.to_string();
+				let directive_name = code.read_identifier()?.to_string();
 				code.skip_whitespace()?;
-				match directive.as_str() {
+				let (directive, prev) = if directive_name.starts_with("else_") {
+					(directive_name.strip_prefix("else_").unwrap(), !code.last_if)
+				} else {
+					(directive_name.as_str(), true)
+				};
+				match directive {
 					"ifos" => {
 						let checked_os = code.read_until(b'{')?.trim();
-						cscope += code.keep_block(checked_os == env::consts::OS)?;
+						cscope += code.keep_block(prev && checked_os == env::consts::OS)?;
 					}
 					"ifdef" => {
 						let to_check = code.read_until(b'{')?.trim();
-						cscope += code.keep_block(env::var_os(to_check.to_string()).is_some())?;
+						cscope += code.keep_block(prev && env::var_os(to_check.to_string()).is_some())?;
 					}
 					"ifcmp" => {
 						let Some(to_compare1) = env::var_os(code.read_identifier()?.to_string()) else {
@@ -306,7 +311,7 @@ pub fn preprocess_code(
 								.ok_or_else(|| expected("==' or '!=", "<end>", code.line, filename))?.0
 						];
 						let to_compare2 = code.read_until(b'{')?.trim();
-						cscope += code.keep_block(match &comparison {
+						cscope += code.keep_block(prev && match &comparison {
 							b"==" => to_compare2 == to_compare1,
 							b"!=" => to_compare2 != to_compare1,
 							_ => return Err(expected(
@@ -322,16 +327,6 @@ pub fn preprocess_code(
 						code.read_until(b'{')?;
 						cscope += code.keep_block(!code.last_if)?;
 					},
-					"else_ifos" => {
-						let checked_os = code.read_until(b'{')?.trim();
-						cscope += code.keep_block(!code.last_if && checked_os == env::consts::OS)?;
-					}
-					"else_ifdef" => {
-						let to_check = code.read_until(b'{')?.trim();
-						cscope += code.keep_block(!code.last_if && env::var_os(to_check.to_string()).is_some())?;
-					}
-					"else_ifcmp" => todo!(),
-					"else_if" => todo!(),
 					"define" => {
 						let name = code.read_identifier()?;
 						let value = code.read_line()?;
