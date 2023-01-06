@@ -12,6 +12,13 @@ use std::{
 	fs, u8::MAX,
 };
 
+macro_rules! pp_if {
+	($code: ident, $ifname: ident, $cscope: ident, $prev: ident) => {{
+		let check = $code.$ifname(b'{')?;
+		$cscope += $code.keep_block($prev && check)?;
+	}};
+}
+
 pub type PPVars = AHashMap<Code, PPVar>;
 
 #[derive(Clone)]
@@ -255,6 +262,40 @@ impl<'a> CodeFile<'a> {
 			Ok(0)
 		}
 	}
+
+	fn ifos(&mut self, end: u8) -> Result<bool, String> {
+		let checked_os = self.read_until(end)?.trim();
+		Ok(checked_os == env::consts::OS)
+	}
+
+	fn ifdef(&mut self, end: u8) -> Result<bool, String> {
+		let to_check = self.read_until(end)?.trim();
+		Ok(env::var_os(to_check.to_string()).is_some())
+	}
+
+	fn ifcmp(&mut self, end: u8) -> Result<bool, String> {
+		let Some(to_compare1) = env::var_os(self.read_identifier()?.to_string()) else {
+			return Ok(false)
+		};
+		self.skip_whitespace()?;
+		let comparison = [
+			self.read_char_unchecked()
+				.ok_or_else(|| expected("==' or '!=", "<end>", self.line, self.filename))?.0,
+			self.read_char_unchecked()
+				.ok_or_else(|| expected("==' or '!=", "<end>", self.line, self.filename))?.0
+		];
+		let to_compare2 = self.read_until(end)?.trim();
+		Ok(match &comparison {
+			b"==" => to_compare2 == to_compare1,
+			b"!=" => to_compare2 != to_compare1,
+			_ => return Err(expected(
+				"==' or '!=",
+				&String::from_utf8_lossy(&comparison),
+				self.line,
+				self.filename
+			))
+		})
+	}
 }
 
 pub fn read_file<P: AsRef<Path>>(
@@ -289,39 +330,9 @@ pub fn preprocess_code(
 					(directive_name.as_str(), true)
 				};
 				match directive {
-					"ifos" => {
-						let checked_os = code.read_until(b'{')?.trim();
-						cscope += code.keep_block(prev && checked_os == env::consts::OS)?;
-					}
-					"ifdef" => {
-						let to_check = code.read_until(b'{')?.trim();
-						cscope += code.keep_block(prev && env::var_os(to_check.to_string()).is_some())?;
-					}
-					"ifcmp" => {
-						let Some(to_compare1) = env::var_os(code.read_identifier()?.to_string()) else {
-							code.read_until(b'{')?;
-							code.skip_block()?;
-							continue;
-						};
-						code.skip_whitespace()?;
-						let comparison = [
-							code.read_char_unchecked()
-								.ok_or_else(|| expected("==' or '!=", "<end>", code.line, filename))?.0,
-							code.read_char_unchecked()
-								.ok_or_else(|| expected("==' or '!=", "<end>", code.line, filename))?.0
-						];
-						let to_compare2 = code.read_until(b'{')?.trim();
-						cscope += code.keep_block(prev && match &comparison {
-							b"==" => to_compare2 == to_compare1,
-							b"!=" => to_compare2 != to_compare1,
-							_ => return Err(expected(
-								"==' or '!=",
-								&String::from_utf8_lossy(&comparison),
-								code.line,
-								filename
-							))
-						})?;
-					}
+					"ifos" => pp_if!(code, ifos, cscope, prev),
+					"ifdef" => pp_if!(code, ifdef, cscope, prev),
+					"ifcmp" => pp_if!(code, ifcmp, cscope, prev),
 					"if" => todo!(),
 					"else" => {
 						code.read_until(b'{')?;
