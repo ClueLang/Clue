@@ -584,27 +584,7 @@ pub fn preprocess_variables(
 						break
 					}
 				}
-				//return Err(error("Unterminated string", c.1, filename));
 			}
-			/*'\'' | '"' | '`' => {
-				code.push_back((*c, *line));
-				while let Some((stringc, stringline)) = chars.next() {
-					if *stringc == '\\' {
-						if let Some((nextc, nextline)) = chars.peek() {
-							if nextc == c {
-								code.push_back((*stringc, *stringline));
-								code.push_back((*nextc, *nextline));
-								chars.next();
-								continue;
-							}
-						}
-					}
-					code.push_back((*stringc, *stringline));
-					if stringc == c {
-						break
-					}
-				}
-			}*/
 			_ => result.push(*c),
 		}
 	}
