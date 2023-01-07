@@ -126,6 +126,18 @@ impl<'a> CodeFile<'a> {
 		self.is_ascii(c)
 	}
 
+	fn assert_char(&mut self, wanted_c: u8) -> Result<(), String> {
+		match self.read_char()? {
+			None => return Err(expected_before(
+				&String::from_utf8_lossy(&[wanted_c]), "<end>", self.line, self.filename
+			)),
+			Some((c, line)) if c != wanted_c => return Err(expected(
+				&String::from_utf8_lossy(&[wanted_c]), &String::from_utf8_lossy(&[c]), line, self.filename
+			)),
+			_ => Ok(())
+		}
+	}
+
 	fn read(
 		&mut self,
 		mut get: impl FnMut(&mut Self) -> Result<Option<CodeChar>, String>,
@@ -275,6 +287,7 @@ impl<'a> CodeFile<'a> {
 
 	fn ifcmp(&mut self, end: u8) -> Result<bool, String> {
 		let Some(to_compare1) = env::var_os(self.read_identifier()?.to_string()) else {
+			self.read_until(end)?;
 			return Ok(false)
 		};
 		self.skip_whitespace()?;
@@ -295,6 +308,49 @@ impl<'a> CodeFile<'a> {
 				self.filename
 			))
 		})
+	}
+
+	fn bool_op(&mut self, b: bool) -> Result<bool, String> {
+		let mut result = !b;
+		loop {
+			if self.r#if()? == b {
+				result = b;
+			}
+			self.skip_whitespace()?;
+			if let Some((b')', _)) = self.peek_char_unchecked() {
+				self.read_char_unchecked();
+				break Ok(result)
+			}
+			self.assert_char(b',')?;
+			self.skip_whitespace()?;
+		}
+	}
+
+	fn r#if(&mut self) -> Result<bool, String> {
+		let check = {
+			let function = self.read_identifier()?.to_string();
+			self.assert_char(b'(')?;
+			self.skip_whitespace()?;
+			match function.as_str() {
+				"all" => self.bool_op(false)?,
+				"any" => self.bool_op(true)?,
+				"os" => self.ifos(b')')?,
+				"def" => self.ifdef(b')')?,
+				"cmp" => self.ifcmp(b')')?,
+				"not" => {
+					let result = self.r#if()?;
+					self.assert_char(b')')?;
+					!result
+				}
+				_ => return Err(error(
+					format!("Unknown function '{function}'"),
+					self.line,
+					self.filename
+				))
+			}
+		};
+		self.skip_whitespace()?;
+		Ok(check)
 	}
 }
 
@@ -333,9 +389,14 @@ pub fn preprocess_code(
 					"ifos" => pp_if!(code, ifos, cscope, prev),
 					"ifdef" => pp_if!(code, ifdef, cscope, prev),
 					"ifcmp" => pp_if!(code, ifcmp, cscope, prev),
-					"if" => todo!(),
+					"if" => {
+						let check = code.r#if()?;
+						code.assert_char(b'{')?;
+						cscope += code.keep_block(prev && check)?;
+					},
 					"else" => {
-						code.read_until(b'{')?;
+						code.skip_whitespace()?;
+						code.assert_char(b'{')?;
 						cscope += code.keep_block(!code.last_if)?;
 					},
 					"define" => {
