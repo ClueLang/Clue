@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
-use crate::{format_clue, code::{Code, CodeChar}};
+use crate::{format_clue, code::{Code, CodeChars}};
 
 use self::TokenType::*;
 use ahash::AHashMap;
@@ -73,7 +73,8 @@ struct CodeInfo<'a> {
 	start: usize,
 	current: usize,
 	size: usize,
-	code: Vec<CodeChar>,
+	code: CodeChars,
+	read: Vec<char>,
 	filename: &'a String,
 	tokens: Vec<Token>,
 	last: TokenType,
@@ -81,20 +82,20 @@ struct CodeInfo<'a> {
 }
 
 impl<'a> CodeInfo<'a> {
-	fn new(code: Code, filename: &'a String) -> CodeInfo {
-		let code = {
-			let mut newcode = Vec::new();
-			for c in code {
-				newcode.push(c);
-			}
-			newcode
-		};
-		CodeInfo {
+	fn new(code: Code, filename: &'a String) -> Self {
+		let size = code.len() + 2;
+		let mut code = code.chars();
+		let mut read = Vec::with_capacity(size);
+		read.push(code.next_unwrapped());
+		read.push(code.next_unwrapped());
+		Self {
 			line: 1,
 			start: 0,
 			current: 0,
-			size: code.len(),
-			code, filename,
+			size,
+			code,
+			read,
+			filename,
 			tokens: Vec::new(),
 			last: EOF,
 			errored: false,
@@ -105,25 +106,27 @@ impl<'a> CodeInfo<'a> {
 		self.current >= self.size
 	}
 
-	fn at(&self, pos: usize) -> CodeChar {
-		if pos >= self.size {
-			return (b'\0', self.code[self.code.len() - 1].1);
-		}
-		self.code[pos]
+	fn at(&self, pos: usize) -> char {
+		self.read[pos]
 	}
 
 	fn advance(&mut self) -> char {
-		let (prev, line) = self.at(self.current);
-		self.line = line;
+		self.read.push(self.code.next_unwrapped());
+		self.line = self.code.line();
+		let prev = self.at(self.current);
+		let read = self.code.bytes_read();
+		if read > 0 {
+			self.size -= read - 1
+		}
 		self.current += 1;
-		prev as char
+		prev
 	}
 
 	fn compare(&mut self, expected: char) -> bool {
 		if self.ended() {
 			return false;
 		}
-		if self.at(self.current).0 as char != expected {
+		if self.at(self.current) != expected {
 			return false;
 		}
 		self.advance();
@@ -132,12 +135,11 @@ impl<'a> CodeInfo<'a> {
 
 	fn peek(&self, pos: usize) -> char {
 		let pos: usize = self.current + pos;
-		self.at(pos).0 as char
+		self.at(pos)
 	}
 
-	fn look_back(&self, pos: usize) -> char {
-		let pos: usize = self.current - pos - 1;
-		self.at(pos).0 as char
+	fn look_back(&self) -> char {
+		self.at(self.current - 1)
 	}
 
 	//isNumber: c.is_ascii_digit()
@@ -150,7 +152,7 @@ impl<'a> CodeInfo<'a> {
 			if i >= self.size {
 				break;
 			}
-			result.push(self.at(i).0 as char);
+			result.push(self.at(i));
 		}
 		result
 	}
@@ -186,12 +188,12 @@ impl<'a> CodeInfo<'a> {
 	fn read_number(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
 		let start = self.current;
 		while check(&self.peek(0)) {
-			self.current += 1
+			self.advance();
 		}
 		if self.peek(0) == '.' && check(&self.peek(1)) {
 			self.advance();
 			while check(&self.peek(0)) {
-				self.current += 1
+				self.advance();
 			}
 		}
 		if simple {
@@ -207,7 +209,7 @@ impl<'a> CodeInfo<'a> {
 				}
 				self.advance();
 				while self.peek(0).is_ascii_digit() {
-					self.current += 1
+					self.advance();
 				}
 			}
 		} else if self.current == start {
@@ -229,7 +231,7 @@ impl<'a> CodeInfo<'a> {
 	fn read_string_contents(&mut self, strend: char) -> bool {
 		while !self.ended() && self.peek(0) != strend {
 			self.advance();
-			if self.look_back(0) == '\\' {
+			if self.look_back() == '\\' {
 				self.advance();
 			}
 		}
@@ -272,7 +274,7 @@ impl<'a> CodeInfo<'a> {
 			let c = self.peek(0);
 			c.is_ascii_alphanumeric() || c == '_'
 		} {
-			self.current += 1
+			self.advance();
 		}
 		self.substr(self.start, self.current)
 	}
@@ -454,9 +456,9 @@ lazy_static! {
 
 pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
-	while !i.ended() {
+	while !i.ended() && i.peek(0) != '\0' {
 		i.start = i.current;
-		let c: char = i.advance();
+		let c = i.advance();
 		if !i.scan_char(&SYMBOLS, c) {
 			if c.is_whitespace() {
 				continue

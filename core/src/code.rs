@@ -3,7 +3,7 @@ use std::{
 	hash::Hash, ffi::OsString,
 };
 
-use utf8_decode::Decoder;
+use utf8_decode::decode;
 
 pub type CodeChar = (u8, usize);
 
@@ -15,11 +15,11 @@ pub struct Code {
 pub struct CodeBytes {
 	code: Code,
 	line: usize,
+	read: usize,
 }
 
-pub struct CodeChars<'a> {
-	bytes: &'a CodeBytes,
-	code: Decoder<CodeBytes>
+pub struct CodeChars {
+	code: CodeBytes
 }
 
 impl Iterator for CodeBytes {
@@ -27,17 +27,18 @@ impl Iterator for CodeBytes {
 
 	fn next(&mut self) -> Option<Self::Item> {
 		self.code.pop_start().map(|(c, line)| {
+			self.read += 1;
 			self.line = line;
 			c
 		})
 	}
 }
 
-impl<'a> Iterator for CodeChars<'a> {
+impl Iterator for CodeChars {
 	type Item = char;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		match self.code.next() {
+		match decode(&mut self.code) {
 			None => None,
 			Some(Err(_)) => Some('\u{FFFD}'),
 			Some(Ok(c)) => Some(c)
@@ -45,13 +46,19 @@ impl<'a> Iterator for CodeChars<'a> {
 	}
 }
 
-impl<'a> CodeChars<'a> {
+impl CodeChars {
 	pub fn next_unwrapped(&mut self) -> char {
 		self.next().unwrap_or('\0')
 	}
 
 	pub fn line(&self) -> usize {
-		self.bytes.line
+		self.code.line
+	}
+
+	pub fn bytes_read(&mut self) -> usize {
+		let read = self.code.read;
+		self.code.read = 0;
+		read
 	}
 }
 
@@ -195,12 +202,11 @@ impl Code {
 	}
 
 	pub fn bytes(self) -> CodeBytes {
-		CodeBytes { code: self, line: 0 }
+		CodeBytes { code: self, line: 0, read: 0 }
 	}
 
-	pub fn chars<'a>(self) -> CodeChars<'a> {
-		let bytes = self.bytes();
-		CodeChars { bytes: &bytes, code: Decoder::new(bytes) }
+	pub fn chars(self) -> CodeChars {
+		CodeChars { code: self.bytes() }
 	}
 
 	pub fn trim(mut self) -> Self {
