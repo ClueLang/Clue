@@ -17,7 +17,8 @@ pub struct CodeBytes {
 	line: usize,
 }
 
-pub struct CodeChars {
+pub struct CodeChars<'a> {
+	bytes: &'a CodeBytes,
 	code: Decoder<CodeBytes>
 }
 
@@ -32,7 +33,7 @@ impl Iterator for CodeBytes {
 	}
 }
 
-impl Iterator for CodeChars {
+impl<'a> Iterator for CodeChars<'a> {
 	type Item = char;
 
 	fn next(&mut self) -> Option<Self::Item> {
@@ -44,9 +45,13 @@ impl Iterator for CodeChars {
 	}
 }
 
-impl CodeChars {
+impl<'a> CodeChars<'a> {
 	pub fn next_unwrapped(&mut self) -> char {
 		self.next().unwrap_or('\0')
+	}
+
+	pub fn line(&self) -> usize {
+		self.bytes.line
 	}
 }
 
@@ -193,8 +198,9 @@ impl Code {
 		CodeBytes { code: self, line: 0 }
 	}
 
-	pub fn chars(self) -> CodeChars {
-		CodeChars { code: Decoder::new(self.bytes()) }
+	pub fn chars<'a>(self) -> CodeChars<'a> {
+		let bytes = self.bytes();
+		CodeChars { bytes: &bytes, code: Decoder::new(bytes) }
 	}
 
 	pub fn trim(mut self) -> Self {
