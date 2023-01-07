@@ -14,13 +14,39 @@ pub struct Code {
 
 pub struct CodeBytes {
 	code: Code,
+	line: usize,
+}
+
+pub struct CodeChars {
+	code: Decoder<CodeBytes>
 }
 
 impl Iterator for CodeBytes {
 	type Item = u8;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.code.pop_start().map(|(c, _)| c)
+		self.code.pop_start().map(|(c, line)| {
+			self.line = line;
+			c
+		})
+	}
+}
+
+impl Iterator for CodeChars {
+	type Item = char;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		match self.code.next() {
+			None => None,
+			Some(Err(_)) => Some('\u{FFFD}'),
+			Some(Ok(c)) => Some(c)
+		}
+	}
+}
+
+impl CodeChars {
+	pub fn next_unwrapped(&mut self) -> char {
+		self.next().unwrap_or('\0')
 	}
 }
 
@@ -46,7 +72,7 @@ impl ToString for Code {
 	fn to_string(&self) -> String {
 		let mut result = String::with_capacity(self.len());
 		for c in self.clone().chars() {
-			result.push(c.unwrap_or('\u{FFFD}'));
+			result.push(c);
 		}
 		result
 	}
@@ -164,11 +190,11 @@ impl Code {
 	}
 
 	pub fn bytes(self) -> CodeBytes {
-		CodeBytes { code: self }
+		CodeBytes { code: self, line: 0 }
 	}
 
-	pub fn chars(self) -> Decoder<CodeBytes> {
-		Decoder::new(self.bytes())
+	pub fn chars(self) -> CodeChars {
+		CodeChars { code: Decoder::new(self.bytes()) }
 	}
 
 	pub fn trim(mut self) -> Self {
