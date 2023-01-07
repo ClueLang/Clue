@@ -20,7 +20,7 @@ impl Iterator for CodeBytes {
 	type Item = u8;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.code.pop_start().and_then(|(c, _)| Some(c))
+		self.code.pop_start().map(|(c, _)| c)
 	}
 }
 
