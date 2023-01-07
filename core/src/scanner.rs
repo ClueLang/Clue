@@ -5,20 +5,20 @@ use crate::{format_clue, code::{Code, CodeChars}};
 
 use self::TokenType::*;
 use ahash::AHashMap;
-use std::{cmp, fmt};
+use std::fmt;
 use lazy_static::lazy_static;
 
-type SymbolsMap = Vec<Option<SymbolType>>;
+type SymbolsMap<'a> = [Option<&'a SymbolType<'a>>; 127];
 
-fn generate_map(elements: &[(char, SymbolType)]) -> SymbolsMap {
-	let mut map: SymbolsMap = vec![None; 127];
-	let mut biggestkey = 0usize;
-	for (key, value) in elements {
+const fn generate_map<'a>(elements: &'a [(char, SymbolType)]) -> SymbolsMap<'a> {
+	let mut map = [None; 127];
+	let mut i = 0;
+	while i < elements.len() {
+		let (key, value) = &elements[i];
 		let key = *key as usize;
-		map[key] = Some(value.clone());
-		biggestkey = cmp::max(biggestkey, key);
+		map[key] = Some(value);
+		i += 1;
 	}
-	map.truncate(biggestkey + 1);
 	map
 }
 
@@ -300,13 +300,13 @@ impl<'a> CodeInfo<'a> {
 }
 
 #[derive(Clone)]
-enum SymbolType {
+enum SymbolType<'a> {
 	JUST(TokenType),
 	FUNCTION(fn(&mut CodeInfo)),
-	SYMBOLS(SymbolsMap, TokenType),
+	SYMBOLS(SymbolsMap<'a>, TokenType),
 }
 
-impl fmt::Debug for SymbolType {
+impl<'a> fmt::Debug for SymbolType<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", match self {
 			SymbolType::JUST(kind) => format!("{kind:?}"),
@@ -323,94 +323,94 @@ enum KeywordType {
 	RESERVED(&'static str),
 }
 
-lazy_static! {
-	static ref SYMBOLS: SymbolsMap = generate_map(&[
-		('(', SymbolType::JUST(ROUND_BRACKET_OPEN)),
-		(')', SymbolType::JUST(ROUND_BRACKET_CLOSED)),
-		('[', SymbolType::JUST(SQUARE_BRACKET_OPEN)),
-		(']', SymbolType::JUST(SQUARE_BRACKET_CLOSED)),
-		('{', SymbolType::JUST(CURLY_BRACKET_OPEN)),
-		('}', SymbolType::JUST(CURLY_BRACKET_CLOSED)),
-		(',', SymbolType::JUST(COMMA)),
+const SYMBOLS: SymbolsMap = generate_map(&[
+	('(', SymbolType::JUST(ROUND_BRACKET_OPEN)),
+	(')', SymbolType::JUST(ROUND_BRACKET_CLOSED)),
+	('[', SymbolType::JUST(SQUARE_BRACKET_OPEN)),
+	(']', SymbolType::JUST(SQUARE_BRACKET_CLOSED)),
+	('{', SymbolType::JUST(CURLY_BRACKET_OPEN)),
+	('}', SymbolType::JUST(CURLY_BRACKET_CLOSED)),
+	(',', SymbolType::JUST(COMMA)),
+	('.', SymbolType::SYMBOLS(generate_map(&[
 		('.', SymbolType::SYMBOLS(generate_map(&[
-			('.', SymbolType::SYMBOLS(generate_map(&[
-				('.', SymbolType::JUST(THREEDOTS)),
-				('=', SymbolType::JUST(CONCATENATE)),
-			]), TWODOTS))
-		]), DOT)),
-		(';', SymbolType::JUST(SEMICOLON)),
-		('+', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(INCREASE)),
-		]), PLUS)),
-		('-', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(DECREASE)),
-		]), MINUS)),
-		('*', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(MULTIPLY)),
-		]), STAR)),
-		('^', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(EXPONENTIATE)),
-			('^', SymbolType::JUST(BIT_XOR)),
-		]), CARET)),
-		('#', SymbolType::JUST(HASHTAG)),
-		('/', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(DIVIDE)),
-			('_', SymbolType::JUST(FLOOR_DIVISION)),
-		]), SLASH)),
-		('%', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(MODULATE)),
-		]), PERCENTUAL)),
-		('!', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(NOT_EQUAL)),
-		]), NOT)),
-		('~', SymbolType::JUST(BIT_NOT)),
-		('=', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(EQUAL)),
-			('>', SymbolType::JUST(ARROW)),
-		]), DEFINE)),
-		('<', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(SMALLER_EQUAL)),
-			('<', SymbolType::JUST(LEFT_SHIFT)),
-		]), SMALLER)),
-		('>', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(BIGGER_EQUAL)),
-			('>', SymbolType::JUST(RIGHT_SHIFT)),
-		]), BIGGER)),
+			('.', SymbolType::JUST(THREEDOTS)),
+			('=', SymbolType::JUST(CONCATENATE)),
+		]), TWODOTS))
+	]), DOT)),
+	(';', SymbolType::JUST(SEMICOLON)),
+	('+', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::JUST(INCREASE)),
+	]), PLUS)),
+	('-', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::JUST(DECREASE)),
+	]), MINUS)),
+	('*', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::JUST(MULTIPLY)),
+	]), STAR)),
+	('^', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::JUST(EXPONENTIATE)),
+		('^', SymbolType::JUST(BIT_XOR)),
+	]), CARET)),
+	('#', SymbolType::JUST(HASHTAG)),
+	('/', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::JUST(DIVIDE)),
+		('_', SymbolType::JUST(FLOOR_DIVISION)),
+	]), SLASH)),
+	('%', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::JUST(MODULATE)),
+	]), PERCENTUAL)),
+	('!', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::JUST(NOT_EQUAL)),
+	]), NOT)),
+	('~', SymbolType::JUST(BIT_NOT)),
+	('=', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::JUST(EQUAL)),
+		('>', SymbolType::JUST(ARROW)),
+	]), DEFINE)),
+	('<', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::JUST(SMALLER_EQUAL)),
+		('<', SymbolType::JUST(LEFT_SHIFT)),
+	]), SMALLER)),
+	('>', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::JUST(BIGGER_EQUAL)),
+		('>', SymbolType::JUST(RIGHT_SHIFT)),
+	]), BIGGER)),
+	('?', SymbolType::SYMBOLS(generate_map(&[
+		('=', SymbolType::FUNCTION(|i| i.warning("'?=' is deprecated and was replaced with '&&='"))),
+		('>', SymbolType::JUST(SAFE_EXPRESSION)),
+		('.', SymbolType::JUST(SAFEDOT)),
+		(':', SymbolType::FUNCTION(|i| {
+			if i.compare(':') {
+				i.add_token(SAFE_DOUBLE_COLON);
+			} else {
+				i.current -= 1;
+			}
+		})),
+		('[', SymbolType::JUST(SAFE_SQUARE_BRACKET)),
 		('?', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::FUNCTION(|i| i.warning("'?=' is deprecated and was replaced with '&&='"))),
-			('>', SymbolType::JUST(SAFE_EXPRESSION)),
-			('.', SymbolType::JUST(SAFEDOT)),
-			(':', SymbolType::FUNCTION(|i| {
-				if i.compare(':') {
-					i.add_token(SAFE_DOUBLE_COLON);
-				} else {
-					i.current -= 1;
-				}
-			})),
-			('[', SymbolType::JUST(SAFE_SQUARE_BRACKET)),
-			('?', SymbolType::SYMBOLS(generate_map(&[
-				('=', SymbolType::JUST(DEFINE_COALESCE))
-			]), COALESCE))
-		]), QUESTION_MARK)),
+			('=', SymbolType::JUST(DEFINE_COALESCE))
+		]), COALESCE))
+	]), QUESTION_MARK)),
+	('&', SymbolType::SYMBOLS(generate_map(&[
 		('&', SymbolType::SYMBOLS(generate_map(&[
-			('&', SymbolType::SYMBOLS(generate_map(&[
-				('=', SymbolType::JUST(DEFINE_AND))
-			]), AND)),
-		]), BIT_AND)),
-		(':', SymbolType::SYMBOLS(generate_map(&[
-			(':', SymbolType::JUST(DOUBLE_COLON)),
-			('=', SymbolType::FUNCTION(|i| i.warning("':=' is deprecated and was replaced with '||='"))),
-		]), COLON)),
+			('=', SymbolType::JUST(DEFINE_AND))
+		]), AND)),
+	]), BIT_AND)),
+	(':', SymbolType::SYMBOLS(generate_map(&[
+		(':', SymbolType::JUST(DOUBLE_COLON)),
+		('=', SymbolType::FUNCTION(|i| i.warning("':=' is deprecated and was replaced with '||='"))),
+	]), COLON)),
+	('|', SymbolType::SYMBOLS(generate_map(&[
 		('|', SymbolType::SYMBOLS(generate_map(&[
-			('|', SymbolType::SYMBOLS(generate_map(&[
-				('=', SymbolType::JUST(DEFINE_OR))
-			]), OR)),
-		]), BIT_OR)),
-		('"', SymbolType::FUNCTION(|i| i.read_string('"'))),
-		('\'', SymbolType::FUNCTION(|i| i.read_string('\''))),
-		('`', SymbolType::FUNCTION(|i| i.read_raw_string()))
-	]);
+			('=', SymbolType::JUST(DEFINE_OR))
+		]), OR)),
+	]), BIT_OR)),
+	('"', SymbolType::FUNCTION(|i| i.read_string('"'))),
+	('\'', SymbolType::FUNCTION(|i| i.read_string('\''))),
+	('`', SymbolType::FUNCTION(|i| i.read_raw_string()))
+]);
 
+lazy_static! {
 	static ref KEYWORDS: AHashMap<&'static str, KeywordType> = AHashMap::from([
 		("and", KeywordType::RESERVED("'and' operators in Clue are made with '&&'")),
 		("not", KeywordType::RESERVED("'not' operators in Clue are made with '!'")),
