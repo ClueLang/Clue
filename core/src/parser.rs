@@ -1354,7 +1354,12 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		//}
 	}
 
-	fn build_variables(&mut self, local: bool, line: usize) -> Result<ComplexToken, String> {
+	fn build_variables(
+		&mut self,
+		local: bool,
+		line: usize,
+		destructure: bool
+	) -> Result<ComplexToken, String> {
 		let mut names: Vec<String> = Vec::new();
 		loop {
 			let /*(*/pname/* , _)*/ = self.build_variable()?;
@@ -1365,9 +1370,12 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 			}
 			self.current += 1;
 		}
+		if destructure {
+			self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
+		}
 		let check = self.advance();
 		let areinit = check.kind() == DEFINE;
-		let values: Vec<Expression> = if !areinit {
+		let mut values: Vec<Expression> = if !areinit {
 			if local {
 				Vec::new()
 			} else {
@@ -1383,6 +1391,19 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 			self.find_expressions(None)?
 		};
 		self.current -= 1;
+		if destructure {
+			let name = self.get_next_internal_var();
+			self.expr.push_back(VARIABLE {
+				local: true,
+				names: vec![name.clone()],
+				values,
+				line,
+			});
+			values = Vec::new();
+			for key_name in &names {
+				values.push(expression!(SYMBOL(format_clue!(name, ".", key_name))))
+			}
+		}
 		Ok(VARIABLE {
 			local,
 			names,
@@ -1496,7 +1517,8 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				self.expr.append(enums);
 			}
 			_ => {
-				let vars = self.build_variables(local, t.line())?;
+				let destructure = self.advance_if(CURLY_BRACKET_OPEN);
+				let vars = self.build_variables(local, t.line(), destructure)?;
 				self.expr.push_back(vars);
 			}
 		}
@@ -1515,7 +1537,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				self.compile_static(enums);
 			}
 			_ => {
-				let vars = expression![self.build_variables(true, t.line())?];
+				let vars = expression![self.build_variables(true, t.line(), false)?];
 				self.compile_static(vars);
 			}
 		}
