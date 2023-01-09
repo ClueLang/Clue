@@ -1575,6 +1575,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		if let CALL(_) = first_expr.back().unwrap() {
 			self.expr.push_back(IDENT { expr: first_expr, line: self.at(start).line() });
 			self.current -= 1;
+			self.advance_if(SEMICOLON);
 			return Ok(())
 		}
 		let mut names = vecdeque![first_expr];
