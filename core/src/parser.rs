@@ -1365,7 +1365,6 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 			let /*(*/pname/* , _)*/ = self.build_variable()?;
 			names.push(pname);
 			if !self.compare(COMMA) {
-				self.advance_if(SEMICOLON);
 				break;
 			}
 			self.current += 1;
@@ -1373,9 +1372,11 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		if destructure {
 			self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
 		}
-		let check = self.advance();
-		let areinit = check.kind() == DEFINE;
-		let mut values: Vec<Expression> = if !areinit {
+		let check = self.advance().kind();
+		let mut values: Vec<Expression> = if check != DEFINE {
+			if check == SEMICOLON {
+				self.current += 1;
+			}
 			if local {
 				Vec::new()
 			} else {
