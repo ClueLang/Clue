@@ -914,11 +914,12 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 
 	fn build_identifier(&mut self) -> Result<ComplexToken, String> {
 		let line = self.look_back(0).line();
-		Ok(IDENT { expr: self.build_identifier_internal()?, line })
+		Ok(IDENT { expr: self.build_identifier_internal()?.0, line })
 	}
 
-	fn build_identifier_internal(&mut self) -> Result<Expression, String> {
+	fn build_identifier_internal(&mut self) -> Result<(Expression, bool), String> {
 		let mut expr = Expression::new();
+		let mut safe_indexing = false;
 		self.current -= 1;
 		loop {
 			let t = self.advance();
@@ -929,10 +930,14 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 						break;
 					}
 				}
-				SAFEDOT => self.check_index(&t, &mut expr, "?.")?,
+				SAFEDOT => {
+					self.check_index(&t, &mut expr, "?.")?;
+					safe_indexing = true;
+				},
 				DOT => self.check_index(&t, &mut expr, ".")?,
 				SAFE_DOUBLE_COLON => {
 					self.check_index(&t, &mut expr, "?::")?;
+					safe_indexing = true;
 					if self.peek(1).kind() != ROUND_BRACKET_OPEN {
 						let t = self.peek(1);
 						return Err(self.expected("(", &t.lexeme(), t.line()));
@@ -959,6 +964,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 					expr.push_back(SYMBOL(String::from("?[")));
 					expr.push_back(EXPR(qexpr));
 					expr.push_back(SYMBOL(String::from("]")));
+					safe_indexing = true;
 					if self.check_val() {
 						break;
 					}
@@ -972,7 +978,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				_ => break,
 			}
 		}
-		Ok(expr)
+		Ok((expr, safe_indexing))
 	}
 
 	fn get_code_block_start(&mut self) -> Result<usize, String> {
@@ -1548,12 +1554,14 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let start = self.current - 1;
-		let first_expr = self.build_identifier_internal()?;
+		let (first_expr, safe_indexing) = self.build_identifier_internal()?;
 		if let CALL(_) = first_expr.back().unwrap() {
 			self.expr.push_back(IDENT { expr: first_expr, line: self.at(start).line() });
 			self.current -= 1;
 			self.advance_if(SEMICOLON);
 			return Ok(())
+		} else if safe_indexing {
+			return Err(self.error("Safe indexing cannot be used when altering variables", t.line()));
 		}
 		let mut names = vecdeque![first_expr];
 		while {
