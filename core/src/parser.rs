@@ -1645,8 +1645,8 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	}
 
 	fn parse_token_match(&mut self) -> Result<(), String> {
-		let ctoken =
-			self.build_match_block(String::from("_match"), &ParserInfo::build_code_block)?;
+		let name = self.get_next_internal_var();
+		let ctoken = self.build_match_block(name, &ParserInfo::build_code_block)?;
 		self.expr.push_back(ctoken);
 
 		Ok(())
