@@ -81,15 +81,14 @@ impl<'a> CodeFile<'a> {
 		}
 	}
 
-	fn skip_whitespace(&mut self) -> Result<(), String> {
+	fn skip_whitespace(&mut self) {
 		while let Some((c, _)) = self.peek_char_unchecked() {
 			if c.is_ascii_whitespace() {
-				self.read_char()?;
+				self.read_char_unchecked();
 			} else {
 				break;
 			}
 		}
-		Ok(())
 	}
 
 	fn read_char_unchecked(&mut self) -> Option<CodeChar> {
@@ -290,7 +289,7 @@ impl<'a> CodeFile<'a> {
 			self.read_until(end)?;
 			return Ok(false)
 		};
-		self.skip_whitespace()?;
+		self.skip_whitespace();
 		let comparison = [
 			self.read_char_unchecked()
 				.ok_or_else(|| expected("==' or '!=", "<end>", self.line, self.filename))?.0,
@@ -316,13 +315,13 @@ impl<'a> CodeFile<'a> {
 			if self.r#if()? == b {
 				result = b;
 			}
-			self.skip_whitespace()?;
+			self.skip_whitespace();
 			if let Some((b')', _)) = self.peek_char_unchecked() {
 				self.read_char_unchecked();
 				break Ok(result)
 			}
 			self.assert_char(b',')?;
-			self.skip_whitespace()?;
+			self.skip_whitespace();
 		}
 	}
 
@@ -330,7 +329,7 @@ impl<'a> CodeFile<'a> {
 		let check = {
 			let function = self.read_identifier()?.to_string();
 			self.assert_char(b'(')?;
-			self.skip_whitespace()?;
+			self.skip_whitespace();
 			match function.as_str() {
 				"all" => self.bool_op(false)?,
 				"any" => self.bool_op(true)?,
@@ -349,7 +348,7 @@ impl<'a> CodeFile<'a> {
 				))
 			}
 		};
-		self.skip_whitespace()?;
+		self.skip_whitespace();
 		Ok(check)
 	}
 }
@@ -379,7 +378,7 @@ pub fn preprocess_code(
 		if match c.0 {
 			b'@' => {
 				let directive_name = code.read_identifier()?.to_string();
-				code.skip_whitespace()?;
+				code.skip_whitespace();
 				let (directive, prev) = if directive_name.starts_with("else_if") {
 					(directive_name.strip_prefix("else_").unwrap(), !code.last_if)
 				} else {
@@ -395,7 +394,7 @@ pub fn preprocess_code(
 						cscope += code.keep_block(prev && check)?;
 					},
 					"else" => {
-						code.skip_whitespace()?;
+						code.skip_whitespace();
 						code.assert_char(b'{')?;
 						cscope += code.keep_block(!code.last_if)?;
 					},
