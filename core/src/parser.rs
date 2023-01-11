@@ -456,7 +456,6 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 						EXPR(self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?),
 						SYMBOL(String::from("]"))
 					]);
-					//self.current -= 1;
 				}
 				META => {
 					if self.advance_if(WITH) {
@@ -695,28 +694,6 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 					}
 					expr.push_back(self.build_table()?);
 					*notable = true;
-					if self.check_val() {
-						break t;
-					}
-				}
-				SQUARE_BRACKET_OPEN => {
-					let mut exprs = self.find_expressions(Some((SQUARE_BRACKET_CLOSED, "]")))?;
-					let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
-					for (i, expr) in exprs.iter_mut().enumerate() {
-						let key = expression![
-							SYMBOL(String::from("[")),
-							SYMBOL(i.to_string()),
-							SYMBOL(String::from("]"))
-						];
-						let mut value = Expression::new();
-						value.append(expr);
-						values.push((Some(key), value, t.line()));
-					}
-					expr.push_back(TABLE {
-						values,
-						metas: Vec::new(),
-						metatable: None,
-					});
 					if self.check_val() {
 						break t;
 					}
