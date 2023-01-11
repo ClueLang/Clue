@@ -1,10 +1,10 @@
-local array = [1, 2, 3, 4]
-assert(array[0] == 1)
+local array = {1, 2, 3, 4}
+assert(array[1] == 1)
 
 table.insert(array, "hello")
 table.insert(array, "world")
-print(array[4], array[5])
+print(array[5], array[6])
 
-for i = 0, #array {
-	print(array[i])
+for k, v in array {
+	print(k, v)
 }
