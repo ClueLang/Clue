@@ -150,18 +150,15 @@ impl<'a> Compiler<'a> {
 						}
 						"?[" => {
 							result += &(checked.clone() + " and ");
-							checked += &format_clue!("[(", self.compile_expression(scope, match iter.next() {
-								Some(EXPR(expr)) => expr,
-								_ => unreachable!()
-							}), "])");
+							checked += "["
 						}
-						"]" => {}
+						"]" => checked += ")]",
 						_ => checked += lexeme,
 					}
 				}
 				EXPR(expr) => {
 					let expr = self.compile_expression(scope, expr);
-					checked += &format_clue!("(", expr, ")]");
+					checked += &format_clue!("(", expr);
 				}
 				CALL(args) => {
 					let args = format_clue!("(", self.compile_expressions(scope, args.clone()), ")");
@@ -181,7 +178,7 @@ impl<'a> Compiler<'a> {
 		if result.is_empty() {
 			checked
 		} else {
-			format_clue!("(", result, checked, ")")
+			format_clue!(result, checked)
 		}
 	}
 
