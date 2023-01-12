@@ -179,7 +179,7 @@ where
 	let files = check!(check_for_files(file_path, rpath));
 	let files_len = files.len();
 	let threads_count = min(files_len, num_cpus::get() * 2);
-	let mut codes = Vec::with_capacity(files.len());
+	let mut codes = Vec::with_capacity(files_len);
 	let files = Arc::new(Mutex::new(files));
 	let mut errored = 0;
 	let mut variables = vec![];

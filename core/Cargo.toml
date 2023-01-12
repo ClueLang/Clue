@@ -20,6 +20,7 @@ rpmalloc = {version = "0.2.2", optional = true}
 [dev-dependencies]
 criterion = "0.4.0"
 num_cpus = "1.15.0"
+flume = "0.10.14"
 
 [[bench]]
 name = "bench"
