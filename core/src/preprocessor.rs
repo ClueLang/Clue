@@ -48,7 +48,7 @@ fn expected_before(expected: &str, before: &str, line: usize, filename: &String)
 }
 
 struct CodeFile<'a> {
-	code: Vec<u8>,
+	code: &'a [u8],
 	checked: usize,
 	read: usize,
 	peeked: Option<CodeChar>,
@@ -58,13 +58,13 @@ struct CodeFile<'a> {
 }
 
 impl<'a> CodeFile<'a> {
-	fn new(code: Vec<u8>, filename: &'a String) -> Self {
+	fn new(code: &'a [u8], line: usize, filename: &'a String) -> Self {
 		Self {
 			code,
 			checked: 0,
 			read: 0,
 			peeked: None,
-			line: 1,
+			line,
 			filename,
 			last_if: true,
 		}
@@ -135,6 +135,11 @@ impl<'a> CodeFile<'a> {
 			)),
 			_ => Ok(())
 		}
+	}
+
+	fn assert_reach(&mut self, wanted_c: u8) -> Result<(), String> {
+		self.skip_whitespace();
+		self.assert_char(wanted_c)
 	}
 
 	fn read(
@@ -360,20 +365,22 @@ pub fn read_file<P: AsRef<Path>>(
 where
 	P: AsRef<OsStr> + Display,
 {
-	preprocess_code(check!(fs::read(path)), filename)
+	preprocess_code(&check!(fs::read(path)), 1, false, filename)
 }
 
 #[allow(clippy::blocks_in_if_conditions)]
 pub fn preprocess_code(
-	code: Vec<u8>,
+	code: &[u8],
+	line: usize,
+	is_block: bool,
 	filename: &String,
 ) -> Result<(Vec<(Code, bool)>, PPVars), String> {
 	let mut finalcode = Vec::new();
 	let mut currentcode = Code::new();
-	let mut code = CodeFile::new(code, filename);
+	let mut code = CodeFile::new(code, line, filename);
 	let mut variables = AHashMap::new();
 	let mut pseudos: Option<VecDeque<VecDeque<u8>>> = None;
-	let mut cscope = 0;
+	let mut cscope = is_block as u8;
 	while let Some(c) = code.read_char()? {
 		if match c.0 {
 			b'@' => {
@@ -394,14 +401,35 @@ pub fn preprocess_code(
 						cscope += code.keep_block(prev && check)?;
 					},
 					"else" => {
-						code.skip_whitespace();
-						code.assert_char(b'{')?;
+						code.assert_reach(b'{')?;
 						cscope += code.keep_block(!code.last_if)?;
 					},
 					"define" => {
 						let name = code.read_identifier()?;
 						let value = code.read_line()?;
 						variables.insert(name, PPVar::Simple(value.trim()));
+					}
+					"macro" => {
+						let name = code.read_identifier()?;
+						code.assert_reach(b'(')?;
+						let args = {
+							let mut args = Vec::new();
+							loop {
+								code.skip_whitespace();
+								args.push(code.read_identifier()?);
+								code.skip_whitespace();
+								if let Some((b')', _)) = code.peek_char_unchecked() {
+									code.read_char_unchecked();
+									break args;
+								}
+								code.assert_char(b',')?;
+							}
+						};
+						code.assert_reach(b'{')?;
+						let line = code.line;
+						let code = &code.code[code.read + 1..code.code.len()];
+						let mut block = preprocess_code(code, line, true, filename)?;
+						println!("{}", block.0.pop().unwrap().0.to_string());
 					}
 					"error" => return Err(error(code.read_line()?.to_string(), c.1, filename)),
 					"print" => println!("{}", code.read_line()?.to_string()),
@@ -460,7 +488,13 @@ pub fn preprocess_code(
 			}
 			b'/' => code.skip_comment(c, Some(&mut currentcode))?,
 			b'{' if cscope > 0 => {cscope += 1; true}
-			b'}' if cscope > 0 => {cscope -= 1; cscope != 0}
+			b'}' if cscope > 0 => {
+				cscope -= 1;
+				if is_block && cscope == 0 {
+					break;
+				}
+				cscope != 0
+			}
 			_ => true,
 		} {
 			currentcode.push(c)

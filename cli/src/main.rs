@@ -364,7 +364,7 @@ fn main() -> Result<(), String> {
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
 		let filename = String::from("(command line)");
-		let (rawcode, variables) = preprocess_code(codepath.as_bytes(), 1, &filename)?;
+		let (rawcode, variables) = preprocess_code(codepath.as_bytes(), 1, false, &filename)?;
 		let (code, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
 		let code = code + &statics;
 		println!("{}", code);
