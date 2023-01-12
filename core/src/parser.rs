@@ -451,8 +451,12 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 						_ => true,
 					} {}
 					self.current = start;
-					name = Ok(self.build_name()?);
-					self.current -= 1;
+					name = Ok(expression![
+						SYMBOL(String::from("[")),
+						EXPR(self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?),
+						SYMBOL(String::from("]"))
+					]);
+					//self.current -= 1;
 				}
 				META => {
 					if self.advance_if(WITH) {
@@ -928,41 +932,16 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	}
 
 	fn build_name(&mut self) -> Result<Expression, String> {
-		let mut expr = Expression::new();
-		self.current -= 1;
-		loop {
-			let t = self.advance();
-			match t.kind() {
-				IDENTIFIER => {
-					expr.push_back(SYMBOL(t.lexeme()));
-					if self.check_val() {
-						break;
-					}
-				}
-				SAFEDOT => return Err(self.unexpected("?.", t.line())),
-				DOT => self.check_index(&t, &mut expr, ".")?,
-				SAFE_DOUBLE_COLON | DOUBLE_COLON => {
-					return Err(self.error("You can't call functions here", t.line()))
-				}
-				SQUARE_BRACKET_OPEN => {
-					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
-					expr.push_back(SYMBOL(String::from("[")));
-					expr.push_back(EXPR(qexpr));
-					expr.push_back(SYMBOL(String::from("]")));
-				}
-				SAFE_SQUARE_BRACKET => return Err(self.unexpected("?[", t.line())),
-				ROUND_BRACKET_OPEN => {
-					return Err(self.error("You can't call functions here", t.line()))
-				}
-				_ => break,
-			}
-		}
-		Ok(expr)
+		Ok(expression![self.build_identifier()?])
 	}
 
 	fn build_identifier(&mut self) -> Result<ComplexToken, String> {
-		let mut expr = Expression::new();
 		let line = self.look_back(0).line();
+		Ok(IDENT { expr: self.build_identifier_internal()?, line })
+	}
+
+	fn build_identifier_internal(&mut self) -> Result<Expression, String> {
+		let mut expr = Expression::new();
 		self.current -= 1;
 		loop {
 			let t = self.advance();
@@ -1016,7 +995,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				_ => break,
 			}
 		}
-		Ok(IDENT { expr, line })
+		Ok(expr)
 	}
 
 	fn get_code_block_start(&mut self) -> Result<usize, String> {
@@ -1354,20 +1333,29 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		//}
 	}
 
-	fn build_variables(&mut self, local: bool, line: usize) -> Result<ComplexToken, String> {
+	fn build_variables(
+		&mut self,
+		local: bool,
+		line: usize,
+		destructure: bool
+	) -> Result<ComplexToken, String> {
 		let mut names: Vec<String> = Vec::new();
 		loop {
 			let /*(*/pname/* , _)*/ = self.build_variable()?;
 			names.push(pname);
 			if !self.compare(COMMA) {
-				self.advance_if(SEMICOLON);
 				break;
 			}
 			self.current += 1;
 		}
-		let check = self.advance();
-		let areinit = check.kind() == DEFINE;
-		let values: Vec<Expression> = if !areinit {
+		if destructure {
+			self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
+		}
+		let check = self.advance().kind();
+		let mut values: Vec<Expression> = if check != DEFINE {
+			if check == SEMICOLON {
+				self.current += 1;
+			}
 			if local {
 				Vec::new()
 			} else {
@@ -1383,6 +1371,19 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 			self.find_expressions(None)?
 		};
 		self.current -= 1;
+		if destructure {
+			let name = self.get_next_internal_var();
+			self.expr.push_back(VARIABLE {
+				local: true,
+				names: vec![name.clone()],
+				values,
+				line,
+			});
+			values = Vec::new();
+			for key_name in &names {
+				values.push(expression!(SYMBOL(format_clue!(name, ".", key_name))))
+			}
+		}
 		Ok(VARIABLE {
 			local,
 			names,
@@ -1496,7 +1497,8 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				self.expr.append(enums);
 			}
 			_ => {
-				let vars = self.build_variables(local, t.line())?;
+				let destructure = self.advance_if(CURLY_BRACKET_OPEN);
+				let vars = self.build_variables(local, t.line(), destructure)?;
 				self.expr.push_back(vars);
 			}
 		}
@@ -1515,7 +1517,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				self.compile_static(enums);
 			}
 			_ => {
-				let vars = expression![self.build_variables(true, t.line())?];
+				let vars = expression![self.build_variables(true, t.line(), false)?];
 				self.compile_static(vars);
 			}
 		}
@@ -1568,27 +1570,21 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	}
 
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
-		let testexpr = self.test(|i| i.build_name()).0;
-		if let Err(msg) = testexpr {
-			return match msg.as_str() {
-				"You can't call functions here"
-				| "Unexpected token '?.'"
-				| "Unexpected token '?['" => {
-					let expr = &mut self.build_expression(None)?;
-					self.expr.append(expr);
-					self.current -= 1;
-					Ok(())
-				}
-				_ => Err(self.error(msg, self.testing.unwrap())),
-			};
+		let start = self.current - 1;
+		let first_expr = self.build_identifier_internal()?;
+		if let CALL(_) = first_expr.back().unwrap() {
+			self.expr.push_back(IDENT { expr: first_expr, line: self.at(start).line() });
+			self.current -= 1;
+			self.advance_if(SEMICOLON);
+			return Ok(())
 		}
-		self.current += 1;
-		let mut names = VecDeque::new();
+		let mut names = vecdeque![first_expr];
 		while {
-			names.push_back(self.build_name()?);
 			self.current += 1;
 			self.look_back(1).kind() == COMMA
-		} {}
+		} {
+			names.push_back(self.build_name()?);
+		}
 		self.current -= 1;
 		let checkt = self.look_back(0);
 		let check = checkt.kind();

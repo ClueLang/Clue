@@ -136,7 +136,7 @@ impl<'a> Compiler<'a> {
 		let mut checked = String::with_capacity(32);
 		let mut iter = expr.into_iter().peekable();
 		while let Some(t) = iter.next() {
-			match t.clone() {
+			match t {
 				SYMBOL(lexeme) => {
 					let lexeme = lexeme.as_str();
 					match lexeme {
@@ -150,14 +150,10 @@ impl<'a> Compiler<'a> {
 						}
 						"?[" => {
 							result += &(checked.clone() + " and ");
-							let texpr = iter.next();
-							let rexpr = if let Some(EXPR(expr)) = texpr {
-								self.compile_expression(scope, expr.clone())
-							} else {
-								panic!("This message should never appear");
-							};
-							write!(checked, "[({rexpr})]")
-								.expect("something really unexpected happened");
+							checked += &format_clue!("[(", self.compile_expression(scope, match iter.next() {
+								Some(EXPR(expr)) => expr,
+								_ => unreachable!()
+							}), "])");
 						}
 						"]" => {}
 						_ => checked += lexeme,
@@ -165,15 +161,25 @@ impl<'a> Compiler<'a> {
 				}
 				EXPR(expr) => {
 					let expr = self.compile_expression(scope, expr);
-					checked.push_str(&format_clue!("(", expr, ")]"));
+					checked += &format_clue!("(", expr, ")]");
 				}
-				CALL(args) => write!(checked, "({})", self.compile_expressions(scope, args))
-					.expect("something really unexpected happened"),
+				CALL(args) => {
+					let args = format_clue!("(", self.compile_expressions(scope, args.clone()), ")");
+					if iter.peek().is_none() {
+						return if result.is_empty() {
+							checked + &args
+						} else {
+							format_clue!("(", result, checked, ")", args)
+						}
+					} else {
+						checked += &args
+					}
+				}
 				_ => {}
 			}
 		}
 		if result.is_empty() {
-			result + &checked
+			checked
 		} else {
 			format_clue!("(", result, checked, ")")
 		}
