@@ -1,22 +1,15 @@
 use ahash::AHashMap;
-use criterion::{criterion_group, criterion_main, Criterion};
+use clue::{code::*, compiler::*, env::Options, parser::*, preprocessor::*, scanner::*};
 use clue_core as clue;
-use clue::{
-	code::*,
-	compiler::*,
-	parser::*,
-	preprocessor::*,
-	scanner::*,
-	env::Options
-};
+use criterion::{criterion_group, criterion_main, Criterion};
 use std::{
 	cmp::min,
-	sync::{Arc, Mutex},
-	thread,
 	ffi::OsStr,
 	fmt::Display,
 	fs,
 	path::Path,
+	sync::{Arc, Mutex},
+	thread,
 };
 
 fn compile_code(

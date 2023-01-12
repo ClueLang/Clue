@@ -11,6 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+flume = "0.10.14"
 num_cpus = "1.14.0"
 ahash.workspace = true
 clue_core = {path = "../core"}
