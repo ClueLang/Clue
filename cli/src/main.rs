@@ -3,7 +3,6 @@ use clap::{crate_version, Parser};
 use clue_core as clue;
 use clue::{
 	check,
-	code::*,
 	compiler::*,
 	format_clue,
 	parser::*,
@@ -121,26 +120,15 @@ struct Cli {
 }
 
 fn compile_code(
-	mut codes: Vec<(Code, bool)>,
+	codes: PPCode,
 	variables: &PPVars,
 	name: &String,
 	scope: usize,
 	options: &Options,
 ) -> Result<(String, String), String> {
 	let time = Instant::now();
-	let code = if codes.len() == 1 {
-		codes.pop().unwrap().0
-	} else {
-		let mut code = Code::new();
-		for (codepart, uses_vars) in codes {
-			code.append(if uses_vars {
-				preprocess_variables(0, (&codepart).into_iter().peekable(), variables, name)?
-			} else {
-				codepart
-			})
-		}
-		code
-	};
+	println!("a: {codes:?}");
+	let code = preprocess_codes(codes, variables, name)?;
 	let tokens: Vec<Token> = scan_code(code, name)?;
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
@@ -364,8 +352,14 @@ fn main() -> Result<(), String> {
 	let codepath = cli.path.unwrap();
 	if cli.pathiscode {
 		let filename = String::from("(command line)");
-		let (rawcode, variables) = preprocess_code(codepath.as_bytes(), 1, false, &filename)?;
-		let (code, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
+		let preprocessed_code = preprocess_code(codepath.as_bytes(), 1, false, &filename)?;
+		let (code, statics) = compile_code(
+			preprocessed_code.0,
+			&preprocessed_code.1,
+			&filename,
+			0,
+			&options
+		)?;
 		let code = code + &statics;
 		println!("{}", code);
 		#[cfg(feature = "mlua")]

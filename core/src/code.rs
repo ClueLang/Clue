@@ -201,6 +201,10 @@ impl Code {
 		self.list.pop_front()
 	}
 
+	pub fn iter(&self) -> Iter<CodeChar> {
+		self.list.iter()
+	}
+
 	pub fn bytes(self) -> CodeBytes {
 		CodeBytes { code: self, line: 0, read: 0 }
 	}

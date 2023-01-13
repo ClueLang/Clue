@@ -20,10 +20,16 @@ macro_rules! pp_if {
 }
 
 pub type PPVars = AHashMap<Code, PPVar>;
+pub type PPCode = Vec<(Code, bool)>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum PPVar {
-	Simple(Code)
+	Simple(Code),
+	Macro {
+		code: PPCode,
+		args: Vec<Code>,
+		ppvars: PPVars
+	}
 }
 
 fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
@@ -361,11 +367,12 @@ impl<'a> CodeFile<'a> {
 pub fn read_file<P: AsRef<Path>>(
 	path: P,
 	filename: &String,
-) -> Result<(Vec<(Code, bool)>, PPVars), String>
+) -> Result<(PPCode, PPVars), String>
 where
 	P: AsRef<OsStr> + Display,
 {
-	preprocess_code(&check!(fs::read(path)), 1, false, filename)
+	let result = preprocess_code(&check!(fs::read(path)), 1, false, filename)?;
+	Ok((result.0, result.1))
 }
 
 #[allow(clippy::blocks_in_if_conditions)]
@@ -374,13 +381,13 @@ pub fn preprocess_code(
 	line: usize,
 	is_block: bool,
 	filename: &String,
-) -> Result<(Vec<(Code, bool)>, PPVars), String> {
+) -> Result<(PPCode, PPVars, usize, usize), String> {
 	let mut finalcode = Vec::new();
 	let mut currentcode = Code::new();
 	let mut code = CodeFile::new(code, line, filename);
 	let mut variables = AHashMap::new();
 	let mut pseudos: Option<VecDeque<VecDeque<u8>>> = None;
-	let mut cscope = is_block as u8;
+	let mut cscope = 0;
 	while let Some(c) = code.read_char()? {
 		if match c.0 {
 			b'@' => {
@@ -427,9 +434,11 @@ pub fn preprocess_code(
 						};
 						code.assert_reach(b'{')?;
 						let line = code.line;
-						let code = &code.code[code.read + 1..code.code.len()];
-						let mut block = preprocess_code(code, line, true, filename)?;
-						println!("{}", block.0.pop().unwrap().0.to_string());
+						let block = &code.code[code.read - 1..code.code.len()];
+						let (block, ppvars, line, read) = preprocess_code(block, line, true, filename)?;
+						code.line = line;
+						code.read += read - 1;
+						variables.insert(name, PPVar::Macro { code: block, args, ppvars });
 					}
 					"error" => return Err(error(code.read_line()?.to_string(), c.1, filename)),
 					"print" => println!("{}", code.read_line()?.to_string()),
@@ -487,7 +496,7 @@ pub fn preprocess_code(
 				false
 			}
 			b'/' => code.skip_comment(c, Some(&mut currentcode))?,
-			b'{' if cscope > 0 => {cscope += 1; true}
+			b'{' if cscope > 0 || is_block => {cscope += 1; true}
 			b'}' if cscope > 0 => {
 				cscope -= 1;
 				if is_block && cscope == 0 {
@@ -506,7 +515,8 @@ pub fn preprocess_code(
 	if !currentcode.is_empty() {
 		finalcode.push((currentcode, false))
 	}
-	Ok((finalcode, variables))
+	println!("{finalcode:?}");
+	Ok((finalcode, variables, code.line, code.read))
 }
 
 fn skip_whitespace_backwards(code: &mut Peekable<Rev<std::slice::Iter<u8>>>) {
@@ -559,6 +569,23 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>) -> VecDeque<VecDe
 	newpseudos
 }
 
+pub fn preprocess_codes(mut codes: PPCode, variables: &PPVars, filename: &String) -> Result<Code, String> {
+	println!("b: {codes:?}");
+	if codes.len() == 1 {
+		Ok(codes.pop().unwrap().0)
+	} else {
+		let mut code = Code::new();
+		for (codepart, uses_vars) in codes {
+			code.append(if uses_vars {
+				preprocess_variables(0, (&codepart).into_iter().peekable(), variables, filename)?
+			} else {
+				codepart
+			})
+		}
+		Ok(code)
+	}
+}
+
 pub fn preprocess_variables(
 	stacklevel: u8,
 	mut chars: Peekable<Iter<CodeChar>>,
@@ -585,16 +612,23 @@ pub fn preprocess_variables(
 						result.push((*strc, c.1));
 					}
 					result.push((b'"', c.1));
-				} else if let Some(PPVar::Simple(value)) = variables.get(&name) {
+				} else if let Some(value) = variables.get(&name) {
 					if stacklevel == MAX {
 						return Err(error("Too many variables called (likely recursive)", c.1, filename));
 					}
-					result.append(preprocess_variables(
-						stacklevel + 1,
-						value.into_iter().peekable(),
-						variables,
-						filename
-					)?)
+					result.append(match value {
+						PPVar::Simple(value) => preprocess_variables(
+							stacklevel + 1,
+							value.iter().peekable(),
+							variables,
+							filename
+						),
+						PPVar::Macro { code, args, ppvars } => preprocess_codes(
+							{println!("a:{code:?}"); code.clone()},
+							variables,
+							filename
+						)
+					}?);
 				} else {
 					return Err(error(
 						format_clue!("Value '", name.to_string(), "' not found"),
