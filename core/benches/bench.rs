@@ -2,17 +2,10 @@ use ahash::AHashMap;
 use clue::{code::*, compiler::*, env::Options, parser::*, preprocessor::*, scanner::*};
 use clue_core as clue;
 use criterion::{criterion_group, criterion_main, Criterion};
+use crossbeam_queue::SegQueue;
 use flume::Sender;
 use std::thread::JoinHandle;
-use std::{
-	cmp::min,
-	ffi::OsStr,
-	fmt::Display,
-	fs,
-	path::Path,
-	sync::{Arc, Mutex},
-	thread,
-};
+use std::{cmp::min, ffi::OsStr, fmt::Display, fs, path::Path, sync::Arc, thread};
 
 struct PreprocessorAnalyzerData {
 	pub codes: (Vec<(Code, bool)>, String),
@@ -29,9 +22,7 @@ fn wait_threads(threads: Vec<JoinHandle<()>>) {
 	}
 }
 
-fn lock_and_pop<A, B>(mutex: Arc<Mutex<Vec<(A, B)>>>) -> Option<(A, B)> {
-	let mut mutex = mutex.lock().unwrap();
-
+fn lock_and_pop<A, B>(mutex: Arc<SegQueue<(A, B)>>) -> Option<(A, B)> {
 	if mutex.is_empty() {
 		return None;
 	}
@@ -68,7 +59,7 @@ fn compile_code(
 fn analyze_and_compile(
 	tx: Sender<ThreadData>,
 	options: &Options,
-	codes: Arc<Mutex<Vec<(Vec<(Code, bool)>, String)>>>,
+	codes: Arc<SegQueue<(Vec<(Code, bool)>, String)>>,
 	variables: &Arc<AHashMap<Code, PPVar>>,
 ) {
 	loop {
@@ -94,7 +85,7 @@ fn analyze_and_compile(
 }
 
 fn preprocessor_analyzer(
-	files: Arc<Mutex<Vec<(String, String)>>>,
+	files: Arc<SegQueue<(String, String)>>,
 	tx: Sender<PreprocessorAnalyzerData>,
 ) {
 	loop {
@@ -127,11 +118,11 @@ fn preprocessor_analyzer(
 fn check_for_files<P: AsRef<Path>>(
 	path: P,
 	rpath: String,
-) -> Result<Vec<(String, String)>, std::io::Error>
+) -> Result<SegQueue<(String, String)>, std::io::Error>
 where
 	P: AsRef<OsStr> + Display,
 {
-	let mut files = vec![];
+	let files = SegQueue::new();
 	for entry in fs::read_dir(&path)? {
 		let entry = entry?;
 		let name = entry
@@ -144,8 +135,10 @@ where
 		let filepath = Path::new(&filepath_name);
 		let realname = rpath.clone() + &name;
 		if filepath.is_dir() {
-			let mut inside_files = check_for_files(filepath_name, realname + ".")?;
-			files.append(&mut inside_files);
+			let inside_files = check_for_files(filepath_name, realname + ".")?;
+			let _ = inside_files
+				.into_iter()
+				.map(|file| files.push(file.to_owned()));
 		} else if filepath_name.ends_with(".clue") {
 			files.push((filepath_name, realname));
 		}
@@ -153,12 +146,11 @@ where
 	Ok(files)
 }
 
-fn compile_folder(files: Vec<(String, String)>) {
+fn compile_folder(files: Arc<SegQueue<(String, String)>>) {
 	let files_len = files.len();
 	let threads_count = min(files_len, num_cpus::get() * 2);
-	let mut codes = Vec::with_capacity(files_len);
-	let files = Arc::new(Mutex::new(files));
-	let mut variables = vec![];
+	let codes = SegQueue::new();
+	let mut variables = Vec::with_capacity(64);
 	let mut output = String::with_capacity(files_len * 512) + "\n";
 
 	let (tx, rx) = flume::unbounded();
@@ -185,14 +177,14 @@ fn compile_folder(files: Vec<(String, String)>) {
 
 	let variables = Arc::new(
 		variables
-			.iter()
+			.into_iter()
 			.flat_map(|file_variables| file_variables.to_owned())
 			.collect::<AHashMap<Code, PPVar>>(),
 	);
 
 	let mut threads = Vec::with_capacity(threads_count);
 	let (tx, rx) = flume::unbounded();
-	let codes = Arc::new(Mutex::new(codes));
+	let codes = Arc::new(codes);
 
 	for _ in 0..threads_count {
 		let tx = tx.clone();
@@ -213,11 +205,13 @@ fn compile_folder(files: Vec<(String, String)>) {
 }
 
 fn benchmark(c: &mut Criterion) {
-	let files = check_for_files(
-		env!("CARGO_MANIFEST_DIR").to_owned() + "/../" + "examples/",
-		String::new(),
-	)
-	.expect("Unexpected error happened in checking for files to compile");
+	let files = Arc::new(
+		check_for_files(
+			env!("CARGO_MANIFEST_DIR").to_owned() + "/../" + "examples/",
+			String::new(),
+		)
+		.expect("Unexpected error happened in checking for files to compile"),
+	);
 
 	c.bench_function("compile_multi_files_bench", |b| {
 		b.iter(|| compile_folder(files.clone()))

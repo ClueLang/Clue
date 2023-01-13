@@ -15,15 +15,8 @@ use clue_core::{
 use flume::Sender;
 use std::cmp::min;
 
-use std::{
-	ffi::OsStr,
-	fmt::Display,
-	fs,
-	path::Path,
-	sync::{Arc, Mutex},
-	thread,
-	time::Instant,
-};
+use crossbeam_queue::SegQueue;
+use std::{ffi::OsStr, fmt::Display, fs, path::Path, sync::Arc, thread, time::Instant};
 
 #[derive(Parser)]
 #[clap(
@@ -179,8 +172,8 @@ where
 	let files = check!(check_for_files(file_path, rpath));
 	let files_len = files.len();
 	let threads_count = min(files_len, num_cpus::get() * 2);
-	let mut codes = Vec::with_capacity(files_len);
-	let files = Arc::new(Mutex::new(files));
+	let codes = SegQueue::new();
+	let files = Arc::new(files);
 	let mut errored = 0;
 	let mut variables = vec![];
 	let mut output = String::with_capacity(files_len * 512) + "\n";
@@ -228,7 +221,7 @@ where
 
 	let mut threads = Vec::with_capacity(threads_count);
 	let (tx, rx) = flume::unbounded();
-	let codes = Arc::new(Mutex::new(codes));
+	let codes = Arc::new(codes);
 
 	for _ in 0..threads_count {
 		let tx = tx.clone();
@@ -262,7 +255,7 @@ where
 fn analyze_and_compile(
 	tx: Sender<ThreadData>,
 	options: &Options,
-	codes: Arc<Mutex<Vec<(Vec<(Code, bool)>, String)>>>,
+	codes: Arc<SegQueue<(Vec<(Code, bool)>, String)>>,
 	variables: &Arc<AHashMap<Code, PPVar>>,
 ) {
 	loop {
@@ -303,7 +296,7 @@ fn analyze_and_compile(
 }
 
 fn preprocessor_analyzer(
-	files: Arc<Mutex<Vec<(String, String)>>>,
+	files: Arc<SegQueue<(String, String)>>,
 	tx: Sender<PreprocessorAnalyzerData>,
 ) {
 	loop {

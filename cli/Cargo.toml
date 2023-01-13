@@ -13,6 +13,7 @@ categories.workspace = true
 [dependencies]
 flume = "0.10.14"
 num_cpus = "1.14.0"
+crossbeam-queue = "0.3.8"
 ahash.workspace = true
 clue_core = {path = "../core"}
 clap.workspace = true
