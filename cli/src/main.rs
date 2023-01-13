@@ -229,7 +229,8 @@ where
 		let codes = codes.clone();
 		let variables = variables.clone();
 
-		let thread = thread::spawn(move || analyze_and_compile(tx, &options, codes, &variables));
+		let thread =
+			thread::spawn(move || analyze_and_compile(tx, &options, codes, variables.clone()));
 
 		threads.push(thread);
 	}
@@ -239,6 +240,7 @@ where
 	while let Ok(data) = rx.try_recv() {
 		if data.errored {
 			errored += 1;
+			continue;
 		}
 
 		output += &data.output;
@@ -256,7 +258,7 @@ fn analyze_and_compile(
 	tx: Sender<ThreadData>,
 	options: &Options,
 	codes: Arc<SegQueue<(Vec<(Code, bool)>, String)>>,
-	variables: &Arc<AHashMap<Code, PPVar>>,
+	variables: Arc<AHashMap<Code, PPVar>>,
 ) {
 	loop {
 		let (codes, realname) = match lock_and_pop(codes.clone()) {
