@@ -1,6 +1,6 @@
 use ahash::AHashMap;
 use clap::{crate_version, Parser};
-use clue::{check_for_files, wait_threads, PreprocessorAnalyzerData, ThreadData};
+use clue::{check_for_files, wait_threads, PreprocessorAnalyzerData, ThreadData, CodeQueue};
 use clue_core::{
 	check,
 	code::*,
@@ -244,7 +244,7 @@ where
 fn compile_file_dir(
 	tx: Sender<ThreadData>,
 	options: &Options,
-	codes: Arc<SegQueue<(Vec<(Code, bool)>, String)>>,
+	codes: Arc<CodeQueue>,
 	variables: Arc<AHashMap<Code, PPVar>>,
 ) {
 	loop {
@@ -253,7 +253,7 @@ fn compile_file_dir(
 			Some((codes, realname)) => (codes, realname),
 		};
 
-		let (code, static_vars) = match compile_code(codes, &variables, &realname, 2, &options) {
+		let (code, static_vars) = match compile_code(codes, &variables, &realname, 2, options) {
 			Ok(t) => t,
 			Err(e) => {
 				tx.send(ThreadData {

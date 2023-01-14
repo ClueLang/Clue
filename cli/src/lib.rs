@@ -7,6 +7,8 @@ use std::fs;
 use std::path::Path;
 use std::thread::JoinHandle;
 
+pub type CodeQueue = SegQueue<(Vec<(Code, bool)>, String)>;
+
 pub struct PreprocessorAnalyzerData {
 	pub errored: bool,
 	pub codes: (Vec<(Code, bool)>, String),
