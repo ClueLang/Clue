@@ -685,8 +685,15 @@ pub fn preprocess_variables(
 										filename
 									))
 								}
-								let args = args.iter();
-								for arg_name in args {
+								let mut args = args.iter();
+								loop {
+									let Some(arg_name) = args.next() else {
+										return Err(error(
+											"Too many arguments passed to macro",
+											c.1,
+											filename,
+										));
+									};
 									let mut value = Code::new();
 									let mut cscope = 1u8;
 									while let Some(c) = chars.peek() {
@@ -714,9 +721,16 @@ pub fn preprocess_variables(
 									if check.is_none() {
 										return Err(expected_before(")", "<eof>", c.1, filename))
 									}
-									if let Some((b'(', _)) = check {
+									if let Some((b')', _)) = check {
 										break
 									}
+								}
+								if let Some(missed) = args.next() {
+									return Err(error(
+										format!("Missing argument '{}' for macro", missed.to_string()),
+										c.1,
+										filename
+									))
 								}
 								macro_variables
 							},
