@@ -117,7 +117,6 @@ fn compile_code(
 	options: &Options,
 ) -> Result<(String, String), String> {
 	let time = Instant::now();
-	println!("a: {codes:?}");
 	let code = preprocess_codes(codes, variables, name)?;
 	let tokens: Vec<Token> = scan_code(code, name)?;
 	if options.env_tokens {

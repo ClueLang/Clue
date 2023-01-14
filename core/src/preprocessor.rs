@@ -515,7 +515,6 @@ pub fn preprocess_code(
 	if !currentcode.is_empty() {
 		finalcode.push((currentcode, false))
 	}
-	println!("{finalcode:?}");
 	Ok((finalcode, variables, code.line, code.read))
 }
 
@@ -570,7 +569,6 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>) -> VecDeque<VecDe
 }
 
 pub fn preprocess_codes(mut codes: PPCode, variables: &PPVars, filename: &String) -> Result<Code, String> {
-	println!("b: {codes:?}");
 	if codes.len() == 1 {
 		Ok(codes.pop().unwrap().0)
 	} else {
@@ -624,7 +622,7 @@ pub fn preprocess_variables(
 							filename
 						),
 						PPVar::Macro { code, args, ppvars } => preprocess_codes(
-							{println!("a:{code:?}"); code.clone()},
+							code.clone(),
 							variables,
 							filename
 						)
