@@ -4,6 +4,7 @@ use clue::{check_for_files, lock_and_pop, wait_threads, PreprocessorAnalyzerData
 use clue_core::{
 	check,
 	compiler::*,
+	code::*,
 	env::{ContinueMode, Options},
 	format_clue,
 	parser::*,
