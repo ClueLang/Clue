@@ -5,7 +5,6 @@ use std::ffi::OsStr;
 use std::fmt::Display;
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
 use std::thread::JoinHandle;
 
 pub struct PreprocessorAnalyzerData {
@@ -53,14 +52,6 @@ where
 
 pub fn wait_threads(threads: Vec<JoinHandle<()>>) {
 	for thread in threads {
-		thread.join().unwrap();
+		thread.join().expect("Join shouldn't panic");
 	}
-}
-
-pub fn lock_and_pop<A, B>(mutex: Arc<SegQueue<(A, B)>>) -> Option<(A, B)> {
-	if mutex.is_empty() {
-		return None;
-	}
-
-	Some(mutex.pop().unwrap())
 }

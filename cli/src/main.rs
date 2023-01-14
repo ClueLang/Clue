@@ -1,10 +1,10 @@
 use ahash::AHashMap;
 use clap::{crate_version, Parser};
-use clue::{check_for_files, lock_and_pop, wait_threads, PreprocessorAnalyzerData, ThreadData};
+use clue::{check_for_files, wait_threads, PreprocessorAnalyzerData, ThreadData};
 use clue_core::{
 	check,
-	compiler::*,
 	code::*,
+	compiler::*,
 	env::{ContinueMode, Options},
 	format_clue,
 	parser::*,
@@ -248,7 +248,7 @@ fn compile_file_dir(
 	variables: Arc<AHashMap<Code, PPVar>>,
 ) {
 	loop {
-		let (codes, realname) = match lock_and_pop(codes.clone()) {
+		let (codes, realname) = match codes.pop() {
 			None => break,
 			Some((codes, realname)) => (codes, realname),
 		};
@@ -289,7 +289,7 @@ fn preprocess_file_dir(
 	tx: Sender<PreprocessorAnalyzerData>,
 ) {
 	loop {
-		let (filename, realname) = match lock_and_pop(files.clone()) {
+		let (filename, realname) = match files.pop() {
 			None => break,
 			Some((filename, realname)) => (filename, realname),
 		};
@@ -369,7 +369,7 @@ fn main() -> Result<(), String> {
 			&preprocessed_code.1,
 			&filename,
 			0,
-			&options
+			&options,
 		)?;
 		let code = code + &statics;
 		println!("{}", code);
