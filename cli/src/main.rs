@@ -1,32 +1,21 @@
 use ahash::AHashMap;
 use clap::{crate_version, Parser};
-use clue_core as clue;
-use clue::{
+use clue::{check_for_files, lock_and_pop, wait_threads, PreprocessorAnalyzerData, ThreadData};
+use clue_core::{
 	check,
 	compiler::*,
+	env::{ContinueMode, Options},
 	format_clue,
 	parser::*,
 	preprocessor::*,
 	scanner::*,
-	env::{ContinueMode, Options}/*,
-	LUA_G*/
-};
-use std::{
-	cmp,
-	sync::{Arc, Mutex},
-	thread,
-	ffi::OsStr,
-	fmt::Display,
-	fs,
-	path::Path,
-	time::Instant,
 };
 
-macro_rules! println {
-    ($($rest:tt)*) => {
-        std::println!($($rest)*)
-    }
-}
+use flume::Sender;
+use std::cmp::min;
+
+use crossbeam_queue::SegQueue;
+use std::{ffi::OsStr, fmt::Display, fs, path::Path, sync::Arc, thread, time::Instant};
 
 #[derive(Parser)]
 #[clap(
@@ -140,8 +129,7 @@ fn compile_code(
 		} else {
 			None
 		},*/
-		name,
-		options,
+		name, options,
 	)?;
 
 	if options.env_struct {
@@ -161,148 +149,172 @@ fn compile_code(
 	Ok((code, statics))
 }
 
-fn check_for_files<P: AsRef<Path>>(
-	path: P,
-	rpath: String,
-) -> Result<Vec<(String, String)>, std::io::Error>
-where
-	P: AsRef<OsStr> + Display,
-{
-	let mut files = vec![];
-	for entry in fs::read_dir(&path)? {
-		let entry = entry?;
-		let name = entry
-			.path()
-			.file_name()
-			.unwrap()
-			.to_string_lossy()
-			.into_owned();
-		let filepath_name = format!("{path}/{name}");
-		let filepath = Path::new(&filepath_name);
-		let realname = rpath.clone() + &name;
-		if filepath.is_dir() {
-			let mut inside_files = check_for_files(filepath_name, realname + ".")?;
-			files.append(&mut inside_files);
-		} else if filepath_name.ends_with(".clue") {
-			files.push((filepath_name, realname));
-		}
-	}
-	Ok(files)
-}
-
 fn compile_folder<P: AsRef<Path>>(
-	path: P,
+	file_path: P,
 	rpath: String,
 	options: &Options,
 ) -> Result<(String, String), String>
 where
 	P: AsRef<OsStr> + Display,
 {
-	let files = check!(check_for_files(path, rpath));
-	let threads_count = cmp::min(files.len(), num_cpus::get() * 2);
-	let codes = Arc::new(Mutex::new(Vec::with_capacity(files.len())));
-	let files = Arc::new(Mutex::new(files));
-	let errored = Arc::new(Mutex::new(0u8));
-	let variables = Arc::new(Mutex::new(Vec::new()));
-	let output = Arc::new(Mutex::new(
-		String::with_capacity(files.lock().unwrap().len() * 512) + "\n",
-	));
-	let statics = Arc::new(Mutex::new(String::with_capacity(512)));
+	let files = check!(check_for_files(file_path, rpath));
+	let files_len = files.len();
+	let threads_count = min(files_len, num_cpus::get() * 2);
+	let codes = SegQueue::new();
+	let files = Arc::new(files);
+	let mut errored = 0;
+	let mut variables = vec![];
+	let mut output = String::with_capacity(files_len * 512) + "\n";
+	let mut statics = String::with_capacity(512);
+
+	let (tx, rx) = flume::unbounded();
+
 	let mut threads = Vec::with_capacity(threads_count);
+
 	for _ in 0..threads_count {
 		// this `.clone()` is used to create new pointers
 		// that can be used from inside the newly created thread
 		let files = files.clone();
-		let errored = errored.clone();
-		let codes = codes.clone();
-		let variables = variables.clone();
-		let thread = thread::spawn(move || loop {
-			// Acquire the lock, check the files to compile, get the file to compile and then drop the lock
-			let (filename, realname) = {
-				let mut files = files.lock().unwrap();
-				if files.is_empty() {
-					break;
-				}
-				files.pop().unwrap()
-			};
-			let (file_codes, file_variables) = match read_file(&filename, &filename) {
-				Ok(t) => t,
-				Err(e) => {
-					*errored.lock().unwrap() += 1;
-					println!("Error: {}", e);
-					continue;
-				}
-			};
-			codes.lock().unwrap().push((file_codes, realname));
-			variables.lock().unwrap().push(file_variables);
-		});
+		let tx = tx.clone();
+
+		let thread = thread::spawn(move || preprocessor_analyzer(files, tx));
+
 		threads.push(thread);
 	}
-	for thread in threads {
-		thread.join().unwrap();
+
+	wait_threads(threads);
+
+	while let Ok(data) = rx.try_recv() {
+		if data.errored {
+			errored += 1;
+			continue;
+		}
+
+		variables.push(data.variables);
+		codes.push(data.codes);
 	}
-	match *errored.lock().unwrap() {
-		0 => {},
+
+	match errored {
+		0 => {}
 		1 => return Err(String::from("1 file failed to compile!")),
 		n => return Err(format!("{n} files failed to compile!")),
 	}
-	let variables = Arc::new({
-		let mut total_vars = AHashMap::new();
-		let mut variables = variables.lock().unwrap();
-		while let Some(file_variables) = variables.pop() {
-			for (k, v) in file_variables {
-				total_vars.insert(k, v);
-			}
-		}
-		total_vars
-	});
+
+	let variables = Arc::new(
+		variables
+			.iter()
+			.flat_map(|file_variables| file_variables.to_owned())
+			.collect::<AHashMap<Code, PPVar>>(),
+	);
+
 	let mut threads = Vec::with_capacity(threads_count);
+	let (tx, rx) = flume::unbounded();
+	let codes = Arc::new(codes);
+
 	for _ in 0..threads_count {
+		let tx = tx.clone();
 		let options = options.clone();
 		let codes = codes.clone();
 		let variables = variables.clone();
-		let errored = errored.clone();
-		let output = output.clone();
-		let statics = statics.clone();
-		let thread = thread::spawn(move || loop {
-			let (codes, realname) = {
-				let mut codes = codes.lock().unwrap();
-				if codes.is_empty() {
-					break;
-				}
-				codes.pop().unwrap()
-			};
-			let (code, static_vars) = match compile_code(codes, &variables, &realname, 2, &options) {
-				Ok(t) => t,
-				Err(e) => {
-					*errored.lock().unwrap() += 1;
-					println!("Error: {}", e);
-					continue;
-				}
-			};
-			let string = format_clue!(
-				"\t[\"",
-				realname.strip_suffix(".clue").unwrap(),
-				"\"] = function()\n",
-				code,
-				"\n\tend,\n"
-			);
-			*output.lock().unwrap() += &string;
-			*statics.lock().unwrap() += &static_vars;
-		});
+
+		let thread =
+			thread::spawn(move || analyze_and_compile(tx, &options, codes, variables.clone()));
+
 		threads.push(thread);
 	}
-	for thread in threads {
-		thread.join().unwrap();
+
+	wait_threads(threads);
+
+	while let Ok(data) = rx.try_recv() {
+		if data.errored {
+			errored += 1;
+			continue;
+		}
+
+		output += &data.output;
+		statics += &data.static_vars;
 	}
-	let errored = *errored.lock().unwrap();
+
 	match errored {
-		0 => Ok((
-			output.lock().unwrap().drain(..).collect(),
-			statics.lock().unwrap().drain(..).collect(),
-		)),
+		0 => Ok((output.chars().collect(), statics.chars().collect())),
 		1 => Err(String::from("1 file failed to compile!")),
 		n => Err(format!("{n} files failed to compile!")),
+	}
+}
+
+fn analyze_and_compile(
+	tx: Sender<ThreadData>,
+	options: &Options,
+	codes: Arc<SegQueue<(Vec<(Code, bool)>, String)>>,
+	variables: Arc<AHashMap<Code, PPVar>>,
+) {
+	loop {
+		let (codes, realname) = match lock_and_pop(codes.clone()) {
+			None => break,
+			Some((codes, realname)) => (codes, realname),
+		};
+
+		let (code, static_vars) = match compile_code(codes, &variables, &realname, 2, &options) {
+			Ok(t) => t,
+			Err(e) => {
+				tx.send(ThreadData {
+					errored: true,
+					output: "".to_string(),
+					static_vars: "".to_string(),
+				})
+				.unwrap();
+				println!("Error: {}", e);
+				continue;
+			}
+		};
+
+		let string = format_clue!(
+			"\t[\"",
+			realname.strip_suffix(".clue").unwrap(),
+			"\"] = function()\n",
+			code,
+			"\n\tend,\n"
+		);
+
+		tx.send(ThreadData {
+			errored: false,
+			output: string,
+			static_vars,
+		})
+		.unwrap();
+	}
+}
+
+fn preprocessor_analyzer(
+	files: Arc<SegQueue<(String, String)>>,
+	tx: Sender<PreprocessorAnalyzerData>,
+) {
+	loop {
+		let (filename, realname) = match lock_and_pop(files.clone()) {
+			None => break,
+			Some((filename, realname)) => (filename, realname),
+		};
+
+		let (file_codes, file_variables) = match read_file(&filename, &filename) {
+			Ok(t) => t,
+			Err(e) => {
+				tx.send(PreprocessorAnalyzerData {
+					errored: true,
+					codes: Default::default(),
+					variables: Default::default(),
+				})
+				.unwrap();
+				println!("Error: {}", e);
+				continue;
+			}
+		};
+
+		tx.send(PreprocessorAnalyzerData {
+			errored: false,
+			codes: (file_codes, realname),
+			variables: file_variables,
+		})
+		.unwrap();
 	}
 }
 

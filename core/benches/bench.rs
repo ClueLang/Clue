@@ -1,23 +1,34 @@
 use ahash::AHashMap;
-use criterion::{criterion_group, criterion_main, Criterion};
+use clue::{code::*, compiler::*, env::Options, parser::*, preprocessor::*, scanner::*};
 use clue_core as clue;
-use clue::{
-	code::*,
-	compiler::*,
-	parser::*,
-	preprocessor::*,
-	scanner::*,
-	env::Options
-};
-use std::{
-	cmp::min,
-	sync::{Arc, Mutex},
-	thread,
-	ffi::OsStr,
-	fmt::Display,
-	fs,
-	path::Path,
-};
+use criterion::{criterion_group, criterion_main, Criterion};
+use crossbeam_queue::SegQueue;
+use flume::Sender;
+use std::thread::JoinHandle;
+use std::{cmp::min, ffi::OsStr, fmt::Display, fs, path::Path, sync::Arc, thread};
+
+struct PreprocessorAnalyzerData {
+	pub codes: (Vec<(Code, bool)>, String),
+	pub variables: PPVars,
+}
+
+struct ThreadData {
+	pub output: String,
+}
+
+fn wait_threads(threads: Vec<JoinHandle<()>>) {
+	for thread in threads {
+		thread.join().unwrap();
+	}
+}
+
+fn lock_and_pop<A, B>(mutex: Arc<SegQueue<(A, B)>>) -> Option<(A, B)> {
+	if mutex.is_empty() {
+		return None;
+	}
+
+	Some(mutex.pop().unwrap())
+}
 
 fn compile_code(
 	mut codes: Vec<(Code, bool)>,
@@ -45,14 +56,73 @@ fn compile_code(
 	Ok((code, statics))
 }
 
+fn analyze_and_compile(
+	tx: Sender<ThreadData>,
+	options: &Options,
+	codes: Arc<SegQueue<(Vec<(Code, bool)>, String)>>,
+	variables: Arc<AHashMap<Code, PPVar>>,
+) {
+	loop {
+		let (codes, realname) = match lock_and_pop(codes.clone()) {
+			None => break,
+			Some((codes, realname)) => (codes, realname),
+		};
+
+		let (code, _static_vars) = match compile_code(codes, &variables, &realname, 2, &options) {
+			Ok(t) => t,
+			Err(e) => {
+				tx.send(ThreadData {
+					output: "".to_string(),
+				})
+				.unwrap();
+				println!("Error: {}", e);
+				continue;
+			}
+		};
+
+		tx.send(ThreadData { output: code }).unwrap();
+	}
+}
+
+fn preprocessor_analyzer(
+	files: Arc<SegQueue<(String, String)>>,
+	tx: Sender<PreprocessorAnalyzerData>,
+) {
+	loop {
+		let (filename, realname) = match lock_and_pop(files.clone()) {
+			None => break,
+			Some((filename, realname)) => (filename, realname),
+		};
+
+		let (file_codes, file_variables) = match read_file(&filename, &filename) {
+			Ok(t) => t,
+			Err(e) => {
+				tx.send(PreprocessorAnalyzerData {
+					codes: Default::default(),
+					variables: Default::default(),
+				})
+				.unwrap();
+				println!("Error: {}", e);
+				continue;
+			}
+		};
+
+		tx.send(PreprocessorAnalyzerData {
+			codes: (file_codes, realname),
+			variables: file_variables,
+		})
+		.unwrap();
+	}
+}
+
 fn check_for_files<P: AsRef<Path>>(
 	path: P,
 	rpath: String,
-) -> Result<Vec<(String, String)>, std::io::Error>
+) -> Result<SegQueue<(String, String)>, std::io::Error>
 where
 	P: AsRef<OsStr> + Display,
 {
-	let mut files = vec![];
+	let files = SegQueue::new();
 	for entry in fs::read_dir(&path)? {
 		let entry = entry?;
 		let name = entry
@@ -65,8 +135,10 @@ where
 		let filepath = Path::new(&filepath_name);
 		let realname = rpath.clone() + &name;
 		if filepath.is_dir() {
-			let mut inside_files = check_for_files(filepath_name, realname + ".")?;
-			files.append(&mut inside_files);
+			let inside_files = check_for_files(filepath_name, realname + ".")?;
+			let _ = inside_files
+				.into_iter()
+				.map(|file| files.push(file.to_owned()));
 		} else if filepath_name.ends_with(".clue") {
 			files.push((filepath_name, realname));
 		}
@@ -74,73 +146,76 @@ where
 	Ok(files)
 }
 
-fn compile_multi_files_bench(files: Vec<(String, String)>) {
-	let threads_count = min(files.len(), num_cpus::get() * 2);
-	let codes = Arc::new(Mutex::new(Vec::with_capacity(files.len())));
-	let files = Arc::new(Mutex::new(files));
-	let variables = Arc::new(Mutex::new(Vec::new()));
+fn compile_folder(files: Arc<SegQueue<(String, String)>>) {
+	let files_len = files.len();
+	let threads_count = min(files_len, num_cpus::get() * 2);
+	let codes = SegQueue::new();
+	let mut variables = Vec::with_capacity(64);
+	let mut output = String::with_capacity(files_len * 512) + "\n";
+
+	let (tx, rx) = flume::unbounded();
+
 	let mut threads = Vec::with_capacity(threads_count);
+
 	for _ in 0..threads_count {
+		// this `.clone()` is used to create new pointers
+		// that can be used from inside the newly created thread
 		let files = files.clone();
-		let codes = codes.clone();
-		let variables = variables.clone();
-		let thread = thread::spawn(move || loop {
-			let (filename, realname) = {
-				let mut files = files.lock().unwrap();
-				if files.is_empty() {
-					break;
-				}
-				files.pop().unwrap()
-			};
-			let (file_codes, file_variables) = read_file(&filename, &filename).unwrap();
-			codes.lock().unwrap().push((file_codes, realname));
-			variables.lock().unwrap().push(file_variables);
-		});
+		let tx = tx.clone();
+
+		let thread = thread::spawn(move || preprocessor_analyzer(files, tx));
+
 		threads.push(thread);
 	}
-	for thread in threads {
-		thread.join().unwrap();
+
+	wait_threads(threads);
+
+	while let Ok(data) = rx.try_recv() {
+		variables.push(data.variables);
+		codes.push(data.codes);
 	}
-	let variables = Arc::new({
-		let mut total_vars = AHashMap::new();
-		let mut variables = variables.lock().unwrap();
-		while let Some(file_variables) = variables.pop() {
-			for (k, v) in file_variables {
-				total_vars.insert(k, v);
-			}
-		}
-		total_vars
-	});
+
+	let variables = Arc::new(
+		variables
+			.into_iter()
+			.flat_map(|file_variables| file_variables.to_owned())
+			.collect::<AHashMap<Code, PPVar>>(),
+	);
+
 	let mut threads = Vec::with_capacity(threads_count);
+	let (tx, rx) = flume::unbounded();
+	let codes = Arc::new(codes);
+
 	for _ in 0..threads_count {
+		let tx = tx.clone();
 		let codes = codes.clone();
 		let variables = variables.clone();
-		let thread = thread::spawn(move || loop {
-			let (codes, realname) = {
-				let mut codes = codes.lock().unwrap();
-				if codes.is_empty() {
-					break;
-				}
-				codes.pop().unwrap()
-			};
-			compile_code(codes, &variables, &realname, 2, &Options::default()).unwrap();
+
+		let thread = thread::spawn(move || {
+			analyze_and_compile(tx, &Options::default(), codes, variables.clone())
 		});
+
 		threads.push(thread);
 	}
-	for thread in threads {
-		thread.join().unwrap();
+
+	wait_threads(threads);
+
+	while let Ok(data) = rx.try_recv() {
+		output += &data.output;
 	}
 }
 
 fn benchmark(c: &mut Criterion) {
-	let files = check_for_files(
-		env!("CARGO_MANIFEST_DIR").to_owned() + "/../" + "examples/",
-		String::new(),
-	)
-	.expect("Unexpected error happened in checking for files to compile");
+	let files = Arc::new(
+		check_for_files(
+			env!("CARGO_MANIFEST_DIR").to_owned() + "/../" + "examples/",
+			String::new(),
+		)
+		.expect("Unexpected error happened in checking for files to compile"),
+	);
 
 	c.bench_function("compile_multi_files_bench", |b| {
-		b.iter(|| compile_multi_files_bench(files.clone()))
+		b.iter(|| compile_folder(files.clone()))
 	});
 }
 
