@@ -25,6 +25,7 @@ pub type PPCode = Vec<(Code, bool)>;
 #[derive(Debug, Clone)]
 pub enum PPVar {
 	Simple(Code),
+	ToProcess(Code),
 	Macro {
 		code: PPCode,
 		args: Vec<Code>,
@@ -440,8 +441,22 @@ pub fn preprocess_code(
 					},
 					"define" => {
 						let name = code.read_identifier()?;
-						let value = code.read_line()?;
-						variables.insert(name, PPVar::Simple(value.trim()));
+						let mut has_values = false;
+						let value = code.read(
+							|code| Ok(code.read_char_unchecked()),
+							|_, (c, _)| {
+								if c == b'$' {
+									has_values = true;
+								}
+								c == b'\n'
+							}
+						)?;
+						let value = value.trim();
+						variables.insert(name, if has_values {
+							PPVar::ToProcess(value)
+						} else {
+							PPVar::Simple(value)
+						});
 					}
 					"macro" => {
 						let name = code.read_identifier()?;
@@ -657,12 +672,13 @@ pub fn preprocess_variables(
 						return Err(error("Too many variables called (likely recursive)", c.1, filename));
 					}
 					result.append(match value {
-						PPVar::Simple(value) => preprocess_variables(
+						PPVar::Simple(value) => value.clone(),
+						PPVar::ToProcess(value) => preprocess_variables(
 							stacklevel + 1,
 							value.iter().peekable(),
 							variables,
 							filename
-						),
+						)?,
 						PPVar::Macro { code, args, ppvars } => preprocess_codes(
 							stacklevel + 1,
 							code.clone(),
@@ -710,12 +726,15 @@ pub fn preprocess_variables(
 										}
 										value.push(*chars.next().unwrap())
 									}
-									macro_variables.insert(arg_name.clone(), PPVar::Simple(preprocess_variables(
-										stacklevel + 1,
-										value.trim().iter().peekable(),
-										variables,
-										filename
-									)?));
+									macro_variables.insert(
+										arg_name.clone(),
+										PPVar::Simple(preprocess_variables(
+											stacklevel + 1,
+											value.trim().iter().peekable(),
+											variables,
+											filename
+										)?
+									));
 									let check = chars.next();
 									//println!("{}: {}", arg_name.to_string(), value.to_string());
 									if check.is_none() {
@@ -735,8 +754,8 @@ pub fn preprocess_variables(
 								macro_variables
 							},
 							filename
-						)
-					}?);
+						)?
+					});
 				} else {
 					return Err(error(
 						format_clue!("Value '", name.to_string(), "' not found"),
