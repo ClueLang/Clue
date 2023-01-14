@@ -262,6 +262,33 @@ impl<'a> CodeFile<'a> {
 			.ok_or_else(|| expected_before(&(end as char).to_string(), "<end>", self.line, self.filename))
 	}
 
+	fn read_macro_args(&mut self) -> Result<Code, String> {
+		let mut args = Code::new();
+		args.push(self.read_char_unchecked().unwrap());
+		while let Some(c) = self.peek_char()? {
+			match c.0 {
+				b'(' => args.append(self.read_macro_args()?),
+				b')' => {
+					args.push(self.read_char_unchecked().unwrap());
+					return Ok(args)
+				},
+				b'\'' | b'"' | b'`' => {
+					args.push(self.read_char_unchecked().unwrap());
+					args.append(self.read_string(c)?);
+					args.push(c);
+				},
+				b'/' => {
+					let c = self.read_char_unchecked().unwrap();
+					if self.skip_comment(c, Some(&mut args))? {
+						args.push(c)
+					}
+				}
+				_ => args.push(self.read_char_unchecked().unwrap())
+			}
+		}
+		Err(expected_before(")", "<end>", self.line, self.filename))
+	}
+
 	fn skip_block(&mut self) -> Result<(), String> {
 		while let Some(c) = self.read_char()? {
 			match c.0 {
@@ -387,7 +414,7 @@ pub fn preprocess_code(
 	let mut code = CodeFile::new(code, line, filename);
 	let mut variables = AHashMap::new();
 	let mut pseudos: Option<VecDeque<VecDeque<u8>>> = None;
-	let mut cscope = 0;
+	let mut cscope = is_block as u8;
 	while let Some(c) = code.read_char()? {
 		if match c.0 {
 			b'@' => {
@@ -434,10 +461,10 @@ pub fn preprocess_code(
 						};
 						code.assert_reach(b'{')?;
 						let line = code.line;
-						let block = &code.code[code.read - 1..code.code.len()];
+						let block = &code.code[code.read..code.code.len()];
 						let (block, ppvars, line, read) = preprocess_code(block, line, true, filename)?;
 						code.line = line;
-						code.read += read - 1;
+						code.read += read;
 						variables.insert(name, PPVar::Macro { code: block, args, ppvars });
 					}
 					"error" => return Err(error(code.read_line()?.to_string(), c.1, filename)),
@@ -465,6 +492,16 @@ pub fn preprocess_code(
 				} else {
 					finalcode.push((currentcode, false));
 					name.push_start(c);
+					if {
+						if matches!(code.peek_char_unchecked(), Some((b'!', _))) {
+							name.push(code.read_char_unchecked().unwrap());
+							matches!(code.peek_char_unchecked(), Some((b'(', _)))
+						} else {
+							false
+						}
+					} {
+						name.append(code.read_macro_args()?)
+					}
 					finalcode.push((name, true));
 					currentcode = Code::new();
 				}
@@ -568,14 +605,19 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>) -> VecDeque<VecDe
 	newpseudos
 }
 
-pub fn preprocess_codes(mut codes: PPCode, variables: &PPVars, filename: &String) -> Result<Code, String> {
+pub fn preprocess_codes(
+	stacklevel: u8,
+	mut codes: PPCode,
+	variables: &PPVars,
+	filename: &String,
+) -> Result<Code, String> {
 	if codes.len() == 1 {
 		Ok(codes.pop().unwrap().0)
 	} else {
 		let mut code = Code::new();
 		for (codepart, uses_vars) in codes {
 			code.append(if uses_vars {
-				preprocess_variables(0, (&codepart).into_iter().peekable(), variables, filename)?
+				preprocess_variables(stacklevel, (&codepart).into_iter().peekable(), &variables, filename)?
 			} else {
 				codepart
 			})
@@ -622,8 +664,62 @@ pub fn preprocess_variables(
 							filename
 						),
 						PPVar::Macro { code, args, ppvars } => preprocess_codes(
+							stacklevel + 1,
 							code.clone(),
-							variables,
+							&{
+								let mut macro_variables = variables.clone();
+								macro_variables.extend(ppvars.clone().into_iter());
+								let is_called = matches!(chars.next(), Some((b'!', _)));
+								if !is_called || !matches!(chars.next(), Some((b'(', _))) {
+									let name = name.to_string();
+									return Err(error(
+										format!(
+											"Macro not called (replace '${name}{}' with '${name}!()')",
+											if is_called {
+												"!"
+											} else {
+												""
+											}
+										),
+										c.1,
+										filename
+									))
+								}
+								let args = args.iter();
+								for arg_name in args {
+									let mut value = Code::new();
+									let mut cscope = 1u8;
+									while let Some(c) = chars.peek() {
+										match c.0 {
+											b'(' => {cscope += 1}
+											b',' if cscope == 1 => break,
+											b')' => {
+												cscope -= 1;
+												if cscope == 0 {
+													break
+												}
+											}
+											_ => {},
+										}
+										value.push(*chars.next().unwrap())
+									}
+									macro_variables.insert(arg_name.clone(), PPVar::Simple(preprocess_variables(
+										stacklevel + 1,
+										value.trim().iter().peekable(),
+										variables,
+										filename
+									)?));
+									let check = chars.next();
+									//println!("{}: {}", arg_name.to_string(), value.to_string());
+									if check.is_none() {
+										return Err(expected_before(")", "<eof>", c.1, filename))
+									}
+									if let Some((b'(', _)) = check {
+										break
+									}
+								}
+								macro_variables
+							},
 							filename
 						)
 					}?);
@@ -652,5 +748,6 @@ pub fn preprocess_variables(
 			_ => result.push(*c),
 		}
 	}
+	println!("'{}'", result.to_string());
 	Ok(result)
 }

@@ -1,7 +1,14 @@
-/* TO BE REPLACED ONCE NEW PREPROCESSOR IS DONE
-macro ADD $1 + $2
-macro MUL $1 * $2
-macro DOUBLE @MUL($1, 2)
+@macro add(x, y) {
+	$x + $y
+}
 
-print(@ADD(4, @ADD(3, 2)))
-print(@DOUBLE(4))*/
+@macro mul(x, y) {
+	$x * $y
+}
+
+@macro double(x) {
+	$mul!($x, 2)
+}
+
+print($add!(4, $add!(3, 2)))
+print($double!(4, 1))

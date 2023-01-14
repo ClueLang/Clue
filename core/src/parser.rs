@@ -366,8 +366,9 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	*/
 
 	fn get_next_internal_var(&mut self) -> String {
+		let var = format_clue!("_internal", self.internal_var_id.to_string());
 		self.internal_var_id += 1;
-		format_clue!("_internal", self.internal_var_id.to_string())
+		var
 	}
 
 	fn build_call(&mut self) -> Result<Vec<Expression>, String> {
