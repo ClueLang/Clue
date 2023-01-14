@@ -41,9 +41,9 @@ where
 		let realname = rpath.clone() + &name;
 		if filepath.is_dir() {
 			let inside_files = check_for_files(filepath_name, realname + ".")?;
-			let _ = inside_files
-				.into_iter()
-				.map(|file| files.push(file.to_owned()));
+			for file in inside_files {
+				files.push(file)
+			}
 		} else if filepath_name.ends_with(".clue") {
 			files.push((filepath_name, realname));
 		}
