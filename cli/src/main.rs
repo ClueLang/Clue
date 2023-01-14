@@ -177,7 +177,7 @@ where
 		let files = files.clone();
 		let tx = tx.clone();
 
-		let thread = thread::spawn(move || preprocessor_analyzer(files, tx));
+		let thread = thread::spawn(move || preprocess_file_dir(files, tx));
 
 		threads.push(thread);
 	}
@@ -217,8 +217,7 @@ where
 		let codes = codes.clone();
 		let variables = variables.clone();
 
-		let thread =
-			thread::spawn(move || analyze_and_compile(tx, &options, codes, variables.clone()));
+		let thread = thread::spawn(move || compile_file_dir(tx, &options, codes, variables.clone()));
 
 		threads.push(thread);
 	}
@@ -242,7 +241,7 @@ where
 	}
 }
 
-fn analyze_and_compile(
+fn compile_file_dir(
 	tx: Sender<ThreadData>,
 	options: &Options,
 	codes: Arc<SegQueue<(Vec<(Code, bool)>, String)>>,
@@ -285,7 +284,7 @@ fn analyze_and_compile(
 	}
 }
 
-fn preprocessor_analyzer(
+fn preprocess_file_dir(
 	files: Arc<SegQueue<(String, String)>>,
 	tx: Sender<PreprocessorAnalyzerData>,
 ) {
