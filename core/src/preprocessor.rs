@@ -736,7 +736,6 @@ pub fn preprocess_variables(
 										)?
 									));
 									let check = chars.next();
-									//println!("{}: {}", arg_name.to_string(), value.to_string());
 									if check.is_none() {
 										return Err(expected_before(")", "<eof>", c.1, filename))
 									}
@@ -781,6 +780,5 @@ pub fn preprocess_variables(
 			_ => result.push(*c),
 		}
 	}
-	println!("'{}'", result.to_string());
 	Ok(result)
 }

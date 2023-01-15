@@ -11,4 +11,4 @@
 }
 
 print($add!(4, $add!(3, 2)))
-print($double!(4, 1))
+print($double!(4))
