@@ -56,7 +56,7 @@ fn compile_code(
 	Ok((code, statics))
 }
 
-fn analyze_and_compile(
+fn compile_file_dir(
 	tx: Sender<ThreadData>,
 	options: &Options,
 	codes: Arc<SegQueue<(Vec<(Code, bool)>, String)>>,
@@ -84,7 +84,7 @@ fn analyze_and_compile(
 	}
 }
 
-fn preprocessor_analyzer(
+fn preprocess_file_dir(
 	files: Arc<SegQueue<(String, String)>>,
 	tx: Sender<PreprocessorAnalyzerData>,
 ) {
@@ -135,10 +135,9 @@ where
 		let filepath = Path::new(&filepath_name);
 		let realname = rpath.clone() + &name;
 		if filepath.is_dir() {
-			let inside_files = check_for_files(filepath_name, realname + ".")?;
-			let _ = inside_files
-				.into_iter()
-				.map(|file| files.push(file.to_owned()));
+			for file in check_for_files(filepath_name, realname + ".")? {
+				files.push(file)
+			}
 		} else if filepath_name.ends_with(".clue") {
 			files.push((filepath_name, realname));
 		}
@@ -163,7 +162,7 @@ fn compile_folder(files: Arc<SegQueue<(String, String)>>) {
 		let files = files.clone();
 		let tx = tx.clone();
 
-		let thread = thread::spawn(move || preprocessor_analyzer(files, tx));
+		let thread = thread::spawn(move || preprocess_file_dir(files, tx));
 
 		threads.push(thread);
 	}
@@ -192,7 +191,7 @@ fn compile_folder(files: Arc<SegQueue<(String, String)>>) {
 		let variables = variables.clone();
 
 		let thread = thread::spawn(move || {
-			analyze_and_compile(tx, &Options::default(), codes, variables.clone())
+			compile_file_dir(tx, &Options::default(), codes, variables.clone())
 		});
 
 		threads.push(thread);

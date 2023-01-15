@@ -41,8 +41,7 @@ where
 		let filepath = Path::new(&filepath_name);
 		let realname = rpath.clone() + &name;
 		if filepath.is_dir() {
-			let inside_files = check_for_files(filepath_name, realname + ".")?;
-			for file in inside_files {
+			for file in check_for_files(filepath_name, realname + ".")? {
 				files.push(file)
 			}
 		} else if filepath_name.ends_with(".clue") {
