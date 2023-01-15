@@ -1,5 +1,5 @@
 use std::{
-	collections::linked_list::{LinkedList, Iter, IntoIter},
+	collections::{vec_deque::{Iter, IntoIter}, VecDeque},
 	hash::Hash, ffi::OsString,
 };
 
@@ -9,7 +9,7 @@ pub type CodeChar = (u8, usize);
 
 #[derive(Debug, Clone, Default)]
 pub struct Code {
-	list: LinkedList<CodeChar>
+	list: VecDeque<CodeChar>
 }
 
 pub struct CodeBytes {
@@ -167,7 +167,11 @@ impl Hash for Code {
 
 impl Code {
 	pub fn new() -> Self {
-		Self { list: LinkedList::new() }
+		Self { list: VecDeque::new() }
+	}
+
+	pub fn with_capacity(capacity: usize) -> Self {
+		Self { list: VecDeque::with_capacity(capacity) }
 	}
 
 	pub fn append(&mut self, mut other: Code) {

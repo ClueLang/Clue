@@ -2,7 +2,7 @@ use crate::{format_clue, check, code::{Code, CodeChar}};
 use ahash::AHashMap;
 use utf8_decode::decode;
 use std::{
-	collections::{linked_list::Iter, VecDeque},
+	collections::{vec_deque::Iter, VecDeque},
 	env,
 	iter::{Peekable, Rev},
 	str,
@@ -411,7 +411,7 @@ pub fn preprocess_code(
 	filename: &String,
 ) -> Result<(PPCode, PPVars, usize, usize), String> {
 	let mut finalcode = Vec::new();
-	let mut currentcode = Code::new();
+	let mut currentcode = Code::with_capacity(code.len());
 	let mut code = CodeFile::new(code, line, filename);
 	let mut variables = AHashMap::new();
 	let mut pseudos: Option<VecDeque<VecDeque<u8>>> = None;

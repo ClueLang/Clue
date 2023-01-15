@@ -9,30 +9,28 @@ use crate::{check, format_clue};
 use ahash::AHashMap;
 use std::{
 	cmp,
-	collections::{LinkedList, VecDeque},
+	collections::{VecDeque},
 };
 
-macro_rules! expression {
-	($($x: expr),*) => {
-		{
-			let mut expr = Expression::new();
-			$(expr.push_back($x);)*
-			expr
-		}
-	};
+macro_rules! count {
+    () => { 0 };
+    ($x:expr) => { 1 };
+    ($x:expr, $($xs:expr),*) => { 1 + count!($($xs),*) };
 }
 
-macro_rules! vecdeque {
-	($($x: expr),*) => {
-		{
-			let mut temp_vecdeque = VecDeque::new();
-			$(temp_vecdeque.push_back($x);)*
-			temp_vecdeque
-		}
-	};
+macro_rules! vec_deque {
+    ($($e:expr),*) => {
+        {
+            let mut temp_vec_deque = VecDeque::with_capacity(count!($($e),*));
+            $(
+                temp_vec_deque.push_back($e);
+            )*
+			temp_vec_deque
+        }
+    };
 }
 
-pub type Expression = LinkedList<ComplexToken>;
+pub type Expression = VecDeque<ComplexToken>;
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
 //pub type LocalsList = Option<AHashMap<String, LuaType>>;
 //pub type ArgsAndTypes = (FunctionArgs, Option<Vec<(String, LuaType)>>);
@@ -183,9 +181,9 @@ struct ParserInfo<'a, 'b> {
 	options: &'a Options,
 	current: usize,
 	size: usize,
-	tokens: Vec<Token>,
 	filename: &'b String,
 	expr: Expression,
+	tokens: Vec<Token>,
 	testing: Option<usize>,
 	internal_var_id: u8,
 	statics: String,
@@ -203,9 +201,9 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		ParserInfo {
 			current: 0,
 			size: tokens.len() - 1,
-			tokens,
 			filename,
-			expr: Expression::new(),
+			expr: Expression::with_capacity(tokens.len()),
+			tokens,
 			testing: None,
 			internal_var_id: 0,
 			statics: String::new(),
@@ -434,7 +432,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 			let pn = self.advance();
 			match pn.kind() {
 				IDENTIFIER => {
-					name = Ok(expression![SYMBOL(pn.lexeme())]);
+					name = Ok(vec_deque![SYMBOL(pn.lexeme())]);
 				}
 				SQUARE_BRACKET_OPEN => {
 					let mut qscope = 1u8;
@@ -452,7 +450,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 						_ => true,
 					} {}
 					self.current = start;
-					name = Ok(expression![
+					name = Ok(vec_deque![
 						SYMBOL(String::from("[")),
 						EXPR(self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?),
 						SYMBOL(String::from("]"))
@@ -594,7 +592,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		notable: &mut bool,
 	) -> Result<(), String> {
 		self.check_operator(t, notable, true)?;
-		let mut arg1 = Expression::new();
+		let mut arg1 = Expression::with_capacity(expr.len());
 		arg1.append(expr);
 		let arg2 = self.build_expression(end)?;
 		expr.push_back(SYMBOL(fname.into()));
@@ -650,7 +648,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	}
 
 	fn build_expression(&mut self, end: OptionalEnd) -> Result<Expression, String> {
-		let mut expr = Expression::new();
+		let mut expr = Expression::with_capacity(16);
 		let notable = &mut true;
 		let start = self.current;
 		let last = loop {
@@ -773,9 +771,9 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 							i.current -= 1
 						}
 						Ok(CodeBlock {
-							code: expression![ALTER {
+							code: vec_deque![ALTER {
 								kind: DEFINE,
-								names: vecdeque![expression![ident.clone()]],
+								names: vec_deque![vec_deque![ident.clone()]],
 								values: vec![expr],
 								line: end
 							}],
@@ -790,7 +788,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 					}
 				}
 				COALESCE => {
-					let mut leftexpr = Expression::new();
+					let mut leftexpr = Expression::with_capacity(expr.len());
 					leftexpr.append(&mut expr);
 					let rightexpr = self.build_expression(end)?;
 					self.current -= 1;
@@ -803,13 +801,13 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 					});
 					let name = SYMBOL(name);
 					self.expr.push_back(IF_STATEMENT {
-						condition: expression![name.clone(), SYMBOL(String::from(" == nil"))],
+						condition: vec_deque![name.clone(), SYMBOL(String::from(" == nil"))],
 						code: CodeBlock {
 							start: t.line(),
-							code: expression![ALTER {
+							code: vec_deque![ALTER {
 								kind: DEFINE,
 								line: t.line(),
-								names: vecdeque![expression![name.clone()]],
+								names: vec_deque![vec_deque![name.clone()]],
 								values: vec![rightexpr]
 							}],
 							end: self.at(self.current).line(),
@@ -822,7 +820,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 					}
 				}
 				QUESTION_MARK => {
-					let mut condition = Expression::new();
+					let mut condition = Expression::with_capacity(expr.len());
 					condition.append(&mut expr);
 					let exprtrue = self.build_expression(Some((COLON, ":")))?;
 					let t2 = self.look_back(0);
@@ -840,20 +838,20 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 						condition,
 						code: CodeBlock {
 							start: self.at(start).line(),
-							code: expression![ALTER {
+							code: vec_deque![ALTER {
 								kind: DEFINE,
 								line: t.line(),
-								names: vecdeque![expression![name.clone()]],
+								names: vec_deque![vec_deque![name.clone()]],
 								values: vec![exprtrue]
 							}],
 							end: t2.line(),
 						},
 						next: Some(Box::new(DO_BLOCK(CodeBlock {
 							start: t2.line(),
-							code: expression![ALTER {
+							code: vec_deque![ALTER {
 								kind: DEFINE,
 								line: t.line(),
-								names: vecdeque![expression![name.clone()]],
+								names: vec_deque![vec_deque![name.clone()]],
 								values: vec![exprfalse]
 							}],
 							end: self.at(self.current).line(),
@@ -910,7 +908,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	}
 
 	fn build_name(&mut self) -> Result<Expression, String> {
-		Ok(expression![self.build_identifier()?])
+		Ok(vec_deque![self.build_identifier()?])
 	}
 
 	fn build_identifier(&mut self) -> Result<ComplexToken, String> {
@@ -919,7 +917,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	}
 
 	fn build_identifier_internal(&mut self) -> Result<(Expression, bool), String> {
-		let mut expr = Expression::new();
+		let mut expr = Expression::with_capacity(8);
 		let mut safe_indexing = false;
 		self.current -= 1;
 		loop {
@@ -1099,29 +1097,29 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				ContinueMode::MOONSCRIPT => {
 					code.push_back(ALTER {
 						kind: DEFINE,
-						names: vecdeque![expression![SYMBOL(String::from("_continue"))]],
-						values: vec![expression![SYMBOL(String::from("true"))]],
+						names: vec_deque![vec_deque![SYMBOL(String::from("_continue"))]],
+						values: vec![vec_deque![SYMBOL(String::from("true"))]],
 						line: end,
 					});
-					code = expression![
+					code = vec_deque![
 						VARIABLE {
 							local: true,
 							names: vec![String::from("_continue")],
-							values: vec![expression![SYMBOL(String::from("false"))]],
+							values: vec![vec_deque![SYMBOL(String::from("false"))]],
 							line: start
 						},
 						LOOP_UNTIL {
-							condition: expression![SYMBOL(String::from("true"))],
+							condition: vec_deque![SYMBOL(String::from("true"))],
 							code: CodeBlock { start, code, end }
 						},
 						IF_STATEMENT {
-							condition: expression![
+							condition: vec_deque![
 								SYMBOL(String::from("not ")),
 								SYMBOL(String::from("_continue"))
 							],
 							code: CodeBlock {
 								start: end,
-								code: expression![BREAK_LOOP],
+								code: vec_deque![BREAK_LOOP],
 								end
 							},
 							next: None
@@ -1262,7 +1260,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				line: name.line(),
 				local,
 				names: vec![name.lexeme()],
-				values: vec![expression![value]],
+				values: vec![vec_deque![value]],
 			});
 		}
 		/*if let Some(locals) = &mut self.locals {
@@ -1278,7 +1276,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	fn build_function(&mut self, local: bool) -> Result<ComplexToken, String> {
 		self.current += 1;
 		let t = self.assert_advance(IDENTIFIER, "<name>")?;
-		let name = expression![SYMBOL(t.lexeme())];
+		let name = vec_deque![SYMBOL(t.lexeme())];
 		self.assert(ROUND_BRACKET_OPEN, "(")?;
 		let /*(*/args/*, types)*/ = if !self.advance_if(ROUND_BRACKET_CLOSED) {
 			self.build_function_args()?
@@ -1370,7 +1368,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 			});
 			values = Vec::new();
 			for key_name in &names {
-				values.push(expression!(SYMBOL(format_clue!(name, ".", key_name))))
+				values.push(vec_deque!(SYMBOL(format_clue!(name, ".", key_name))))
 			}
 		}
 		Ok(VARIABLE {
@@ -1392,7 +1390,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		func: &impl Fn(&mut ParserInfo<'a, 'b> /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<MatchCase, String> {
 		let mut conditions: Vec<Expression> = Vec::new();
-		let mut current = Expression::new();
+		let mut current = Expression::with_capacity(3);
 		let (expr, extraif) = match pexpr {
 			Some(expr) => (expr, None),
 			None => {
@@ -1498,7 +1496,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	fn parse_token_static(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		match self.peek(0).kind() {
 			FN => {
-				let function = expression![self.build_function(true)?];
+				let function = vec_deque![self.build_function(true)?];
 				self.compile_static(function);
 			}
 			ENUM => {
@@ -1506,7 +1504,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				self.compile_static(enums);
 			}
 			_ => {
-				let vars = expression![self.build_variables(true, t.line(), false)?];
+				let vars = vec_deque![self.build_variables(true, t.line(), false)?];
 				self.compile_static(vars);
 			}
 		}
@@ -1516,7 +1514,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 
 	fn parse_token_method(&mut self) -> Result<(), String> {
 		let name = {
-			let mut expr = Expression::new();
+			let mut expr = Expression::with_capacity(4);
 			loop {
 				let t = self.advance();
 				match t.kind() {
@@ -1569,7 +1567,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		} else if safe_indexing {
 			return Err(self.error("Safe indexing cannot be used when altering variables", t.line()));
 		}
-		let mut names = vecdeque![first_expr];
+		let mut names = vec_deque![first_expr];
 		while {
 			self.current += 1;
 			self.look_back(1).kind() == COMMA
@@ -1592,9 +1590,9 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 						condition,
 						code: CodeBlock {
 							start: t.line(),
-							code: expression![ALTER {
+							code: vec_deque![ALTER {
 								kind: DEFINE,
-								names: vecdeque![name],
+								names: vec_deque![name],
 								values: vec![value],
 								line: t.line()
 							}],
@@ -1680,7 +1678,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 			self.expr.push_back(LOOP_UNTIL { condition, code })
 		} else {
 			self.expr.push_back(WHILE_LOOP {
-				condition: expression![SYMBOL(String::from("true"))],
+				condition: vec_deque![SYMBOL(String::from("true"))],
 				code,
 			})
 		}
@@ -1699,7 +1697,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 			let alter = match t.kind() {
 				CURLY_BRACKET_OPEN => {
 					self.current -= 1;
-					expression![SYMBOL(String::from("1"))]
+					vec_deque![SYMBOL(String::from("1"))]
 				}
 				COMMA => self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?,
 				_ => return Err(self.expected(",", &t.lexeme(), t.line())),
@@ -1716,13 +1714,13 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 			let iterators = self.build_identifier_list()?;
 			let expr = match self.advance().kind() {
 				OF => {
-					let mut expr = expression![SYMBOL(String::from("pairs("))];
+					let mut expr = vec_deque![SYMBOL(String::from("pairs("))];
 					expr.append(&mut self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?);
 					expr.push_back(SYMBOL(String::from(")")));
 					expr
 				}
 				IN => {
-					let mut expr = expression![SYMBOL(String::from("ipairs("))];
+					let mut expr = vec_deque![SYMBOL(String::from("ipairs("))];
 					expr.append(&mut self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?);
 					expr.push_back(SYMBOL(String::from(")")));
 					expr
