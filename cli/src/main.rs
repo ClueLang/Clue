@@ -1,6 +1,6 @@
 use ahash::AHashMap;
 use clap::{crate_version, Parser};
-use clue::{check_for_files, wait_threads, PreprocessorAnalyzerData, ThreadData, CodeQueue};
+use clue::{check_for_files, wait_threads, CodeQueue, PreprocessorAnalyzerData, ThreadData};
 use clue_core::{
 	check,
 	code::*,
@@ -16,7 +16,15 @@ use flume::Sender;
 use std::cmp::min;
 
 use crossbeam_queue::SegQueue;
-use std::{ffi::OsStr, fmt::Display, fs, path::Path, sync::Arc, thread, time::Instant};
+use std::{
+	ffi::OsStr,
+	fmt::{Display, Write},
+	fs,
+	path::Path,
+	sync::Arc,
+	thread,
+	time::Instant,
+};
 
 #[derive(Parser)]
 #[clap(
@@ -217,7 +225,7 @@ where
 		let codes = codes.clone();
 		let variables = variables.clone();
 
-		let thread = thread::spawn(move || compile_file_dir(tx, &options, codes, variables.clone()));
+		let thread = thread::spawn(move || compile_file_dir(tx, &options, codes, variables));
 
 		threads.push(thread);
 	}
@@ -258,8 +266,8 @@ fn compile_file_dir(
 			Err(e) => {
 				tx.send(ThreadData {
 					errored: true,
-					output: "".to_string(),
-					static_vars: "".to_string(),
+					output: "".to_owned(),
+					static_vars: "".to_owned(),
 				})
 				.unwrap();
 				println!("Error: {}", e);
@@ -352,7 +360,7 @@ fn main() -> Result<(), String> {
 	let mut code = String::with_capacity(512);
 
 	if let Some(bit) = &options.env_jitbit {
-		code += &format!("local {bit} = require(\"bit\");\n");
+		check!(writeln!(&mut code, "local {bit} = require(\"bit\");"));
 	}
 	/*if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
@@ -392,7 +400,7 @@ fn main() -> Result<(), String> {
 					Err(_) => return Err(String::from("The given custom base was not found!")),
 				};
 				check!(std::str::from_utf8(&base))
-					.to_string()
+					.to_owned()
 					.replace("--STATICS\n", &statics)
 					.replace('§', &output)
 			}
@@ -418,7 +426,7 @@ fn main() -> Result<(), String> {
 		}
 	} else if path.is_file() {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
-		let (rawcode, variables) = check!(read_file(&codepath, &name));
+		let (rawcode, variables) = read_file(&codepath, &name)?;
 		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
 		code = statics + &output;
 		if !cli.dontsave {

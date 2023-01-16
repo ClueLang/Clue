@@ -1,6 +1,10 @@
 use std::{
-	collections::{vec_deque::{Iter, IntoIter}, VecDeque},
-	hash::Hash, ffi::OsString,
+	collections::{
+		vec_deque::{IntoIter, Iter},
+		VecDeque,
+	},
+	ffi::OsString,
+	hash::Hash,
 };
 
 use utf8_decode::decode;
@@ -9,7 +13,7 @@ pub type CodeChar = (u8, usize);
 
 #[derive(Debug, Clone, Default)]
 pub struct Code {
-	list: VecDeque<CodeChar>
+	list: VecDeque<CodeChar>,
 }
 
 pub struct CodeBytes {
@@ -19,7 +23,7 @@ pub struct CodeBytes {
 }
 
 pub struct CodeChars {
-	code: CodeBytes
+	code: CodeBytes,
 }
 
 impl Iterator for CodeBytes {
@@ -41,7 +45,7 @@ impl Iterator for CodeChars {
 		match decode(&mut self.code) {
 			None => None,
 			Some(Err(_)) => Some('\u{FFFD}'),
-			Some(Ok(c)) => Some(c)
+			Some(Ok(c)) => Some(c),
 		}
 	}
 }
@@ -51,7 +55,7 @@ impl CodeChars {
 		self.next().unwrap_or('\0')
 	}
 
-	pub fn line(&self) -> usize {
+	pub const fn line(&self) -> usize {
 		self.code.line
 	}
 
@@ -63,21 +67,21 @@ impl CodeChars {
 }
 
 impl<'a> IntoIterator for &'a Code {
-    type Item = &'a CodeChar;
-    type IntoIter = Iter<'a, CodeChar>;
+	type Item = &'a CodeChar;
+	type IntoIter = Iter<'a, CodeChar>;
 
-    fn into_iter(self) -> Iter<'a, CodeChar> {
-        self.list.iter()
-    }
+	fn into_iter(self) -> Iter<'a, CodeChar> {
+		self.list.iter()
+	}
 }
 
 impl IntoIterator for Code {
-    type Item = CodeChar;
-    type IntoIter = IntoIter<CodeChar>;
+	type Item = CodeChar;
+	type IntoIter = IntoIter<CodeChar>;
 
-    fn into_iter(self) -> IntoIter<CodeChar> {
-        self.list.into_iter()
-    }
+	fn into_iter(self) -> IntoIter<CodeChar> {
+		self.list.into_iter()
+	}
 }
 
 impl ToString for Code {
@@ -167,14 +171,18 @@ impl Hash for Code {
 
 impl Code {
 	pub fn new() -> Self {
-		Self { list: VecDeque::new() }
+		Self {
+			list: VecDeque::new(),
+		}
 	}
 
 	pub fn with_capacity(capacity: usize) -> Self {
-		Self { list: VecDeque::with_capacity(capacity) }
+		Self {
+			list: VecDeque::with_capacity(capacity),
+		}
 	}
 
-	pub fn append(&mut self, mut other: Code) {
+	pub fn append(&mut self, mut other: Self) {
 		self.list.append(&mut other.list)
 	}
 
@@ -209,11 +217,15 @@ impl Code {
 		self.list.iter()
 	}
 
-	pub fn bytes(self) -> CodeBytes {
-		CodeBytes { code: self, line: 0, read: 0 }
+	pub const fn bytes(self) -> CodeBytes {
+		CodeBytes {
+			code: self,
+			line: 0,
+			read: 0,
+		}
 	}
 
-	pub fn chars(self) -> CodeChars {
+	pub const fn chars(self) -> CodeChars {
 		CodeChars { code: self.bytes() }
 	}
 
@@ -222,14 +234,14 @@ impl Code {
 			if c.is_ascii_whitespace() {
 				self.list.pop_front();
 			} else {
-				break
+				break;
 			}
 		}
 		while let Some((c, _)) = self.list.back() {
 			if c.is_ascii_whitespace() {
 				self.list.pop_back();
 			} else {
-				break
+				break;
 			}
 		}
 		self

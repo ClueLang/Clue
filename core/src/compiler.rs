@@ -14,7 +14,7 @@ pub struct Compiler<'a> {
 }
 
 impl<'a> Compiler<'a> {
-	pub fn new(options: &'a Options) -> Self {
+	pub const fn new(options: &'a Options) -> Self {
 		Self { options }
 	}
 
@@ -161,16 +161,16 @@ impl<'a> Compiler<'a> {
 					checked += &format_clue!("(", expr);
 				}
 				CALL(args) => {
-					let args = format_clue!("(", self.compile_expressions(scope, args.clone()), ")");
+					let args =
+						format_clue!("(", self.compile_expressions(scope, args.clone()), ")");
 					if iter.peek().is_none() {
 						return if result.is_empty() {
 							checked + &args
 						} else {
 							format_clue!("(", result, checked, ")", args)
-						}
-					} else {
-						checked += &args
+						};
 					}
+					checked += &args
 				}
 				_ => {}
 			}
