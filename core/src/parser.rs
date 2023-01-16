@@ -3,14 +3,11 @@
 use self::ComplexToken::*;
 use crate::compiler::Compiler;
 use crate::env::{ContinueMode, Options};
-use crate::scanner::TokenType::*;
+use crate::scanner::{BorrowedToken, TokenType::*};
 use crate::scanner::{Token, TokenType};
 use crate::{check, format_clue};
 use ahash::AHashMap;
-use std::{
-	cmp,
-	collections::{VecDeque},
-};
+use std::{cmp, collections::VecDeque};
 
 macro_rules! count {
     () => { 0 };
@@ -140,35 +137,6 @@ pub struct CodeBlock {
 	pub end: usize,
 }
 
-struct BorrowedToken {
-	token: *const Token,
-}
-
-impl BorrowedToken {
-	fn new(token: *const Token) -> BorrowedToken {
-		BorrowedToken { token }
-	}
-
-	fn token(&self) -> &Token {
-		unsafe { &(*self.token) }
-	}
-
-	fn kind(&self) -> TokenType {
-		self.token().kind
-	}
-
-	fn lexeme(&self) -> String {
-		self.token().lexeme.clone()
-	}
-
-	fn line(&self) -> usize {
-		self.token().line
-	}
-
-	fn into_owned(self) -> Token {
-		self.token().to_owned()
-	}
-}
 /*
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum LuaType {
@@ -263,7 +231,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		self.error(format_clue!("Unexpected token '", str, "'"), line)
 	}
 
-	fn ended(&self) -> bool {
+	const fn ended(&self) -> bool {
 		self.current >= self.size
 	}
 
@@ -467,43 +435,43 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 						metatable = Some(self.assert_advance(IDENTIFIER, "<name>")?.lexeme());
 						self.advance_if(COMMA);
 						continue;
-					} else {
-						if metatable.is_some() {
-							return Err(self.error(
-								"Metamethods cannot be set if the table already ueses an external metatable",
+					}
+
+					if metatable.is_some() {
+						return Err(self.error(
+								"Metamethods cannot be set if the table already uses an external metatable",
 								pn.line()
 							));
-						}
-						name = Err(String::from(match self.advance().lexeme().as_ref() {
-							"index" => "__index",
-							"newindex" => "__newindex",
-							"mode" => "__mode",
-							"call" => "__call",
-							"metatable" => "__metatable",
-							"tostring" => "__tostring",
-							"len" => "__len",
-							"pairs" => "__pairs",
-							"ipairs" => "__ipairs",
-							"gc" => "__gc",
-							"name" => "__name",
-							"close" => "__close",
-							"unm" | "unary" => "__unm",
-							"add" | "+" => "__add",
-							"sub" | "-" => "__sub",
-							"mul" | "*" => "__mul",
-							"div" | "/" => "__div",
-							"mod" | "%" => "__mod",
-							"pow" | "^" => "__pow",
-							"concat" | ".." => "__concat",
-							"eq" | "equal" | "==" => "__eq",
-							"lt" | "less_than" | "<" => "__lt",
-							"le" | "less_than_equal" | "<=" => "__le",
-							_ => {
-								let t = self.peek(0);
-								return Err(self.expected("<meta name>", &t.lexeme(), t.line()));
-							}
-						}))
 					}
+					name = Err(String::from(match self.advance().lexeme().as_ref() {
+						"index" => "__index",
+						"newindex" => "__newindex",
+						"mode" => "__mode",
+						"call" => "__call",
+						"metatable" => "__metatable",
+						"tostring" => "__tostring",
+						"len" => "__len",
+						"pairs" => "__pairs",
+						"ipairs" => "__ipairs",
+						"gc" => "__gc",
+						"name" => "__name",
+						"close" => "__close",
+						"unm" | "unary" => "__unm",
+						"add" | "+" => "__add",
+						"sub" | "-" => "__sub",
+						"mul" | "*" => "__mul",
+						"div" | "/" => "__div",
+						"mod" | "%" => "__mod",
+						"pow" | "^" => "__pow",
+						"concat" | ".." => "__concat",
+						"eq" | "equal" | "==" => "__eq",
+						"lt" | "less_than" | "<" => "__lt",
+						"le" | "less_than_equal" | "<=" => "__le",
+						_ => {
+							let t = self.peek(0);
+							return Err(self.expected("<meta name>", &t.lexeme(), t.line()));
+						}
+					}))
 				}
 				_ => return Err(self.expected("<name>", &pn.lexeme(), pn.line())),
 			}
@@ -632,7 +600,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				self.peek(0).line(),
 			));
 		}
-		expr.push_back(SYMBOL(lexeme.to_string()));
+		expr.push_back(SYMBOL(lexeme.to_owned()));
 		Ok(())
 	}
 
@@ -913,7 +881,10 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 
 	fn build_identifier(&mut self) -> Result<ComplexToken, String> {
 		let line = self.look_back(0).line();
-		Ok(IDENT { expr: self.build_identifier_internal()?.0, line })
+		Ok(IDENT {
+			expr: self.build_identifier_internal()?.0,
+			line,
+		})
 	}
 
 	fn build_identifier_internal(&mut self) -> Result<(Expression, bool), String> {
@@ -932,7 +903,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				SAFEDOT => {
 					self.check_index(&t, &mut expr, "?.")?;
 					safe_indexing = true;
-				},
+				}
 				DOT => self.check_index(&t, &mut expr, ".")?,
 				SAFE_DOUBLE_COLON => {
 					self.check_index(&t, &mut expr, "?::")?;
@@ -1324,7 +1295,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		&mut self,
 		local: bool,
 		line: usize,
-		destructure: bool
+		destructure: bool,
 	) -> Result<ComplexToken, String> {
 		let mut names: Vec<String> = Vec::new();
 		loop {
@@ -1560,12 +1531,18 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		let start = self.current - 1;
 		let (first_expr, safe_indexing) = self.build_identifier_internal()?;
 		if let CALL(_) = first_expr.back().unwrap() {
-			self.expr.push_back(IDENT { expr: first_expr, line: self.at(start).line() });
+			self.expr.push_back(IDENT {
+				expr: first_expr,
+				line: self.at(start).line(),
+			});
 			self.current -= 1;
 			self.advance_if(SEMICOLON);
-			return Ok(())
+			return Ok(());
 		} else if safe_indexing {
-			return Err(self.error("Safe indexing cannot be used when altering variables", t.line()));
+			return Err(self.error(
+				"Safe indexing cannot be used when altering variables",
+				t.line(),
+			));
 		}
 		let mut names = vec_deque![first_expr];
 		while {
