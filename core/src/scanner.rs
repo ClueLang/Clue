@@ -1,12 +1,15 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
-use crate::{format_clue, code::{Code, CodeChars}};
+use crate::{
+	code::{Code, CodeChars},
+	format_clue,
+};
 
 use self::TokenType::*;
 use ahash::AHashMap;
-use std::fmt;
 use lazy_static::lazy_static;
+use std::fmt;
 
 type SymbolsMap<'a> = [Option<&'a SymbolType<'a>>; 127];
 
@@ -59,12 +62,43 @@ pub struct Token {
 }
 
 impl Token {
-	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize) -> Token {
-		Token {
+	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize) -> Self {
+		Self {
 			kind,
 			lexeme: lexeme.into(),
 			line,
 		}
+	}
+}
+
+pub struct BorrowedToken {
+	token: *const Token,
+}
+
+impl BorrowedToken {
+	pub const fn new(token: *const Token) -> Self {
+		Self { token }
+	}
+
+	pub const fn token(&self) -> &Token {
+		// SAFETY: This is safe because the pointer is guaranteed to be valid
+		unsafe { &(*self.token) }
+	}
+
+	pub const fn kind(&self) -> TokenType {
+		self.token().kind
+	}
+
+	pub fn lexeme(&self) -> String {
+		self.token().lexeme.clone()
+	}
+
+	pub const fn line(&self) -> usize {
+		self.token().line
+	}
+
+	pub fn into_owned(&self) -> Token {
+		self.token().clone()
 	}
 }
 
@@ -102,7 +136,7 @@ impl<'a> CodeInfo<'a> {
 		}
 	}
 
-	fn ended(&self) -> bool {
+	const fn ended(&self) -> bool {
 		self.current >= self.size
 	}
 
@@ -264,7 +298,15 @@ impl<'a> CodeInfo<'a> {
 			}
 			self.add_literal_token(
 				STRING,
-				format_clue!("[", brackets, "[", literal.replace("\\`", "`"), "]", brackets, "]")
+				format_clue!(
+					"[",
+					brackets,
+					"[",
+					literal.replace("\\`", "`"),
+					"]",
+					brackets,
+					"]"
+				),
 			);
 		}
 	}
@@ -289,7 +331,7 @@ impl<'a> CodeInfo<'a> {
 						self.current -= 1;
 						self.add_token(*default);
 					}
-				},
+				}
 				SymbolType::FUNCTION(f) => f(self),
 			}
 			true
@@ -308,12 +350,16 @@ enum SymbolType<'a> {
 
 impl<'a> fmt::Debug for SymbolType<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-			SymbolType::JUST(kind) => format!("{kind:?}"),
-			SymbolType::FUNCTION(_) => String::from("FUNCTION({...})"),
-			SymbolType::SYMBOLS(symbols, kind) => format!("({symbols:#?}, {kind:?})")
-		})
-    }
+		write!(
+			f,
+			"{}",
+			match self {
+				SymbolType::JUST(kind) => format!("{kind:?}"),
+				SymbolType::FUNCTION(_) => String::from("FUNCTION({...})"),
+				SymbolType::SYMBOLS(symbols, kind) => format!("({symbols:#?}, {kind:?})"),
+			}
+		)
+	}
 }
 
 enum KeywordType {
@@ -331,95 +377,208 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 	('{', SymbolType::JUST(CURLY_BRACKET_OPEN)),
 	('}', SymbolType::JUST(CURLY_BRACKET_CLOSED)),
 	(',', SymbolType::JUST(COMMA)),
-	('.', SymbolType::SYMBOLS(generate_map(&[
-		('.', SymbolType::SYMBOLS(generate_map(&[
-			('.', SymbolType::JUST(THREEDOTS)),
-			('=', SymbolType::JUST(CONCATENATE)),
-		]), TWODOTS))
-	]), DOT)),
+	(
+		'.',
+		SymbolType::SYMBOLS(
+			generate_map(&[(
+				'.',
+				SymbolType::SYMBOLS(
+					generate_map(&[
+						('.', SymbolType::JUST(THREEDOTS)),
+						('=', SymbolType::JUST(CONCATENATE)),
+					]),
+					TWODOTS,
+				),
+			)]),
+			DOT,
+		),
+	),
 	(';', SymbolType::JUST(SEMICOLON)),
-	('+', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::JUST(INCREASE)),
-	]), PLUS)),
-	('-', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::JUST(DECREASE)),
-	]), MINUS)),
-	('*', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::JUST(MULTIPLY)),
-	]), STAR)),
-	('^', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::JUST(EXPONENTIATE)),
-		('^', SymbolType::JUST(BIT_XOR)),
-	]), CARET)),
+	(
+		'+',
+		SymbolType::SYMBOLS(generate_map(&[('=', SymbolType::JUST(INCREASE))]), PLUS),
+	),
+	(
+		'-',
+		SymbolType::SYMBOLS(generate_map(&[('=', SymbolType::JUST(DECREASE))]), MINUS),
+	),
+	(
+		'*',
+		SymbolType::SYMBOLS(generate_map(&[('=', SymbolType::JUST(MULTIPLY))]), STAR),
+	),
+	(
+		'^',
+		SymbolType::SYMBOLS(
+			generate_map(&[
+				('=', SymbolType::JUST(EXPONENTIATE)),
+				('^', SymbolType::JUST(BIT_XOR)),
+			]),
+			CARET,
+		),
+	),
 	('#', SymbolType::JUST(HASHTAG)),
-	('/', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::JUST(DIVIDE)),
-		('_', SymbolType::JUST(FLOOR_DIVISION)),
-	]), SLASH)),
-	('%', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::JUST(MODULATE)),
-	]), PERCENTUAL)),
-	('!', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::JUST(NOT_EQUAL)),
-	]), NOT)),
+	(
+		'/',
+		SymbolType::SYMBOLS(
+			generate_map(&[
+				('=', SymbolType::JUST(DIVIDE)),
+				('_', SymbolType::JUST(FLOOR_DIVISION)),
+			]),
+			SLASH,
+		),
+	),
+	(
+		'%',
+		SymbolType::SYMBOLS(
+			generate_map(&[('=', SymbolType::JUST(MODULATE))]),
+			PERCENTUAL,
+		),
+	),
+	(
+		'!',
+		SymbolType::SYMBOLS(generate_map(&[('=', SymbolType::JUST(NOT_EQUAL))]), NOT),
+	),
 	('~', SymbolType::JUST(BIT_NOT)),
-	('=', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::JUST(EQUAL)),
-		('>', SymbolType::JUST(ARROW)),
-	]), DEFINE)),
-	('<', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::JUST(SMALLER_EQUAL)),
-		('<', SymbolType::JUST(LEFT_SHIFT)),
-	]), SMALLER)),
-	('>', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::JUST(BIGGER_EQUAL)),
-		('>', SymbolType::JUST(RIGHT_SHIFT)),
-	]), BIGGER)),
-	('?', SymbolType::SYMBOLS(generate_map(&[
-		('=', SymbolType::FUNCTION(|i| i.warning("'?=' is deprecated and was replaced with '&&='"))),
-		('>', SymbolType::JUST(SAFE_EXPRESSION)),
-		('.', SymbolType::JUST(SAFEDOT)),
-		(':', SymbolType::FUNCTION(|i| {
-			if i.compare(':') {
-				i.add_token(SAFE_DOUBLE_COLON);
-			} else {
-				i.current -= 1;
-			}
-		})),
-		('[', SymbolType::JUST(SAFE_SQUARE_BRACKET)),
-		('?', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(DEFINE_COALESCE))
-		]), COALESCE))
-	]), QUESTION_MARK)),
-	('&', SymbolType::SYMBOLS(generate_map(&[
-		('&', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(DEFINE_AND))
-		]), AND)),
-	]), BIT_AND)),
-	(':', SymbolType::SYMBOLS(generate_map(&[
-		(':', SymbolType::JUST(DOUBLE_COLON)),
-		('=', SymbolType::FUNCTION(|i| i.warning("':=' is deprecated and was replaced with '||='"))),
-	]), COLON)),
-	('|', SymbolType::SYMBOLS(generate_map(&[
-		('|', SymbolType::SYMBOLS(generate_map(&[
-			('=', SymbolType::JUST(DEFINE_OR))
-		]), OR)),
-	]), BIT_OR)),
+	(
+		'=',
+		SymbolType::SYMBOLS(
+			generate_map(&[
+				('=', SymbolType::JUST(EQUAL)),
+				('>', SymbolType::JUST(ARROW)),
+			]),
+			DEFINE,
+		),
+	),
+	(
+		'<',
+		SymbolType::SYMBOLS(
+			generate_map(&[
+				('=', SymbolType::JUST(SMALLER_EQUAL)),
+				('<', SymbolType::JUST(LEFT_SHIFT)),
+			]),
+			SMALLER,
+		),
+	),
+	(
+		'>',
+		SymbolType::SYMBOLS(
+			generate_map(&[
+				('=', SymbolType::JUST(BIGGER_EQUAL)),
+				('>', SymbolType::JUST(RIGHT_SHIFT)),
+			]),
+			BIGGER,
+		),
+	),
+	(
+		'?',
+		SymbolType::SYMBOLS(
+			generate_map(&[
+				(
+					'=',
+					SymbolType::FUNCTION(|i| {
+						i.warning("'?=' is deprecated and was replaced with '&&='")
+					}),
+				),
+				('>', SymbolType::JUST(SAFE_EXPRESSION)),
+				('.', SymbolType::JUST(SAFEDOT)),
+				(
+					':',
+					SymbolType::FUNCTION(|i| {
+						if i.compare(':') {
+							i.add_token(SAFE_DOUBLE_COLON);
+						} else {
+							i.current -= 1;
+						}
+					}),
+				),
+				('[', SymbolType::JUST(SAFE_SQUARE_BRACKET)),
+				(
+					'?',
+					SymbolType::SYMBOLS(
+						generate_map(&[('=', SymbolType::JUST(DEFINE_COALESCE))]),
+						COALESCE,
+					),
+				),
+			]),
+			QUESTION_MARK,
+		),
+	),
+	(
+		'&',
+		SymbolType::SYMBOLS(
+			generate_map(&[(
+				'&',
+				SymbolType::SYMBOLS(generate_map(&[('=', SymbolType::JUST(DEFINE_AND))]), AND),
+			)]),
+			BIT_AND,
+		),
+	),
+	(
+		':',
+		SymbolType::SYMBOLS(
+			generate_map(&[
+				(':', SymbolType::JUST(DOUBLE_COLON)),
+				(
+					'=',
+					SymbolType::FUNCTION(|i| {
+						i.warning("':=' is deprecated and was replaced with '||='")
+					}),
+				),
+			]),
+			COLON,
+		),
+	),
+	(
+		'|',
+		SymbolType::SYMBOLS(
+			generate_map(&[(
+				'|',
+				SymbolType::SYMBOLS(generate_map(&[('=', SymbolType::JUST(DEFINE_OR))]), OR),
+			)]),
+			BIT_OR,
+		),
+	),
 	('"', SymbolType::FUNCTION(|i| i.read_string('"'))),
 	('\'', SymbolType::FUNCTION(|i| i.read_string('\''))),
-	('`', SymbolType::FUNCTION(|i| i.read_raw_string()))
+	('`', SymbolType::FUNCTION(|i| i.read_raw_string())),
 ]);
 
 lazy_static! {
 	static ref KEYWORDS: AHashMap<&'static str, KeywordType> = AHashMap::from([
-		("and", KeywordType::RESERVED("'and' operators in Clue are made with '&&'")),
-		("not", KeywordType::RESERVED("'not' operators in Clue are made with '!'")),
-		("or", KeywordType::RESERVED("'or' operators in Clue are made with '||'")),
-		("do", KeywordType::RESERVED("'do ... end' blocks in Clue are made like this: '{ ... }'")),
-		("end", KeywordType::RESERVED("code blocks in Clue are closed with '}'")),
-		("function", KeywordType::RESERVED("functions in Clue are defined with the 'fn' keyword")),
-		("repeat", KeywordType::RESERVED("'repeat ... until x' loops in Clue are made like this: 'loop { ... } until x'")),
-		("then", KeywordType::RESERVED("code blocks in Clue are opened with '{'")),
+		(
+			"and",
+			KeywordType::RESERVED("'and' operators in Clue are made with '&&'")
+		),
+		(
+			"not",
+			KeywordType::RESERVED("'not' operators in Clue are made with '!'")
+		),
+		(
+			"or",
+			KeywordType::RESERVED("'or' operators in Clue are made with '||'")
+		),
+		(
+			"do",
+			KeywordType::RESERVED("'do ... end' blocks in Clue are made like this: '{ ... }'")
+		),
+		(
+			"end",
+			KeywordType::RESERVED("code blocks in Clue are closed with '}'")
+		),
+		(
+			"function",
+			KeywordType::RESERVED("functions in Clue are defined with the 'fn' keyword")
+		),
+		(
+			"repeat",
+			KeywordType::RESERVED(
+				"'repeat ... until x' loops in Clue are made like this: 'loop { ... } until x'"
+			)
+		),
+		(
+			"then",
+			KeywordType::RESERVED("code blocks in Clue are opened with '{'")
+		),
 		("if", KeywordType::LUA(IF)),
 		("elseif", KeywordType::LUA(ELSEIF)),
 		("else", KeywordType::LUA(ELSE)),
@@ -447,10 +606,22 @@ lazy_static! {
 		("catch", KeywordType::JUST(CATCH)),
 		("match", KeywordType::JUST(MATCH)),
 		("default", KeywordType::JUST(DEFAULT)),
-		("macro", KeywordType::ERROR("'macro' is deprecated and was replaced with '@define'")),
-		("constructor", KeywordType::ERROR("'constructor' is reserved for Clue 4.0 and cannnot be used.")),
-		("struct", KeywordType::ERROR("'struct' is reserved for Clue 4.0 and cannot be used")),
-		("extern", KeywordType::ERROR("'extern' is reserved for Clue 4.0 and cannot be used")),
+		(
+			"macro",
+			KeywordType::ERROR("'macro' is deprecated and was replaced with '@define'")
+		),
+		(
+			"constructor",
+			KeywordType::ERROR("'constructor' is reserved for Clue 4.0 and cannnot be used.")
+		),
+		(
+			"struct",
+			KeywordType::ERROR("'struct' is reserved for Clue 4.0 and cannot be used")
+		),
+		(
+			"extern",
+			KeywordType::ERROR("'extern' is reserved for Clue 4.0 and cannot be used")
+		),
 	]);
 }
 
@@ -461,7 +632,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 		let c = i.advance();
 		if !i.scan_char(&SYMBOLS, c) {
 			if c.is_whitespace() {
-				continue
+				continue;
 			} else if c.is_ascii_digit() {
 				if c == '0' {
 					match i.peek(0) {
@@ -469,22 +640,15 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 							i.current += 1;
 							i.read_number(
 								|c| {
-									let c = *c;
 									c.is_ascii_digit()
-										|| ('a'..='f').contains(&c) || ('A'..='F').contains(&c)
+										|| ('a'..='f').contains(c) || ('A'..='F').contains(c)
 								},
 								false,
 							);
 						}
 						'b' | 'B' => {
 							i.current += 1;
-							i.read_number(
-								|c| {
-									let c = *c;
-									c == '0' || c == '1'
-								},
-								false,
-							);
+							i.read_number(|&c| c == '0' || c == '1', false);
 						}
 						_ => i.read_number(char::is_ascii_digit, true),
 					}
@@ -497,9 +661,14 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 					match keyword {
 						KeywordType::LUA(kind) => *kind,
 						KeywordType::RESERVED(e) => i.reserved(&ident, e),
-						_ if matches!(i.last, DOT | SAFEDOT | DOUBLE_COLON | SAFE_DOUBLE_COLON) => IDENTIFIER,
+						_ if matches!(i.last, DOT | SAFEDOT | DOUBLE_COLON | SAFE_DOUBLE_COLON) => {
+							IDENTIFIER
+						}
 						KeywordType::JUST(kind) => *kind,
-						KeywordType::ERROR(e) => {i.warning(*e); IDENTIFIER}
+						KeywordType::ERROR(e) => {
+							i.warning(*e);
+							IDENTIFIER
+						}
 					}
 				} else {
 					IDENTIFIER

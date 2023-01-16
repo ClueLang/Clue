@@ -7,6 +7,8 @@ use flume::Sender;
 use std::thread::JoinHandle;
 use std::{cmp::min, ffi::OsStr, fmt::Display, fs, path::Path, sync::Arc, thread};
 
+pub type CodeQueue = SegQueue<(Vec<(Code, bool)>, String)>;
+
 struct PreprocessorAnalyzerData {
 	pub codes: (Vec<(Code, bool)>, String),
 	pub variables: PPVars,
@@ -59,7 +61,7 @@ fn compile_code(
 fn compile_file_dir(
 	tx: Sender<ThreadData>,
 	options: &Options,
-	codes: Arc<SegQueue<(Vec<(Code, bool)>, String)>>,
+	codes: Arc<CodeQueue>,
 	variables: Arc<AHashMap<Code, PPVar>>,
 ) {
 	loop {
@@ -68,7 +70,7 @@ fn compile_file_dir(
 			Some((codes, realname)) => (codes, realname),
 		};
 
-		let (code, _static_vars) = match compile_code(codes, &variables, &realname, 2, &options) {
+		let (code, _static_vars) = match compile_code(codes, &variables, &realname, 2, options) {
 			Ok(t) => t,
 			Err(e) => {
 				tx.send(ThreadData {
@@ -177,7 +179,7 @@ fn compile_folder(files: Arc<SegQueue<(String, String)>>) {
 	let variables = Arc::new(
 		variables
 			.into_iter()
-			.flat_map(|file_variables| file_variables.to_owned())
+			.flatten()
 			.collect::<AHashMap<Code, PPVar>>(),
 	);
 
@@ -190,9 +192,8 @@ fn compile_folder(files: Arc<SegQueue<(String, String)>>) {
 		let codes = codes.clone();
 		let variables = variables.clone();
 
-		let thread = thread::spawn(move || {
-			compile_file_dir(tx, &Options::default(), codes, variables.clone())
-		});
+		let thread =
+			thread::spawn(move || compile_file_dir(tx, &Options::default(), codes, variables));
 
 		threads.push(thread);
 	}
