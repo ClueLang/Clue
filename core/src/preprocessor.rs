@@ -414,7 +414,7 @@ pub fn preprocess_code(
 	let mut currentcode = Code::with_capacity(code.len());
 	let mut code = CodeFile::new(code, line, filename);
 	let mut variables = AHashMap::new();
-	let mut pseudos: Option<VecDeque<VecDeque<u8>>> = None;
+	let mut pseudos: Option<VecDeque<Code>> = None;
 	let mut cscope = is_block as u8;
 	while let Some(c) = code.read_char()? {
 		if match c.0 {
@@ -497,12 +497,12 @@ pub fn preprocess_code(
 					};
 					if pseudos.is_none() {
 						let tocheck = code.code[code.checked..code.read].iter().rev().peekable();
-						pseudos = Some(read_pseudos(tocheck));
+						pseudos = Some(read_pseudos(tocheck, c.1));
 						code.checked = code.read;
 					}
 					match pseudos.as_ref().unwrap().get(n - 1) {
-						Some(name) => currentcode.append(Code::from((name.iter(), c.1))),
-						None => currentcode.append(Code::from(("nil", c.1)))
+						Some(name) => currentcode.append(name.clone()),
+						None => currentcode.append(name.clone())
 					}
 				} else {
 					finalcode.push((currentcode, false));
@@ -580,7 +580,7 @@ fn skip_whitespace_backwards(code: &mut Peekable<Rev<std::slice::Iter<u8>>>) {
 	}
 }
 
-fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>) -> VecDeque<VecDeque<u8>> {
+fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize) -> VecDeque<Code> {
 	let mut newpseudos = VecDeque::new();
 	while {
 		if let Some(c) = code.next() {
@@ -599,7 +599,7 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>) -> VecDeque<VecDe
 	} {}
 	skip_whitespace_backwards(&mut code);
 	while {
-		let mut name = VecDeque::new();
+		let mut name = Code::new();
 		while {
 			if let Some(c) = code.peek() {
 				c.is_ascii_alphanumeric() || **c == b'_'
@@ -607,7 +607,7 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>) -> VecDeque<VecDe
 				false
 			}
 		} {
-			name.push_front(*code.next().unwrap())
+			name.push((*code.next().unwrap(), line))
 		}
 		newpseudos.push_front(name);
 		skip_whitespace_backwards(&mut code);
