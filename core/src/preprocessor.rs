@@ -59,8 +59,17 @@ fn expected_before(expected: &str, before: &str, line: usize, filename: &String)
 	)
 }
 
+#[derive(PartialEq, Eq)]
+enum CommentState {
+	None,
+	Single,
+	Multi,
+	Ended,
+}
+
 struct CodeFile<'a> {
-	code: &'a [u8],
+	code: &'a mut [u8],
+	comment: CommentState,
 	checked: usize,
 	read: usize,
 	peeked: Option<CodeChar>,
@@ -70,9 +79,10 @@ struct CodeFile<'a> {
 }
 
 impl<'a> CodeFile<'a> {
-	const fn new(code: &'a [u8], line: usize, filename: &'a String) -> Self {
+	fn new(code: &'a mut [u8], line: usize, filename: &'a String) -> Self {
 		Self {
 			code,
+			comment: CommentState::None,
 			checked: 0,
 			read: 0,
 			peeked: None,
@@ -112,15 +122,55 @@ impl<'a> CodeFile<'a> {
 			let peeked = self.peeked;
 			self.peeked = None;
 			peeked
-		} else if let Some(c) = self.code.get(self.read).copied() {
-			self.read += 1;
-			let result = (c, self.line);
-			if c == b'\n' {
-				self.line += 1;
-			}
-			return Some(result);
 		} else {
-			return None;
+			let next = self.code.get(self.read + 1).copied();
+			let current = self.code.get_mut(self.read);
+			if let Some(current) = current {
+				let c = *current;
+				self.read += 1;
+				let line = self.line;
+				if self.comment != CommentState::None {
+					*current = b' ';
+				}
+				match c {
+					b'\n' => {
+						self.line += 1;
+						if self.comment == CommentState::Single {
+							self.comment = CommentState::None;
+						}
+					},
+					b'/' if self.comment == CommentState::None => {
+						if let Some(next) = next {
+							self.comment = match next {
+								b'/' => {
+									*current = b' ';
+									CommentState::Single
+								}
+								b'*' => {
+									*current = b' ';
+									CommentState::Multi
+								}
+								_ => CommentState::None,
+							}
+						}
+					}
+					b'*' if self.comment == CommentState::Multi => {
+						if let Some(next) = next {
+							if next == b'/' {
+								self.comment = CommentState::Ended;
+							}
+						}
+					}
+					_ if self.comment == CommentState::Ended => {
+						*current = b' ';
+						self.comment = CommentState::None;
+					}
+					_ => {}
+				}
+				Some((*current, line))
+			} else {
+				None
+			}
 		}
 	}
 
@@ -230,36 +280,6 @@ impl<'a> CodeFile<'a> {
 		)
 	}
 
-	fn skip_comment(&mut self, c: CodeChar, code: Option<&mut Code>) -> Result<bool, String> {
-		Ok(if let Some((nc, _)) = self.peek_char()? {
-			match nc {
-				b'/' => {
-					if self.read_until_unchecked(b'\n').is_some() {
-						if let Some(code) = code {
-							code.push((b'\n', c.1));
-						}
-					}
-					false
-				}
-				b'*' => {
-					self.read_char().unwrap();
-					while {
-						self.read_until_unchecked(b'*');
-						if let Some((fc, _)) = self.read_char_unchecked() {
-							fc != b'/'
-						} else {
-							return Err(error("Unterminated comment", c.1, self.filename));
-						}
-					} {}
-					false
-				}
-				_ => true,
-			}
-		} else {
-			true
-		})
-	}
-
 	fn read_until_with(
 		&mut self,
 		end: u8,
@@ -275,11 +295,6 @@ impl<'a> CodeFile<'a> {
 			}
 		})?;
 		Ok(reached.then_some(result))
-	}
-
-	fn read_until_unchecked(&mut self, end: u8) -> Option<Code> {
-		self.read_until_with(end, |s| Ok(s.read_char_unchecked()))
-			.unwrap()
 	}
 
 	fn read_until(&mut self, end: u8) -> Result<Code, String> {
@@ -308,12 +323,6 @@ impl<'a> CodeFile<'a> {
 					args.append(self.read_string(c)?);
 					args.push(c);
 				}
-				b'/' => {
-					let c = self.read_char_unchecked().unwrap();
-					if self.skip_comment(c, Some(&mut args))? {
-						args.push(c)
-					}
-				}
 				_ => args.push(self.read_char_unchecked().unwrap()),
 			}
 		}
@@ -327,9 +336,6 @@ impl<'a> CodeFile<'a> {
 				b'}' => return Ok(()),
 				b'\'' | b'"' | b'`' => {
 					self.read_string(c)?;
-				}
-				b'/' => {
-					self.skip_comment(c, None)?;
 				}
 				_ => {}
 			}
@@ -436,13 +442,13 @@ pub fn read_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 	path: P,
 	filename: &String,
 ) -> Result<(PPCode, PPVars), String> {
-	let result = preprocess_code(&check!(fs::read(path)), 1, false, filename)?;
+	let result = preprocess_code(&mut check!(fs::read(path)), 1, false, filename)?;
 	Ok((result.0, result.1))
 }
 
 #[allow(clippy::blocks_in_if_conditions)]
 pub fn preprocess_code(
-	code: &[u8],
+	code: &mut [u8],
 	line: usize,
 	is_block: bool,
 	filename: &String,
@@ -516,9 +522,9 @@ pub fn preprocess_code(
 						};
 						code.assert_reach(b'{')?;
 						let line = code.line;
-						let block = &code.code[code.read..code.code.len()];
-						let (block, ppvars, line, read) =
-							preprocess_code(block, line, true, filename)?;
+						let len = code.code.len();
+						let block = &mut code.code[code.read..len];
+						let (block, ppvars, line, read) = preprocess_code(block, line, true, filename)?;
 						code.line = line;
 						code.read += read;
 						variables.insert(
@@ -601,7 +607,6 @@ pub fn preprocess_code(
 				}
 				false
 			}
-			b'/' => code.skip_comment(c, Some(&mut currentcode))?,
 			b'{' if cscope > 0 || is_block => {
 				cscope += 1;
 				true
@@ -640,18 +645,20 @@ fn skip_whitespace_backwards(code: &mut Peekable<Rev<std::slice::Iter<u8>>>) {
 fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize) -> VecDeque<Code> {
 	let mut newpseudos = VecDeque::new();
 	while {
-		if let Some(c) = code.next() {
-			if *c == b'=' {
-				if let Some(c) = code.next() {
-					matches!(c, b'!' | b'=')
-				} else {
+		let Some(c) = code.next() else {
+			return newpseudos;
+		};
+		match c { //FINISH THIS
+			b'=' => {
+				let Some(c) = code.next() else {
 					return newpseudos;
-				}
-			} else {
+				};
+				matches!(c, b'!' | b'=')
+			}
+			b'\'' | b'"' | b'`' => {
 				true
 			}
-		} else {
-			return newpseudos;
+			_ => true,
 		}
 	} {}
 	skip_whitespace_backwards(&mut code);
