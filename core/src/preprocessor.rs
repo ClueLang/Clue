@@ -543,7 +543,7 @@ pub fn preprocess_code(
 								let arg = code.read_identifier()?;
 								code.skip_whitespace();
 								if arg.is_empty() {
-									if args.len() == 0 {
+									if args.is_empty() {
 										code.assert_char(b')')?;
 										break (false, args);
 									}
@@ -790,7 +790,7 @@ pub fn preprocess_variables(
 						PPVar::Simple(value) => value.clone(),
 						PPVar::ToProcess(value) => preprocess_variables(
 							stacklevel + 1,
-							&value,
+							value,
 							value.len(),
 							variables,
 							filename,
