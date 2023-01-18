@@ -12,6 +12,7 @@ categories.workspace = true
 include = [
 	"../../LICENSE",
     "**/*.rs",
+	"**/*.lua",
     "Cargo.toml",
 ]
 
