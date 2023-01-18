@@ -9,7 +9,11 @@ repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
-include = ["../../LICENSE"]
+include = [
+	"../../LICENSE",
+    "**/*.rs",
+    "Cargo.toml",
+]
 
 [dependencies]
 flume = "0.10.14"
