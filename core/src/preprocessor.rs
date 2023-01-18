@@ -469,7 +469,7 @@ pub fn preprocess_code(
 	let mut currentcode = Code::with_capacity(code.len());
 	let mut size = 0;
 	let mut code = CodeFile::new(code, line, filename);
-	let mut variables = AHashMap::new();
+	let mut variables = PPVars::new();
 	let mut pseudos: Option<VecDeque<Code>> = None;
 	let mut cscope = is_block as u8;
 	while let Some(c) = code.read_char()? {
@@ -576,8 +576,12 @@ pub fn preprocess_code(
 			b'$' if is_block && matches!(code.peek_char_unchecked(), Some((b'{', _))) => {
 				size += currentcode.len() + 8;
 				finalcode.push((currentcode, false));
-				finalcode.push((Code::from((b"$_vararg", c.1)), true));
+				let name = format_clue!("_vararg", variables.len().to_string());
+				finalcode.push((Code::from((format_clue!("$", name), c.1)), true));
 				code.read_char_unchecked();
+				let (vararg_code, ppvars) = code.read_macro_block()?;
+				variables.extend(ppvars);
+				variables.insert(Code::from((name, c.1)), PPVar::VarArgs(vararg_code));
 				currentcode = Code::with_capacity(code.code.len() - code.read);
 				false
 			},
@@ -792,7 +796,7 @@ pub fn preprocess_variables(
 							code.clone(),
 							&{
 								let mut macro_variables = variables.clone();
-								macro_variables.extend(ppvars.clone().into_iter());
+								macro_variables.extend(ppvars.clone());
 								let is_called = matches!(chars.next(), Some((b'!', _)));
 								if !is_called || !matches!(chars.next(), Some((b'(', _))) {
 									let name = name.to_string();
@@ -810,11 +814,7 @@ pub fn preprocess_variables(
 									));
 								}
 								let mut args = args.iter();
-								let mut varargs: Option<Vec<PPVar>> = if *vararg {
-									Some(Vec::new())
-								} else {
-									None
-								};
+								let mut varargs = 0;
 								loop {
 									let mut value = Code::new();
 									let mut cscope = 1u8;
@@ -846,7 +846,13 @@ pub fn preprocess_variables(
 									if let Some(arg_name) = args.next() {
 										macro_variables.insert(arg_name.clone(), value);
 									} else if *vararg {
-										varargs.as_mut().unwrap().push(value)
+										varargs += 1;
+										let mut arg_name = Code::with_capacity(varargs + 1);
+										arg_name.push((b'_', c.1));
+										for _ in 0..varargs {
+											arg_name.push((b'v', c.1));
+										}
+										macro_variables.insert(arg_name, value);
 									} else {
 										return Err(error(
 											"Too many arguments passed to macro",
@@ -876,7 +882,22 @@ pub fn preprocess_variables(
 							},
 							filename,
 						)?,
-						PPVar::VarArgs(_code) => Code::new(),
+						PPVar::VarArgs((codes, size)) => {
+							let mut result = Code::with_capacity(size * 3);
+							let mut variables = variables.clone();
+							let mut name = Code::from((b"_v", c.1));
+							while let Some(vararg) = variables.remove(&name) {
+								variables.insert(Code::from((b"vararg", c.1)), vararg);
+								result.append(preprocess_codes(
+									stacklevel + 1,
+									(codes.clone(), *size),
+									&variables,
+									filename
+								)?);
+								name.push(*name.last().unwrap());
+							}
+							result
+						},
 					});
 				} else {
 					return Err(error(
