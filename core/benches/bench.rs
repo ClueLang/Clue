@@ -38,7 +38,7 @@ fn compile_code(
 		let mut code = Code::with_capacity(size);
 		for (codepart, uses_vars) in codes {
 			code.append(if uses_vars {
-				preprocess_variables(0, (&codepart).into_iter().peekable(), variables, name)?
+				preprocess_variables(0, &codepart, codepart.len(), variables, name)?
 			} else {
 				codepart
 			})

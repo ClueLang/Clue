@@ -5,7 +5,7 @@ use crate::{
 };
 use ahash::AHashMap;
 use std::{
-	collections::{vec_deque::Iter, VecDeque},
+	collections::VecDeque,
 	env,
 	ffi::OsStr,
 	fmt::Display,
@@ -13,7 +13,7 @@ use std::{
 	iter::{Peekable, Rev},
 	path::Path,
 	str,
-	u8::MAX,
+	u8::MAX, cmp::min,
 };
 use utf8_decode::decode;
 
@@ -578,7 +578,7 @@ pub fn preprocess_code(
 				finalcode.push((currentcode, false));
 				finalcode.push((Code::from((b"$_vararg", c.1)), true));
 				code.read_char_unchecked();
-				currentcode = Code::new();
+				currentcode = Code::with_capacity(code.code.len() - code.read);
 				false
 			},
 			b'$' => {
@@ -613,7 +613,7 @@ pub fn preprocess_code(
 					}
 					size += name.len();
 					finalcode.push((name, true));
-					currentcode = Code::new();
+					currentcode = Code::with_capacity(code.code.len() - code.read);
 				}
 				false
 			}
@@ -732,12 +732,7 @@ pub fn preprocess_codes(
 		let mut code = Code::with_capacity(size);
 		for (codepart, uses_vars) in codes {
 			code.append(if uses_vars {
-				preprocess_variables(
-					stacklevel,
-					(&codepart).into_iter().peekable(),
-					variables,
-					filename,
-				)?
+				preprocess_variables(stacklevel, &codepart, codepart.len(), variables, filename)?
 			} else {
 				codepart
 			})
@@ -748,16 +743,19 @@ pub fn preprocess_codes(
 
 pub fn preprocess_variables(
 	stacklevel: u8,
-	mut chars: Peekable<Iter<CodeChar>>,
+	code: &Code,
+	size: usize,
+	//mut chars: Peekable<Iter<CodeChar>>,
 	variables: &PPVars,
 	filename: &String,
 ) -> Result<Code, String> {
-	let mut result = Code::new();
+	let mut result = Code::with_capacity(size);
+	let mut chars = code.iter().peekable();
 	while let Some(c) = chars.next() {
 		match c.0 {
 			b'$' => {
 				let name = {
-					let mut name = Code::new();
+					let mut name = Code::with_capacity(min(size - 1, 8));
 					while let Some((c, _)) = chars.peek() {
 						if !(c.is_ascii_alphanumeric() || *c == b'_') {
 							break;
@@ -784,7 +782,8 @@ pub fn preprocess_variables(
 						PPVar::Simple(value) => value.clone(),
 						PPVar::ToProcess(value) => preprocess_variables(
 							stacklevel + 1,
-							value.iter().peekable(),
+							&value,
+							value.len(),
 							variables,
 							filename,
 						)?,
@@ -839,7 +838,8 @@ pub fn preprocess_variables(
 									}
 									let value = PPVar::Simple(preprocess_variables(
 										stacklevel + 1,
-										value.trim().iter().peekable(),
+										&value,
+										value.len(),
 										variables,
 										filename,
 									)?);
