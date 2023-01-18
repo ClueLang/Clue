@@ -10,7 +10,7 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 include = [
-	"../../LICENSE",
+	"../LICENSE",
     "**/*.rs",
 	"**/*.lua",
     "Cargo.toml",
