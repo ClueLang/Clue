@@ -94,10 +94,10 @@ impl ToString for Code {
 	}
 }
 
-impl<'a> From<(std::collections::vec_deque::Iter<'a, u8>, usize)> for Code {
-	fn from(value: (std::collections::vec_deque::Iter<u8>, usize)) -> Self {
+impl<'a> From<(&'a [u8], usize)> for Code {
+	fn from(value: (&'a [u8], usize)) -> Self {
 		let (iter, line) = value;
-		let mut result = Code::new();
+		let mut result = Code::with_capacity(iter.len());
 		for c in iter {
 			result.push((*c, line))
 		}
@@ -105,14 +105,15 @@ impl<'a> From<(std::collections::vec_deque::Iter<'a, u8>, usize)> for Code {
 	}
 }
 
+impl<'a, const N: usize> From<(&'a [u8; N], usize)> for Code {
+	fn from(value: (&'a [u8; N], usize)) -> Self {
+		Code::from((value.0 as &[u8], value.1))
+	}
+}
+
 impl<'a> From<(&'a str, usize)> for Code {
 	fn from(value: (&'a str, usize)) -> Self {
-		let (string, line) = value;
-		let mut result = Code::new();
-		for c in string.bytes() {
-			result.push((c, line))
-		}
-		result
+		Code::from((value.0.as_bytes(), value.1))
 	}
 }
 
