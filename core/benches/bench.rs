@@ -24,14 +24,6 @@ fn wait_threads(threads: Vec<JoinHandle<()>>) {
 	}
 }
 
-fn lock_and_pop<A, B>(mutex: Arc<SegQueue<(A, B)>>) -> Option<(A, B)> {
-	if mutex.is_empty() {
-		return None;
-	}
-
-	Some(mutex.pop().unwrap())
-}
-
 fn compile_code(
 	mut codes: Vec<(Code, bool)>,
 	variables: &PPVars,
@@ -65,7 +57,7 @@ fn compile_file_dir(
 	variables: Arc<AHashMap<Code, PPVar>>,
 ) {
 	loop {
-		let (codes, realname) = match lock_and_pop(codes.clone()) {
+		let (codes, realname) = match codes.pop() {
 			None => break,
 			Some((codes, realname)) => (codes, realname),
 		};
@@ -91,7 +83,7 @@ fn preprocess_file_dir(
 	tx: Sender<PreprocessorAnalyzerData>,
 ) {
 	loop {
-		let (filename, realname) = match lock_and_pop(files.clone()) {
+		let (filename, realname) = match files.pop() {
 			None => break,
 			Some((filename, realname)) => (filename, realname),
 		};
