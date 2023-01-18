@@ -35,6 +35,7 @@ pub enum PPVar {
 		code: PPCode,
 		args: Vec<Code>,
 		ppvars: PPVars,
+		vararg: bool,
 	},
 }
 
@@ -507,15 +508,31 @@ pub fn preprocess_code(
 					"macro" => {
 						let name = code.read_identifier()?;
 						code.assert_reach(b'(')?;
-						let args = {
+						let (vararg, args) = {
 							let mut args = Vec::new();
 							loop {
 								code.skip_whitespace();
+								if let Some((b'.', line)) = code.peek_char_unchecked() {
+									if code.read(CodeFile::peek_char, |code, (c, _)| {
+											if c != b'.' {
+												code.read_char_unchecked();
+												false
+											} else {
+												true
+											}
+										})? == "..." {
+										code.skip_whitespace();
+										code.assert_char(b')')?;
+										break (true, args)
+									} else {
+										return Err(expected(",", ".", line, filename));
+									}
+								}
 								args.push(code.read_identifier()?);
 								code.skip_whitespace();
 								if let Some((b')', _)) = code.peek_char_unchecked() {
 									code.read_char_unchecked();
-									break args;
+									break (false, args);
 								}
 								code.assert_char(b',')?;
 							}
@@ -534,6 +551,7 @@ pub fn preprocess_code(
 								code: block,
 								args,
 								ppvars,
+								vararg,
 							},
 						);
 					}
@@ -752,7 +770,7 @@ pub fn preprocess_variables(
 							variables,
 							filename,
 						)?,
-						PPVar::Macro { code, args, ppvars } => preprocess_codes(
+						PPVar::Macro { code, args, ppvars, vararg } => preprocess_codes(
 							stacklevel + 1,
 							code.clone(),
 							&{
