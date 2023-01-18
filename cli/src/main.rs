@@ -372,9 +372,7 @@ fn main() -> Result<(), String> {
 	if cli.pathiscode {
 		let mut codepath = codepath;
 		let filename = String::from("(command line)");
-		let code = unsafe {
-			codepath.as_bytes_mut()
-		};
+		let code = unsafe { codepath.as_bytes_mut() };
 		let preprocessed_code = preprocess_code(code, 1, false, &filename)?;
 		let (code, statics) = compile_code(
 			preprocessed_code.0,
