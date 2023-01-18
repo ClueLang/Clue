@@ -61,8 +61,9 @@ fn expected_before(expected: &str, before: &str, line: usize, filename: &String)
 	)
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 enum CommentState {
+	String,
 	None,
 	Single,
 	Multi,
@@ -131,7 +132,7 @@ impl<'a> CodeFile<'a> {
 				let c = *current;
 				self.read += 1;
 				let line = self.line;
-				if self.comment != CommentState::None {
+				if self.comment > CommentState::None {
 					*current = b' ';
 				}
 				match c {
@@ -164,7 +165,6 @@ impl<'a> CodeFile<'a> {
 						}
 					}
 					_ if self.comment == CommentState::Ended => {
-						*current = b' ';
 						self.comment = CommentState::None;
 					}
 					_ => {}
@@ -254,6 +254,7 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn read_string(&mut self, c: CodeChar) -> Result<Code, String> {
+		self.comment = CommentState::String;
 		let mut skip_next = false;
 		self.read(
 			|code| {
@@ -264,13 +265,14 @@ impl<'a> CodeFile<'a> {
 					Ok(stringc)
 				}
 			},
-			|_, (stringc, _)| {
+			|code, (stringc, _)| {
 				if stringc == b'\n' {
 					false
 				} else if skip_next {
 					skip_next = false;
 					false
 				} else if !skip_next && stringc == c.0 {
+					code.comment = CommentState::None;
 					true
 				} else {
 					if stringc == b'\\' {
