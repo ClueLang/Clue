@@ -97,7 +97,7 @@ impl<'a> CodeFile<'a> {
 			None => Ok(None),
 			Some(c) if c.0.is_ascii() => Ok(Some(c)),
 			Some((_, line)) => {
-				let c = check!(decode(&mut self.code.iter().skip(self.read - 1).copied()).unwrap());
+				let c = check!(decode(&mut self.code[self.read - 1..self.read + 3].iter().copied()).unwrap());
 				Err(error(
 					format!("Invalid character '{c}'"),
 					line,
