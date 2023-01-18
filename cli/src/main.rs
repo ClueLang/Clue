@@ -340,7 +340,7 @@ fn main() -> Result<(), String> {
 	std::env::set_var("CLUE_VERSION", crate_version!());
 	let cli = Cli::parse();
 	if cli.license {
-		print!(include_str!(concat!("../", env!("CARGO_PKG_LICENSE_FILE"))));
+		print!(include_str!("../LICENSE"));
 		return Ok(());
 	} else if cli.types.is_some() {
 		//TEMPORARY PLACEHOLDER UNTIL 4.0
