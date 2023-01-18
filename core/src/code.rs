@@ -117,6 +117,12 @@ impl<'a> From<(&'a str, usize)> for Code {
 	}
 }
 
+impl<'a> From<(String, usize)> for Code {
+	fn from(value: (String, usize)) -> Self {
+		Code::from((value.0.as_bytes(), value.1))
+	}
+}
+
 impl PartialEq for Code {
 	fn eq(&self, other: &Self) -> bool {
 		self.len() == other.len() && {
