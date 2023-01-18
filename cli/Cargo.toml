@@ -9,6 +9,7 @@ repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
+include = ["../../LICENSE"]
 
 [dependencies]
 flume = "0.10.14"
