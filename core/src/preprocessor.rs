@@ -541,7 +541,12 @@ pub fn preprocess_code(
 									}
 								}
 								let arg = code.read_identifier()?;
+								code.skip_whitespace();
 								if arg.is_empty() {
+									if args.len() == 0 {
+										code.assert_char(b')')?;
+										break (false, args);
+									}
 									let (got, line) = match code.read_char_unchecked() {
 										Some((c, line)) => ((c as char).to_string(), line),
 										None => (String::from("<end>"), code.line),
@@ -549,7 +554,6 @@ pub fn preprocess_code(
 									return Err(expected("<name>", &got, line, filename))
 								}
 								args.push(arg);
-								code.skip_whitespace();
 								if let Some((b')', _)) = code.peek_char_unchecked() {
 									code.read_char_unchecked();
 									break (false, args);
@@ -815,26 +819,35 @@ pub fn preprocess_variables(
 								}
 								let mut args = args.iter();
 								let mut varargs = 0;
+								let len = macro_variables.len();
 								loop {
 									let mut value = Code::new();
 									let mut cscope = 1u8;
-									while let Some(c) = chars.peek() {
+									let end = loop {
+										let Some(c) = chars.next() else {
+											return Err(expected_before(")", "<end>", c.1, filename))
+										};
 										match c.0 {
 											b'(' => cscope += 1,
-											b',' if cscope == 1 => break,
+											b',' if cscope == 1 => break b',',
 											b')' => {
 												cscope -= 1;
 												if cscope == 0 {
-													break;
+													break b')';
 												}
 											}
 											_ => {}
 										}
-										value.push(*chars.next().unwrap())
-									}
+										value.push(*c)
+									};
 									let value = value.trim();
 									if value.is_empty() {
-										break
+										if len == macro_variables.len() && end == b')' {
+											break
+										} else {
+											let end = (end as char).to_string();
+											return Err(expected_before("<name>", &end, c.1, filename))
+										}
 									}
 									let value = PPVar::Simple(preprocess_variables(
 										stacklevel + 1,
@@ -860,12 +873,8 @@ pub fn preprocess_variables(
 											filename,
 										));
 									}
-									let check = chars.next();
-									if check.is_none() {
-										return Err(expected_before(")", "<eof>", c.1, filename));
-									}
-									if let Some((b')', _)) = check {
-										break;
+									if end == b')' {
+										break
 									}
 								}
 								if let Some(missed) = args.next() {
