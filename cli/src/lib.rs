@@ -1,5 +1,4 @@
-use clue_core::code::Code;
-use clue_core::preprocessor::PPVars;
+use clue_core::preprocessor::{PPVars, PPCode};
 use crossbeam_queue::SegQueue;
 use std::ffi::OsStr;
 use std::fmt::Display;
@@ -7,11 +6,11 @@ use std::fs;
 use std::path::Path;
 use std::thread::JoinHandle;
 
-pub type CodeQueue = SegQueue<(Vec<(Code, bool)>, String)>;
+pub type CodeQueue = SegQueue<(PPCode, String)>;
 
 pub struct PreprocessorAnalyzerData {
 	pub errored: bool,
-	pub codes: (Vec<(Code, bool)>, String),
+	pub codes: (PPCode, String),
 	pub variables: PPVars,
 }
 

@@ -7,10 +7,10 @@ use flume::Sender;
 use std::thread::JoinHandle;
 use std::{cmp::min, ffi::OsStr, fmt::Display, fs, path::Path, sync::Arc, thread};
 
-pub type CodeQueue = SegQueue<(Vec<(Code, bool)>, String)>;
+pub type CodeQueue = SegQueue<(PPCode, String)>;
 
 struct PreprocessorAnalyzerData {
-	pub codes: (Vec<(Code, bool)>, String),
+	pub codes: (PPCode, String),
 	pub variables: PPVars,
 }
 
@@ -25,16 +25,17 @@ fn wait_threads(threads: Vec<JoinHandle<()>>) {
 }
 
 fn compile_code(
-	mut codes: Vec<(Code, bool)>,
+	codes: PPCode,
 	variables: &PPVars,
 	name: &String,
 	scope: usize,
 	options: &Options,
 ) -> Result<(String, String), String> {
+	let (mut codes, size) = codes;
 	let code = if codes.len() == 1 {
 		codes.pop().unwrap().0
 	} else {
-		let mut code = Code::new();
+		let mut code = Code::with_capacity(size);
 		for (codepart, uses_vars) in codes {
 			code.append(if uses_vars {
 				preprocess_variables(0, (&codepart).into_iter().peekable(), variables, name)?

@@ -25,7 +25,7 @@ macro_rules! pp_if {
 }
 
 pub type PPVars = AHashMap<Code, PPVar>;
-pub type PPCode = Vec<(Code, bool)>;
+pub type PPCode = (Vec<(Code, bool)>, usize);
 
 #[derive(Debug, Clone)]
 pub enum PPVar {
@@ -467,6 +467,7 @@ pub fn preprocess_code(
 ) -> Result<(PPCode, PPVars, usize, usize), String> {
 	let mut finalcode = Vec::new();
 	let mut currentcode = Code::with_capacity(code.len());
+	let mut size = 0;
 	let mut code = CodeFile::new(code, line, filename);
 	let mut variables = AHashMap::new();
 	let mut pseudos: Option<VecDeque<Code>> = None;
@@ -573,6 +574,7 @@ pub fn preprocess_code(
 				false
 			}
 			b'$' if is_block && matches!(code.peek_char_unchecked(), Some((b'{', _))) => {
+				size += currentcode.len() + 8;
 				finalcode.push((currentcode, false));
 				finalcode.push((Code::from((b"$_vararg", c.1)), true));
 				code.read_char_unchecked();
@@ -596,6 +598,7 @@ pub fn preprocess_code(
 						None => currentcode.append(name.clone()),
 					}
 				} else {
+					size += currentcode.len();
 					finalcode.push((currentcode, false));
 					name.push_start(c);
 					if {
@@ -608,6 +611,7 @@ pub fn preprocess_code(
 					} {
 						name.append(code.read_macro_args()?)
 					}
+					size += name.len();
 					finalcode.push((name, true));
 					currentcode = Code::new();
 				}
@@ -658,9 +662,10 @@ pub fn preprocess_code(
 		return Err(expected_before("}", "<end>", code.line, filename));
 	}
 	if !currentcode.is_empty() {
+		size += currentcode.len();
 		finalcode.push((currentcode, false))
 	}
-	Ok((finalcode, variables, code.line, code.read))
+	Ok(((finalcode, size), variables, code.line, code.read))
 }
 
 fn skip_whitespace_backwards(code: &mut Peekable<Rev<std::slice::Iter<u8>>>) {
@@ -716,14 +721,15 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize) -> V
 
 pub fn preprocess_codes(
 	stacklevel: u8,
-	mut codes: PPCode,
+	codes: PPCode,
 	variables: &PPVars,
 	filename: &String,
 ) -> Result<Code, String> {
+	let (mut codes, size) = codes;
 	if codes.len() == 1 {
 		Ok(codes.pop().unwrap().0)
 	} else {
-		let mut code = Code::new();
+		let mut code = Code::with_capacity(size);
 		for (codepart, uses_vars) in codes {
 			code.append(if uses_vars {
 				preprocess_variables(
