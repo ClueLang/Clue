@@ -138,7 +138,7 @@ impl<'a> CodeFile<'a> {
 						if self.comment == CommentState::Single {
 							self.comment = CommentState::None;
 						}
-					},
+					}
 					b'/' if self.comment == CommentState::None => {
 						if let Some(next) = next {
 							self.comment = match next {
@@ -524,7 +524,8 @@ pub fn preprocess_code(
 						let line = code.line;
 						let len = code.code.len();
 						let block = &mut code.code[code.read..len];
-						let (block, ppvars, line, read) = preprocess_code(block, line, true, filename)?;
+						let (block, ppvars, line, read) =
+							preprocess_code(block, line, true, filename)?;
 						code.line = line;
 						code.read += read;
 						variables.insert(
@@ -562,7 +563,7 @@ pub fn preprocess_code(
 					}
 					match pseudos.as_ref().unwrap().get(n - 1) {
 						Some(name) => currentcode.append(name.clone()),
-						None => currentcode.append(name.clone())
+						None => currentcode.append(name.clone()),
 					}
 				} else {
 					finalcode.push((currentcode, false));
@@ -648,16 +649,15 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize) -> V
 		let Some(c) = code.next() else {
 			return newpseudos;
 		};
-		match c { //FINISH THIS
+		match c {
+			//FINISH THIS
 			b'=' => {
 				let Some(c) = code.next() else {
 					return newpseudos;
 				};
 				matches!(c, b'!' | b'=')
 			}
-			b'\'' | b'"' | b'`' => {
-				true
-			}
+			b'\'' | b'"' | b'`' => true,
 			_ => true,
 		}
 	} {}
