@@ -8,7 +8,7 @@ description = "C/Rust like programming language that compiles into Lua code"
 edition = "2021"
 authors = ["Maiori"]
 repository = "https://github.com/ClueLang/Clue"
-license = "MIT"
+license-file = "LICENSE"
 keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
 categories = ["compilers"]
 

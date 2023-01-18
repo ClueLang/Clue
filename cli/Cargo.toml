@@ -6,15 +6,9 @@ edition.workspace = true
 authors.workspace = true
 readme = "../README.md"
 repository.workspace = true
-license.workspace = true
+license-file.workspace = true
 keywords.workspace = true
 categories.workspace = true
-include = [
-	"../LICENSE",
-    "**/*.rs",
-	"**/*.lua",
-    "Cargo.toml",
-]
 
 [dependencies]
 flume = "0.10.14"
