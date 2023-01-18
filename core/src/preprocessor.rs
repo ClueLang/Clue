@@ -37,6 +37,7 @@ pub enum PPVar {
 		ppvars: PPVars,
 		vararg: bool,
 	},
+	VarArgs(PPCode),
 }
 
 fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
@@ -330,6 +331,16 @@ impl<'a> CodeFile<'a> {
 		Err(expected_before(")", "<end>", self.line, self.filename))
 	}
 
+	fn read_macro_block(&mut self) -> Result<(PPCode, PPVars), String> {
+		let line = self.line;
+		let len = self.code.len();
+		let block = &mut self.code[self.read..len];
+		let (block, ppvars, line, read) = preprocess_code(block, line, true, self.filename)?;
+		self.line = line;
+		self.read += read;
+		Ok((block, ppvars))
+	}
+
 	fn skip_block(&mut self) -> Result<(), String> {
 		while let Some(c) = self.read_char()? {
 			match c.0 {
@@ -514,7 +525,7 @@ pub fn preprocess_code(
 								code.skip_whitespace();
 								if let Some((b'.', line)) = code.peek_char_unchecked() {
 									if code.read(CodeFile::peek_char, |code, (c, _)| {
-											if c != b'.' {
+											if c == b'.' {
 												code.read_char_unchecked();
 												false
 											} else {
@@ -528,7 +539,15 @@ pub fn preprocess_code(
 										return Err(expected(",", ".", line, filename));
 									}
 								}
-								args.push(code.read_identifier()?);
+								let arg = code.read_identifier()?;
+								if arg.is_empty() {
+									let (got, line) = match code.read_char_unchecked() {
+										Some((c, line)) => ((c as char).to_string(), line),
+										None => (String::from("<end>"), code.line),
+									};
+									return Err(expected("<name>", &got, line, filename))
+								}
+								args.push(arg);
 								code.skip_whitespace();
 								if let Some((b')', _)) = code.peek_char_unchecked() {
 									code.read_char_unchecked();
@@ -538,22 +557,8 @@ pub fn preprocess_code(
 							}
 						};
 						code.assert_reach(b'{')?;
-						let line = code.line;
-						let len = code.code.len();
-						let block = &mut code.code[code.read..len];
-						let (block, ppvars, line, read) =
-							preprocess_code(block, line, true, filename)?;
-						code.line = line;
-						code.read += read;
-						variables.insert(
-							name,
-							PPVar::Macro {
-								code: block,
-								args,
-								ppvars,
-								vararg,
-							},
-						);
+						let (code, ppvars) = code.read_macro_block()?;
+						variables.insert(name, PPVar::Macro { code, args, ppvars, vararg });
 					}
 					"error" => return Err(error(code.read_line()?.to_string(), c.1, filename)),
 					"print" => println!("{}", code.read_line()?.to_string()),
@@ -567,6 +572,13 @@ pub fn preprocess_code(
 				}
 				false
 			}
+			b'$' if is_block && matches!(code.peek_char_unchecked(), Some((b'{', _))) => {
+				finalcode.push((currentcode, false));
+				finalcode.push((Code::from((b"$_vararg", c.1)), true));
+				code.read_char_unchecked();
+				currentcode = Code::new();
+				false
+			},
 			b'$' => {
 				let mut name = code.read_identifier()?;
 				if name.len() <= 1 && matches!(name.last(), Some((b'1'..=b'9', _)) | None) {
@@ -793,14 +805,12 @@ pub fn preprocess_variables(
 									));
 								}
 								let mut args = args.iter();
+								let mut varargs: Option<Vec<PPVar>> = if *vararg {
+									Some(Vec::new())
+								} else {
+									None
+								};
 								loop {
-									let Some(arg_name) = args.next() else {
-										return Err(error(
-											"Too many arguments passed to macro",
-											c.1,
-											filename,
-										));
-									};
 									let mut value = Code::new();
 									let mut cscope = 1u8;
 									while let Some(c) = chars.peek() {
@@ -817,15 +827,27 @@ pub fn preprocess_variables(
 										}
 										value.push(*chars.next().unwrap())
 									}
-									macro_variables.insert(
-										arg_name.clone(),
-										PPVar::Simple(preprocess_variables(
-											stacklevel + 1,
-											value.trim().iter().peekable(),
-											variables,
+									let value = value.trim();
+									if value.is_empty() {
+										break
+									}
+									let value = PPVar::Simple(preprocess_variables(
+										stacklevel + 1,
+										value.trim().iter().peekable(),
+										variables,
+										filename,
+									)?);
+									if let Some(arg_name) = args.next() {
+										macro_variables.insert(arg_name.clone(), value);
+									} else if *vararg {
+										varargs.as_mut().unwrap().push(value)
+									} else {
+										return Err(error(
+											"Too many arguments passed to macro",
+											c.1,
 											filename,
-										)?),
-									);
+										));
+									}
 									let check = chars.next();
 									if check.is_none() {
 										return Err(expected_before(")", "<eof>", c.1, filename));
@@ -848,6 +870,7 @@ pub fn preprocess_variables(
 							},
 							filename,
 						)?,
+						PPVar::VarArgs(_code) => Code::new(),
 					});
 				} else {
 					return Err(error(
