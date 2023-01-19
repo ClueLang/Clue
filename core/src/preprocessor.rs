@@ -426,6 +426,9 @@ impl<'a> CodeFile<'a> {
 		let check = {
 			let function = self.read_identifier()?.to_string();
 			self.assert_char(b'(')?;
+			if function.is_empty() {
+				return Err(expected_before("<name>", "(", self.line, self.filename))
+			}
 			self.skip_whitespace();
 			match function.as_str() {
 				"all" => self.bool_op(false)?,
