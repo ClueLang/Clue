@@ -1025,7 +1025,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	}
 
 	fn build_loop_block(&mut self) -> Result<CodeBlock, String> {
-		let mut hascontinue = false;
+		let mut hascontinue: Option<String> = None;
 		let mut is_in_other_loop = false;
 		let start = self.get_code_block_start()?;
 		let mut tokens: Vec<Token> = Vec::new();
@@ -1045,10 +1045,11 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 				}
 				FOR | WHILE | LOOP => is_in_other_loop = true,
 				CONTINUE if !is_in_other_loop => {
-					hascontinue = true;
+					let name = self.get_next_internal_var();
+					hascontinue = Some(name.clone());
 					let line = t.line();
 					if self.options.env_continue == ContinueMode::MOONSCRIPT {
-						tokens.push(Token::new(IDENTIFIER, "_continue", line));
+						tokens.push(Token::new(IDENTIFIER, name, line));
 						tokens.push(Token::new(DEFINE, "=", line));
 						tokens.push(Token::new(TRUE, "true", line));
 						tokens.push(Token::new(BREAK, "break", line));
@@ -1061,21 +1062,21 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 			tokens.push(t.into_owned());
 		}
 		let mut code = self.parse_code_block(tokens /*, self.locals.clone()*/)?;
-		if hascontinue {
+		if let Some(name) = hascontinue {
 			match self.options.env_continue {
 				ContinueMode::SIMPLE => {}
 				ContinueMode::LUAJIT => code.push_back(SYMBOL(String::from("::continue::"))),
 				ContinueMode::MOONSCRIPT => {
 					code.push_back(ALTER {
 						kind: DEFINE,
-						names: vec_deque![vec_deque![SYMBOL(String::from("_continue"))]],
+						names: vec_deque![vec_deque![SYMBOL(name.clone())]],
 						values: vec![vec_deque![SYMBOL(String::from("true"))]],
 						line: end,
 					});
 					code = vec_deque![
 						VARIABLE {
 							local: true,
-							names: vec![String::from("_continue")],
+							names: vec![name.clone()],
 							values: vec![vec_deque![SYMBOL(String::from("false"))]],
 							line: start
 						},
@@ -1086,7 +1087,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 						IF_STATEMENT {
 							condition: vec_deque![
 								SYMBOL(String::from("not ")),
-								SYMBOL(String::from("_continue"))
+								SYMBOL(name)
 							],
 							code: CodeBlock {
 								start: end,
