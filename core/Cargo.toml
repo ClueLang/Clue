@@ -1,0 +1,31 @@
+[package]
+name = "clue_core"
+version.workspace = true
+description.workspace = true
+edition.workspace = true
+authors.workspace = true
+readme = "./README.md"
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+lazy_static = "1.4.0"
+utf8-decode = "1.0.1"
+ahash.workspace = true
+clap.workspace = true
+rpmalloc = { version = "0.2.2", optional = true }
+
+[dev-dependencies]
+criterion = "0.4.0"
+num_cpus = "1.15.0"
+flume = "0.10.14"
+crossbeam-queue = "0.3.8"
+
+[[bench]]
+name = "bench"
+harness = false
+
+[features]
+default = ["rpmalloc"]

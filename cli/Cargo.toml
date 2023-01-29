@@ -1,0 +1,25 @@
+[package]
+name = "clue"
+version.workspace = true
+description.workspace = true
+edition.workspace = true
+authors.workspace = true
+readme = "../README.md"
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+flume = "0.10.14"
+num_cpus = "1.14.0"
+crossbeam-queue = "0.3.8"
+ahash.workspace = true
+clue_core = { path = "../core", version = "3.0.*", default-features = false }
+clap.workspace = true
+mlua = { version = "0.8.3", features = ["luajit", "vendored"], optional = true }
+
+[features]
+default = ["interpreter", "rpmalloc"]
+interpreter = ["mlua"]
+rpmalloc = ["clue_core/rpmalloc"]

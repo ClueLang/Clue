@@ -4,7 +4,7 @@
 [![Crates.io](https://img.shields.io/crates/v/clue?style=flat-square)](https://crates.io/crates/clue)
 [![Crates.io](https://img.shields.io/crates/d/clue?style=flat-square)](https://crates.io/crates/clue)
 
-Clue is a programming language that compiles into Lua code with a syntax similar to languages like C or Rust.
+Clue is a blazing fast programming language that compiles into Lua code with a syntax similar to languages like C or Rust.
 
 Clue tries to be almost as simple as Lua (with only a slightly more advanced syntax) but adds many optional features that can make code look better or make some things (like metatables) easier to code.
 
@@ -40,7 +40,11 @@ More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki),
 1. Paste and run this command in the console: `cargo install clue`
 2. Type `clue` in the console to run the compiler, it will explain the rest
 
-Additionally, `CARGO_PROFILE_RELEASE_LTO` can be used to make Clue run faster, at the expense of a slower install time: `CARGO_PROFILE_RELEASE_LTO=true cargo install clue`
+Clue supports extra features that can be toggled when installing:
+* `interpreter`: adds the `--execute` flag to let Clue run the generated output using [mlua](https://github.com/khvzak/mlua)
+* `rpmalloc`: uses [rpmalloc](https://github.com/EmbarkStudios/rpmalloc-rs) to improve performance, not available on all platforms
+
+By default Clue enables both features.
 
 ### Manual insallation
 1. Download the latest release and save it somewhere
@@ -51,8 +55,8 @@ Additionally, `CARGO_PROFILE_RELEASE_LTO` can be used to make Clue run faster, a
 ## More coming soon!
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
-- preprocessor (coming in 3.0)
 - types (coming in 4.0)
+- selectable lua targets (coming in 3.1)
 
 For any suggestion or bug you can make a github issue.
 If you need help with the language itself, you can check out the new [Discord server](https://discord.gg/EQsnWpqN3C).

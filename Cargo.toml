@@ -1,18 +1,20 @@
-[package]
-name = "clue"
-version = "2.5.3"
+[workspace]
+members = ["cli", "core"]
+default-members = ["cli", "core"]
+
+[workspace.package]
+version = "3.0.0"
 description = "C/Rust like programming language that compiles into Lua code"
-edition = "2018"
-build = "build.rs"
+edition = "2021"
 authors = ["Maiori"]
 repository = "https://github.com/ClueLang/Clue"
 license = "MIT"
 keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
 categories = ["compilers"]
 
-[build-dependencies]
-winres = "0.1"
+[workspace.dependencies]
+ahash = "0.8.2"
+clap = {version = "3.2.23", features = ["derive", "cargo"]}
 
-[dependencies]
-clap = {version = "3.1.6", features = ["derive"]}
-mlua = {version = "0.8.3", features = ["luajit", "vendored"]}
+[profile.release]
+lto = true
