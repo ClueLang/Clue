@@ -730,7 +730,7 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize) -> V
 				false
 			}
 		} {
-			name.push((*code.next().unwrap(), line))
+			name.push_start((*code.next().unwrap(), line))
 		}
 		newpseudos.push_front(name);
 		skip_whitespace_backwards(&mut code);
