@@ -723,9 +723,31 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize) -> V
 	skip_whitespace_backwards(&mut code);
 	while {
 		let mut name = Code::new();
+		let mut qscope = 0u8;
+		let mut in_string = false;
 		while {
 			if let Some(c) = code.peek() {
-				c.is_ascii_alphanumeric() || **c == b'_'
+				match c {
+					b'\'' | b'"' | b'`'  => {
+						name.push_start((*code.next().unwrap(), line));
+						if !matches!(code.peek(), Some(b'\\')) {
+							in_string = !in_string;
+						}
+						true
+					}
+					_ if in_string => true,
+					b'[' => {
+						qscope = qscope.saturating_sub(1);
+						true
+					}
+					_ if qscope > 0 => true,
+					b']' => {
+						qscope += 1;
+						true
+					}
+					b'_' | b'.' | b':' => true,
+					_ => c.is_ascii_alphanumeric()
+				}
 			} else {
 				false
 			}
