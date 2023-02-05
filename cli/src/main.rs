@@ -5,7 +5,7 @@ use clue_core::{
 	env::{ContinueMode, Options},
 	parser::*,
 	preprocessor::*,
-	scanner::*,
+	scanner::*, format_clue,
 };
 use threads::compile_folder;
 use std::{
@@ -31,8 +31,10 @@ struct Cli {
 	path: Option<String>,
 
 	/// The name the output file will have
-	#[clap(default_value = "main", value_name = "OUTPUT FILE NAME")]
-	outputname: String,
+	/// [default for compiling a directory: main]
+	/// [default for compiling a single file: that file's name]
+	#[clap(value_name = "OUTPUT FILE NAME")]
+	outputname: Option<String>,
 
 	/// Print license information
 	#[clap(short = 'L', long, display_order = 1000)]
@@ -213,9 +215,7 @@ fn main() -> Result<(), String> {
 		return Ok(());
 	}
 	let path: &Path = Path::new(&codepath);
-	let mut compiledname = String::new();
-
-	if path.is_dir() {
+	let output_path = if path.is_dir() {
 		let (output, statics) = compile_folder(&codepath, String::new(), &options)?;
 
 		code = match cli.base {
@@ -234,20 +234,15 @@ fn main() -> Result<(), String> {
 				.replace('§', &output),
 		};
 		if !cli.dontsave {
-			let output_name = &format!(
-				"{}.lua",
-				match cli.outputname.strip_suffix(".lua") {
-					Some(output_name) => output_name,
-					None => &cli.outputname,
-				}
-			);
-			let display = path.display().to_string();
-			compiledname = if display.ends_with('/') || display.ends_with('\\') {
-				format!("{display}{output_name}")
-			} else {
-				format!("{display}/{output_name}")
+			let output_name = match cli.outputname {
+				Some(output_name) if output_name.ends_with(".lua") => output_name,
+				Some(output_name) => output_name + ".lua",
+				None => String::from("main.lua")
 			};
-			check!(fs::write(&compiledname, &code))
+			check!(fs::write(&output_name, &code));
+			Some(output_name)
+		} else {
+			None
 		}
 	} else if path.is_file() {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
@@ -255,20 +250,28 @@ fn main() -> Result<(), String> {
 		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
 		code = statics + &output;
 		if !cli.dontsave {
-			compiledname =
-				String::from(path.display().to_string().strip_suffix(".clue").unwrap()) + ".lua";
-			check!(fs::write(&compiledname, &code))
+			let output_name = match cli.outputname {
+				Some(output_name) if output_name.ends_with(".lua") => output_name,
+				Some(output_name) => output_name + ".lua",
+				None => format_clue!(name.strip_suffix(".clue").unwrap(), ".lua")
+			};
+			check!(fs::write(&output_name, &code));
+			Some(output_name)
+		} else {
+			None
 		}
 	} else {
 		return Err(String::from("The given path doesn't exist"));
-	}
+	};
 
 	if options.env_debug {
-		let newoutput = format!(include_str!("debug.lua"), &code);
-		check!(fs::write(compiledname, &newoutput));
+		let new_output = format!(include_str!("debug.lua"), &code);
+		if let Some(output_path) = output_path {
+			check!(fs::write(output_path, &new_output));
+		}
 		#[cfg(feature = "mlua")]
 		if cli.execute {
-			execute_lua_code(&newoutput)
+			execute_lua_code(&new_output)
 		}
 	} else {
 		#[cfg(feature = "mlua")]
