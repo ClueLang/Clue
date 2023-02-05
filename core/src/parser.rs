@@ -145,11 +145,11 @@ pub enum LuaType {
 	NUMBER,
 }
 */
-struct ParserInfo<'a, 'b> {
+struct ParserInfo<'a> {
 	options: &'a Options,
 	current: usize,
 	size: usize,
-	filename: &'b String,
+	filename: &'a String,
 	expr: Expression,
 	tokens: Vec<Token>,
 	testing: Option<usize>,
@@ -160,12 +160,12 @@ struct ParserInfo<'a, 'b> {
 	//locals: LocalsList,
 }
 
-impl<'a, 'b> ParserInfo<'a, 'b> {
+impl<'a> ParserInfo<'a> {
 	fn new(
 		tokens: Vec<Token>, /*, locals: LocalsList*/
-		filename: &'b String,
+		filename: &'a String,
 		options: &'a Options,
-	) -> ParserInfo<'a, 'b> {
+	) -> ParserInfo<'a> {
 		ParserInfo {
 			current: 0,
 			size: tokens.len() - 1,
@@ -1359,7 +1359,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	fn build_match_case(
 		&mut self,
 		pexpr: Option<Expression>,
-		func: &impl Fn(&mut ParserInfo<'a, 'b> /*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo<'a> /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<MatchCase, String> {
 		let mut conditions: Vec<Expression> = Vec::new();
 		let mut current = Expression::with_capacity(3);
@@ -1391,7 +1391,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	fn build_match_block(
 		&mut self,
 		name: String,
-		func: &impl Fn(&mut ParserInfo<'a, 'b> /*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo<'a> /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<ComplexToken, String> {
 		let line = self.peek(0).line();
 		let value = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
