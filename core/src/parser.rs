@@ -1530,14 +1530,56 @@ impl<'a> ParserInfo<'a> {
 
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let start = self.current - 1;
-		let (first_expr, safe_indexing) = self.build_identifier_internal()?;
+		let (mut first_expr, safe_indexing) = self.build_identifier_internal()?;
 		if let CALL(_) = first_expr.back().unwrap() {
-			self.expr.push_back(IDENT {
-				expr: first_expr,
-				line: self.at(start).line(),
-			});
-			self.current -= 1;
-			self.advance_if(SEMICOLON);
+			let line = self.at(start).line();
+			if safe_indexing {
+				let name = self.get_next_internal_var();
+				let mut call = Expression::new();
+				while {
+					let Some(t) = first_expr.back() else {
+						unreachable!()
+					};
+					match t {
+						CALL(..) | EXPR(..) => true,
+						SYMBOL(lexeme) => match lexeme.as_str() {
+							"?." | "?::" => {
+								call.push_front(SYMBOL(name.clone() + "."));
+								false
+							}
+							"?[" => {
+								call.push_front(SYMBOL(name.clone() + "["));
+								false
+							},
+							_ => true
+						}
+						_ => unreachable!()
+					}
+				} {
+					call.push_front(first_expr.pop_back().unwrap())
+				}
+				first_expr.pop_back().unwrap();
+				self.expr.push_back(VARIABLE {
+					local: true,
+					names: vec![name.clone()],
+					values: vec![vec_deque![IDENT { expr: first_expr, line }]],
+					line
+				});
+				let name = SYMBOL(name);
+				self.expr.push_back(IF_STATEMENT {
+					condition: vec_deque![name.clone()],
+					code: CodeBlock {
+						start: line,
+						code: vec_deque![IDENT { expr: call, line }],
+						end: line
+					},
+					next: None,
+				});
+			} else {
+				self.expr.push_back(IDENT { expr: first_expr, line });
+				self.current -= 1;
+				self.advance_if(SEMICOLON);
+			}
 			return Ok(());
 		} else if safe_indexing {
 			return Err(self.error(

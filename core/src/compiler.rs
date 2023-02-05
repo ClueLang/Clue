@@ -161,16 +161,7 @@ impl<'a> Compiler<'a> {
 					checked += &format_clue!("(", expr);
 				}
 				CALL(args) => {
-					let args =
-						format_clue!("(", self.compile_expressions(scope, args.clone()), ")");
-					if iter.peek().is_none() {
-						return if result.is_empty() {
-							checked + &args
-						} else {
-							format_clue!("(", result, checked, ")", args)
-						};
-					}
-					checked += &args
+					checked += &format_clue!("(", self.compile_expressions(scope, args.clone()), ")")
 				}
 				_ => {}
 			}
