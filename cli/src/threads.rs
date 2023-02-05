@@ -178,7 +178,7 @@ fn compile_file_dir(
 					static_vars: "".to_owned(),
 				})
 				.unwrap();
-				println!("Error: {}", e);
+				println!("Error: {e}");
 				continue;
 			}
 		};
@@ -219,7 +219,7 @@ fn preprocess_file_dir(
 					variables: Default::default(),
 				})
 				.unwrap();
-				println!("Error: {}", e);
+				println!("Error: {e}");
 				continue;
 			}
 		};

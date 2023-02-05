@@ -121,7 +121,7 @@ pub fn compile_code(
 	let code = preprocess_codes(0, codes, variables, name)?;
 	let tokens: Vec<Token> = scan_code(code, name)?;
 	if options.env_tokens {
-		println!("Scanned tokens of file \"{}\":\n{:#?}", name, tokens);
+		println!("Scanned tokens of file \"{name}\":\n{tokens:#?}");
 	}
 	let (ctokens, statics) = parse_tokens(
 		tokens,
@@ -134,13 +134,13 @@ pub fn compile_code(
 	)?;
 
 	if options.env_struct {
-		println!("Parsed structure of file \"{}\":\n{:#?}", name, ctokens);
+		println!("Parsed structure of file \"{name}\":\n{ctokens:#?}");
 	}
 
 	let code = Compiler::new(options).compile_tokens(scope, ctokens);
 
 	if options.env_output {
-		println!("Compiled Lua code of file \"{}\":\n{}", name, code);
+		println!("Compiled Lua code of file \"{name}\":\n{code}");
 	}
 	println!(
 		"Compiled file \"{}\" in {} seconds!",
@@ -156,7 +156,7 @@ fn execute_lua_code(code: &str) {
 	let lua = mlua::Lua::new();
 	let time = Instant::now();
 	if let Err(error) = lua.load(code).exec() {
-		println!("{}", error);
+		println!("{error}");
 	}
 	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 }
@@ -207,7 +207,6 @@ fn main() -> Result<(), String> {
 			&options,
 		)?;
 		let code = code + &statics;
-		println!("{}", code);
 		#[cfg(feature = "mlua")]
 		if cli.execute {
 			execute_lua_code(&code)

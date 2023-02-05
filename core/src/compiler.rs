@@ -249,8 +249,7 @@ impl<'a> Compiler<'a> {
 						scope -= 1;
 						let line = self.compile_debug_comment(prevline);
 						format!(
-							"setmetatable({{{}{}}}, {{{}{}\n{}}})",
-							values, pre2, metas, line, pre2
+							"setmetatable({{{values}{pre2}}}, {{{metas}{line}\n{pre2}}})",
 						)
 					}
 				}
@@ -327,11 +326,7 @@ impl<'a> Compiler<'a> {
 									self.indentate_if(ctokens, scope)
 								}
 							};
-							write!(
-								result,
-								"rawset(_G, \"{}\", {});{}{}",
-								name, value, line, end
-							)
+							write!(result, "rawset(_G, \"{name}\", {value});{line}{end}")
 							.expect("something really unexpected happened");
 						}
 						result
