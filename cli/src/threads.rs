@@ -15,11 +15,11 @@ use std::cmp;
 
 use crate::compile_code;
 
-type CodeQueue = SegQueue<(PPCode, String)>;
+type CodeQueue<'a> = SegQueue<(PPCode, String, String)>;
 
 struct PreprocessorAnalyzerData {
 	errored: bool,
-	codes: (PPCode, String),
+	codes: (PPCode, String, String),
 	pub variables: PPVars,
 }
 
@@ -157,49 +157,6 @@ where
 	}
 }
 
-fn compile_file_dir(
-	tx: Sender<ThreadData>,
-	options: &Options,
-	codes: Arc<CodeQueue>,
-	variables: Arc<AHashMap<Code, PPVar>>,
-) {
-	loop {
-		let (codes, realname) = match codes.pop() {
-			None => break,
-			Some((codes, realname)) => (codes, realname),
-		};
-
-		let (code, static_vars) = match compile_code(codes, &variables, &realname, 2, options) {
-			Ok(t) => t,
-			Err(e) => {
-				tx.send(ThreadData {
-					errored: true,
-					output: "".to_owned(),
-					static_vars: "".to_owned(),
-				})
-				.unwrap();
-				println!("Error: {e}");
-				continue;
-			}
-		};
-
-		let string = format_clue!(
-			"\t[\"",
-			realname.strip_suffix(".clue").unwrap(),
-			"\"] = function()\n",
-			code,
-			"\n\tend,\n"
-		);
-
-		tx.send(ThreadData {
-			errored: false,
-			output: string,
-			static_vars,
-		})
-		.unwrap();
-	}
-}
-
 fn preprocess_file_dir(
 	files: Arc<SegQueue<(String, String)>>,
 	tx: Sender<PreprocessorAnalyzerData>,
@@ -226,8 +183,51 @@ fn preprocess_file_dir(
 
 		tx.send(PreprocessorAnalyzerData {
 			errored: false,
-			codes: (file_codes, realname),
+			codes: (file_codes, filename, realname),
 			variables: file_variables,
+		})
+		.unwrap();
+	}
+}
+
+fn compile_file_dir(
+	tx: Sender<ThreadData>,
+	options: &Options,
+	codes: Arc<CodeQueue>,
+	variables: Arc<AHashMap<Code, PPVar>>,
+) {
+	loop {
+		let (codes, filename, realname) = match codes.pop() {
+			None => break,
+			Some(codes) => codes,
+		};
+
+		let (code, static_vars) = match compile_code(codes, &variables, &filename, 2, options) {
+			Ok(t) => t,
+			Err(e) => {
+				tx.send(ThreadData {
+					errored: true,
+					output: "".to_owned(),
+					static_vars: "".to_owned(),
+				})
+				.unwrap();
+				println!("Error: {e}");
+				continue;
+			}
+		};
+
+		let string = format_clue!(
+			"\t[\"",
+			realname.strip_suffix(".clue").unwrap(),
+			"\"] = function()\n",
+			code,
+			"\n\tend,\n"
+		);
+
+		tx.send(ThreadData {
+			errored: false,
+			output: string,
+			static_vars,
 		})
 		.unwrap();
 	}
