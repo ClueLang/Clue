@@ -1537,9 +1537,7 @@ impl<'a> ParserInfo<'a> {
 				let name = self.get_next_internal_var();
 				let mut call = Expression::new();
 				while {
-					let Some(t) = first_expr.back() else {
-						unreachable!()
-					};
+					let t = first_expr.back().unwrap();
 					match t {
 						CALL(..) | EXPR(..) => true,
 						SYMBOL(lexeme) => match lexeme.as_str() {
@@ -1567,7 +1565,7 @@ impl<'a> ParserInfo<'a> {
 				});
 				let name = SYMBOL(name);
 				self.expr.push_back(IF_STATEMENT {
-					condition: vec_deque![name.clone()],
+					condition: vec_deque![name],
 					code: CodeBlock {
 						start: line,
 						code: vec_deque![IDENT { expr: call, line }],

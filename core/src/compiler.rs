@@ -134,8 +134,7 @@ impl<'a> Compiler<'a> {
 	fn compile_identifier(&self, scope: usize, expr: Expression) -> String {
 		let mut result = String::with_capacity(32);
 		let mut checked = String::with_capacity(32);
-		let mut iter = expr.into_iter().peekable();
-		while let Some(t) = iter.next() {
+		for t in expr.into_iter().peekable() {
 			match t {
 				SYMBOL(lexeme) => {
 					let lexeme = lexeme.as_str();
