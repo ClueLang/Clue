@@ -1048,7 +1048,7 @@ impl<'a> ParserInfo<'a> {
 					let name = self.get_next_internal_var();
 					hascontinue = Some(name.clone());
 					let line = t.line();
-					if self.options.env_continue == ContinueMode::MOONSCRIPT {
+					if self.options.env_continue == ContinueMode::MoonScript {
 						tokens.push(Token::new(IDENTIFIER, name, line));
 						tokens.push(Token::new(DEFINE, "=", line));
 						tokens.push(Token::new(TRUE, "true", line));
@@ -1064,9 +1064,9 @@ impl<'a> ParserInfo<'a> {
 		let mut code = self.parse_code_block(tokens /*, self.locals.clone()*/)?;
 		if let Some(name) = hascontinue {
 			match self.options.env_continue {
-				ContinueMode::SIMPLE => {}
-				ContinueMode::LUAJIT => code.push_back(SYMBOL(String::from("::continue::"))),
-				ContinueMode::MOONSCRIPT => {
+				ContinueMode::Simple => {}
+				ContinueMode::LuaJIT => code.push_back(SYMBOL(String::from("::continue::"))),
+				ContinueMode::MoonScript => {
 					code.push_back(ALTER {
 						kind: DEFINE,
 						names: vec_deque![vec_deque![SYMBOL(name.clone())]],

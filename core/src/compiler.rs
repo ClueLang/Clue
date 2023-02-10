@@ -583,7 +583,7 @@ impl<'a> Compiler<'a> {
 					let end = self.indentate_if(ctokens, scope);
 					format!(
 						"{};{}",
-						if self.options.env_continue == ContinueMode::LUAJIT {
+						if self.options.env_continue == ContinueMode::LuaJIT {
 							"goto continue"
 						} else {
 							"continue"

@@ -2,14 +2,14 @@ use clap::ValueEnum;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
 pub enum ContinueMode {
-	SIMPLE,
-	LUAJIT,
-	MOONSCRIPT,
+	Simple,
+	LuaJIT,
+	MoonScript,
 }
 
 impl Default for ContinueMode {
 	fn default() -> Self {
-		Self::SIMPLE
+		Self::Simple
 	}
 }
 
