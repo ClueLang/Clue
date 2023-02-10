@@ -53,7 +53,7 @@ struct Cli {
 	output: bool,
 
 	/// Use LuaJIT's bit library for bitwise operations
-	#[clap(short, long, value_name = "VAR NAME")]
+	#[clap(short, long, default_missing_value = "bit", value_name = "VAR NAME")]
 	jitbit: Option<String>,
 
 	/// Change the way continue identifiers are compiled

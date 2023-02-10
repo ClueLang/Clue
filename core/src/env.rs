@@ -30,6 +30,11 @@ pub enum LuaSTD {
 }
 */
 
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+pub enum LuaVersion {
+	
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct Options {
 	pub env_tokens: bool,
