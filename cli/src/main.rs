@@ -161,6 +161,30 @@ fn execute_lua_code(code: &str) {
 	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 }
 
+fn finish(
+	debug: bool,
+	execute: bool,
+	output_path: Option<String>,
+	code: String
+) -> Result<(), String> {
+	if debug {
+		let new_output = format!(include_str!("debug.lua"), &code);
+		if let Some(output_path) = output_path {
+			check!(fs::write(output_path, &new_output));
+		}
+		#[cfg(feature = "mlua")]
+		if execute {
+			execute_lua_code(&new_output)
+		}
+	} else {
+		#[cfg(feature = "mlua")]
+		if execute {
+			execute_lua_code(&code)
+		}
+	}
+	Ok(())
+}
+
 fn main() -> Result<(), String> {
 	std::env::set_var("CLUE_VERSION", crate_version!());
 	let cli = Cli::parse();
@@ -215,7 +239,12 @@ fn main() -> Result<(), String> {
 		if cli.execute {
 			execute_lua_code(&code)
 		}
-		return Ok(());
+		return if let Some(outputname) = cli.outputname.clone() {
+			check!(fs::write(&outputname, &code));
+			finish(cli.debug, cli.execute, Some(outputname), code)
+		} else {
+			Ok(())
+		}
 	}
 	let path: &Path = Path::new(&codepath);
 	let output_path = if path.is_dir() {
@@ -267,22 +296,7 @@ fn main() -> Result<(), String> {
 		return Err(String::from("The given path doesn't exist"));
 	};
 
-	if options.env_debug {
-		let new_output = format!(include_str!("debug.lua"), &code);
-		if let Some(output_path) = output_path {
-			check!(fs::write(output_path, &new_output));
-		}
-		#[cfg(feature = "mlua")]
-		if cli.execute {
-			execute_lua_code(&new_output)
-		}
-	} else {
-		#[cfg(feature = "mlua")]
-		if cli.execute {
-			execute_lua_code(&code)
-		}
-	}
-	Ok(())
+	finish(cli.debug, cli.execute, output_path, code)
 }
 
 #[cfg(test)]
