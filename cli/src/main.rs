@@ -80,9 +80,9 @@ struct Cli {
 	#[clap(short, long, value_name = "FILE NAME")]
 	base: Option<String>,
 
-	/// This is not yet supported (Coming out in 4.0)
+	/*/// This is not yet supported (Coming out in 4.0)
 	#[clap(short, long, value_name = "MODE")]
-	types: Option<String>,
+	types: Option<String>,*/
 
 	/*	/// Enable type checking (might slow down compilation)
 		#[clap(
@@ -191,10 +191,10 @@ fn main() -> Result<(), String> {
 	if cli.license {
 		print!(include_str!("../LICENSE"));
 		return Ok(());
-	} else if cli.types.is_some() {
+	} /*else if cli.types.is_some() {
 		//TEMPORARY PLACEHOLDER UNTIL 4.0
 		return Err(String::from("Type checking is not supported yet!"));
-	}
+	}*/
 
 	let options = Options {
 		env_tokens: cli.tokens,
