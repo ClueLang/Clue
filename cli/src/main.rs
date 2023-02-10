@@ -2,7 +2,7 @@ use clap::{crate_version, Parser};
 use clue_core::{
 	check,
 	compiler::*,
-	env::{ContinueMode, Options},
+	env::{ContinueMode, Options, LuaVersion},
 	parser::*,
 	preprocessor::*,
 	scanner::*, format_clue,
@@ -79,6 +79,10 @@ struct Cli {
 	/// Use a custom Lua file as base for compiling the directory
 	#[clap(short, long, value_name = "FILE NAME")]
 	base: Option<String>,
+
+	/// Uses preset configuration based on the targeted Lua version
+	#[clap(short, long, value_enum, value_name = "LUA VERSION")]
+	target: Option<LuaVersion>,
 
 	/*/// This is not yet supported (Coming out in 4.0)
 	#[clap(short, long, value_name = "MODE")]
