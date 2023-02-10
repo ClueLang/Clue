@@ -704,6 +704,10 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize) -> V
 				};
 				matches!(c, b'!' | b'=')
 			}
+			b'>' if matches!(code.peek(), Some(b'=')) => {
+				code.next().unwrap();
+				true
+			}
 			b'\'' | b'"' | b'`' => {
 				while {
 					let Some(nextc) = code.next() else {
