@@ -179,7 +179,11 @@ fn main() -> Result<(), String> {
 		env_continue: cli.r#continue,
 		env_rawsetglobals: cli.rawsetglobals,
 		env_debug: cli.debug,
-		env_output: cli.output,
+		env_output: if cli.pathiscode {
+			cli.outputname.is_none()
+		} else {
+			cli.output
+		},
 	};
 
 	let mut code = String::with_capacity(512);
