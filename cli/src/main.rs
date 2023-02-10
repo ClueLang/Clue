@@ -49,7 +49,7 @@ struct Cli {
 	r#struct: bool,
 
 	/// Print output Lua code in the console
-	#[clap(long)]
+	#[clap(short, long)]
 	output: bool,
 
 	/// Use LuaJIT's bit library for bitwise operations
