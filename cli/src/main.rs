@@ -232,7 +232,7 @@ fn main() -> Result<(), String> {
 		} else {
 			cli.output
 		},
-	};
+	}.preset(cli.target);
 
 	//let mut code = String::with_capacity(512);
 
@@ -250,7 +250,7 @@ fn main() -> Result<(), String> {
 		let mut codepath = codepath;
 		let filename = String::from("(command line)");
 		let code = unsafe { codepath.as_bytes_mut() };
-		let preprocessed_code = preprocess_code(code, 1, false, &filename)?;
+		let preprocessed_code = preprocess_code(code, 1, false, &filename, &options)?;
 		let (code, statics) = compile_code(
 			preprocessed_code.0,
 			&preprocessed_code.1,
@@ -302,7 +302,7 @@ fn main() -> Result<(), String> {
 		}, code)
 	} else if path.is_file() {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
-		let (rawcode, variables) = read_file(&codepath, &name)?;
+		let (rawcode, variables) = read_file(&codepath, &name, &options)?;
 		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
 		let code = statics + &output;
 		(if !cli.dontsave {

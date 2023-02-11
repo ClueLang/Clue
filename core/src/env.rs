@@ -83,8 +83,11 @@ pub struct Options {
 }
 
 impl Options {
-	pub fn preset(mut self, version: LuaVersion) -> Self {
+	pub fn preset(mut self, version: Option<LuaVersion>) -> Self {
 		use LuaVersion::*;
+		let Some(version) = version else {
+			return self;
+		};
 		match version {
 			LuaJIT => {
 				if self.env_jitbit.is_none() {

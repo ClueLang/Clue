@@ -1,7 +1,7 @@
 use crate::{
 	check,
 	code::{Code, CodeChar},
-	format_clue,
+	format_clue, env::Options,
 };
 use ahash::AHashMap;
 use std::{
@@ -25,7 +25,7 @@ macro_rules! pp_if {
 }
 
 pub type PPVars = AHashMap<Code, PPVar>;
-pub type PPCode = (Vec<(Code, bool)>, usize);
+pub type PPCode = (VecDeque<(Code, bool)>, usize);
 
 #[derive(Debug, Clone)]
 pub enum PPVar {
@@ -341,7 +341,13 @@ impl<'a> CodeFile<'a> {
 		let line = self.line;
 		let len = self.code.len();
 		let block = &mut self.code[self.read..len];
-		let (block, ppvars, line, read) = preprocess_code(block, line, true, self.filename)?;
+		let (block, ppvars, line, read) = preprocess_code(
+			block,
+			line,
+			true,
+			self.filename,
+			&Options::default()
+		)?;
 		self.line = line;
 		self.read += read;
 		Ok((block, ppvars))
@@ -463,8 +469,9 @@ impl<'a> CodeFile<'a> {
 pub fn read_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 	path: P,
 	filename: &String,
+	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
-	let result = preprocess_code(&mut check!(fs::read(path)), 1, false, filename)?;
+	let result = preprocess_code(&mut check!(fs::read(path)), 1, false, filename, options)?;
 	Ok((result.0, result.1))
 }
 
@@ -474,13 +481,15 @@ pub fn preprocess_code(
 	line: usize,
 	is_block: bool,
 	filename: &String,
+	options: &Options,
 ) -> Result<(PPCode, PPVars, usize, usize), String> {
-	let mut finalcode = Vec::new();
+	let mut finalcode = VecDeque::new();
 	let mut currentcode = Code::with_capacity(code.len());
 	let mut size = 0;
 	let mut code = CodeFile::new(code, line, filename, is_block as u8);
 	let mut variables = PPVars::new();
 	let mut pseudos: Option<VecDeque<Code>> = None;
+	let mut bitwise = false;
 	while let Some(c) = code.read_char()? {
 		if match c.0 {
 			b'@' => {
@@ -588,9 +597,9 @@ pub fn preprocess_code(
 			}
 			b'$' if is_block && matches!(code.peek_char_unchecked(), Some((b'{', _))) => {
 				size += currentcode.len() + 8;
-				finalcode.push((currentcode, false));
+				finalcode.push_back((currentcode, false));
 				let name = format_clue!("_vararg", variables.len().to_string());
-				finalcode.push((Code::from((format_clue!("$", name), c.1)), true));
+				finalcode.push_back((Code::from((format_clue!("$", name), c.1)), true));
 				code.read_char_unchecked();
 				let (vararg_code, ppvars) = code.read_macro_block()?;
 				variables.extend(ppvars);
@@ -616,7 +625,7 @@ pub fn preprocess_code(
 					}
 				} else {
 					size += currentcode.len();
-					finalcode.push((currentcode, false));
+					finalcode.push_back((currentcode, false));
 					name.push_start(c);
 					if {
 						if matches!(code.peek_char_unchecked(), Some((b'!', _))) {
@@ -629,7 +638,7 @@ pub fn preprocess_code(
 						name.append(code.read_macro_args()?)
 					}
 					size += name.len();
-					finalcode.push((name, true));
+					finalcode.push_back((name, true));
 					currentcode = Code::with_capacity(code.code.len() - code.read);
 				}
 				false
@@ -637,6 +646,10 @@ pub fn preprocess_code(
 			b'\'' | b'"' | b'`' => {
 				currentcode.push(c);
 				currentcode.append(code.read_string(c)?);
+				true
+			}
+			b'~' => {
+				bitwise = true;
 				true
 			}
 			b'=' => {
@@ -689,7 +702,14 @@ pub fn preprocess_code(
 	}
 	if !currentcode.is_empty() {
 		size += currentcode.len();
-		finalcode.push((currentcode, false))
+		finalcode.push_back((currentcode, false))
+	}
+	if bitwise && options.env_jitbit.is_some() {
+		let bit = options.env_jitbit.as_ref().unwrap();
+		let mut loader = Code::from((format_clue!("local ", bit, " = require(\"", bit, "\");"), 1));
+		let first = finalcode.pop_front().unwrap();
+		loader.append(first.0);
+		finalcode.push_front((loader, first.1));
 	}
 	Ok(((finalcode, size), variables, code.line, code.read))
 }
@@ -790,7 +810,7 @@ pub fn preprocess_codes(
 ) -> Result<Code, String> {
 	let (mut codes, size) = codes;
 	if codes.len() == 1 {
-		Ok(codes.pop().unwrap().0)
+		Ok(codes.pop_back().unwrap().0)
 	} else {
 		let mut code = Code::with_capacity(size);
 		for (codepart, uses_vars) in codes {

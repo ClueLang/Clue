@@ -92,8 +92,9 @@ where
 		// that can be used from inside the newly created thread
 		let files = files.clone();
 		let tx = tx.clone();
+		let options = options.clone();
 
-		let thread = thread::spawn(move || preprocess_file_dir(files, tx));
+		let thread = thread::spawn(move || preprocess_file_dir(files, tx, &options));
 
 		threads.push(thread);
 	}
@@ -160,6 +161,7 @@ where
 fn preprocess_file_dir(
 	files: Arc<SegQueue<(String, String)>>,
 	tx: Sender<PreprocessorAnalyzerData>,
+	options: &Options,
 ) {
 	loop {
 		let (filename, realname) = match files.pop() {
@@ -167,7 +169,7 @@ fn preprocess_file_dir(
 			Some((filename, realname)) => (filename, realname),
 		};
 
-		let (file_codes, file_variables) = match read_file(&filename, &filename) {
+		let (file_codes, file_variables) = match read_file(&filename, &filename, options) {
 			Ok(t) => t,
 			Err(e) => {
 				tx.send(PreprocessorAnalyzerData {
