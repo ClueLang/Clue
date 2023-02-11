@@ -18,9 +18,9 @@ use std::{
 use utf8_decode::decode;
 
 macro_rules! pp_if {
-	($code: ident, $ifname: ident, $cscope: ident, $prev: ident) => {{
+	($code: ident, $ifname: ident, $prev: ident) => {{
 		let check = $code.$ifname(b'{')?;
-		$cscope += $code.keep_block($prev && check)?;
+		$code.keep_block($prev && check)?;
 	}};
 }
 
@@ -79,10 +79,12 @@ struct CodeFile<'a> {
 	line: usize,
 	filename: &'a String,
 	last_if: bool,
+	cscope: u8,
+	ends: Vec<u8>,
 }
 
 impl<'a> CodeFile<'a> {
-	fn new(code: &'a mut [u8], line: usize, filename: &'a String) -> Self {
+	fn new(code: &'a mut [u8], line: usize, filename: &'a String, cscope: u8) -> Self {
 		Self {
 			code,
 			comment: CommentState::None,
@@ -92,6 +94,8 @@ impl<'a> CodeFile<'a> {
 			line,
 			filename,
 			last_if: true,
+			cscope,
+			ends: Vec::new(),
 		}
 	}
 
@@ -357,13 +361,14 @@ impl<'a> CodeFile<'a> {
 		Err(expected_before("}", "<end>", self.line, self.filename))
 	}
 
-	fn keep_block(&mut self, to_keep: bool) -> Result<u8, String> {
+	fn keep_block(&mut self, to_keep: bool) -> Result<(), String> {
 		self.last_if = to_keep;
 		if to_keep {
-			Ok(1)
+			self.ends.push(self.cscope);
+			self.cscope += 1;
+			Ok(())
 		} else {
-			self.skip_block()?;
-			Ok(0)
+			self.skip_block()
 		}
 	}
 
@@ -473,10 +478,9 @@ pub fn preprocess_code(
 	let mut finalcode = Vec::new();
 	let mut currentcode = Code::with_capacity(code.len());
 	let mut size = 0;
-	let mut code = CodeFile::new(code, line, filename);
+	let mut code = CodeFile::new(code, line, filename, is_block as u8);
 	let mut variables = PPVars::new();
 	let mut pseudos: Option<VecDeque<Code>> = None;
-	let mut cscope = is_block as u8;
 	while let Some(c) = code.read_char()? {
 		if match c.0 {
 			b'@' => {
@@ -488,17 +492,17 @@ pub fn preprocess_code(
 					(directive_name.as_str(), true)
 				};
 				match directive {
-					"ifos" => pp_if!(code, ifos, cscope, prev),
-					"ifdef" => pp_if!(code, ifdef, cscope, prev),
-					"ifcmp" => pp_if!(code, ifcmp, cscope, prev),
+					"ifos" => pp_if!(code, ifos, prev),
+					"ifdef" => pp_if!(code, ifdef, prev),
+					"ifcmp" => pp_if!(code, ifcmp, prev),
 					"if" => {
 						let check = code.r#if()?;
 						code.assert_char(b'{')?;
-						cscope += code.keep_block(prev && check)?;
+						code.keep_block(prev && check)?;
 					}
 					"else" => {
 						code.assert_reach(b'{')?;
-						cscope += code.keep_block(!code.last_if)?;
+						code.keep_block(!code.last_if)?;
 					}
 					"define" => {
 						let name = code.read_identifier()?;
@@ -655,23 +659,32 @@ pub fn preprocess_code(
 				}
 				false
 			}
-			b'{' if cscope > 0 || is_block => {
-				cscope += 1;
+			b'{' if code.cscope > 0 || is_block => {
+				code.cscope += 1;
 				true
 			}
-			b'}' if cscope > 0 => {
-				cscope -= 1;
-				if is_block && cscope == 0 {
+			b'}' if code.cscope > 0 => {
+				code.cscope -= 1;
+				if is_block && code.cscope == 0 {
 					break;
 				}
-				cscope != 0
+				if let Some(end) = code.ends.last() {
+					if code.cscope != *end {
+						true
+					} else {
+						code.ends.pop().unwrap();
+						false
+					}
+				} else {
+					true
+				}
 			}
 			_ => true,
 		} {
 			currentcode.push(c)
 		}
 	}
-	if cscope > 0 {
+	if code.cscope > 0 {
 		return Err(expected_before("}", "<end>", code.line, filename));
 	}
 	if !currentcode.is_empty() {
