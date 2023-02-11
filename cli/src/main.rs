@@ -57,7 +57,7 @@ struct Cli {
 	jitbit: Option<String>,
 
 	/// Change the way continue identifiers are compiled
-	#[clap(short, long, value_enum, default_value = "simple", value_name = "MODE")]
+	#[clap(short, long, value_enum, ignore_case(true), default_value = "simple", value_name = "MODE")]
 	r#continue: ContinueMode,
 
 	/// Don't save compiled code
@@ -81,7 +81,7 @@ struct Cli {
 	base: Option<String>,
 
 	/// Uses preset configuration based on the targeted Lua version
-	#[clap(short, long, value_enum, value_name = "LUA VERSION")]
+	#[clap(short, long, value_enum, ignore_case(true), value_name = "LUA VERSION")]
 	target: Option<LuaVersion>,
 
 	/*/// This is not yet supported (Coming out in 4.0)

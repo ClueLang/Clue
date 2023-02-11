@@ -26,8 +26,8 @@ macro_rules! value_enum {
 value_enum!(
 	ContinueMode,
 	Simple, "simple",
-	LuaJIT, "luajit",
-	MoonScript, "moonscript"
+	LuaJIT, "LuaJIT",
+	MoonScript, "MoonScript"
 );
 
 impl Default for ContinueMode {
@@ -55,9 +55,9 @@ pub enum LuaSTD {
 
 value_enum!(
 	LuaVersion,
-	LuaJIT, "luajit",
-	Lua54, "lua54",
-	BLUA, "blua"
+	LuaJIT, "LuaJIT",
+	Lua54, "Lua5.4",
+	BLUA, "BLUA"
 );
 
 #[derive(Debug, Default, Clone)]
