@@ -136,7 +136,7 @@ impl<'a> CodeFile<'a> {
 				let c = *current;
 				self.read += 1;
 				let line = self.line;
-				if self.comment > CommentState::None {
+				if self.comment > CommentState::None && *current != b'\n' {
 					*current = b' ';
 				}
 				match c {
