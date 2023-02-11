@@ -3,7 +3,7 @@ members = ["cli", "core"]
 default-members = ["cli", "core"]
 
 [workspace.package]
-version = "3.1.0"
+version = "3.1.0-dev"
 description = "C/Rust like programming language that compiles into Lua code"
 edition = "2021"
 authors = ["Maiori"]
