@@ -9,7 +9,6 @@ use clue_core::{
 };
 use threads::compile_folder;
 use std::{
-	fmt::Write,
 	fs,
 	path::Path,
 	time::Instant,
@@ -235,11 +234,11 @@ fn main() -> Result<(), String> {
 		},
 	};
 
-	let mut code = String::with_capacity(512);
+	//let mut code = String::with_capacity(512);
 
-	if let Some(bit) = &options.env_jitbit {
+	/*if let Some(bit) = &options.env_jitbit {
 		check!(writeln!(&mut code, "local {bit} = require(\"bit\");"));
-	}
+	}*/
 	/*if flag!(env_types) != TypesMode::NONE {
 		*check!(LUA_G.write()) = match flag!(env_std) {
 			LuaSTD::LUA54 => Some(AHashMap::from_iter([(String::from("print"), LuaType::NIL)])), //PLACEHOLDER
@@ -272,10 +271,10 @@ fn main() -> Result<(), String> {
 		}
 	}
 	let path: &Path = Path::new(&codepath);
-	let output_path = if path.is_dir() {
+	let (output_path, code) = if path.is_dir() {
 		let (output, statics) = compile_folder(&codepath, String::new(), &options)?;
 
-		code = match cli.base {
+		let code = match cli.base {
 			Some(filename) => {
 				let base = match fs::read(filename) {
 					Ok(base) => base,
@@ -290,7 +289,7 @@ fn main() -> Result<(), String> {
 				.replace("--STATICS\n", &statics)
 				.replace('§', &output),
 		};
-		if !cli.dontsave {
+		(if !cli.dontsave {
 			let output_name = match cli.outputname {
 				Some(output_name) if output_name.ends_with(".lua") => output_name,
 				Some(output_name) => output_name + ".lua",
@@ -300,13 +299,13 @@ fn main() -> Result<(), String> {
 			Some(output_name)
 		} else {
 			None
-		}
+		}, code)
 	} else if path.is_file() {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
 		let (rawcode, variables) = read_file(&codepath, &name)?;
 		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
-		code = statics + &output;
-		if !cli.dontsave {
+		let code = statics + &output;
+		(if !cli.dontsave {
 			let output_name = match cli.outputname {
 				Some(output_name) if output_name.ends_with(".lua") => output_name,
 				Some(output_name) => output_name + ".lua",
@@ -316,7 +315,7 @@ fn main() -> Result<(), String> {
 			Some(output_name)
 		} else {
 			None
-		}
+		}, code)
 	} else {
 		return Err(String::from("The given path doesn't exist"));
 	};
