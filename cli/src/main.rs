@@ -2,7 +2,7 @@ use clap::{crate_version, Parser};
 use clue_core::{
 	check,
 	compiler::*,
-	env::{ContinueMode, Options, LuaVersion},
+	env::{ContinueMode, Options, LuaVersion, BitwiseMode},
 	parser::*,
 	preprocessor::*,
 	scanner::*, format_clue,
@@ -53,8 +53,12 @@ struct Cli {
 	output: bool,
 
 	/// Use LuaJIT's bit library for bitwise operations
-	#[clap(short, long, default_missing_value = "bit", value_name = "VAR NAME")]
+	#[clap(short, long, hide(true), default_missing_value = "bit", value_name = "VAR NAME")]
 	jitbit: Option<String>,
+
+	/// Change the way bitwise operators are compiled
+	#[clap(short, long, value_enum, ignore_case(true), default_value = "Clue", value_name = "MODE")]
+	bitwise: BitwiseMode,
 
 	/// Change the way continue identifiers are compiled
 	#[clap(short, long, value_enum, ignore_case(true), default_value = "simple", value_name = "MODE")]
@@ -77,7 +81,7 @@ struct Cli {
 	debug: bool,
 
 	/// Use a custom Lua file as base for compiling the directory
-	#[clap(short, long, value_name = "FILE NAME")]
+	#[clap(short = 'B', long, value_name = "FILE NAME")]
 	base: Option<String>,
 
 	/// Uses preset configuration based on the targeted Lua version
@@ -203,7 +207,17 @@ fn main() -> Result<(), String> {
 	let options = Options {
 		env_tokens: cli.tokens,
 		env_struct: cli.r#struct,
-		env_jitbit: cli.jitbit.clone(),
+		env_jitbit: {
+			if cli.jitbit.is_some() {
+				println!("Warning: \"--jitbit is deprecated and was replaced by --bitwise\"");
+				cli.jitbit
+			} else if cli.bitwise == BitwiseMode::LuaJIT {
+				Some(String::from("bit"))
+			} else {
+				None
+			}
+		},
+		env_bitwise: cli.bitwise,
 		env_continue: cli.r#continue,
 		env_rawsetglobals: cli.rawsetglobals,
 		env_debug: cli.debug,
