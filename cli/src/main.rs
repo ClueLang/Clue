@@ -85,7 +85,14 @@ struct Cli {
 	base: Option<String>,
 
 	/// Uses preset configuration based on the targeted Lua version
-	#[clap(short, long, value_enum, ignore_case(true), value_name = "LUA VERSION")]
+	#[clap(
+		short, long, value_enum,
+		ignore_case(true),
+		conflicts_with("bitwise"),
+		conflicts_with("jitbit"),
+		conflicts_with("continue"),
+		value_name = "LUA VERSION"
+	)]
 	target: Option<LuaVersion>,
 
 	/*/// This is not yet supported (Coming out in 4.0)
