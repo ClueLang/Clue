@@ -670,13 +670,13 @@ pub fn preprocess_code(
 			}
 			b'>' | b'<' => {
 				currentcode.push(c);
-				if let Some((nc, _)) = code.peek_char()? {
+				if let Some((nc, _)) = code.peek_char_unchecked() {
 					match nc {
 						b'=' => {
-							currentcode.push(code.read_char()?.unwrap());
+							currentcode.push(code.read_char_unchecked().unwrap());
 						}
 						nc if nc == c.0 => {
-							currentcode.push(code.read_char()?.unwrap());
+							currentcode.push(code.read_char_unchecked().unwrap());
 							bitwise = true;
 						}
 						_ => {}
@@ -686,9 +686,9 @@ pub fn preprocess_code(
 			}
 			b'=' => {
 				currentcode.push(c);
-				if let Some((nc, _)) = code.peek_char()? {
+				if let Some((nc, _)) = code.peek_char_unchecked() {
 					if matches!(nc, b'=' | b'>') {
-						currentcode.push(code.read_char()?.unwrap());
+						currentcode.push(code.read_char_unchecked().unwrap());
 					} else {
 						pseudos = None;
 					}
@@ -697,9 +697,9 @@ pub fn preprocess_code(
 			}
 			b'!' => {
 				currentcode.push(c);
-				if let Some((nc, _)) = code.peek_char()? {
+				if let Some((nc, _)) = code.peek_char_unchecked() {
 					if nc == b'=' {
-						currentcode.push(code.read_char()?.unwrap());
+						currentcode.push(code.read_char_unchecked().unwrap());
 					}
 				}
 				false
