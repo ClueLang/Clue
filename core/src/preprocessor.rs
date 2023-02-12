@@ -648,9 +648,41 @@ pub fn preprocess_code(
 				currentcode.append(code.read_string(c)?);
 				true
 			}
+			b'&' | b'|' => {
+				if code.peek_char_unchecked().unwrap_or_else(|| (b'\0', 0)).0 == c.0 {
+					currentcode.push(code.read_char_unchecked().unwrap());
+				} else {
+					bitwise = true;
+				}
+				true
+			}
+			b'^' => {
+				let nextc = code.peek_char_unchecked();
+				if nextc.is_some() && nextc.unwrap().0 == b'^' {
+					bitwise = true;
+					currentcode.push(code.read_char_unchecked().unwrap());
+				}
+				true
+			}
 			b'~' => {
 				bitwise = true;
 				true
+			}
+			b'>' | b'<' => {
+				currentcode.push(c);
+				if let Some((nc, _)) = code.peek_char()? {
+					match nc {
+						b'=' => {
+							currentcode.push(code.read_char()?.unwrap());
+						}
+						nc if nc == c.0 => {
+							currentcode.push(code.read_char()?.unwrap());
+							bitwise = true;
+						}
+						_ => {}
+					}
+				}
+				false
 			}
 			b'=' => {
 				currentcode.push(c);
@@ -663,7 +695,7 @@ pub fn preprocess_code(
 				}
 				false
 			}
-			b'!' | b'>' | b'<' => {
+			b'!' => {
 				currentcode.push(c);
 				if let Some((nc, _)) = code.peek_char()? {
 					if nc == b'=' {
@@ -735,7 +767,7 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize) -> V
 				let Some(c) = code.next() else {
 					return newpseudos;
 				};
-				matches!(c, b'!' | b'=')
+				matches!(c, b'!' | b'=' | b'>' | b'<')
 			}
 			b'>' if matches!(code.peek(), Some(b'=')) => {
 				code.next().unwrap();
