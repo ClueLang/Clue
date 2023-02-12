@@ -649,7 +649,7 @@ pub fn preprocess_code(
 				true
 			}
 			b'&' | b'|' => {
-				if code.peek_char_unchecked().unwrap_or_else(|| (b'\0', 0)).0 == c.0 {
+				if code.peek_char_unchecked().unwrap_or((b'\0', 0)).0 == c.0 {
 					currentcode.push(code.read_char_unchecked().unwrap());
 				} else {
 					bitwise = true;
