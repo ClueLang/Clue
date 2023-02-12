@@ -34,6 +34,7 @@ value_enum!(
 	ContinueMode,
 	Simple, "simple",
 	LuaJIT, "LuaJIT",
+	Goto, "goto",
 	MoonScript, "MoonScript"
 );
 

@@ -210,12 +210,16 @@ fn main() -> Result<(), String> {
 		return Err(String::from("Type checking is not supported yet!"));
 	}*/
 
+	if cli.r#continue == ContinueMode::LuaJIT {
+		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
+	}
+
 	let options = Options {
 		env_tokens: cli.tokens,
 		env_struct: cli.r#struct,
 		env_jitbit: {
 			if cli.jitbit.is_some() {
-				println!("Warning: \"--jitbit is deprecated and was replaced by --bitwise\"");
+				println!("Warning: \"--jitbit was deprecated and replaced by --bitwise\"");
 				cli.jitbit
 			} else if cli.bitwise == BitwiseMode::LuaJIT {
 				Some(String::from("bit"))

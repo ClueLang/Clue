@@ -1083,10 +1083,11 @@ impl<'a> ParserInfo<'a> {
 		}
 		let mut code = self.parse_code_block(tokens /*, self.locals.clone()*/)?;
 		if let Some(name) = hascontinue {
+			use ContinueMode::*;
 			match self.options.env_continue {
-				ContinueMode::Simple => {}
-				ContinueMode::LuaJIT => code.push_back(SYMBOL(String::from("::continue::"))),
-				ContinueMode::MoonScript => {
+				Simple => {}
+				Goto | LuaJIT => code.push_back(SYMBOL(String::from("::continue::"))),
+				MoonScript => {
 					code.push_back(ALTER {
 						kind: DEFINE,
 						names: vec_deque![vec_deque![SYMBOL(name.clone())]],
