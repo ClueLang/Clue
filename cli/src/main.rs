@@ -232,7 +232,8 @@ fn main() -> Result<(), String> {
 		} else {
 			cli.output
 		},
-	}.preset(cli.target);
+		env_target: cli.target,
+	}.preset();
 
 	//let mut code = String::with_capacity(512);
 

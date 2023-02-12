@@ -78,14 +78,15 @@ pub struct Options {
 	pub env_rawsetglobals: bool,
 	pub env_debug: bool,
 	pub env_output: bool,
+	pub env_target: Option<LuaVersion>,
 	//pub env_types: TypesMode,
 	//pub env_std: LuaSTD,
 }
 
 impl Options {
-	pub fn preset(mut self, version: Option<LuaVersion>) -> Self {
+	pub fn preset(mut self) -> Self {
 		use LuaVersion::*;
-		let Some(version) = version else {
+		let Some(version) = self.env_target else {
 			return self;
 		};
 		match version {

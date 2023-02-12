@@ -2,7 +2,7 @@
 
 use self::ComplexToken::*;
 use crate::compiler::Compiler;
-use crate::env::{ContinueMode, Options, BitwiseMode};
+use crate::env::{ContinueMode, Options, BitwiseMode, LuaVersion};
 use crate::scanner::{BorrowedToken, TokenType::*};
 use crate::scanner::{Token, TokenType};
 use crate::{check, format_clue};
@@ -443,9 +443,18 @@ impl<'a> ParserInfo<'a> {
 								pn.line()
 							));
 					}
-					name = Err(String::from(match self.advance().lexeme().as_ref() {
+					let name_token = self.advance();
+					name = Err(String::from(match name_token.lexeme().as_ref() {
 						"index" => "__index",
 						"newindex" => "__newindex",
+						"usedindex" => if matches!(self.options.env_target, Some(LuaVersion::BLUA)) {
+							"__usedindex"
+						} else {
+							return Err(self.error(
+								"The 'usedindex' metamethod can only be used with --target=blua",
+								name_token.line()
+							))
+						}
 						"mode" => "__mode",
 						"call" => "__call",
 						"metatable" => "__metatable",
@@ -468,8 +477,11 @@ impl<'a> ParserInfo<'a> {
 						"lt" | "less_than" | "<" => "__lt",
 						"le" | "less_than_equal" | "<=" => "__le",
 						_ => {
-							let t = self.peek(0);
-							return Err(self.expected("<meta name>", &t.lexeme(), t.line()));
+							return Err(self.expected(
+								"<meta name>",
+								&name_token.lexeme(),
+								name_token.line()
+							));
 						}
 					}))
 				}
