@@ -33,7 +33,7 @@ fn compile_code(
 ) -> Result<(String, String), String> {
 	let (mut codes, size) = codes;
 	let code = if codes.len() == 1 {
-		codes.pop().unwrap().0
+		codes.pop_back().unwrap().0
 	} else {
 		let mut code = Code::with_capacity(size);
 		for (codepart, uses_vars) in codes {
@@ -82,6 +82,7 @@ fn compile_file_dir(
 fn preprocess_file_dir(
 	files: Arc<SegQueue<(String, String)>>,
 	tx: Sender<PreprocessorAnalyzerData>,
+	options: &Options,
 ) {
 	loop {
 		let (filename, realname) = match files.pop() {
@@ -89,7 +90,7 @@ fn preprocess_file_dir(
 			Some((filename, realname)) => (filename, realname),
 		};
 
-		let (file_codes, file_variables) = match read_file(&filename, &filename) {
+		let (file_codes, file_variables) = match read_file(&filename, &filename, options) {
 			Ok(t) => t,
 			Err(e) => {
 				tx.send(PreprocessorAnalyzerData {
@@ -157,7 +158,7 @@ fn compile_folder(files: Arc<SegQueue<(String, String)>>) {
 		let files = files.clone();
 		let tx = tx.clone();
 
-		let thread = thread::spawn(move || preprocess_file_dir(files, tx));
+		let thread = thread::spawn(move || preprocess_file_dir(files, tx, &Options::default()));
 
 		threads.push(thread);
 	}
