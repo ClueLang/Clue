@@ -96,11 +96,11 @@ impl Options {
 					self.env_jitbit = Some(String::from("bit"));
 				}
 				self.env_bitwise = BitwiseMode::LuaJIT;
-				self.env_continue = ContinueMode::LuaJIT;
+				self.env_continue = ContinueMode::Goto;
 			}
 			Lua54 => {
 				self.env_bitwise = BitwiseMode::Vanilla;
-				self.env_continue = ContinueMode::MoonScript;
+				self.env_continue = ContinueMode::Goto;
 			}
 			BLUA => {
 				self.env_bitwise = BitwiseMode::Clue;
