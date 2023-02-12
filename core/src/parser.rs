@@ -2,7 +2,7 @@
 
 use self::ComplexToken::*;
 use crate::compiler::Compiler;
-use crate::env::{ContinueMode, Options};
+use crate::env::{ContinueMode, Options, BitwiseMode};
 use crate::scanner::{BorrowedToken, TokenType::*};
 use crate::scanner::{Token, TokenType};
 use crate::{check, format_clue};
@@ -683,7 +683,15 @@ impl<'a> ParserInfo<'a> {
 				}
 				BIT_AND => self.build_bitwise_op(&t, &mut expr, "band", end, notable)?,
 				BIT_OR => self.build_bitwise_op(&t, &mut expr, "bor", end, notable)?,
-				BIT_XOR => self.build_bitwise_op(&t, &mut expr, "bxor", end, notable)?,
+				BIT_XOR => {
+					//SAFETY: the token goes out of scope after BorrowedToken is used, so it stays valid
+					let t = if self.options.env_bitwise == BitwiseMode::Vanilla {
+						Token::new(t.kind(), '~', t.line())
+					} else {
+						t.into_owned()
+					};
+					self.build_bitwise_op(&BorrowedToken::new(&t), &mut expr, "bxor", end, notable)?
+				},
 				BIT_NOT => {
 					self.check_operator(&t, notable, false)?;
 					if let Some(bit) = self.options.env_jitbit.clone() {
