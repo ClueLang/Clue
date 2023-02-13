@@ -80,6 +80,7 @@ pub struct Options {
 	pub env_debug: bool,
 	pub env_output: bool,
 	pub env_target: Option<LuaVersion>,
+	pub env_targetos: String,
 	//pub env_types: TypesMode,
 	//pub env_std: LuaSTD,
 }

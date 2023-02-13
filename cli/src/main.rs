@@ -94,6 +94,9 @@ struct Cli {
 	)]
 	target: Option<LuaVersion>,
 
+	/// Change OS checked by @ifos
+	#[clap(long, default_value = std::env::consts::OS, value_name = "TARGET OS")]
+	targetos: String,
 	/*/// This is not yet supported (Coming out in 4.0)
 	#[clap(short, long, value_name = "MODE")]
 	types: Option<String>,*/
@@ -237,6 +240,7 @@ fn main() -> Result<(), String> {
 			cli.output
 		},
 		env_target: cli.target,
+		env_targetos: cli.targetos,
 	}.preset();
 
 	//let mut code = String::with_capacity(512);

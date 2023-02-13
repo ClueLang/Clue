@@ -71,6 +71,7 @@ enum CommentState {
 }
 
 struct CodeFile<'a> {
+	options: &'a Options,
 	code: &'a mut [u8],
 	comment: CommentState,
 	checked: usize,
@@ -84,8 +85,15 @@ struct CodeFile<'a> {
 }
 
 impl<'a> CodeFile<'a> {
-	fn new(code: &'a mut [u8], line: usize, filename: &'a String, cscope: u8) -> Self {
+	fn new(
+		code: &'a mut [u8],
+		line: usize,
+		filename: &'a String,
+		cscope: u8,
+		options: &'a Options
+	) -> Self {
 		Self {
+			options,
 			code,
 			comment: CommentState::None,
 			checked: 0,
@@ -380,7 +388,7 @@ impl<'a> CodeFile<'a> {
 
 	fn ifos(&mut self, end: u8) -> Result<bool, String> {
 		let checked_os = self.read_until(end)?.trim();
-		Ok(checked_os == env::consts::OS)
+		Ok(checked_os == self.options.env_targetos)
 	}
 
 	fn ifdef(&mut self, end: u8) -> Result<bool, String> {
@@ -486,7 +494,7 @@ pub fn preprocess_code(
 	let mut finalcode = VecDeque::new();
 	let mut currentcode = Code::with_capacity(code.len());
 	let mut size = 0;
-	let mut code = CodeFile::new(code, line, filename, is_block as u8);
+	let mut code = CodeFile::new(code, line, filename, is_block as u8, options);
 	let mut variables = PPVars::new();
 	let mut pseudos: Option<VecDeque<Code>> = None;
 	let mut bitwise = false;
