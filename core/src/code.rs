@@ -151,6 +151,12 @@ impl PartialEq<&str> for Code {
 	}
 }
 
+impl PartialEq<String> for Code {
+	fn eq(&self, other: &String) -> bool {
+		self == other
+	}
+}
+
 impl PartialEq<OsString> for Code {
 	fn eq(&self, other: &OsString) -> bool {
 		self.len() == other.len() && {
