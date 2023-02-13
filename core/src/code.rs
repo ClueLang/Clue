@@ -137,8 +137,8 @@ impl PartialEq for Code {
 	}
 }
 
-impl PartialEq<&str> for Code {
-	fn eq(&self, other: &&str) -> bool {
+impl PartialEq<str> for Code {
+	fn eq(&self, other: &str) -> bool {
 		self.len() == other.len() && {
 			let mut other = other.bytes();
 			for (c, _) in self {
@@ -148,27 +148,24 @@ impl PartialEq<&str> for Code {
 			}
 			true
 		}
+	}
+}
+
+impl PartialEq<&str> for Code {
+	fn eq(&self, other: &&str) -> bool {
+		self == *other
 	}
 }
 
 impl PartialEq<String> for Code {
 	fn eq(&self, other: &String) -> bool {
-		self == other
+		self == other.as_str()
 	}
 }
 
 impl PartialEq<OsString> for Code {
 	fn eq(&self, other: &OsString) -> bool {
-		self.len() == other.len() && {
-			let other = other.clone().into_string().unwrap();
-			let mut other = other.bytes();
-			for (c, _) in self {
-				if *c != other.next().unwrap() {
-					return false;
-				}
-			}
-			true
-		}
+		*self == other.clone().into_string().unwrap()
 	}
 }
 
