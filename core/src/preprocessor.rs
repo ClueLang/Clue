@@ -391,6 +391,20 @@ impl<'a> CodeFile<'a> {
 		Ok(checked_os == self.options.env_targetos)
 	}
 
+	fn iflua(&mut self, end: u8) -> Result<bool, String> {
+		use crate::env::LuaVersion::*;
+		let checked_lua_version = self.read_until(end)?.trim();
+		let Some(target) = self.options.env_target else {
+			return Ok(false);
+		};
+		Ok(match checked_lua_version.to_string().to_lowercase().as_str() {
+			"luajit" | "jit" => target == LuaJIT,
+			"lua54" | "lua5.4" | "lua 54" | "lua 5.4" | "54" | "5.4" => target == Lua54,
+			"blua" => target == BLUA,
+			_ => false
+		})
+	}
+
 	fn ifdef(&mut self, end: u8) -> Result<bool, String> {
 		let to_check = self.read_until(end)?.trim();
 		Ok(env::var_os(to_check.to_string()).is_some())
@@ -453,6 +467,7 @@ impl<'a> CodeFile<'a> {
 				"all" => self.bool_op(false)?,
 				"any" => self.bool_op(true)?,
 				"os" => self.ifos(b')')?,
+				"lua" => self.iflua(b')')?,
 				"def" => self.ifdef(b')')?,
 				"cmp" => self.ifcmp(b')')?,
 				"not" => {
@@ -510,6 +525,7 @@ pub fn preprocess_code(
 				};
 				match directive {
 					"ifos" => pp_if!(code, ifos, prev),
+					"iflua" => pp_if!(code, iflua, prev),
 					"ifdef" => pp_if!(code, ifdef, prev),
 					"ifcmp" => pp_if!(code, ifcmp, prev),
 					"if" => {
