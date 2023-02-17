@@ -224,7 +224,7 @@ fn main() -> Result<(), String> {
 			if cli.jitbit.is_some() {
 				println!("Warning: \"--jitbit was deprecated and replaced by --bitwise\"");
 				cli.jitbit
-			} else if cli.bitwise == BitwiseMode::LuaJIT {
+			} else if cli.bitwise == BitwiseMode::Library {
 				Some(String::from("bit"))
 			} else {
 				None

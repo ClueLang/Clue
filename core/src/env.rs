@@ -59,13 +59,16 @@ value_enum!(
 	LuaVersion,
 	LuaJIT, "LuaJIT",
 	Lua54, "Lua54",
+	Lua53, "Lua53",
+	Lua52, "Lua52",
+	Lua51, "Lua51",
 	BLUA, "BLUA"
 );
 
 value_enum!(
 	BitwiseMode,
 	Clue, "Clue",
-	LuaJIT, "LuaJIT",
+	Library, "library",
 	Vanilla, "vanilla"
 );
 
@@ -96,12 +99,26 @@ impl Options {
 				if self.env_jitbit.is_none() {
 					self.env_jitbit = Some(String::from("bit"));
 				}
-				self.env_bitwise = BitwiseMode::LuaJIT;
+				self.env_bitwise = BitwiseMode::Library;
 				self.env_continue = ContinueMode::Goto;
 			}
-			Lua54 => {
+			Lua54 | Lua53 => {
 				self.env_bitwise = BitwiseMode::Vanilla;
 				self.env_continue = ContinueMode::Goto;
+			}
+			Lua52 => {
+				if self.env_jitbit.is_none() {
+					self.env_jitbit = Some(String::from("bit32"));
+				}
+				self.env_bitwise = BitwiseMode::Library;
+				self.env_continue = ContinueMode::Goto;
+			}
+			Lua51 => {
+				if self.env_jitbit.is_none() {
+					self.env_jitbit = Some(String::from("bit"));
+				}
+				self.env_bitwise = BitwiseMode::Library;
+				self.env_continue = ContinueMode::MoonScript;
 			}
 			BLUA => {
 				self.env_bitwise = BitwiseMode::Clue;
