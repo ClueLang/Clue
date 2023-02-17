@@ -2,17 +2,14 @@ use clap::{crate_version, Parser};
 use clue_core::{
 	check,
 	compiler::*,
-	env::{ContinueMode, Options, LuaVersion, BitwiseMode},
+	env::{BitwiseMode, ContinueMode, LuaVersion, Options},
+	format_clue,
 	parser::*,
 	preprocessor::*,
-	scanner::*, format_clue,
+	scanner::*,
 };
+use std::{fs, path::Path, time::Instant};
 use threads::compile_folder;
-use std::{
-	fs,
-	path::Path,
-	time::Instant,
-};
 
 mod threads;
 
@@ -52,15 +49,35 @@ struct Cli {
 	output: bool,
 
 	/// Use LuaJIT's bit library for bitwise operations
-	#[clap(short, long, hide(true), default_missing_value = "bit", value_name = "VAR NAME")]
+	#[clap(
+		short,
+		long,
+		hide(true),
+		default_missing_value = "bit",
+		value_name = "VAR NAME"
+	)]
 	jitbit: Option<String>,
 
 	/// Change the way bitwise operators are compiled
-	#[clap(short, long, value_enum, ignore_case(true), default_value = "Clue", value_name = "MODE")]
+	#[clap(
+		short,
+		long,
+		value_enum,
+		ignore_case(true),
+		default_value = "Clue",
+		value_name = "MODE"
+	)]
 	bitwise: BitwiseMode,
 
 	/// Change the way continue identifiers are compiled
-	#[clap(short, long, value_enum, ignore_case(true), default_value = "simple", value_name = "MODE")]
+	#[clap(
+		short,
+		long,
+		value_enum,
+		ignore_case(true),
+		default_value = "simple",
+		value_name = "MODE"
+	)]
 	r#continue: ContinueMode,
 
 	/// Don't save compiled code
@@ -85,7 +102,9 @@ struct Cli {
 
 	/// Uses preset configuration based on the targeted Lua version
 	#[clap(
-		short, long, value_enum,
+		short,
+		long,
+		value_enum,
 		ignore_case(true),
 		conflicts_with("bitwise"),
 		conflicts_with("jitbit"),
@@ -182,7 +201,7 @@ fn finish(
 	debug: bool,
 	execute: bool,
 	output_path: Option<String>,
-	code: String
+	code: String,
 ) -> Result<(), String> {
 	if debug {
 		let new_output = format!(include_str!("debug.lua"), &code);
@@ -209,15 +228,15 @@ fn main() -> Result<(), String> {
 		print!(include_str!("../LICENSE"));
 		return Ok(());
 	} /*else if cli.types.is_some() {
-		//TEMPORARY PLACEHOLDER UNTIL 4.0
-		return Err(String::from("Type checking is not supported yet!"));
-	}*/
+	  //TEMPORARY PLACEHOLDER UNTIL 4.0
+	  return Err(String::from("Type checking is not supported yet!"));
+  }*/
 
 	if cli.r#continue == ContinueMode::LuaJIT {
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
 	}
 
-	let options = Options {
+	let mut options = Options {
 		env_tokens: cli.tokens,
 		env_struct: cli.r#struct,
 		env_jitbit: {
@@ -241,7 +260,8 @@ fn main() -> Result<(), String> {
 		},
 		env_target: cli.target,
 		env_targetos: cli.targetos,
-	}.preset();
+	};
+	options.preset();
 
 	//let mut code = String::with_capacity(512);
 
@@ -277,7 +297,7 @@ fn main() -> Result<(), String> {
 			finish(cli.debug, cli.execute, Some(outputname), code)
 		} else {
 			Ok(())
-		}
+		};
 	}
 	let path: &Path = Path::new(&codepath);
 	let (output_path, code) = if path.is_dir() {
@@ -298,33 +318,39 @@ fn main() -> Result<(), String> {
 				.replace("--STATICS\n", &statics)
 				.replace('§', &output),
 		};
-		(if !cli.dontsave {
-			let output_name = match cli.outputname {
-				Some(output_name) if output_name.ends_with(".lua") => output_name,
-				Some(output_name) => output_name + ".lua",
-				None => String::from("main.lua")
-			};
-			check!(fs::write(&output_name, &code));
-			Some(output_name)
-		} else {
-			None
-		}, code)
+		(
+			if !cli.dontsave {
+				let output_name = match cli.outputname {
+					Some(output_name) if output_name.ends_with(".lua") => output_name,
+					Some(output_name) => output_name + ".lua",
+					None => String::from("main.lua"),
+				};
+				check!(fs::write(&output_name, &code));
+				Some(output_name)
+			} else {
+				None
+			},
+			code,
+		)
 	} else if path.is_file() {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
 		let (rawcode, variables) = read_file(&codepath, &name, &options)?;
 		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
 		let code = statics + &output;
-		(if !cli.dontsave {
-			let output_name = match cli.outputname {
-				Some(output_name) if output_name.ends_with(".lua") => output_name,
-				Some(output_name) => output_name + ".lua",
-				None => format_clue!(name.strip_suffix(".clue").unwrap(), ".lua")
-			};
-			check!(fs::write(&output_name, &code));
-			Some(output_name)
-		} else {
-			None
-		}, code)
+		(
+			if !cli.dontsave {
+				let output_name = match cli.outputname {
+					Some(output_name) if output_name.ends_with(".lua") => output_name,
+					Some(output_name) => output_name + ".lua",
+					None => format_clue!(name.strip_suffix(".clue").unwrap(), ".lua"),
+				};
+				check!(fs::write(&output_name, &code));
+				Some(output_name)
+			} else {
+				None
+			},
+			code,
+		)
 	} else {
 		return Err(String::from("The given path doesn't exist"));
 	};

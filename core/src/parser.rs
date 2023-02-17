@@ -2,7 +2,7 @@
 
 use self::ComplexToken::*;
 use crate::compiler::Compiler;
-use crate::env::{ContinueMode, Options, BitwiseMode, LuaVersion};
+use crate::env::{BitwiseMode, ContinueMode, LuaVersion, Options};
 use crate::scanner::{BorrowedToken, TokenType::*};
 use crate::scanner::{Token, TokenType};
 use crate::{check, format_clue};
@@ -447,13 +447,15 @@ impl<'a> ParserInfo<'a> {
 					name = Err(String::from(match name_token.lexeme().as_ref() {
 						"index" => "__index",
 						"newindex" => "__newindex",
-						"usedindex" => if matches!(self.options.env_target, Some(LuaVersion::BLUA)) {
-							"__usedindex"
-						} else {
-							return Err(self.error(
+						"usedindex" => {
+							if matches!(self.options.env_target, Some(LuaVersion::BLUA)) {
+								"__usedindex"
+							} else {
+								return Err(self.error(
 								"The 'usedindex' metamethod can only be used with --target=blua",
 								name_token.line()
-							))
+							));
+							}
 						}
 						"mode" => "__mode",
 						"call" => "__call",
@@ -480,7 +482,7 @@ impl<'a> ParserInfo<'a> {
 							return Err(self.expected(
 								"<meta name>",
 								&name_token.lexeme(),
-								name_token.line()
+								name_token.line(),
 							));
 						}
 					}))
@@ -710,7 +712,7 @@ impl<'a> ParserInfo<'a> {
 						t.into_owned()
 					};
 					self.build_bitwise_op(&BorrowedToken::new(&t), &mut expr, "bxor", end, notable)?
-				},
+				}
 				BIT_NOT => {
 					self.check_operator(&t, notable, false)?;
 					if let Some(bit) = self.options.env_jitbit.clone() {
@@ -1113,10 +1115,7 @@ impl<'a> ParserInfo<'a> {
 							code: CodeBlock { start, code, end }
 						},
 						IF_STATEMENT {
-							condition: vec_deque![
-								SYMBOL(String::from("not ")),
-								SYMBOL(name)
-							],
+							condition: vec_deque![SYMBOL(String::from("not ")), SYMBOL(name)],
 							code: CodeBlock {
 								start: end,
 								code: vec_deque![BREAK_LOOP],
@@ -1576,10 +1575,10 @@ impl<'a> ParserInfo<'a> {
 							"?[" => {
 								call.push_front(SYMBOL(name.clone() + "["));
 								false
-							},
-							_ => true
-						}
-						_ => unreachable!()
+							}
+							_ => true,
+						},
+						_ => unreachable!(),
 					}
 				} {
 					call.push_front(first_expr.pop_back().unwrap())
@@ -1588,8 +1587,11 @@ impl<'a> ParserInfo<'a> {
 				self.expr.push_back(VARIABLE {
 					local: true,
 					names: vec![name.clone()],
-					values: vec![vec_deque![IDENT { expr: first_expr, line }]],
-					line
+					values: vec![vec_deque![IDENT {
+						expr: first_expr,
+						line
+					}]],
+					line,
 				});
 				let name = SYMBOL(name);
 				self.expr.push_back(IF_STATEMENT {
@@ -1597,12 +1599,15 @@ impl<'a> ParserInfo<'a> {
 					code: CodeBlock {
 						start: line,
 						code: vec_deque![IDENT { expr: call, line }],
-						end: line
+						end: line,
 					},
 					next: None,
 				});
 			} else {
-				self.expr.push_back(IDENT { expr: first_expr, line });
+				self.expr.push_back(IDENT {
+					expr: first_expr,
+					line,
+				});
 				self.current -= 1;
 				self.advance_if(SEMICOLON);
 			}

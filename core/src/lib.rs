@@ -1,3 +1,5 @@
+use env::{BitwiseMode, ContinueMode, LuaVersion, Options};
+
 #[cfg(feature = "rpmalloc")]
 #[global_allocator]
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
@@ -29,4 +31,52 @@ macro_rules! format_clue {
 		$(output_format_clue.push_str($strings.as_ref());)+
 		output_format_clue
 	}};
+}
+
+struct Clue {
+	options: Options,
+}
+
+impl Clue {
+	fn new() -> Self {
+		Clue {
+			options: Options::default(),
+		}
+	}
+
+	fn tokens(&mut self, env_tokens: bool) {
+		self.options.env_tokens = env_tokens;
+	}
+	fn env_struct(&mut self, env_tokens: bool) {
+		self.options.env_tokens = env_tokens;
+	}
+
+	fn bitwise_mode(&mut self, mode: BitwiseMode) {
+		self.options.env_bitwise = mode;
+	}
+
+	fn continue_mode(&mut self, mode: ContinueMode) {
+		self.options.env_continue = mode;
+	}
+
+	fn rawsetglobals(&mut self, env_rawsetglobal: bool) {
+		self.options.env_rawsetglobals = env_rawsetglobal;
+	}
+
+	fn debug(&mut self, env_debug: bool) {
+		self.options.env_debug = env_debug;
+	}
+
+	fn output(&mut self, output: bool) {
+		self.options.env_output = output;
+	}
+
+	fn target(&mut self, version: Option<LuaVersion>) {
+		self.options.env_target = version;
+		self.options.preset();
+	}
+
+	fn target_os(&mut self, os: String) {
+		self.options.env_targetos = os;
+	}
 }
