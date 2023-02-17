@@ -691,7 +691,14 @@ impl<'a> ParserInfo<'a> {
 					}))
 				}
 				FLOOR_DIVISION => {
-					self.build_function_op(&t, &mut expr, "math.floor", end, notable)?
+					self.check_operator(&t, notable, true)?;
+					let mut division = Expression::with_capacity(expr.len());
+					division.append(&mut expr);
+					division.push_back(SYMBOL(String::from('/')));
+					division.append(&mut self.build_expression(end)?);
+					expr.push_back(SYMBOL(String::from("math.floor")));
+					expr.push_back(CALL(vec![division]));
+					self.current -= 1;
 				}
 				BIT_AND => self.build_bitwise_op(&t, &mut expr, "band", end, notable)?,
 				BIT_OR => self.build_bitwise_op(&t, &mut expr, "bor", end, notable)?,
