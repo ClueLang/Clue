@@ -1,4 +1,9 @@
+use std::{ffi::OsStr, fmt::Display, path::Path};
+
+use code::Code;
 use env::{BitwiseMode, ContinueMode, LuaVersion, Options};
+use preprocessor::{preprocess_code, preprocess_codes, read_file, PPCode, PPVars};
+use scanner::{scan_code, Token};
 
 #[cfg(feature = "rpmalloc")]
 #[global_allocator]
@@ -78,5 +83,66 @@ impl Clue {
 
 	fn target_os(&mut self, os: String) {
 		self.options.env_targetos = os;
+	}
+}
+
+impl Clue {
+	fn preprocess_code(&self, code: String) -> Result<Code, String> {
+		let mut code = code;
+		let filename = "(libclue)".to_owned();
+		let (codes, variables, ..) = preprocess_code(
+			unsafe { code.as_bytes_mut() },
+			1,
+			false,
+			&filename,
+			&self.options,
+		)?;
+		preprocess_codes(0, codes, &variables, &filename)
+	}
+	fn preprocess_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+		&self,
+		path: P,
+	) -> Result<Code, String> {
+		let filepath: &Path = path.as_ref();
+		let filename = filepath.file_name().unwrap().to_string_lossy().into_owned();
+		let (codes, variables) = read_file(path, &filename, &self.options)?;
+		preprocess_codes(0, codes, &variables, &filename)
+	}
+	fn preprocess_folder<P: AsRef<Path> + AsRef<OsStr> + Display>(&self, path: P) {
+		todo!()
+	}
+}
+
+impl Clue {
+	fn scan_preprocessed_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+		&self,
+		code: Code,
+		path: P,
+	) -> Result<Vec<Token>, String> {
+		let filepath: &Path = path.as_ref();
+		let filename = filepath.file_name().unwrap().to_string_lossy().into_owned();
+		scan_code(code, &filename)
+	}
+
+	fn scan_preprocessed(&self, code: Code) -> Result<Vec<Token>, String> {
+		scan_code(code, &"(library)".to_owned())
+	}
+
+	fn scan_code(&self, code: String) -> Result<Vec<Token>, String> {
+		let code = self.preprocess_code(code)?;
+		self.scan_preprocessed(code)
+	}
+	fn scan_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+		&self,
+		filename: P,
+	) -> Result<Vec<Token>, String> {
+		let code = self.preprocess_file(&filename)?;
+		self.scan_preprocessed_file(code, &filename)
+	}
+	fn scan_folder<P: AsRef<Path> + AsRef<OsStr> + Display>(
+		&self,
+		filename: P,
+	) -> Result<Vec<Token>, String> {
+		todo!()
 	}
 }
