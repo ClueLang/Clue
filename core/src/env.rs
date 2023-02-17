@@ -58,7 +58,7 @@ pub enum LuaSTD {
 value_enum!(
 	LuaVersion,
 	LuaJIT, "LuaJIT",
-	Lua54, "Lua5.4",
+	Lua54, "Lua54",
 	BLUA, "BLUA"
 );
 
