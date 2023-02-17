@@ -16,6 +16,7 @@ utf8-decode = "1.0.1"
 ahash.workspace = true
 clap.workspace = true
 rpmalloc = { version = "0.2.2", optional = true }
+semver = "1.0.16"
 
 [dev-dependencies]
 criterion = "0.4.0"

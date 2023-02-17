@@ -4,6 +4,8 @@ use crate::{
 	format_clue, env::Options,
 };
 use ahash::AHashMap;
+use clap::crate_version;
+use semver::{VersionReq, Version};
 use std::{
 	collections::VecDeque,
 	env,
@@ -12,7 +14,7 @@ use std::{
 	fs,
 	iter::{Peekable, Rev},
 	path::Path,
-	str,
+	str::{self, FromStr},
 	u8::MAX, cmp::min,
 };
 use utf8_decode::decode;
@@ -410,7 +412,7 @@ impl<'a> CodeFile<'a> {
 		Ok(env::var_os(to_check.to_string()).is_some())
 	}
 
-	fn ifcmp(&mut self, end: u8) -> Result<bool, String> {
+	fn ifcmp(&mut self, end: u8) -> Result<bool, String> {	
 		let Some(to_compare1) = env::var_os(self.read_identifier()?.to_string()) else {
 			self.read_until(end)?;
 			return Ok(false)
@@ -536,6 +538,25 @@ pub fn preprocess_code(
 					"else" => {
 						code.assert_reach(b'{')?;
 						code.keep_block(!code.last_if)?;
+					}
+					"version" => {
+						let version = code.read_line()?.to_string();
+						match VersionReq::parse(version.as_ref()) {
+							Ok(version_req) => {
+								if !version_req.matches(&Version::from_str(crate_version!()).unwrap()) {
+									return Err(error(
+										format_clue!(
+											"This code is only compatible with version '",
+											version,
+											"'"
+										),
+										line,
+										filename
+									))
+								}
+							}
+							Err(e) => return Err(error(e.to_string(), line, filename)),
+						}
 					}
 					"define" => {
 						let name = code.read_identifier()?;
