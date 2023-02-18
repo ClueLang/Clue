@@ -2,6 +2,7 @@ use std::{ffi::OsStr, fmt::Display, path::Path};
 
 use code::Code;
 use env::{BitwiseMode, ContinueMode, LuaVersion, Options};
+use parser::{parse_tokens, Expression};
 use preprocessor::{preprocess_code, preprocess_codes, read_file, PPCode, PPVars};
 use scanner::{scan_code, Token};
 
@@ -43,51 +44,51 @@ struct Clue {
 }
 
 impl Clue {
-	fn new() -> Self {
+	pub fn new() -> Self {
 		Clue {
 			options: Options::default(),
 		}
 	}
 
-	fn tokens(&mut self, env_tokens: bool) {
+	pub fn tokens(&mut self, env_tokens: bool) {
 		self.options.env_tokens = env_tokens;
 	}
-	fn env_struct(&mut self, env_tokens: bool) {
+	pub fn env_struct(&mut self, env_tokens: bool) {
 		self.options.env_tokens = env_tokens;
 	}
 
-	fn bitwise_mode(&mut self, mode: BitwiseMode) {
+	pub fn bitwise_mode(&mut self, mode: BitwiseMode) {
 		self.options.env_bitwise = mode;
 	}
 
-	fn continue_mode(&mut self, mode: ContinueMode) {
+	pub fn continue_mode(&mut self, mode: ContinueMode) {
 		self.options.env_continue = mode;
 	}
 
-	fn rawsetglobals(&mut self, env_rawsetglobal: bool) {
+	pub fn rawsetglobals(&mut self, env_rawsetglobal: bool) {
 		self.options.env_rawsetglobals = env_rawsetglobal;
 	}
 
-	fn debug(&mut self, env_debug: bool) {
+	pub fn debug(&mut self, env_debug: bool) {
 		self.options.env_debug = env_debug;
 	}
 
-	fn output(&mut self, output: bool) {
+	pub fn output(&mut self, output: bool) {
 		self.options.env_output = output;
 	}
 
-	fn target(&mut self, version: Option<LuaVersion>) {
+	pub fn target(&mut self, version: Option<LuaVersion>) {
 		self.options.env_target = version;
 		self.options.preset();
 	}
 
-	fn target_os(&mut self, os: String) {
+	pub fn target_os(&mut self, os: String) {
 		self.options.env_targetos = os;
 	}
 }
 
 impl Clue {
-	fn preprocess_code(&self, code: String) -> Result<Code, String> {
+	pub fn preprocess_code(&self, code: String) -> Result<Code, String> {
 		let mut code = code;
 		let filename = "(libclue)".to_owned();
 		let (codes, variables, ..) = preprocess_code(
@@ -99,7 +100,7 @@ impl Clue {
 		)?;
 		preprocess_codes(0, codes, &variables, &filename)
 	}
-	fn preprocess_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+	pub fn preprocess_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		path: P,
 	) -> Result<Code, String> {
@@ -108,13 +109,13 @@ impl Clue {
 		let (codes, variables) = read_file(path, &filename, &self.options)?;
 		preprocess_codes(0, codes, &variables, &filename)
 	}
-	fn preprocess_folder<P: AsRef<Path> + AsRef<OsStr> + Display>(&self, path: P) {
+	pub fn preprocess_folder<P: AsRef<Path> + AsRef<OsStr> + Display>(&self, path: P) {
 		todo!()
 	}
 }
 
 impl Clue {
-	fn scan_preprocessed_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+	pub fn scan_preprocessed_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		code: Code,
 		path: P,
@@ -124,25 +125,61 @@ impl Clue {
 		scan_code(code, &filename)
 	}
 
-	fn scan_preprocessed(&self, code: Code) -> Result<Vec<Token>, String> {
+	pub fn scan_preprocessed(&self, code: Code) -> Result<Vec<Token>, String> {
 		scan_code(code, &"(library)".to_owned())
 	}
 
-	fn scan_code(&self, code: String) -> Result<Vec<Token>, String> {
+	pub fn scan_code(&self, code: String) -> Result<Vec<Token>, String> {
 		let code = self.preprocess_code(code)?;
 		self.scan_preprocessed(code)
 	}
-	fn scan_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+	pub fn scan_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		filename: P,
 	) -> Result<Vec<Token>, String> {
 		let code = self.preprocess_file(&filename)?;
 		self.scan_preprocessed_file(code, &filename)
 	}
-	fn scan_folder<P: AsRef<Path> + AsRef<OsStr> + Display>(
+	pub fn scan_folder<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		filename: P,
 	) -> Result<Vec<Token>, String> {
 		todo!()
 	}
+}
+
+impl Clue {
+	fn parse_preprocessed(&self, code: Code) -> Result<(Expression, String), String> {
+		let tokens = self.scan_preprocessed(code)?;
+		self.parse_tokens(tokens)
+	}
+	fn parse_tokens(&self, tokens: Vec<Token>) -> Result<(Expression, String), String> {
+		parse_tokens(tokens, &"(lib)".to_owned(), &self.options)
+	}
+	fn parse_code(&self, code: String) -> Result<(Expression, String), String> {
+		let tokens = self.scan_code(code)?;
+		self.parse_tokens(tokens)
+	}
+	fn parse_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+		&self,
+		path: P,
+	) -> Result<(Expression, String), String> {
+		let filepath: &Path = path.as_ref();
+		let filename = filepath.file_name().unwrap().to_string_lossy().into_owned();
+		let tokens = self.scan_file(&path)?;
+
+		parse_tokens(tokens, &filename, &self.options)
+	}
+	fn parse_folder(&self) {
+		todo!()
+	}
+}
+
+impl Clue {
+	fn compile_tokens(&self) {}
+	fn compile_preprocessed(&self) {}
+	fn compile_ast(&self) {}
+	fn compile_code(&self) {}
+	fn compile_file(&self) {}
+	fn compile_folder(&self) {}
 }
