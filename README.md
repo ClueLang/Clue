@@ -4,7 +4,7 @@
 [![Crates.io](https://img.shields.io/crates/v/clue?style=flat-square)](https://crates.io/crates/clue)
 [![Crates.io](https://img.shields.io/crates/d/clue?style=flat-square)](https://crates.io/crates/clue)
 
-Clue is a blazing fast programming language that compiles into Lua code with a syntax similar to languages like C or Rust.
+Clue is a programming language that compiles blazingly fast into Lua code with a syntax similar to languages like C or Rust.
 
 Clue tries to be almost as simple as Lua (with only a slightly more advanced syntax) but adds many optional features that can make code look better or make some things (like metatables) easier to code.
 
