@@ -66,12 +66,9 @@ value_enum!(
 
 value_enum!(
 	BitwiseMode,
-	Clue,
-	"Clue",
-	Library,
-	"library",
-	Vanilla,
-	"vanilla"
+	Clue, "Clue",
+	Library, "library",
+	Vanilla, "vanilla"
 );
 
 #[derive(Debug, Default, Clone)]
