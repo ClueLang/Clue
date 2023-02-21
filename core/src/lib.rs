@@ -40,7 +40,7 @@ macro_rules! format_clue {
 	}};
 }
 
-struct Clue {
+pub struct Clue {
 	options: Options,
 }
 
