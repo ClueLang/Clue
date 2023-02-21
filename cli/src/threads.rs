@@ -1,17 +1,17 @@
 use ahash::AHashMap;
-use clue_core::{check, format_clue};
 use clue_core::code::Code;
 use clue_core::env::Options;
-use clue_core::preprocessor::{PPVars, PPCode, PPVar, read_file};
+use clue_core::preprocessor::{read_file, PPCode, PPVar, PPVars};
+use clue_core::{check, format_clue};
 use crossbeam_queue::SegQueue;
 use flume::Sender;
+use std::cmp;
 use std::ffi::OsStr;
 use std::fmt::Display;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
-use std::cmp;
 
 use crate::compile_code;
 

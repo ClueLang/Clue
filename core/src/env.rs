@@ -59,14 +59,17 @@ pub enum LuaSTD {
 }
 */
 
-value_enum!(LuaVersion, LuaJIT, "LuaJIT", Lua54, "Lua5.4", BLUA, "BLUA");
+value_enum!(
+	LuaVersion, LuaJIT, "LuaJIT", Lua54, "Lua54", Lua53, "Lua53", Lua52, "Lua52", Lua51, "Lua51",
+	BLUA, "BLUA"
+);
 
 value_enum!(
 	BitwiseMode,
 	Clue,
 	"Clue",
-	LuaJIT,
-	"LuaJIT",
+	Library,
+	"library",
 	Vanilla,
 	"vanilla"
 );

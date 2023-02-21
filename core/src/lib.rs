@@ -1,9 +1,10 @@
-use std::{ffi::OsStr, fmt::Display, path::Path};
+use std::{ffi::OsStr, fmt::Display, fs, path::Path};
 
 use code::Code;
+use compiler::Compiler;
 use env::{BitwiseMode, ContinueMode, LuaVersion, Options};
 use parser::{parse_tokens, Expression};
-use preprocessor::{preprocess_code, preprocess_codes, read_file, PPCode, PPVars};
+use preprocessor::{preprocess_code, preprocess_codes, read_file};
 use scanner::{scan_code, Token};
 
 #[cfg(feature = "rpmalloc")]
@@ -109,9 +110,6 @@ impl Clue {
 		let (codes, variables) = read_file(path, &filename, &self.options)?;
 		preprocess_codes(0, codes, &variables, &filename)
 	}
-	pub fn preprocess_folder<P: AsRef<Path> + AsRef<OsStr> + Display>(&self, path: P) {
-		todo!()
-	}
 }
 
 impl Clue {
@@ -170,16 +168,35 @@ impl Clue {
 
 		parse_tokens(tokens, &filename, &self.options)
 	}
-	fn parse_folder(&self) {
-		todo!()
-	}
 }
 
 impl Clue {
-	fn compile_tokens(&self) {}
-	fn compile_preprocessed(&self) {}
-	fn compile_ast(&self) {}
-	fn compile_code(&self) {}
-	fn compile_file(&self) {}
-	fn compile_folder(&self) {}
+	fn compile_tokens(&self, tokens: Vec<Token>) -> Result<String, String> {
+		let (ctokens, statics) = self.parse_tokens(tokens)?;
+		let compiler = Compiler::new(&self.options);
+		Ok(statics + &compiler.compile_tokens(0, ctokens))
+	}
+	fn compile_preprocessed(&self, code: Code) -> Result<String, String> {
+		let tokens = self.scan_preprocessed(code)?;
+		self.compile_tokens(tokens)
+	}
+	fn compile_ast(&self, (ctokens, statics): (Expression, String)) -> Result<String, String> {
+		let compiler = Compiler::new(&self.options);
+		Ok(statics + &compiler.compile_tokens(0, ctokens))
+	}
+	fn compile_code(&self, code: String) -> Result<String, String> {
+		let tokens = self.scan_code(code)?;
+		self.compile_tokens(tokens)
+	}
+	fn compile_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+		&self,
+		path: P,
+	) -> Result<String, String> {
+		let tokens = self.scan_file(&path)?;
+		let result = self.compile_tokens(tokens)?;
+		if self.options.env_output {
+			fs::write(path, &result).map_err(|e| e.to_string())?;
+		}
+		Ok(result)
+	}
 }
