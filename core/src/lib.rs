@@ -138,27 +138,21 @@ impl Clue {
 		let code = self.preprocess_file(&filename)?;
 		self.scan_preprocessed_file(code, &filename)
 	}
-	pub fn scan_folder<P: AsRef<Path> + AsRef<OsStr> + Display>(
-		&self,
-		filename: P,
-	) -> Result<Vec<Token>, String> {
-		todo!()
-	}
 }
 
 impl Clue {
-	fn parse_preprocessed(&self, code: Code) -> Result<(Expression, String), String> {
+	pub fn parse_preprocessed(&self, code: Code) -> Result<(Expression, String), String> {
 		let tokens = self.scan_preprocessed(code)?;
 		self.parse_tokens(tokens)
 	}
-	fn parse_tokens(&self, tokens: Vec<Token>) -> Result<(Expression, String), String> {
+	pub fn parse_tokens(&self, tokens: Vec<Token>) -> Result<(Expression, String), String> {
 		parse_tokens(tokens, &"(lib)".to_owned(), &self.options)
 	}
-	fn parse_code(&self, code: String) -> Result<(Expression, String), String> {
+	pub fn parse_code(&self, code: String) -> Result<(Expression, String), String> {
 		let tokens = self.scan_code(code)?;
 		self.parse_tokens(tokens)
 	}
-	fn parse_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+	pub fn parse_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		path: P,
 	) -> Result<(Expression, String), String> {
@@ -171,24 +165,24 @@ impl Clue {
 }
 
 impl Clue {
-	fn compile_tokens(&self, tokens: Vec<Token>) -> Result<String, String> {
+	pub fn compile_tokens(&self, tokens: Vec<Token>) -> Result<String, String> {
 		let (ctokens, statics) = self.parse_tokens(tokens)?;
 		let compiler = Compiler::new(&self.options);
 		Ok(statics + &compiler.compile_tokens(0, ctokens))
 	}
-	fn compile_preprocessed(&self, code: Code) -> Result<String, String> {
+	pub fn compile_preprocessed(&self, code: Code) -> Result<String, String> {
 		let tokens = self.scan_preprocessed(code)?;
 		self.compile_tokens(tokens)
 	}
-	fn compile_ast(&self, (ctokens, statics): (Expression, String)) -> Result<String, String> {
+	pub fn compile_ast(&self, (ctokens, statics): (Expression, String)) -> Result<String, String> {
 		let compiler = Compiler::new(&self.options);
 		Ok(statics + &compiler.compile_tokens(0, ctokens))
 	}
-	fn compile_code(&self, code: String) -> Result<String, String> {
+	pub fn compile_code(&self, code: String) -> Result<String, String> {
 		let tokens = self.scan_code(code)?;
 		self.compile_tokens(tokens)
 	}
-	fn compile_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+	pub fn compile_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		path: P,
 	) -> Result<String, String> {
@@ -198,5 +192,11 @@ impl Clue {
 			fs::write(path, &result).map_err(|e| e.to_string())?;
 		}
 		Ok(result)
+	}
+}
+
+impl Default for Clue {
+	fn default() -> Self {
+		Clue::new()
 	}
 }
