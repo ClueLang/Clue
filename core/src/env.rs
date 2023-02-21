@@ -30,16 +30,13 @@ macro_rules! value_enum {
 	};
 }
 
+#[rustfmt::skip]
 value_enum!(
 	ContinueMode,
-	Simple,
-	"simple",
-	LuaJIT,
-	"LuaJIT",
-	Goto,
-	"goto",
-	MoonScript,
-	"MoonScript"
+	Simple, "simple",
+	LuaJIT, "LuaJIT",
+	Goto, "goto",
+	MoonScript, "MoonScript"
 );
 
 /*
@@ -59,11 +56,18 @@ pub enum LuaSTD {
 }
 */
 
+#[rustfmt::skip]
 value_enum!(
-	LuaVersion, LuaJIT, "LuaJIT", Lua54, "Lua54", Lua53, "Lua53", Lua52, "Lua52", Lua51, "Lua51",
+	LuaVersion,
+	LuaJIT, "LuaJIT",
+	Lua54, "Lua54",
+	Lua53, "Lua53",
+	Lua52, "Lua52",
+	Lua51, "Lua51",
 	BLUA, "BLUA"
 );
 
+#[rustfmt::skip]
 value_enum!(
 	BitwiseMode,
 	Clue, "Clue",
