@@ -2,7 +2,7 @@
 
 use self::ComplexToken::*;
 use crate::compiler::Compiler;
-use crate::env::{ContinueMode, Options};
+use crate::env::{BitwiseMode, ContinueMode, LuaVersion, Options};
 use crate::scanner::{BorrowedToken, TokenType::*};
 use crate::scanner::{Token, TokenType};
 use crate::{check, format_clue};
@@ -145,11 +145,11 @@ pub enum LuaType {
 	NUMBER,
 }
 */
-struct ParserInfo<'a, 'b> {
+struct ParserInfo<'a> {
 	options: &'a Options,
 	current: usize,
 	size: usize,
-	filename: &'b String,
+	filename: &'a String,
 	expr: Expression,
 	tokens: Vec<Token>,
 	testing: Option<usize>,
@@ -160,12 +160,12 @@ struct ParserInfo<'a, 'b> {
 	//locals: LocalsList,
 }
 
-impl<'a, 'b> ParserInfo<'a, 'b> {
+impl<'a> ParserInfo<'a> {
 	fn new(
 		tokens: Vec<Token>, /*, locals: LocalsList*/
-		filename: &'b String,
+		filename: &'a String,
 		options: &'a Options,
-	) -> ParserInfo<'a, 'b> {
+	) -> ParserInfo<'a> {
 		ParserInfo {
 			current: 0,
 			size: tokens.len() - 1,
@@ -443,9 +443,20 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 								pn.line()
 							));
 					}
-					name = Err(String::from(match self.advance().lexeme().as_ref() {
+					let name_token = self.advance();
+					name = Err(String::from(match name_token.lexeme().as_ref() {
 						"index" => "__index",
 						"newindex" => "__newindex",
+						"usedindex" => {
+							if matches!(self.options.env_target, Some(LuaVersion::BLUA)) {
+								"__usedindex"
+							} else {
+								return Err(self.error(
+								"The 'usedindex' metamethod can only be used with --target=blua",
+								name_token.line()
+							));
+							}
+						}
 						"mode" => "__mode",
 						"call" => "__call",
 						"metatable" => "__metatable",
@@ -468,8 +479,11 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 						"lt" | "less_than" | "<" => "__lt",
 						"le" | "less_than_equal" | "<=" => "__le",
 						_ => {
-							let t = self.peek(0);
-							return Err(self.expected("<meta name>", &t.lexeme(), t.line()));
+							return Err(self.expected(
+								"<meta name>",
+								&name_token.lexeme(),
+								name_token.line(),
+							));
 						}
 					}))
 				}
@@ -679,11 +693,26 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 					}))
 				}
 				FLOOR_DIVISION => {
-					self.build_function_op(&t, &mut expr, "math.floor", end, notable)?
+					self.check_operator(&t, notable, true)?;
+					let mut division = Expression::with_capacity(expr.len());
+					division.append(&mut expr);
+					division.push_back(SYMBOL(String::from('/')));
+					division.append(&mut self.build_expression(end)?);
+					expr.push_back(SYMBOL(String::from("math.floor")));
+					expr.push_back(CALL(vec![division]));
+					self.current -= 1;
 				}
 				BIT_AND => self.build_bitwise_op(&t, &mut expr, "band", end, notable)?,
 				BIT_OR => self.build_bitwise_op(&t, &mut expr, "bor", end, notable)?,
-				BIT_XOR => self.build_bitwise_op(&t, &mut expr, "bxor", end, notable)?,
+				BIT_XOR => {
+					//SAFETY: the token goes out of scope after BorrowedToken is used, so it stays valid
+					let t = if self.options.env_bitwise == BitwiseMode::Vanilla {
+						Token::new(t.kind(), '~', t.line())
+					} else {
+						t.into_owned()
+					};
+					self.build_bitwise_op(&BorrowedToken::new(&t), &mut expr, "bxor", end, notable)?
+				}
 				BIT_NOT => {
 					self.check_operator(&t, notable, false)?;
 					if let Some(bit) = self.options.env_jitbit.clone() {
@@ -1048,7 +1077,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 					let name = self.get_next_internal_var();
 					hascontinue = Some(name.clone());
 					let line = t.line();
-					if self.options.env_continue == ContinueMode::MOONSCRIPT {
+					if self.options.env_continue == ContinueMode::MoonScript {
 						tokens.push(Token::new(IDENTIFIER, name, line));
 						tokens.push(Token::new(DEFINE, "=", line));
 						tokens.push(Token::new(TRUE, "true", line));
@@ -1063,10 +1092,11 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 		}
 		let mut code = self.parse_code_block(tokens /*, self.locals.clone()*/)?;
 		if let Some(name) = hascontinue {
+			use ContinueMode::*;
 			match self.options.env_continue {
-				ContinueMode::SIMPLE => {}
-				ContinueMode::LUAJIT => code.push_back(SYMBOL(String::from("::continue::"))),
-				ContinueMode::MOONSCRIPT => {
+				Simple => {}
+				Goto | LuaJIT => code.push_back(SYMBOL(String::from("::continue::"))),
+				MoonScript => {
 					code.push_back(ALTER {
 						kind: DEFINE,
 						names: vec_deque![vec_deque![SYMBOL(name.clone())]],
@@ -1085,10 +1115,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 							code: CodeBlock { start, code, end }
 						},
 						IF_STATEMENT {
-							condition: vec_deque![
-								SYMBOL(String::from("not ")),
-								SYMBOL(name)
-							],
+							condition: vec_deque![SYMBOL(String::from("not ")), SYMBOL(name)],
 							code: CodeBlock {
 								start: end,
 								code: vec_deque![BREAK_LOOP],
@@ -1359,7 +1386,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	fn build_match_case(
 		&mut self,
 		pexpr: Option<Expression>,
-		func: &impl Fn(&mut ParserInfo<'a, 'b> /*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo<'a> /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<MatchCase, String> {
 		let mut conditions: Vec<Expression> = Vec::new();
 		let mut current = Expression::with_capacity(3);
@@ -1391,7 +1418,7 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 	fn build_match_block(
 		&mut self,
 		name: String,
-		func: &impl Fn(&mut ParserInfo<'a, 'b> /*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo<'a> /*, LocalsList*/) -> Result<CodeBlock, String>,
 	) -> Result<ComplexToken, String> {
 		let line = self.peek(0).line();
 		let value = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
@@ -1530,14 +1557,60 @@ impl<'a, 'b> ParserInfo<'a, 'b> {
 
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let start = self.current - 1;
-		let (first_expr, safe_indexing) = self.build_identifier_internal()?;
+		let (mut first_expr, safe_indexing) = self.build_identifier_internal()?;
 		if let CALL(_) = first_expr.back().unwrap() {
-			self.expr.push_back(IDENT {
-				expr: first_expr,
-				line: self.at(start).line(),
-			});
-			self.current -= 1;
-			self.advance_if(SEMICOLON);
+			let line = self.at(start).line();
+			if safe_indexing {
+				let name = self.get_next_internal_var();
+				let mut call = Expression::new();
+				while {
+					let t = first_expr.back().unwrap();
+					match t {
+						CALL(..) | EXPR(..) => true,
+						SYMBOL(lexeme) => match lexeme.as_str() {
+							"?." | "?::" => {
+								call.push_front(SYMBOL(name.clone() + "."));
+								false
+							}
+							"?[" => {
+								call.push_front(SYMBOL(name.clone() + "["));
+								false
+							}
+							_ => true,
+						},
+						_ => unreachable!(),
+					}
+				} {
+					call.push_front(first_expr.pop_back().unwrap())
+				}
+				first_expr.pop_back().unwrap();
+				self.expr.push_back(VARIABLE {
+					local: true,
+					names: vec![name.clone()],
+					values: vec![vec_deque![IDENT {
+						expr: first_expr,
+						line
+					}]],
+					line,
+				});
+				let name = SYMBOL(name);
+				self.expr.push_back(IF_STATEMENT {
+					condition: vec_deque![name],
+					code: CodeBlock {
+						start: line,
+						code: vec_deque![IDENT { expr: call, line }],
+						end: line,
+					},
+					next: None,
+				});
+			} else {
+				self.expr.push_back(IDENT {
+					expr: first_expr,
+					line,
+				});
+				self.current -= 1;
+				self.advance_if(SEMICOLON);
+			}
 			return Ok(());
 		} else if safe_indexing {
 			return Err(self.error(

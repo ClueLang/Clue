@@ -1,9 +1,11 @@
 use crate::{
 	check,
 	code::{Code, CodeChar},
-	format_clue,
+	format_clue, env::Options,
 };
 use ahash::AHashMap;
+use clap::crate_version;
+use semver::{VersionReq, Version};
 use std::{
 	collections::VecDeque,
 	env,
@@ -12,20 +14,20 @@ use std::{
 	fs,
 	iter::{Peekable, Rev},
 	path::Path,
-	str,
+	str::{self, FromStr},
 	u8::MAX, cmp::min,
 };
 use utf8_decode::decode;
 
 macro_rules! pp_if {
-	($code: ident, $ifname: ident, $cscope: ident, $prev: ident) => {{
+	($code: ident, $ifname: ident, $prev: ident) => {{
 		let check = $code.$ifname(b'{')?;
-		$cscope += $code.keep_block($prev && check)?;
+		$code.keep_block($prev && check)?;
 	}};
 }
 
 pub type PPVars = AHashMap<Code, PPVar>;
-pub type PPCode = (Vec<(Code, bool)>, usize);
+pub type PPCode = (VecDeque<(Code, bool)>, usize);
 
 #[derive(Debug, Clone)]
 pub enum PPVar {
@@ -71,6 +73,7 @@ enum CommentState {
 }
 
 struct CodeFile<'a> {
+	options: &'a Options,
 	code: &'a mut [u8],
 	comment: CommentState,
 	checked: usize,
@@ -79,11 +82,20 @@ struct CodeFile<'a> {
 	line: usize,
 	filename: &'a String,
 	last_if: bool,
+	cscope: u8,
+	ends: Vec<u8>,
 }
 
 impl<'a> CodeFile<'a> {
-	fn new(code: &'a mut [u8], line: usize, filename: &'a String) -> Self {
+	fn new(
+		code: &'a mut [u8],
+		line: usize,
+		filename: &'a String,
+		cscope: u8,
+		options: &'a Options
+	) -> Self {
 		Self {
+			options,
 			code,
 			comment: CommentState::None,
 			checked: 0,
@@ -92,6 +104,8 @@ impl<'a> CodeFile<'a> {
 			line,
 			filename,
 			last_if: true,
+			cscope,
+			ends: Vec::new(),
 		}
 	}
 
@@ -132,7 +146,7 @@ impl<'a> CodeFile<'a> {
 				let c = *current;
 				self.read += 1;
 				let line = self.line;
-				if self.comment > CommentState::None {
+				if self.comment > CommentState::None && *current != b'\n' {
 					*current = b' ';
 				}
 				match c {
@@ -337,7 +351,13 @@ impl<'a> CodeFile<'a> {
 		let line = self.line;
 		let len = self.code.len();
 		let block = &mut self.code[self.read..len];
-		let (block, ppvars, line, read) = preprocess_code(block, line, true, self.filename)?;
+		let (block, ppvars, line, read) = preprocess_code(
+			block,
+			line,
+			true,
+			self.filename,
+			&Options::default()
+		)?;
 		self.line = line;
 		self.read += read;
 		Ok((block, ppvars))
@@ -357,19 +377,34 @@ impl<'a> CodeFile<'a> {
 		Err(expected_before("}", "<end>", self.line, self.filename))
 	}
 
-	fn keep_block(&mut self, to_keep: bool) -> Result<u8, String> {
+	fn keep_block(&mut self, to_keep: bool) -> Result<(), String> {
 		self.last_if = to_keep;
 		if to_keep {
-			Ok(1)
+			self.ends.push(self.cscope);
+			self.cscope += 1;
+			Ok(())
 		} else {
-			self.skip_block()?;
-			Ok(0)
+			self.skip_block()
 		}
 	}
 
 	fn ifos(&mut self, end: u8) -> Result<bool, String> {
 		let checked_os = self.read_until(end)?.trim();
-		Ok(checked_os == env::consts::OS)
+		Ok(checked_os == self.options.env_targetos)
+	}
+
+	fn iflua(&mut self, end: u8) -> Result<bool, String> {
+		use crate::env::LuaVersion::*;
+		let checked_lua_version = self.read_until(end)?.trim();
+		let Some(target) = self.options.env_target else {
+			return Ok(false);
+		};
+		Ok(match checked_lua_version.to_string().to_lowercase().as_str() {
+			"luajit" | "jit" => target == LuaJIT,
+			"lua54" | "lua5.4" | "lua 54" | "lua 5.4" | "54" | "5.4" => target == Lua54,
+			"blua" => target == BLUA,
+			_ => false
+		})
 	}
 
 	fn ifdef(&mut self, end: u8) -> Result<bool, String> {
@@ -377,7 +412,7 @@ impl<'a> CodeFile<'a> {
 		Ok(env::var_os(to_check.to_string()).is_some())
 	}
 
-	fn ifcmp(&mut self, end: u8) -> Result<bool, String> {
+	fn ifcmp(&mut self, end: u8) -> Result<bool, String> {	
 		let Some(to_compare1) = env::var_os(self.read_identifier()?.to_string()) else {
 			self.read_until(end)?;
 			return Ok(false)
@@ -434,6 +469,7 @@ impl<'a> CodeFile<'a> {
 				"all" => self.bool_op(false)?,
 				"any" => self.bool_op(true)?,
 				"os" => self.ifos(b')')?,
+				"lua" => self.iflua(b')')?,
 				"def" => self.ifdef(b')')?,
 				"cmp" => self.ifcmp(b')')?,
 				"not" => {
@@ -458,8 +494,9 @@ impl<'a> CodeFile<'a> {
 pub fn read_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 	path: P,
 	filename: &String,
+	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
-	let result = preprocess_code(&mut check!(fs::read(path)), 1, false, filename)?;
+	let result = preprocess_code(&mut check!(fs::read(path)), 1, false, filename, options)?;
 	Ok((result.0, result.1))
 }
 
@@ -469,14 +506,15 @@ pub fn preprocess_code(
 	line: usize,
 	is_block: bool,
 	filename: &String,
+	options: &Options,
 ) -> Result<(PPCode, PPVars, usize, usize), String> {
-	let mut finalcode = Vec::new();
+	let mut finalcode = VecDeque::new();
 	let mut currentcode = Code::with_capacity(code.len());
 	let mut size = 0;
-	let mut code = CodeFile::new(code, line, filename);
+	let mut code = CodeFile::new(code, line, filename, is_block as u8, options);
 	let mut variables = PPVars::new();
 	let mut pseudos: Option<VecDeque<Code>> = None;
-	let mut cscope = is_block as u8;
+	let mut bitwise = false;
 	while let Some(c) = code.read_char()? {
 		if match c.0 {
 			b'@' => {
@@ -488,17 +526,37 @@ pub fn preprocess_code(
 					(directive_name.as_str(), true)
 				};
 				match directive {
-					"ifos" => pp_if!(code, ifos, cscope, prev),
-					"ifdef" => pp_if!(code, ifdef, cscope, prev),
-					"ifcmp" => pp_if!(code, ifcmp, cscope, prev),
+					"ifos" => pp_if!(code, ifos, prev),
+					"iflua" => pp_if!(code, iflua, prev),
+					"ifdef" => pp_if!(code, ifdef, prev),
+					"ifcmp" => pp_if!(code, ifcmp, prev),
 					"if" => {
 						let check = code.r#if()?;
 						code.assert_char(b'{')?;
-						cscope += code.keep_block(prev && check)?;
+						code.keep_block(prev && check)?;
 					}
 					"else" => {
 						code.assert_reach(b'{')?;
-						cscope += code.keep_block(!code.last_if)?;
+						code.keep_block(!code.last_if)?;
+					}
+					"version" => {
+						let version = code.read_line()?.to_string();
+						match VersionReq::parse(version.as_ref()) {
+							Ok(version_req) => {
+								if !version_req.matches(&Version::from_str(crate_version!()).unwrap()) {
+									return Err(error(
+										format_clue!(
+											"This code is only compatible with version '",
+											version,
+											"'"
+										),
+										line,
+										filename
+									))
+								}
+							}
+							Err(e) => return Err(error(e.to_string(), line, filename)),
+						}
 					}
 					"define" => {
 						let name = code.read_identifier()?;
@@ -584,9 +642,9 @@ pub fn preprocess_code(
 			}
 			b'$' if is_block && matches!(code.peek_char_unchecked(), Some((b'{', _))) => {
 				size += currentcode.len() + 8;
-				finalcode.push((currentcode, false));
+				finalcode.push_back((currentcode, false));
 				let name = format_clue!("_vararg", variables.len().to_string());
-				finalcode.push((Code::from((format_clue!("$", name), c.1)), true));
+				finalcode.push_back((Code::from((format_clue!("$", name), c.1)), true));
 				code.read_char_unchecked();
 				let (vararg_code, ppvars) = code.read_macro_block()?;
 				variables.extend(ppvars);
@@ -612,7 +670,7 @@ pub fn preprocess_code(
 					}
 				} else {
 					size += currentcode.len();
-					finalcode.push((currentcode, false));
+					finalcode.push_back((currentcode, false));
 					name.push_start(c);
 					if {
 						if matches!(code.peek_char_unchecked(), Some((b'!', _))) {
@@ -625,7 +683,7 @@ pub fn preprocess_code(
 						name.append(code.read_macro_args()?)
 					}
 					size += name.len();
-					finalcode.push((name, true));
+					finalcode.push_back((name, true));
 					currentcode = Code::with_capacity(code.code.len() - code.read);
 				}
 				false
@@ -635,48 +693,100 @@ pub fn preprocess_code(
 				currentcode.append(code.read_string(c)?);
 				true
 			}
+			b'&' | b'|' => {
+				if code.peek_char_unchecked().unwrap_or((b'\0', 0)).0 == c.0 {
+					currentcode.push(code.read_char_unchecked().unwrap());
+				} else {
+					bitwise = true;
+				}
+				true
+			}
+			b'^' => {
+				let nextc = code.peek_char_unchecked();
+				if nextc.is_some() && nextc.unwrap().0 == b'^' {
+					bitwise = true;
+					currentcode.push(code.read_char_unchecked().unwrap());
+				}
+				true
+			}
+			b'~' => {
+				bitwise = true;
+				true
+			}
+			b'>' | b'<' => {
+				currentcode.push(c);
+				if let Some((nc, _)) = code.peek_char_unchecked() {
+					match nc {
+						b'=' => {
+							currentcode.push(code.read_char_unchecked().unwrap());
+						}
+						nc if nc == c.0 => {
+							currentcode.push(code.read_char_unchecked().unwrap());
+							bitwise = true;
+						}
+						_ => {}
+					}
+				}
+				false
+			}
 			b'=' => {
 				currentcode.push(c);
-				if let Some((nc, _)) = code.peek_char()? {
+				if let Some((nc, _)) = code.peek_char_unchecked() {
 					if matches!(nc, b'=' | b'>') {
-						currentcode.push(code.read_char()?.unwrap());
+						currentcode.push(code.read_char_unchecked().unwrap());
 					} else {
 						pseudos = None;
 					}
 				}
 				false
 			}
-			b'!' | b'>' | b'<' => {
+			b'!' => {
 				currentcode.push(c);
-				if let Some((nc, _)) = code.peek_char()? {
+				if let Some((nc, _)) = code.peek_char_unchecked() {
 					if nc == b'=' {
-						currentcode.push(code.read_char()?.unwrap());
+						currentcode.push(code.read_char_unchecked().unwrap());
 					}
 				}
 				false
 			}
-			b'{' if cscope > 0 || is_block => {
-				cscope += 1;
+			b'{' if code.cscope > 0 || is_block => {
+				code.cscope += 1;
 				true
 			}
-			b'}' if cscope > 0 => {
-				cscope -= 1;
-				if is_block && cscope == 0 {
+			b'}' if code.cscope > 0 => {
+				code.cscope -= 1;
+				if is_block && code.cscope == 0 {
 					break;
 				}
-				cscope != 0
+				if let Some(end) = code.ends.last() {
+					if code.cscope != *end {
+						true
+					} else {
+						code.ends.pop().unwrap();
+						false
+					}
+				} else {
+					true
+				}
 			}
 			_ => true,
 		} {
 			currentcode.push(c)
 		}
 	}
-	if cscope > 0 {
+	if code.cscope > 0 {
 		return Err(expected_before("}", "<end>", code.line, filename));
 	}
 	if !currentcode.is_empty() {
 		size += currentcode.len();
-		finalcode.push((currentcode, false))
+		finalcode.push_back((currentcode, false))
+	}
+	if bitwise && options.env_jitbit.is_some() {
+		let bit = options.env_jitbit.as_ref().unwrap();
+		let mut loader = Code::from((format_clue!("local ", bit, " = require(\"", bit, "\");"), 1));
+		let first = finalcode.pop_front().unwrap();
+		loader.append(first.0);
+		finalcode.push_front((loader, first.1));
 	}
 	Ok(((finalcode, size), variables, code.line, code.read))
 }
@@ -702,7 +812,11 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize) -> V
 				let Some(c) = code.next() else {
 					return newpseudos;
 				};
-				matches!(c, b'!' | b'=')
+				matches!(c, b'!' | b'=' | b'>' | b'<')
+			}
+			b'>' if matches!(code.peek(), Some(b'=')) => {
+				code.next().unwrap();
+				true
 			}
 			b'\'' | b'"' | b'`' => {
 				while {
@@ -773,7 +887,7 @@ pub fn preprocess_codes(
 ) -> Result<Code, String> {
 	let (mut codes, size) = codes;
 	if codes.len() == 1 {
-		Ok(codes.pop().unwrap().0)
+		Ok(codes.pop_back().unwrap().0)
 	} else {
 		let mut code = Code::with_capacity(size);
 		for (codepart, uses_vars) in codes {

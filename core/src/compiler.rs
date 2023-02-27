@@ -134,8 +134,7 @@ impl<'a> Compiler<'a> {
 	fn compile_identifier(&self, scope: usize, expr: Expression) -> String {
 		let mut result = String::with_capacity(32);
 		let mut checked = String::with_capacity(32);
-		let mut iter = expr.into_iter().peekable();
-		while let Some(t) = iter.next() {
+		for t in expr.into_iter().peekable() {
 			match t {
 				SYMBOL(lexeme) => {
 					let lexeme = lexeme.as_str();
@@ -161,16 +160,7 @@ impl<'a> Compiler<'a> {
 					checked += &format_clue!("(", expr);
 				}
 				CALL(args) => {
-					let args =
-						format_clue!("(", self.compile_expressions(scope, args.clone()), ")");
-					if iter.peek().is_none() {
-						return if result.is_empty() {
-							checked + &args
-						} else {
-							format_clue!("(", result, checked, ")", args)
-						};
-					}
-					checked += &args
+					checked += &format_clue!("(", self.compile_expressions(scope, args.clone()), ")")
 				}
 				_ => {}
 			}
@@ -249,8 +239,7 @@ impl<'a> Compiler<'a> {
 						scope -= 1;
 						let line = self.compile_debug_comment(prevline);
 						format!(
-							"setmetatable({{{}{}}}, {{{}{}\n{}}})",
-							values, pre2, metas, line, pre2
+							"setmetatable({{{values}{pre2}}}, {{{metas}{line}\n{pre2}}})",
 						)
 					}
 				}
@@ -327,11 +316,7 @@ impl<'a> Compiler<'a> {
 									self.indentate_if(ctokens, scope)
 								}
 							};
-							write!(
-								result,
-								"rawset(_G, \"{}\", {});{}{}",
-								name, value, line, end
-							)
+							write!(result, "rawset(_G, \"{name}\", {value});{line}{end}")
 							.expect("something really unexpected happened");
 						}
 						result
@@ -598,7 +583,7 @@ impl<'a> Compiler<'a> {
 					let end = self.indentate_if(ctokens, scope);
 					format!(
 						"{};{}",
-						if self.options.env_continue == ContinueMode::LUAJIT {
+						if matches!(self.options.env_continue, ContinueMode::LuaJIT | ContinueMode::Goto) {
 							"goto continue"
 						} else {
 							"continue"

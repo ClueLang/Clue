@@ -213,8 +213,7 @@ impl<'a> CodeInfo<'a> {
 
 	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
 		self.warning(format!(
-			"'{}' is a reserved keyword in Lua and it cannot be used as a variable, {}",
-			keyword, msg
+			"'{keyword}' is a reserved keyword in Lua and it cannot be used as a variable, {msg}",
 		));
 		IDENTIFIER
 	}
