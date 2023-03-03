@@ -120,8 +120,8 @@ where
 
 	let variables = Arc::new(
 		variables
-			.iter()
-			.flat_map(|file_variables| file_variables.to_owned())
+			.into_iter()
+			.flatten()
 			.collect::<AHashMap<Code, PPVar>>(),
 	);
 
