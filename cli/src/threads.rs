@@ -68,7 +68,7 @@ fn wait_threads(threads: Vec<JoinHandle<()>>) {
 pub fn compile_folder<P: AsRef<Path>>(
 	file_path: P,
 	rpath: String,
-	options: &Options,
+	options: Options,
 ) -> Result<(String, String), String>
 where
 	P: AsRef<OsStr> + Display,
@@ -78,6 +78,7 @@ where
 	let threads_count = cmp::min(files_len, num_cpus::get() * 2);
 	let codes = SegQueue::new();
 	let files = Arc::new(files);
+	let options = Arc::new(options);
 	let mut errored = 0;
 	let mut variables = vec![];
 	let mut output = String::with_capacity(files_len * 512) + "\n";

@@ -301,7 +301,7 @@ fn main() -> Result<(), String> {
 	}
 	let path: &Path = Path::new(&codepath);
 	let (output_path, code) = if path.is_dir() {
-		let (output, statics) = compile_folder(&codepath, String::new(), &options)?;
+		let (output, statics) = compile_folder(&codepath, String::new(), options)?;
 
 		let code = match cli.base {
 			Some(filename) => {
@@ -366,6 +366,6 @@ mod test {
 
 	#[test]
 	fn compilation_success() {
-		compile_folder("../examples/", String::new(), &Options::default()).unwrap();
+		compile_folder("../examples/", String::new(), Options::default()).unwrap();
 	}
 }
