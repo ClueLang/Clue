@@ -32,7 +32,12 @@ while n < 10 {
     print(n)
 }
 ```
-More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki), the [Examples directory](https://github.com/ClueLang/Clue/tree/main/examples) or you can check [an example program made with LOVE using Clue](https://github.com/ClueLang/Clue-example).
+More examples can be found in:
+- the [wiki](https://github.com/ClueLang/Clue/wiki)
+- the [Examples directory](https://github.com/ClueLang/Clue/tree/main/examples)
+- a [game made with LÖVE](https://github.com/Maiori44/ip-please)
+- Clue's [MessagePack library](https://github.com/Maiori44/msgpack-clue)
+- a [simple graph visualizer made with LÖVE](https://github.com/ClueLang/Clue-example)
 
 ## How to install
 
