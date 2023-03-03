@@ -61,7 +61,6 @@ By default Clue enables both features.
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
 - types (coming in 4.0)
-- selectable lua targets (coming in 3.1)
 
 For any suggestion or bug you can make a github issue.
 If you need help with the language itself, you can check out the new [Discord server](https://discord.gg/EQsnWpqN3C).
