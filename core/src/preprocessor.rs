@@ -539,6 +539,31 @@ pub fn preprocess_code(
 						code.assert_reach(b'{')?;
 						code.keep_block(!code.last_if)?;
 					}
+					"import" => {
+						let str_start = code.read_char_unchecked();
+						let module = match str_start {
+							Some((b'\'' | b'"' | b'`', _)) => {
+								code.read_string(str_start.unwrap())?
+							}
+							_ => {
+								return Err(expected_before("<path>", "<end>", c.1, filename))
+							}
+						}.to_string();
+						let name = code.read_line();
+						let name = name.trim();
+						let (function, module) = match module.strip_suffix(".lua") {
+							Some(module) => ("require", module),
+							None => ("import", module.as_str()),
+						};
+						let name = match name.strip_prefix("=>") {
+							Some(name) => name.trim_start(),
+							None => match module.rsplit_once('.') {
+								Some((_, name)) => name,
+								None => module
+							}
+						};
+						println!("{name}");
+					}
 					"version" => {
 						let version = code.read_line();
 						match VersionReq::parse(version.as_ref()) {
