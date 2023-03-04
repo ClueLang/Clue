@@ -91,7 +91,7 @@ impl Clue {
 impl Clue {
 	pub fn preprocess_code(&self, code: String) -> Result<Code, String> {
 		let mut code = code;
-		let filename = "(libclue)".to_owned();
+		let filename = String::from("(library)");
 		let (codes, variables, ..) = preprocess_code(
 			unsafe { code.as_bytes_mut() },
 			1,
@@ -124,7 +124,7 @@ impl Clue {
 	}
 
 	pub fn scan_preprocessed(&self, code: Code) -> Result<Vec<Token>, String> {
-		scan_code(code, &"(library)".to_owned())
+		scan_code(code, &String::from("(library)"))
 	}
 
 	pub fn scan_code(&self, code: String) -> Result<Vec<Token>, String> {
@@ -146,7 +146,7 @@ impl Clue {
 		self.parse_tokens(tokens)
 	}
 	pub fn parse_tokens(&self, tokens: Vec<Token>) -> Result<(Expression, String), String> {
-		parse_tokens(tokens, &"(lib)".to_owned(), &self.options)
+		parse_tokens(tokens, &String::from("(library)"), &self.options)
 	}
 	pub fn parse_code(&self, code: String) -> Result<(Expression, String), String> {
 		let tokens = self.scan_code(code)?;
