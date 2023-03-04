@@ -249,11 +249,11 @@ impl<'a> CodeFile<'a> {
 		Ok(code)
 	}
 
-	fn read_line(&mut self) -> Result<Code, String> {
+	fn read_line(&mut self) -> Code {
 		self.read(
 			|code| Ok(code.read_char_unchecked()),
 			|_, (c, _)| c == b'\n',
-		)
+		).unwrap()
 	}
 
 	fn read_identifier(&mut self) -> Result<Code, String> {
@@ -540,7 +540,7 @@ pub fn preprocess_code(
 						code.keep_block(!code.last_if)?;
 					}
 					"version" => {
-						let version = code.read_line()?.to_string();
+						let version = code.read_line().to_string();
 						match VersionReq::parse(version.as_ref()) {
 							Ok(version_req) => {
 								if !version_req.matches(&Version::from_str(crate_version!()).unwrap()) {
@@ -628,8 +628,8 @@ pub fn preprocess_code(
 						let (code, ppvars) = code.read_macro_block()?;
 						variables.insert(name, PPVar::Macro { code, args, ppvars, vararg });
 					}
-					"error" => return Err(error(code.read_line()?.to_string(), c.1, filename)),
-					"print" => println!("{}", code.read_line()?.to_string()),
+					"error" => return Err(error(code.read_line().to_string(), c.1, filename)),
+					"print" => println!("{}", code.read_line().to_string()),
 					_ => {
 						return Err(error(
 							format!("Unknown directive '{directive_name}'"),
