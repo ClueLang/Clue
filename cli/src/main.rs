@@ -197,6 +197,7 @@ fn execute_lua_code(code: &str) {
 	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 }
 
+#[cfg(feature = "mlua")]
 fn finish(
 	debug: bool,
 	execute: bool,
@@ -208,14 +209,25 @@ fn finish(
 		if let Some(output_path) = output_path {
 			check!(fs::write(output_path, &new_output));
 		}
-		#[cfg(feature = "mlua")]
 		if execute {
 			execute_lua_code(&new_output)
 		}
-	} else {
-		#[cfg(feature = "mlua")]
-		if execute {
-			execute_lua_code(&code)
+	} else if execute {
+		execute_lua_code(&code)
+	}
+	Ok(())
+}
+
+#[cfg(not(feature = "mlua"))]
+fn finish(
+	debug: bool,
+	output_path: Option<String>,
+	code: String,
+) -> Result<(), String> {
+	if debug {
+		let new_output = format!(include_str!("debug.lua"), &code);
+		if let Some(output_path) = output_path {
+			check!(fs::write(output_path, &new_output));
 		}
 	}
 	Ok(())
@@ -294,7 +306,10 @@ fn main() -> Result<(), String> {
 		}
 		return if let Some(outputname) = cli.outputname.clone() {
 			check!(fs::write(&outputname, &code));
-			finish(cli.debug, cli.execute, Some(outputname), code)
+			#[cfg(feature = "mlua")]
+			return finish(cli.debug, cli.execute, Some(outputname), code);
+			#[cfg(not(feature = "mlua"))]
+			finish(cli.debug, Some(outputname), code)
 		} else {
 			Ok(())
 		};
@@ -355,7 +370,10 @@ fn main() -> Result<(), String> {
 		return Err(String::from("The given path doesn't exist"));
 	};
 
-	finish(cli.debug, cli.execute, output_path, code)
+	#[cfg(feature = "mlua")]
+	return finish(cli.debug, cli.execute, output_path, code);
+	#[cfg(not(feature = "mlua"))]
+	finish(cli.debug, output_path, code)
 }
 
 #[cfg(test)]
