@@ -285,7 +285,7 @@ impl<'a> CodeFile<'a> {
 				} else if skip_next {
 					skip_next = false;
 					false
-				} else if !skip_next && stringc == c.0 {
+				} else if stringc == c.0 {
 					code.comment = CommentState::None;
 					true
 				} else {
