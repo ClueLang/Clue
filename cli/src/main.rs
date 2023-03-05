@@ -1,4 +1,4 @@
-use clap::{crate_version, Parser};
+use clap::{crate_version, Parser, Subcommand, Args};
 use clue_core::{
 	check,
 	compiler::*,
@@ -19,22 +19,33 @@ mod threads;
 	about = "C/Rust like programming language that compiles into Lua code\nMade by Maiori\nhttps://github.com/ClueLang/Clue",
 	long_about = None
 )]
+#[clap(propagate_version = true)]
 struct Cli {
+	#[clap(subcommand)]
+	command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+	/// Print licensing information
+	License,
+
+	/// Compile the given file/directory
+	Build(BuildArgs)
+}
+
+#[derive(Args)]
+struct BuildArgs {
 	/// The path to the directory where the *.clue files are located.
 	/// Every directory inside the given directory will be checked too.
 	/// If the path points to a single *.clue file, only that file will be compiled.
-	#[clap(required_unless_present = "license")]
-	path: Option<String>,
+	path: String,
 
 	/// The name the output file will have
 	/// [default for compiling a directory: main]
 	/// [default for compiling a single file: that file's name]
 	#[clap(value_name = "OUTPUT FILE NAME")]
 	outputname: Option<String>,
-
-	/// Print license information
-	#[clap(short = 'L', long, display_order = 1000)]
-	license: bool,
 
 	/// Print list of detected tokens in compiled files
 	#[clap(long)]
@@ -116,10 +127,10 @@ struct Cli {
 	/// Change OS checked by @ifos
 	#[clap(long, default_value = std::env::consts::OS, value_name = "TARGET OS")]
 	targetos: String,
+
 	/*/// This is not yet supported (Coming out in 4.0)
 	#[clap(short, long, value_name = "MODE")]
 	types: Option<String>,*/
-
 	/*	/// Enable type checking (might slow down compilation)
 		#[clap(
 			short,
@@ -129,7 +140,6 @@ struct Cli {
 			value_name = "MODE"
 		)]
 		types: TypesMode,
-
 		/// Use the given Lua version's standard library (--types required)
 		#[clap(
 			long,
@@ -144,6 +154,22 @@ struct Cli {
 	/// Execute the output Lua code once it's compiled
 	#[clap(short, long)]
 	execute: bool,
+
+	#[cfg(not(feature = "mlua"))]
+	#[clap(short, long, hide(true))]
+	execute: bool,
+}
+
+fn main() -> Result<(), String> {
+	use Commands::*;
+	let cli = Cli::parse();
+	match cli.command {
+		License => {
+			print!(include_str!("../LICENSE"));
+			return Ok(());
+		}
+		Build(args) => build(args)
+	}
 }
 
 pub fn compile_code(
@@ -233,48 +259,42 @@ fn finish(
 	Ok(())
 }
 
-fn main() -> Result<(), String> {
-	std::env::set_var("CLUE_VERSION", crate_version!());
-	let cli = Cli::parse();
-	if cli.license {
-		print!(include_str!("../LICENSE"));
-		return Ok(());
-	} /*else if cli.types.is_some() {
-		//TEMPORARY PLACEHOLDER UNTIL 4.0
-		return Err(String::from("Type checking is not supported yet!"));
-	}*/
-
-	if cli.r#continue == ContinueMode::LuaJIT {
-		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
+fn build(args: BuildArgs) -> Result<(), String> {
+	#[cfg(not(feature = "mlua"))]
+	if args.execute {
+		return Err(String::from("Clue was installed without the 'interpreter' feature!"));
 	}
 
+	std::env::set_var("CLUE_VERSION", crate_version!());
+	if args.r#continue == ContinueMode::LuaJIT {
+		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
+	}
 	let mut options = Options {
-		env_tokens: cli.tokens,
-		env_struct: cli.r#struct,
+		env_tokens: args.tokens,
+		env_struct: args.r#struct,
 		env_jitbit: {
-			if cli.jitbit.is_some() {
+			if args.jitbit.is_some() { //DONT KEEP THIS IN 4.0
 				println!("Warning: \"--jitbit was deprecated and replaced by --bitwise\"");
-				cli.jitbit
-			} else if cli.bitwise == BitwiseMode::Library {
+				args.jitbit
+			} else if args.bitwise == BitwiseMode::Library {
 				Some(String::from("bit"))
 			} else {
 				None
 			}
 		},
-		env_bitwise: cli.bitwise,
-		env_continue: cli.r#continue,
-		env_rawsetglobals: cli.rawsetglobals,
-		env_debug: cli.debug,
-		env_output: if cli.pathiscode {
-			cli.outputname.is_none()
+		env_bitwise: args.bitwise,
+		env_continue: args.r#continue,
+		env_rawsetglobals: args.rawsetglobals,
+		env_debug: args.debug,
+		env_output: if args.pathiscode {
+			args.outputname.is_none()
 		} else {
-			cli.output
+			args.output
 		},
-		env_target: cli.target,
-		env_targetos: cli.targetos,
+		env_target: args.target,
+		env_targetos: args.targetos,
 	};
 	options.preset();
-
 	//let mut code = String::with_capacity(512);
 
 	/*if let Some(bit) = &options.env_jitbit {
@@ -286,9 +306,8 @@ fn main() -> Result<(), String> {
 			_ => Some(AHashMap::default()),
 		};
 	}*/
-	let codepath = cli.path.unwrap();
-	if cli.pathiscode {
-		let mut codepath = codepath;
+	if args.pathiscode {
+		let mut codepath = args.path;
 		let filename = String::from("(command line)");
 		let code = unsafe { codepath.as_bytes_mut() };
 		let preprocessed_code = preprocess_code(code, 1, false, &filename, &options)?;
@@ -301,24 +320,23 @@ fn main() -> Result<(), String> {
 		)?;
 		let code = code + &statics;
 		#[cfg(feature = "mlua")]
-		if cli.execute {
+		if args.execute {
 			execute_lua_code(&code)
 		}
-		return if let Some(outputname) = cli.outputname.clone() {
+		return if let Some(outputname) = args.outputname.clone() {
 			check!(fs::write(&outputname, &code));
 			#[cfg(feature = "mlua")]
-			return finish(cli.debug, cli.execute, Some(outputname), code);
+			return finish(args.debug, args.execute, Some(outputname), code);
 			#[cfg(not(feature = "mlua"))]
-			finish(cli.debug, Some(outputname), code)
+			finish(args.debug, Some(outputname), code)
 		} else {
 			Ok(())
 		};
 	}
-	let path: &Path = Path::new(&codepath);
+	let path: &Path = Path::new(&args.path);
 	let (output_path, code) = if path.is_dir() {
-		let (output, statics) = compile_folder(&codepath, String::new(), options)?;
-
-		let code = match cli.base {
+		let (output, statics) = compile_folder(&args.path, String::new(), options)?;
+		let code = match args.base {
 			Some(filename) => {
 				let base = match fs::read(filename) {
 					Ok(base) => base,
@@ -334,8 +352,8 @@ fn main() -> Result<(), String> {
 				.replace('§', &output),
 		};
 		(
-			if !cli.dontsave {
-				let output_name = match cli.outputname {
+			if !args.dontsave {
+				let output_name = match args.outputname {
 					Some(output_name) if output_name.ends_with(".lua") => output_name,
 					Some(output_name) => output_name + ".lua",
 					None => String::from("main.lua"),
@@ -349,12 +367,12 @@ fn main() -> Result<(), String> {
 		)
 	} else if path.is_file() {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
-		let (rawcode, variables) = read_file(&codepath, &name, &options)?;
+		let (rawcode, variables) = read_file(&args.path, &name, &options)?;
 		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
 		let code = statics + &output;
 		(
-			if !cli.dontsave {
-				let output_name = match cli.outputname {
+			if !args.dontsave {
+				let output_name = match args.outputname {
 					Some(output_name) if output_name.ends_with(".lua") => output_name,
 					Some(output_name) => output_name + ".lua",
 					None => format_clue!(name.strip_suffix(".clue").unwrap(), ".lua"),
@@ -371,9 +389,9 @@ fn main() -> Result<(), String> {
 	};
 
 	#[cfg(feature = "mlua")]
-	return finish(cli.debug, cli.execute, output_path, code);
+	return finish(args.debug, args.execute, output_path, code);
 	#[cfg(not(feature = "mlua"))]
-	finish(cli.debug, output_path, code)
+	finish(args.debug, output_path, code)
 }
 
 #[cfg(test)]
