@@ -10,6 +10,13 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[package.metadata.deb]
+extended-description = "Clue is a programming language that compiles blazingly fast into Lua code with a syntax similar to languages like C or Rust."
+assets = [
+	["../README.md", "usr/share/doc/cargo-deb/README", "644"],
+	["../target/release/clue", "usr/local/bin/", "755"]
+]
+
 [dependencies]
 flume = "0.10.14"
 num_cpus = "1.14.0"
