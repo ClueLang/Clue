@@ -562,7 +562,10 @@ pub fn preprocess_code(
 								None => module
 							}
 						};
-						println!("{name}");
+						currentcode.append(Code::from((
+							format_clue!("local ", name, " = ", function, "(\"", module, "\")"),
+							c.1
+						)));
 					}
 					"version" => {
 						let version = code.read_line();
