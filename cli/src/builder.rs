@@ -134,18 +134,18 @@ pub struct BuildArgs {
 		)]
 		std: LuaSTD,
 	*/
-	#[cfg(feature = "mlua")]
+	#[cfg(feature = "interpreter")]
 	/// Execute the output Lua code once it's compiled
 	#[clap(short, long)]
 	execute: bool,
 
-	#[cfg(not(feature = "mlua"))]
+	#[cfg(not(feature = "interpreter"))]
 	#[clap(short, long, hide(true))]
 	execute: bool,
 }
 
 pub fn build(args: BuildArgs) -> Result<(), String> {
-	#[cfg(not(feature = "mlua"))]
+	#[cfg(not(feature = "interpreter"))]
 	if args.execute {
 		return Err(String::from("Clue was installed without the 'interpreter' feature!"));
 	}
@@ -204,15 +204,15 @@ pub fn build(args: BuildArgs) -> Result<(), String> {
 			&options,
 		)?;
 		let code = code + &statics;
-		#[cfg(feature = "mlua")]
+		#[cfg(feature = "interpreter")]
 		if args.execute {
 			execute_lua_code(&code)
 		}
 		return if let Some(outputname) = args.outputname.clone() {
 			check!(fs::write(&outputname, &code));
-			#[cfg(feature = "mlua")]
+			#[cfg(feature = "interpreter")]
 			return finish(args.debug, args.execute, Some(outputname), code);
-			#[cfg(not(feature = "mlua"))]
+			#[cfg(not(feature = "interpreter"))]
 			finish(args.debug, Some(outputname), code)
 		} else {
 			Ok(())
@@ -273,9 +273,9 @@ pub fn build(args: BuildArgs) -> Result<(), String> {
 		return Err(String::from("The given path doesn't exist"));
 	};
 
-	#[cfg(feature = "mlua")]
+	#[cfg(feature = "interpreter")]
 	return finish(args.debug, args.execute, output_path, code);
-	#[cfg(not(feature = "mlua"))]
+	#[cfg(not(feature = "interpreter"))]
 	finish(args.debug, output_path, code)
 }
 
@@ -319,7 +319,7 @@ pub fn compile_code(
 	Ok((code, statics))
 }
 
-#[cfg(feature = "mlua")]
+#[cfg(feature = "interpreter")]
 fn execute_lua_code(code: &str) {
 	println!("Running compiled code...");
 	let lua = mlua::Lua::new();
@@ -330,7 +330,7 @@ fn execute_lua_code(code: &str) {
 	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 }
 
-#[cfg(feature = "mlua")]
+#[cfg(feature = "interpreter")]
 fn finish(
 	debug: bool,
 	execute: bool,
@@ -351,7 +351,7 @@ fn finish(
 	Ok(())
 }
 
-#[cfg(not(feature = "mlua"))]
+#[cfg(not(feature = "interpreter"))]
 fn finish(
 	debug: bool,
 	output_path: Option<String>,
