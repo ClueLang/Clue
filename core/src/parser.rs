@@ -116,11 +116,6 @@ pub enum ComplexToken {
 		line: usize,
 	},
 
-	MACRO_CALL {
-		expr: Expression,
-		args: Vec<Expression>,
-	},
-
 	SYMBOL(String),
 	CALL(Vec<Expression>),
 	EXPR(Expression),
@@ -536,7 +531,7 @@ impl<'a> ParserInfo<'a> {
 	) -> Result<(), String> {
 		if match self.peek(0).kind() {
 			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | FALSE | MINUS | BIT_NOT
-			| NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT | THREEDOTS | MATCH => false,
+			| NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | THREEDOTS | MATCH => false,
 			CURLY_BRACKET_OPEN => {
 				*notable = false;
 				false
@@ -640,29 +635,6 @@ impl<'a> ParserInfo<'a> {
 					let fname = self.build_identifier()?;
 					self.current -= 1;
 					expr.push_back(fname);
-					if self.check_val() {
-						break t;
-					}
-				}
-				AT => {
-					let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
-					let code = self.macros.get_mut(&name);
-					let macroexpr = if let Some(macroexpr) = code {
-						macroexpr.clone()
-					} else {
-						return Err(
-							self.error(format!("The macro {name} is not defined"), t.line())
-						);
-					};
-					let args = if self.advance_if(ROUND_BRACKET_OPEN) {
-						self.build_call()?
-					} else {
-						Vec::new()
-					};
-					expr.push_back(MACRO_CALL {
-						expr: macroexpr,
-						args,
-					});
 					if self.check_val() {
 						break t;
 					}

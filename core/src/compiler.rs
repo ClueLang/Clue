@@ -176,17 +176,6 @@ impl<'a> Compiler<'a> {
 		let mut result = String::with_capacity(64);
 		for t in expr {
 			result += &match t {
-				MACRO_CALL { expr, args } => {
-					let _args = {
-						let mut strings: Vec<String> = Vec::new();
-						for arg in args {
-							strings.push(self.compile_expression(scope, arg))
-						}
-						strings
-					};
-					let expr = self.compile_expression(scope, expr);
-					format_clue!("(", expr, ")")
-				}
 				SYMBOL(lexeme) => lexeme,
 				TABLE {
 					values,
