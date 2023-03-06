@@ -151,6 +151,9 @@ impl<'a> Compiler<'a> {
 							result += &(checked.clone() + " and ");
 							checked += "["
 						}
+						"?(" => {
+							result += &(checked.clone() + " and ");
+						}
 						"]" => checked += ")]",
 						_ => checked += lexeme,
 					}

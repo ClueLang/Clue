@@ -909,14 +909,14 @@ impl<'a> ParserInfo<'a> {
 				SAFE_DOUBLE_COLON => {
 					self.check_index(&t, &mut expr, "?::")?;
 					safe_indexing = true;
-					if self.peek(1).kind() != ROUND_BRACKET_OPEN {
+					if !matches!(self.peek(1).kind(), ROUND_BRACKET_OPEN | SAFE_CALL) {
 						let t = self.peek(1);
 						return Err(self.expected("(", &t.lexeme(), t.line()));
 					}
 				}
 				DOUBLE_COLON => {
 					self.check_index(&t, &mut expr, ":")?;
-					if self.peek(1).kind() != ROUND_BRACKET_OPEN {
+					if !matches!(self.peek(1).kind(), ROUND_BRACKET_OPEN | SAFE_CALL) {
 						let t = self.peek(1);
 						return Err(self.expected("(", &t.lexeme(), t.line()));
 					}
@@ -941,6 +941,13 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				ROUND_BRACKET_OPEN => {
+					expr.push_back(CALL(self.build_call()?));
+					if self.check_val() {
+						break;
+					}
+				}
+				SAFE_CALL => {
+					expr.push_back(SYMBOL(String::from("?(")));
 					expr.push_back(CALL(self.build_call()?));
 					if self.check_val() {
 						break;
@@ -1546,6 +1553,10 @@ impl<'a> ParserInfo<'a> {
 							}
 							"?[" => {
 								call.push_front(SYMBOL(name.clone() + "["));
+								false
+							}
+							"?(" => {
+								call.push_front(SYMBOL(name.clone()));
 								false
 							}
 							_ => true,
