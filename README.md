@@ -41,6 +41,22 @@ More examples can be found in:
 
 ## How to install
 
+### Using the [AUR](https://aur.archlinux.org/clue)
+* With paru
+```sh
+paru -S clue
+```
+* With yay
+```
+yay -S clue
+```
+* With makepkg
+```sh
+git clone https://aur.archlinux.org/clue.git
+cd clue
+makepkg -si
+```
+
 ### Using Cargo
 1. Paste and run this command in the console: `cargo install clue`
 2. Type `clue` in the console to run the compiler, it will explain the rest
