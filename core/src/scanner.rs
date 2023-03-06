@@ -108,7 +108,7 @@ struct CodeInfo<'a> {
 	current: usize,
 	size: usize,
 	code: CodeChars,
-	read: Vec<char>,
+	read: Vec<(char, usize)>,
 	filename: &'a String,
 	tokens: Vec<Token>,
 	last: TokenType,
@@ -120,8 +120,8 @@ impl<'a> CodeInfo<'a> {
 		let size = code.len() + 2;
 		let mut code = code.chars();
 		let mut read = Vec::with_capacity(size);
-		read.push(code.next_unwrapped());
-		read.push(code.next_unwrapped());
+		read.push((code.next_unwrapped(), code.line()));
+		read.push((code.next_unwrapped(), code.line()));
 		Self {
 			line: 1,
 			start: 0,
@@ -141,13 +141,13 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	fn at(&self, pos: usize) -> char {
-		self.read[pos]
+		self.read[pos].0
 	}
 
 	fn advance(&mut self) -> char {
-		self.read.push(self.code.next_unwrapped());
-		self.line = self.code.line();
-		let prev = self.at(self.current);
+		self.read.push((self.code.next_unwrapped(), self.code.line()));
+		let (prev, line) = self.read[self.current];
+		self.line = line;
 		let read = self.code.bytes_read();
 		if read > 0 {
 			self.size -= read - 1

@@ -249,11 +249,11 @@ impl<'a> CodeFile<'a> {
 		Ok(code)
 	}
 
-	fn read_line(&mut self) -> Result<Code, String> {
+	fn read_line(&mut self) -> String {
 		self.read(
 			|code| Ok(code.read_char_unchecked()),
 			|_, (c, _)| c == b'\n',
-		)
+		).unwrap().to_string()
 	}
 
 	fn read_identifier(&mut self) -> Result<Code, String> {
@@ -285,7 +285,7 @@ impl<'a> CodeFile<'a> {
 				} else if skip_next {
 					skip_next = false;
 					false
-				} else if !skip_next && stringc == c.0 {
+				} else if stringc == c.0 {
 					code.comment = CommentState::None;
 					true
 				} else {
@@ -539,8 +539,36 @@ pub fn preprocess_code(
 						code.assert_reach(b'{')?;
 						code.keep_block(!code.last_if)?;
 					}
+					"import" => {
+						let str_start = code.read_char_unchecked();
+						let module = match str_start {
+							Some((b'\'' | b'"' | b'`', _)) => {
+								code.read_string(str_start.unwrap())?
+							}
+							_ => {
+								return Err(expected_before("<path>", "<end>", c.1, filename))
+							}
+						}.to_string();
+						let name = code.read_line();
+						let name = name.trim();
+						let (function, module) = match module.strip_suffix(".lua") {
+							Some(module) => ("require", module),
+							None => ("import", module.as_str()),
+						};
+						let name = match name.strip_prefix("=>") {
+							Some(name) => name.trim_start(),
+							None => match module.rsplit_once('.') {
+								Some((_, name)) => name,
+								None => module
+							}
+						};
+						currentcode.append(Code::from((
+							format_clue!("local ", name, " = ", function, "(\"", module, "\")"),
+							c.1
+						)));
+					}
 					"version" => {
-						let version = code.read_line()?.to_string();
+						let version = code.read_line();
 						match VersionReq::parse(version.as_ref()) {
 							Ok(version_req) => {
 								if !version_req.matches(&Version::from_str(crate_version!()).unwrap()) {
@@ -628,8 +656,8 @@ pub fn preprocess_code(
 						let (code, ppvars) = code.read_macro_block()?;
 						variables.insert(name, PPVar::Macro { code, args, ppvars, vararg });
 					}
-					"error" => return Err(error(code.read_line()?.to_string(), c.1, filename)),
-					"print" => println!("{}", code.read_line()?.to_string()),
+					"error" => return Err(error(code.read_line(), c.1, filename)),
+					"print" => println!("{}", code.read_line()),
 					_ => {
 						return Err(error(
 							format!("Unknown directive '{directive_name}'"),

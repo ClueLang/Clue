@@ -197,6 +197,7 @@ fn execute_lua_code(code: &str) {
 	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 }
 
+#[cfg(feature = "mlua")]
 fn finish(
 	debug: bool,
 	execute: bool,
@@ -208,14 +209,25 @@ fn finish(
 		if let Some(output_path) = output_path {
 			check!(fs::write(output_path, &new_output));
 		}
-		#[cfg(feature = "mlua")]
 		if execute {
 			execute_lua_code(&new_output)
 		}
-	} else {
-		#[cfg(feature = "mlua")]
-		if execute {
-			execute_lua_code(&code)
+	} else if execute {
+		execute_lua_code(&code)
+	}
+	Ok(())
+}
+
+#[cfg(not(feature = "mlua"))]
+fn finish(
+	debug: bool,
+	output_path: Option<String>,
+	code: String,
+) -> Result<(), String> {
+	if debug {
+		let new_output = format!(include_str!("debug.lua"), &code);
+		if let Some(output_path) = output_path {
+			check!(fs::write(output_path, &new_output));
 		}
 	}
 	Ok(())
@@ -228,9 +240,9 @@ fn main() -> Result<(), String> {
 		print!(include_str!("../LICENSE"));
 		return Ok(());
 	} /*else if cli.types.is_some() {
-	  //TEMPORARY PLACEHOLDER UNTIL 4.0
-	  return Err(String::from("Type checking is not supported yet!"));
-  }*/
+		//TEMPORARY PLACEHOLDER UNTIL 4.0
+		return Err(String::from("Type checking is not supported yet!"));
+	}*/
 
 	if cli.r#continue == ContinueMode::LuaJIT {
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
@@ -294,14 +306,17 @@ fn main() -> Result<(), String> {
 		}
 		return if let Some(outputname) = cli.outputname.clone() {
 			check!(fs::write(&outputname, &code));
-			finish(cli.debug, cli.execute, Some(outputname), code)
+			#[cfg(feature = "mlua")]
+			return finish(cli.debug, cli.execute, Some(outputname), code);
+			#[cfg(not(feature = "mlua"))]
+			finish(cli.debug, Some(outputname), code)
 		} else {
 			Ok(())
 		};
 	}
 	let path: &Path = Path::new(&codepath);
 	let (output_path, code) = if path.is_dir() {
-		let (output, statics) = compile_folder(&codepath, String::new(), &options)?;
+		let (output, statics) = compile_folder(&codepath, String::new(), options)?;
 
 		let code = match cli.base {
 			Some(filename) => {
@@ -355,7 +370,10 @@ fn main() -> Result<(), String> {
 		return Err(String::from("The given path doesn't exist"));
 	};
 
-	finish(cli.debug, cli.execute, output_path, code)
+	#[cfg(feature = "mlua")]
+	return finish(cli.debug, cli.execute, output_path, code);
+	#[cfg(not(feature = "mlua"))]
+	finish(cli.debug, output_path, code)
 }
 
 #[cfg(test)]
@@ -366,6 +384,6 @@ mod test {
 
 	#[test]
 	fn compilation_success() {
-		compile_folder("../examples/", String::new(), &Options::default()).unwrap();
+		compile_folder("../examples/", String::new(), Options::default()).unwrap();
 	}
 }
