@@ -7,6 +7,7 @@ use crate::scanner::{BorrowedToken, TokenType::*};
 use crate::scanner::{Token, TokenType};
 use crate::{check, format_clue};
 use ahash::AHashMap;
+use std::vec;
 use std::{cmp, collections::VecDeque};
 
 macro_rules! count {
@@ -888,6 +889,19 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
+	fn build_safe_index(&mut self, expr: &mut Expression) {
+		let mut safe_expr = Expression::with_capacity(expr.len());
+		safe_expr.append(expr);
+		let name = self.get_next_internal_var();
+		self.expr.push_back(VARIABLE {
+			local: true,
+			names: vec![name.clone()],
+			values: vec![safe_expr],
+			line: self.peek(0).line()
+		});
+		expr.push_back(SYMBOL(format_clue!(name, " and ", name)));
+	}
+
 	fn build_identifier_internal(&mut self) -> Result<(Expression, bool), String> {
 		let mut expr = Expression::with_capacity(8);
 		let mut safe_indexing = false;
@@ -902,12 +916,14 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				SAFEDOT => {
-					self.check_index(&t, &mut expr, "?.")?;
+					self.build_safe_index(&mut expr);
+					self.check_index(&t, &mut expr, ".")?;
 					safe_indexing = true;
 				}
 				DOT => self.check_index(&t, &mut expr, ".")?,
 				SAFE_DOUBLE_COLON => {
-					self.check_index(&t, &mut expr, "?::")?;
+					self.build_safe_index(&mut expr);
+					self.check_index(&t, &mut expr, ":")?;
 					safe_indexing = true;
 					if !matches!(self.peek(1).kind(), ROUND_BRACKET_OPEN | SAFE_CALL) {
 						let t = self.peek(1);
@@ -923,18 +939,19 @@ impl<'a> ParserInfo<'a> {
 				}
 				SQUARE_BRACKET_OPEN => {
 					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
-					expr.push_back(SYMBOL(String::from("[")));
+					expr.push_back(SYMBOL(String::from("[(")));
 					expr.push_back(EXPR(qexpr));
-					expr.push_back(SYMBOL(String::from("]")));
+					expr.push_back(SYMBOL(String::from(")]")));
 					if self.check_val() {
 						break;
 					}
 				}
 				SAFE_SQUARE_BRACKET => {
+					self.build_safe_index(&mut expr);
 					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
-					expr.push_back(SYMBOL(String::from("?[")));
+					expr.push_back(SYMBOL(String::from("[(")));
 					expr.push_back(EXPR(qexpr));
-					expr.push_back(SYMBOL(String::from("]")));
+					expr.push_back(SYMBOL(String::from(")]")));
 					safe_indexing = true;
 					if self.check_val() {
 						break;
@@ -947,7 +964,8 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				SAFE_CALL => {
-					expr.push_back(SYMBOL(String::from("?(")));
+					self.build_safe_index(&mut expr);
+					safe_indexing = true;
 					expr.push_back(CALL(self.build_call()?));
 					if self.check_val() {
 						break;
@@ -1541,36 +1559,7 @@ impl<'a> ParserInfo<'a> {
 			let line = self.at(start).line();
 			if safe_indexing {
 				let name = self.get_next_internal_var();
-				let mut call = Expression::new();
-				while {
-					let t = first_expr.back().unwrap();
-					match t {
-						CALL(..) | EXPR(..) => true,
-						SYMBOL(lexeme) => match lexeme.as_str() {
-							"?." => {
-								call.push_front(SYMBOL(name.clone() + "."));
-								false
-							}
-							"?::" => {
-								call.push_front(SYMBOL(name.clone() + ":"));
-								false
-							}
-							"?[" => {
-								call.push_front(SYMBOL(name.clone() + "["));
-								false
-							}
-							"?(" => {
-								call.push_front(SYMBOL(name.clone()));
-								false
-							}
-							_ => true,
-						},
-						_ => unreachable!(),
-					}
-				} {
-					call.push_front(first_expr.pop_back().unwrap())
-				}
-				first_expr.pop_back().unwrap();
+				let call = first_expr.pop_back().unwrap();
 				self.expr.push_back(VARIABLE {
 					local: true,
 					names: vec![name.clone()],
@@ -1582,10 +1571,10 @@ impl<'a> ParserInfo<'a> {
 				});
 				let name = SYMBOL(name);
 				self.expr.push_back(IF_STATEMENT {
-					condition: vec_deque![name],
+					condition: vec_deque![name.clone()],
 					code: CodeBlock {
 						start: line,
-						code: vec_deque![IDENT { expr: call, line }],
+						code: vec_deque![IDENT { expr: vec_deque![name, call], line }],
 						end: line,
 					},
 					next: None,

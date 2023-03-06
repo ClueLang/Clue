@@ -133,46 +133,17 @@ impl<'a> Compiler<'a> {
 
 	fn compile_identifier(&self, scope: usize, expr: Expression) -> String {
 		let mut result = String::with_capacity(32);
-		let mut checked = String::with_capacity(32);
 		for t in expr.into_iter().peekable() {
-			match t {
-				SYMBOL(lexeme) => {
-					let lexeme = lexeme.as_str();
-					match lexeme {
-						"?." => {
-							result += &(checked.clone() + " and ");
-							checked += ".";
-						}
-						"?::" => {
-							result += &(checked.clone() + " and ");
-							checked += ":";
-						}
-						"?[" => {
-							result += &(checked.clone() + " and ");
-							checked += "["
-						}
-						"?(" => {
-							result += &(checked.clone() + " and ");
-						}
-						"]" => checked += ")]",
-						_ => checked += lexeme,
-					}
-				}
-				EXPR(expr) => {
-					let expr = self.compile_expression(scope, expr);
-					checked += &format_clue!("(", expr);
-				}
+			result += &match t {
+				SYMBOL(lexeme) => lexeme,
+				EXPR(expr) => self.compile_expression(scope, expr),
 				CALL(args) => {
-					checked += &format_clue!("(", self.compile_expressions(scope, args.clone()), ")")
+					format_clue!("(", self.compile_expressions(scope, args.clone()), ")")
 				}
-				_ => {}
+				_ => unreachable!()
 			}
 		}
-		if result.is_empty() {
-			checked
-		} else {
-			format_clue!(result, checked)
-		}
+		result
 	}
 
 	fn compile_expression(&self, mut scope: usize, expr: Expression) -> String {
