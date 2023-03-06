@@ -1,13 +1,15 @@
 use clap::{Parser, Subcommand};
 use builder::*;
+use updater::*;
 
 mod threads;
 mod builder;
+mod updater;
 
 #[derive(Parser)]
 #[clap(
 	version,
-	about = "C/Rust like programming language that compiles into Lua code\nMade by Maiori\nhttps://github.com/ClueLang/Clue",
+	about = "C/Rust like programming language that compiles into Lua code\nMade by Maiori (https://github.com/ClueLang/Clue)",
 	long_about = None
 )]
 #[clap(propagate_version = true)]
@@ -23,6 +25,9 @@ enum Commands {
 
 	/// Compile the given file/directory
 	Build(BuildArgs),
+
+	/// Update the compiler
+	Update(UpdateOptions)
 }
 
 fn main() -> Result<(), String> {
@@ -33,7 +38,8 @@ fn main() -> Result<(), String> {
 			print!(include_str!("../LICENSE"));
 			Ok(())
 		}
-		Build(args) => build(args)
+		Build(args) => build(args),
+		Update(args) => update(args),
 	}
 }
 
