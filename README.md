@@ -1,9 +1,9 @@
 # The Clue programming language
 
 ![image](https://user-images.githubusercontent.com/87673997/156028540-7a94db51-dd90-4bc6-9718-96e056d24cab.png)  
-[![Crates.io](https://img.shields.io/crates/v/clue?style=flat-square)](https://crates.io/crates/clue)
-[![Crates.io](https://img.shields.io/crates/d/clue?style=flat-square)](https://crates.io/crates/clue)
-[![AUR](https://img.shields.io/aur/version/clue?color=1793d1&label=clue&logo=arch-linux&style=for-the-badge)](https://aur.archlinux.org/packages/clue/)
+[![Crates.io](https://img.shields.io/crates/v/clue?color=orange&logo=rust&style=for-the-badge)](https://crates.io/crates/clue)
+[![Crates.io](https://img.shields.io/crates/d/clue?style=for-the-badge)](https://crates.io/crates/clue)
+[![AUR](https://img.shields.io/aur/version/clue?color=1793d1&logo=arch-linux&style=for-the-badge)](https://aur.archlinux.org/packages/clue/)
 
 Clue is a programming language that compiles blazingly fast into Lua code with a syntax similar to languages like C or Rust.
 
