@@ -15,6 +15,7 @@ categories = ["compilers"]
 [workspace.dependencies]
 ahash = "0.8.2"
 clap = {version = "3.2.23", features = ["derive", "cargo"]}
+semver = "1.0.16"
 
 [profile.release]
 lto = true
