@@ -923,7 +923,7 @@ impl<'a> ParserInfo<'a> {
 				DOT => self.check_index(&t, &mut expr, ".")?,
 				SAFE_DOUBLE_COLON => {
 					self.build_safe_index(&mut expr);
-					self.check_index(&t, &mut expr, ":")?;
+					self.check_index(&t, &mut expr, ":")?; //TODO: FIX COMBINING THIS TO SAFE CALLS
 					safe_indexing = true;
 					if !matches!(self.peek(1).kind(), ROUND_BRACKET_OPEN | SAFE_CALL) {
 						let t = self.peek(1);
