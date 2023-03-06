@@ -1547,8 +1547,12 @@ impl<'a> ParserInfo<'a> {
 					match t {
 						CALL(..) | EXPR(..) => true,
 						SYMBOL(lexeme) => match lexeme.as_str() {
-							"?." | "?::" => {
+							"?." => {
 								call.push_front(SYMBOL(name.clone() + "."));
+								false
+							}
+							"?::" => {
+								call.push_front(SYMBOL(name.clone() + ":"));
 								false
 							}
 							"?[" => {
