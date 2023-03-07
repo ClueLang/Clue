@@ -133,60 +133,23 @@ impl<'a> Compiler<'a> {
 
 	fn compile_identifier(&self, scope: usize, expr: Expression) -> String {
 		let mut result = String::with_capacity(32);
-		let mut checked = String::with_capacity(32);
 		for t in expr.into_iter().peekable() {
-			match t {
-				SYMBOL(lexeme) => {
-					let lexeme = lexeme.as_str();
-					match lexeme {
-						"?." => {
-							result += &(checked.clone() + " and ");
-							checked += ".";
-						}
-						"?::" => {
-							result += &(checked.clone() + " and ");
-							checked += ":";
-						}
-						"?[" => {
-							result += &(checked.clone() + " and ");
-							checked += "["
-						}
-						"]" => checked += ")]",
-						_ => checked += lexeme,
-					}
-				}
-				EXPR(expr) => {
-					let expr = self.compile_expression(scope, expr);
-					checked += &format_clue!("(", expr);
-				}
+			result += &match t {
+				SYMBOL(lexeme) => lexeme,
+				EXPR(expr) => self.compile_expression(scope, expr),
 				CALL(args) => {
-					checked += &format_clue!("(", self.compile_expressions(scope, args.clone()), ")")
+					format_clue!("(", self.compile_expressions(scope, args.clone()), ")")
 				}
-				_ => {}
+				_ => unreachable!()
 			}
 		}
-		if result.is_empty() {
-			checked
-		} else {
-			format_clue!(result, checked)
-		}
+		result
 	}
 
 	fn compile_expression(&self, mut scope: usize, expr: Expression) -> String {
 		let mut result = String::with_capacity(64);
 		for t in expr {
 			result += &match t {
-				MACRO_CALL { expr, args } => {
-					let _args = {
-						let mut strings: Vec<String> = Vec::new();
-						for arg in args {
-							strings.push(self.compile_expression(scope, arg))
-						}
-						strings
-					};
-					let expr = self.compile_expression(scope, expr);
-					format_clue!("(", expr, ")")
-				}
 				SYMBOL(lexeme) => lexeme,
 				TABLE {
 					values,

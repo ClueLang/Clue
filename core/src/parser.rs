@@ -7,6 +7,7 @@ use crate::scanner::{BorrowedToken, TokenType::*};
 use crate::scanner::{Token, TokenType};
 use crate::{check, format_clue};
 use ahash::AHashMap;
+use std::vec;
 use std::{cmp, collections::VecDeque};
 
 macro_rules! count {
@@ -114,11 +115,6 @@ pub enum ComplexToken {
 	IDENT {
 		expr: Expression,
 		line: usize,
-	},
-
-	MACRO_CALL {
-		expr: Expression,
-		args: Vec<Expression>,
 	},
 
 	SYMBOL(String),
@@ -536,7 +532,7 @@ impl<'a> ParserInfo<'a> {
 	) -> Result<(), String> {
 		if match self.peek(0).kind() {
 			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | FALSE | MINUS | BIT_NOT
-			| NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | AT | THREEDOTS | MATCH => false,
+			| NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | THREEDOTS | MATCH => false,
 			CURLY_BRACKET_OPEN => {
 				*notable = false;
 				false
@@ -640,29 +636,6 @@ impl<'a> ParserInfo<'a> {
 					let fname = self.build_identifier()?;
 					self.current -= 1;
 					expr.push_back(fname);
-					if self.check_val() {
-						break t;
-					}
-				}
-				AT => {
-					let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
-					let code = self.macros.get_mut(&name);
-					let macroexpr = if let Some(macroexpr) = code {
-						macroexpr.clone()
-					} else {
-						return Err(
-							self.error(format!("The macro {name} is not defined"), t.line())
-						);
-					};
-					let args = if self.advance_if(ROUND_BRACKET_OPEN) {
-						self.build_call()?
-					} else {
-						Vec::new()
-					};
-					expr.push_back(MACRO_CALL {
-						expr: macroexpr,
-						args,
-					});
 					if self.check_val() {
 						break t;
 					}
@@ -916,6 +889,19 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
+	fn build_safe_index(&mut self, expr: &mut Expression) {
+		let mut safe_expr = Expression::with_capacity(expr.len());
+		safe_expr.append(expr);
+		let name = self.get_next_internal_var();
+		self.expr.push_back(VARIABLE {
+			local: true,
+			names: vec![name.clone()],
+			values: vec![safe_expr],
+			line: self.peek(0).line()
+		});
+		expr.push_back(SYMBOL(format_clue!(name, " and ", name)));
+	}
+
 	fn build_identifier_internal(&mut self) -> Result<(Expression, bool), String> {
 		let mut expr = Expression::with_capacity(8);
 		let mut safe_indexing = false;
@@ -930,45 +916,56 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				SAFEDOT => {
-					self.check_index(&t, &mut expr, "?.")?;
+					self.build_safe_index(&mut expr);
+					self.check_index(&t, &mut expr, ".")?;
 					safe_indexing = true;
 				}
 				DOT => self.check_index(&t, &mut expr, ".")?,
 				SAFE_DOUBLE_COLON => {
-					self.check_index(&t, &mut expr, "?::")?;
+					self.build_safe_index(&mut expr);
+					self.check_index(&t, &mut expr, ":")?; //TODO: FIX COMBINING THIS TO SAFE CALLS
 					safe_indexing = true;
-					if self.peek(1).kind() != ROUND_BRACKET_OPEN {
+					if !matches!(self.peek(1).kind(), ROUND_BRACKET_OPEN | SAFE_CALL) {
 						let t = self.peek(1);
 						return Err(self.expected("(", &t.lexeme(), t.line()));
 					}
 				}
 				DOUBLE_COLON => {
 					self.check_index(&t, &mut expr, ":")?;
-					if self.peek(1).kind() != ROUND_BRACKET_OPEN {
+					if !matches!(self.peek(1).kind(), ROUND_BRACKET_OPEN | SAFE_CALL) {
 						let t = self.peek(1);
 						return Err(self.expected("(", &t.lexeme(), t.line()));
 					}
 				}
 				SQUARE_BRACKET_OPEN => {
 					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
-					expr.push_back(SYMBOL(String::from("[")));
+					expr.push_back(SYMBOL(String::from("[(")));
 					expr.push_back(EXPR(qexpr));
-					expr.push_back(SYMBOL(String::from("]")));
+					expr.push_back(SYMBOL(String::from(")]")));
 					if self.check_val() {
 						break;
 					}
 				}
 				SAFE_SQUARE_BRACKET => {
+					self.build_safe_index(&mut expr);
 					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
-					expr.push_back(SYMBOL(String::from("?[")));
+					expr.push_back(SYMBOL(String::from("[(")));
 					expr.push_back(EXPR(qexpr));
-					expr.push_back(SYMBOL(String::from("]")));
+					expr.push_back(SYMBOL(String::from(")]")));
 					safe_indexing = true;
 					if self.check_val() {
 						break;
 					}
 				}
 				ROUND_BRACKET_OPEN => {
+					expr.push_back(CALL(self.build_call()?));
+					if self.check_val() {
+						break;
+					}
+				}
+				SAFE_CALL => {
+					self.build_safe_index(&mut expr);
+					safe_indexing = true;
 					expr.push_back(CALL(self.build_call()?));
 					if self.check_val() {
 						break;
@@ -1562,28 +1559,7 @@ impl<'a> ParserInfo<'a> {
 			let line = self.at(start).line();
 			if safe_indexing {
 				let name = self.get_next_internal_var();
-				let mut call = Expression::new();
-				while {
-					let t = first_expr.back().unwrap();
-					match t {
-						CALL(..) | EXPR(..) => true,
-						SYMBOL(lexeme) => match lexeme.as_str() {
-							"?." | "?::" => {
-								call.push_front(SYMBOL(name.clone() + "."));
-								false
-							}
-							"?[" => {
-								call.push_front(SYMBOL(name.clone() + "["));
-								false
-							}
-							_ => true,
-						},
-						_ => unreachable!(),
-					}
-				} {
-					call.push_front(first_expr.pop_back().unwrap())
-				}
-				first_expr.pop_back().unwrap();
+				let call = first_expr.pop_back().unwrap();
 				self.expr.push_back(VARIABLE {
 					local: true,
 					names: vec![name.clone()],
@@ -1595,10 +1571,10 @@ impl<'a> ParserInfo<'a> {
 				});
 				let name = SYMBOL(name);
 				self.expr.push_back(IF_STATEMENT {
-					condition: vec_deque![name],
+					condition: vec_deque![name.clone()],
 					code: CodeBlock {
 						start: line,
-						code: vec_deque![IDENT { expr: call, line }],
+						code: vec_deque![IDENT { expr: vec_deque![name, call], line }],
 						end: line,
 					},
 					next: None,

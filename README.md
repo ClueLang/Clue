@@ -1,8 +1,10 @@
 # The Clue programming language
 
 ![image](https://user-images.githubusercontent.com/87673997/156028540-7a94db51-dd90-4bc6-9718-96e056d24cab.png)  
-[![Crates.io](https://img.shields.io/crates/v/clue?style=flat-square)](https://crates.io/crates/clue)
-[![Crates.io](https://img.shields.io/crates/d/clue?style=flat-square)](https://crates.io/crates/clue)
+[![Crates.io](https://img.shields.io/crates/v/clue?logo=rust&style=for-the-badge)](https://crates.io/crates/clue)
+[![Crates.io](https://img.shields.io/crates/d/clue?logo=rust&style=for-the-badge)](https://crates.io/crates/clue)
+[![GitHub](https://img.shields.io/github/v/release/ClueLang/Clue?logo=github&color=181717&display_name=release&include_prereleases&sort=semver&style=for-the-badge)](https://github.com/ClueLang/Clue)
+[![AUR](https://img.shields.io/aur/version/clue?color=1793d1&logo=arch-linux&style=for-the-badge)](https://aur.archlinux.org/packages/clue/)
 
 Clue is a programming language that compiles blazingly fast into Lua code with a syntax similar to languages like C or Rust.
 
@@ -40,6 +42,22 @@ More examples can be found in:
 - a [simple graph visualizer made with LÖVE](https://github.com/ClueLang/Clue-example)
 
 ## How to install
+
+### Using the [AUR](https://aur.archlinux.org/clue)
+* With paru
+```sh
+paru -S clue
+```
+* With yay
+```
+yay -S clue
+```
+* With makepkg
+```sh
+git clone https://aur.archlinux.org/clue.git
+cd clue
+makepkg -si
+```
 
 ### Using Cargo
 1. Paste and run this command in the console: `cargo install clue`
