@@ -531,7 +531,7 @@ impl<'a> ParserInfo<'a> {
 		checkback: bool,
 	) -> Result<(), String> {
 		if match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | FALSE | MINUS | BIT_NOT
+			NUMBER | IDENTIFIER | STRING | TRUE | FALSE | MINUS | BIT_NOT
 			| NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | THREEDOTS | MATCH => false,
 			CURLY_BRACKET_OPEN => {
 				*notable = false;
@@ -616,7 +616,7 @@ impl<'a> ParserInfo<'a> {
 
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | BIT_NOT | FALSE | NIL | NOT
+			NUMBER | IDENTIFIER | STRING | TRUE | BIT_NOT | FALSE | NIL | NOT
 			| HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
@@ -889,7 +889,10 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
-	fn build_safe_index(&mut self, expr: &mut Expression) {
+	fn build_safe_index(&mut self, normal_kind: TokenType, kind: TokenType, expr: &mut Expression) -> bool {
+		if (kind as u8).wrapping_sub(6) != normal_kind as u8 {
+			return false;
+		}
 		let mut safe_expr = Expression::with_capacity(expr.len());
 		safe_expr.append(expr);
 		let name = self.get_next_internal_var();
@@ -900,6 +903,7 @@ impl<'a> ParserInfo<'a> {
 			line: self.peek(0).line()
 		});
 		expr.push_back(SYMBOL(format_clue!(name, " and ", name)));
+		true
 	}
 
 	fn build_identifier_internal(&mut self) -> Result<(Expression, bool), String> {
@@ -915,29 +919,20 @@ impl<'a> ParserInfo<'a> {
 						break;
 					}
 				}
-				SAFEDOT => {
-					self.build_safe_index(&mut expr);
+				DOT | SAFE_DOT => {
+					safe_indexing |= self.build_safe_index(DOT, t.kind(), &mut expr);
 					self.check_index(&t, &mut expr, ".")?;
-					safe_indexing = true;
 				}
-				DOT => self.check_index(&t, &mut expr, ".")?,
-				SAFE_DOUBLE_COLON => {
-					self.build_safe_index(&mut expr);
+				DOUBLE_COLON | SAFE_DOUBLE_COLON => {
+					safe_indexing |= self.build_safe_index(DOUBLE_COLON, t.kind(), &mut expr);
 					self.check_index(&t, &mut expr, ":")?; //TODO: FIX COMBINING THIS TO SAFE CALLS
-					safe_indexing = true;
 					if !matches!(self.peek(1).kind(), ROUND_BRACKET_OPEN | SAFE_CALL) {
 						let t = self.peek(1);
 						return Err(self.expected("(", &t.lexeme(), t.line()));
 					}
 				}
-				DOUBLE_COLON => {
-					self.check_index(&t, &mut expr, ":")?;
-					if !matches!(self.peek(1).kind(), ROUND_BRACKET_OPEN | SAFE_CALL) {
-						let t = self.peek(1);
-						return Err(self.expected("(", &t.lexeme(), t.line()));
-					}
-				}
-				SQUARE_BRACKET_OPEN => {
+				SQUARE_BRACKET_OPEN | SAFE_SQUARE_BRACKET => {
+					safe_indexing |= self.build_safe_index(SQUARE_BRACKET_OPEN, t.kind(), &mut expr);
 					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
 					expr.push_back(SYMBOL(String::from("[(")));
 					expr.push_back(EXPR(qexpr));
@@ -946,26 +941,8 @@ impl<'a> ParserInfo<'a> {
 						break;
 					}
 				}
-				SAFE_SQUARE_BRACKET => {
-					self.build_safe_index(&mut expr);
-					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
-					expr.push_back(SYMBOL(String::from("[(")));
-					expr.push_back(EXPR(qexpr));
-					expr.push_back(SYMBOL(String::from(")]")));
-					safe_indexing = true;
-					if self.check_val() {
-						break;
-					}
-				}
-				ROUND_BRACKET_OPEN => {
-					expr.push_back(CALL(self.build_call()?));
-					if self.check_val() {
-						break;
-					}
-				}
-				SAFE_CALL => {
-					self.build_safe_index(&mut expr);
-					safe_indexing = true;
+				ROUND_BRACKET_OPEN | SAFE_CALL => {
+					safe_indexing |= self.build_safe_index(ROUND_BRACKET_OPEN, t.kind(), &mut expr);
 					expr.push_back(CALL(self.build_call()?));
 					if self.check_val() {
 						break;
@@ -1557,19 +1534,26 @@ impl<'a> ParserInfo<'a> {
 		let (mut first_expr, safe_indexing) = self.build_identifier_internal()?;
 		if let CALL(_) = first_expr.back().unwrap() {
 			let line = self.at(start).line();
-			if safe_indexing {
-				let name = self.get_next_internal_var();
+			if safe_indexing { //TODO: FIX THIS ALWAYS ASSUMING SAFE CALLS
 				let call = first_expr.pop_back().unwrap();
-				self.expr.push_back(VARIABLE {
-					local: true,
-					names: vec![name.clone()],
-					values: vec![vec_deque![IDENT {
-						expr: first_expr,
-						line
-					}]],
-					line,
+				let name = SYMBOL(if first_expr.len() == 1 {
+					let SYMBOL(name) = first_expr.back().unwrap() else {
+						unreachable!()
+					};
+					name.split(" and ").next().unwrap().to_owned()
+				} else {
+					let name = self.get_next_internal_var();
+					self.expr.push_back(VARIABLE {
+						local: true,
+						names: vec![name.clone()],
+						values: vec![vec_deque![IDENT {
+							expr: first_expr,
+							line
+						}]],
+						line,
+					});
+					name
 				});
-				let name = SYMBOL(name);
 				self.expr.push_back(IF_STATEMENT {
 					condition: vec_deque![name.clone()],
 					code: CodeBlock {

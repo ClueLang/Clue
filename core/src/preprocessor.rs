@@ -20,7 +20,7 @@ use std::{
 use utf8_decode::decode;
 
 macro_rules! pp_if {
-	($code: ident, $ifname: ident, $prev: ident) => {{
+	($code:ident, $ifname:ident, $prev:ident) => {{
 		let check = $code.$ifname(b'{')?;
 		$code.keep_block($prev && check)?;
 	}};

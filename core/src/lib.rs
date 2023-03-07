@@ -20,7 +20,7 @@ pub mod scanner;
 
 #[macro_export]
 macro_rules! check {
-	($tocheck: expr) => {
+	($tocheck:expr) => {
 		match $tocheck {
 			Ok(t) => t,
 			Err(e) => return Err(e.to_string()),

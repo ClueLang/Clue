@@ -44,9 +44,8 @@ fn main() -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
 	use clue_core::env::Options;
-
 	use crate::threads::compile_folder;
 
 	#[test]

@@ -28,14 +28,14 @@ const fn generate_map<'a>(elements: &'a [(char, SymbolType)]) -> SymbolsMap<'a> 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[rustfmt::skip]
 pub enum TokenType {
-	//symbols
+	//symbols (NOTE: SAFE_* tokens must equal to their normal self + 6)
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED, SQUARE_BRACKET_OPEN,
 	SQUARE_BRACKET_CLOSED, CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
-	COMMA, SEMICOLON, NOT, AND, OR, PLUS, MINUS, STAR, SLASH,
-	PERCENTUAL, CARET, HASHTAG, SAFE_DOUBLE_COLON, DOUBLE_COLON,
-	DOT, TWODOTS, THREEDOTS, SAFEDOT, SAFE_SQUARE_BRACKET, SAFE_EXPRESSION,
+	SAFE_CALL, COMMA, SAFE_SQUARE_BRACKET, SEMICOLON, QUESTION_MARK,
+	NOT, AND, OR, PLUS, MINUS, STAR, SLASH, FLOOR_DIVISION,
+	PERCENTUAL, CARET, HASHTAG, COALESCE, DOT, DOUBLE_COLON, TWODOTS, 
+	COLON, THREEDOTS, ARROW, SAFE_DOT, SAFE_DOUBLE_COLON,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
-	QUESTION_MARK, COLON, ARROW, FLOOR_DIVISION, COALESCE, SAFE_CALL,
 
 	//definition and comparison
 	DEFINE, DEFINE_AND, DEFINE_OR, INCREASE, DECREASE, MULTIPLY, DIVIDE,
@@ -478,8 +478,13 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 						i.warning("'?=' is deprecated and was replaced with '&&='")
 					}),
 				),
-				('>', SymbolType::Just(SAFE_EXPRESSION)),
-				('.', SymbolType::Just(SAFEDOT)),
+				(
+					'>',
+					SymbolType::Function(|i| {
+						i.warning("'?>' is deprecated")
+					}),
+				),
+				('.', SymbolType::Just(SAFE_DOT)),
 				(
 					':',
 					SymbolType::Function(|i| {
@@ -661,7 +666,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 					match keyword {
 						KeywordType::Lua(kind) => *kind,
 						KeywordType::Reserved(e) => i.reserved(&ident, e),
-						_ if matches!(i.last, DOT | SAFEDOT | DOUBLE_COLON | SAFE_DOUBLE_COLON) => {
+						_ if matches!(i.last, DOT | SAFE_DOT | DOUBLE_COLON | SAFE_DOUBLE_COLON) => {
 							IDENTIFIER
 						}
 						KeywordType::Just(kind) => *kind,
@@ -686,4 +691,23 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	}
 	i.add_literal_token(EOF, String::from("<end>"));
 	Ok(i.tokens)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::TokenType::*;
+
+	macro_rules! assert_safe_token {
+		($normal:ident, $safe:ident) => {
+			assert_eq!($normal as u8, ($safe as u8).wrapping_sub(6))
+		};
+	}
+
+	#[test]
+	fn check_safe_tokens() {
+		assert_safe_token!(ROUND_BRACKET_OPEN, SAFE_CALL);
+		assert_safe_token!(SQUARE_BRACKET_OPEN, SAFE_SQUARE_BRACKET);
+		assert_safe_token!(DOT, SAFE_DOT);
+		assert_safe_token!(DOUBLE_COLON, SAFE_DOUBLE_COLON);
+	}
 }
