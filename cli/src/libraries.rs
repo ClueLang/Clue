@@ -37,6 +37,11 @@ fn attempt_installation(_args: InstallArgs, temp_dir: &mut PathBuf) -> io::Resul
 			Error::new(ErrorKind::InvalidData, "Failed to read Clue.toml!")
 		})?;
 	temp_dir.pop();
+	for c in lib.name.chars() {
+		if !(c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_')) {
+			return Err(Error::new(Other, "This library has an invalid name!"));
+		}
+	}
 	println!("Library name: {}", lib.name);
 	println!("Required Clue version: {}", lib.clue);
 	match VersionReq::from_str(&format!(">={}", lib.clue)) {
