@@ -133,7 +133,7 @@ impl<'a> Compiler<'a> {
 
 	fn compile_identifier(&self, scope: usize, expr: Expression) -> String {
 		let mut result = String::with_capacity(32);
-		for t in expr.into_iter().peekable() {
+		for t in expr {
 			result += &match t {
 				SYMBOL(lexeme) => lexeme,
 				EXPR(expr) => self.compile_expression(scope, expr),
