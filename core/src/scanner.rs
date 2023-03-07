@@ -478,7 +478,12 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 						i.warning("'?=' is deprecated and was replaced with '&&='")
 					}),
 				),
-				('>', SymbolType::Just(SAFE_EXPRESSION)),
+				(
+					'>',
+					SymbolType::Function(|i| {
+						i.warning("'?>' is deprecated")
+					}),
+				),
 				('.', SymbolType::Just(SAFEDOT)),
 				(
 					':',
