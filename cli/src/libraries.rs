@@ -1,4 +1,5 @@
 use std::{env, fs, io, process::Command, path::PathBuf, str::FromStr};
+use ahash::HashMap;
 use semver::{VersionReq, Version};
 use serde::Deserialize;
 use clap::{Args, crate_version};
@@ -17,11 +18,12 @@ pub struct InstallArgs {
 pub struct Library {
 	name: String,
 	clue: String,
+	modules: HashMap<String, Module>
 }
 
 #[derive(Deserialize)]
 pub struct Module {
-	
+	path: String
 }
 
 fn attempt_installation(_args: InstallArgs, temp_dir: &mut PathBuf) -> io::Result<()> {
@@ -34,6 +36,7 @@ fn attempt_installation(_args: InstallArgs, temp_dir: &mut PathBuf) -> io::Resul
 			eprintln!("{e}");
 			Error::new(ErrorKind::InvalidData, "Failed to read Clue.toml!")
 		})?;
+	temp_dir.pop();
 	println!("Library name: {}", lib.name);
 	println!("Required Clue version: {}", lib.clue);
 	match VersionReq::from_str(&format!(">={}", lib.clue)) {
@@ -47,15 +50,38 @@ fn attempt_installation(_args: InstallArgs, temp_dir: &mut PathBuf) -> io::Resul
 		}
 		Err(e) => return Err(Error::new(Other, e.to_string())),
 	}
+	let mut lib_path = fs::canonicalize(env::current_exe()?)?;
+	lib_path.pop();
+	lib_path.push("clue_libs");
+	lib_path.push(lib.name);
+	fs::remove_dir_all(lib_path.as_path())?;
+	for (name, module) in lib.modules {
+		let mut src_path = temp_dir.clone();
+		src_path.push(&module.path);
+		lib_path.push(&name);
+		fs::create_dir_all(lib_path.as_path())?;
+		println!("Building module '{name}'...");
+		if !temp_dir.as_path().try_exists()? {
+			return Err(Error::new(Other, "The module's path does not exist!"));
+		}
+		lib_path.push("main.lua");
+		Command::new("clue")
+			.args(["build", src_path.to_str().unwrap(), lib_path.to_str().unwrap()])
+			.spawn()?
+			.wait()?;
+		lib_path.pop();
+		lib_path.pop();
+	}
 	Ok(())
 }
 
 pub fn install(args: InstallArgs) -> io::Result<()> {
-	let mut path = fs::canonicalize(env::current_exe()?)?;
-	path.pop();
 	println!("Cloning repository...");
 	let mut temp_dir = env::temp_dir();
 	temp_dir.push("clue");
+	if temp_dir.as_path().try_exists()? {
+		fs::remove_dir_all(temp_dir.as_path())?;
+	}
 	let mut git_args = vec![
 		String::from("clone"),
 		args.url.clone(),
@@ -71,7 +97,6 @@ pub fn install(args: InstallArgs) -> io::Result<()> {
 			println!("An error happened during installation!");
 		}
 		println!("Cleaning up...");
-		temp_dir.pop();
 		fs::remove_dir_all(temp_dir.as_path())?;
 		success
 	} else {
