@@ -1,8 +1,10 @@
 use clap::{Parser, Subcommand};
 use builder::*;
+use libraries::InstallArgs;
 
 mod threads;
 mod builder;
+mod libraries;
 
 #[derive(Parser)]
 #[clap(
@@ -23,6 +25,9 @@ enum Commands {
 
 	/// Compile the given file/directory
 	Build(BuildArgs),
+
+	/// Install the given library
+	Install(InstallArgs),
 }
 
 fn main() -> Result<(), String> {
@@ -34,6 +39,7 @@ fn main() -> Result<(), String> {
 			Ok(())
 		}
 		Build(args) => build(args),
+		Install(args) => todo!()
 	}
 }
 

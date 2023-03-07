@@ -27,6 +27,7 @@ clue_core = { path = "../core", version = "4.0.0-package-manage-indev", default-
 clap.workspace = true
 mlua = { version = "0.8.3", features = ["luajit", "vendored"], optional = true }
 semver.workspace = true
+curl = "0.4.44"
 
 [features]
 default = ["interpreter", "rpmalloc"]
