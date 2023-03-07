@@ -531,7 +531,7 @@ impl<'a> ParserInfo<'a> {
 		checkback: bool,
 	) -> Result<(), String> {
 		if match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | FALSE | MINUS | BIT_NOT
+			NUMBER | IDENTIFIER | STRING | TRUE | FALSE | MINUS | BIT_NOT
 			| NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | THREEDOTS | MATCH => false,
 			CURLY_BRACKET_OPEN => {
 				*notable = false;
@@ -616,7 +616,7 @@ impl<'a> ParserInfo<'a> {
 
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | SAFE_EXPRESSION | TRUE | BIT_NOT | FALSE | NIL | NOT
+			NUMBER | IDENTIFIER | STRING | TRUE | BIT_NOT | FALSE | NIL | NOT
 			| HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
