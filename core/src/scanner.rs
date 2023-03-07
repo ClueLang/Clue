@@ -692,3 +692,22 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	i.add_literal_token(EOF, String::from("<end>"));
 	Ok(i.tokens)
 }
+
+#[cfg(test)]
+mod tests {
+	use super::TokenType::*;
+
+	macro_rules! assert_safe_token {
+		($normal: ident, $safe: ident) => {
+			assert_eq!($normal as u8, ($safe as u8).wrapping_sub(6))
+		};
+	}
+
+	#[test]
+	fn check_safe_tokens() {
+		assert_safe_token!(ROUND_BRACKET_OPEN, SAFE_CALL);
+		assert_safe_token!(SQUARE_BRACKET_OPEN, SAFE_SQUARE_BRACKET);
+		assert_safe_token!(DOT, SAFE_DOT);
+		assert_safe_token!(DOUBLE_COLON, SAFE_DOUBLE_COLON);
+	}
+}
