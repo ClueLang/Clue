@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use builder::*;
-use libraries::InstallArgs;
+use libraries::*;
 
 mod threads;
 mod builder;
@@ -39,7 +39,7 @@ fn main() -> Result<(), String> {
 			Ok(())
 		}
 		Build(args) => build(args),
-		Install(args) => todo!()
+		Install(args) => install(args).map_err(|e| e.to_string()),
 	}
 }
 
