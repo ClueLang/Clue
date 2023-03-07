@@ -698,7 +698,7 @@ mod tests {
 	use super::TokenType::*;
 
 	macro_rules! assert_safe_token {
-		($normal: ident, $safe: ident) => {
+		($normal:ident, $safe:ident) => {
 			assert_eq!($normal as u8, ($safe as u8).wrapping_sub(6))
 		};
 	}
