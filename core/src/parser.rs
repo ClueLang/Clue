@@ -1534,31 +1534,19 @@ impl<'a> ParserInfo<'a> {
 		let (mut first_expr, safe_indexing) = self.build_identifier_internal()?;
 		if let CALL(_) = first_expr.back().unwrap() {
 			let line = self.at(start).line();
-			if safe_indexing { //TODO: FIX THIS ALWAYS ASSUMING SAFE CALLS
-				let call = first_expr.pop_back().unwrap();
-				let name = SYMBOL(if first_expr.len() == 1 {
-					let SYMBOL(name) = first_expr.back().unwrap() else {
+			if safe_indexing {
+				let name = SYMBOL({
+					let SYMBOL(name) = first_expr.pop_front().unwrap() else {
 						unreachable!()
 					};
 					name.split(" and ").next().unwrap().to_owned()
-				} else {
-					let name = self.get_next_internal_var();
-					self.expr.push_back(VARIABLE {
-						local: true,
-						names: vec![name.clone()],
-						values: vec![vec_deque![IDENT {
-							expr: first_expr,
-							line
-						}]],
-						line,
-					});
-					name
 				});
+				first_expr.push_front(name.clone());
 				self.expr.push_back(IF_STATEMENT {
 					condition: vec_deque![name.clone()],
 					code: CodeBlock {
 						start: line,
-						code: vec_deque![IDENT { expr: vec_deque![name, call], line }],
+						code: vec_deque![IDENT { expr: first_expr, line }],
 						end: line,
 					},
 					next: None,
