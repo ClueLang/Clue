@@ -902,7 +902,9 @@ impl<'a> ParserInfo<'a> {
 			values: vec![safe_expr],
 			line: self.peek(0).line()
 		});
-		expr.push_back(SYMBOL(format_clue!(name, " and ", name)));
+		expr.push_back(SYMBOL(name.clone()));
+		expr.push_back(SYMBOL(String::from(" and ")));
+		expr.push_back(SYMBOL(name));
 		true
 	}
 
@@ -925,10 +927,50 @@ impl<'a> ParserInfo<'a> {
 				}
 				DOUBLE_COLON | SAFE_DOUBLE_COLON => {
 					safe_indexing |= self.build_safe_index(DOUBLE_COLON, t.kind(), &mut expr);
-					self.check_index(&t, &mut expr, ":")?; //TODO: FIX COMBINING THIS TO SAFE CALLS
-					if !matches!(self.peek(1).kind(), ROUND_BRACKET_OPEN | SAFE_CALL) {
-						let t = self.peek(1);
-						return Err(self.expected("(", &t.lexeme(), t.line()));
+					self.check_index(&t, &mut expr, ":")?;
+					match self.peek(1).kind() {
+						ROUND_BRACKET_OPEN => {}
+						SAFE_CALL => {
+							expr.pop_back();
+							let line = self.peek(0).line();
+							let name = if t.kind() == DOUBLE_COLON {
+								let mut start = {
+									let mut start = Expression::with_capacity(2);
+									if let Some(SYMBOL(lexeme)) = expr.get(1) {
+										if lexeme == " and " {
+											start.push_back(expr[0].clone());
+											start.push_back(expr[1].clone());
+										}
+									}
+									start
+								};
+								let mut expr_self = Expression::with_capacity(expr.len());
+								expr_self.append(&mut expr);
+								let name = self.get_next_internal_var();
+								self.expr.push_back(VARIABLE {
+									local: true,
+									names: vec![name.clone()],
+									values: vec![expr_self],
+									line
+								});
+								expr.append(&mut start);
+								expr.push_back(SYMBOL(name.clone()));
+								name
+							} else {
+								let SYMBOL(name) = &expr[0] else {
+									unreachable!();
+								};
+								name.to_owned()
+							};
+							expr.push_back(SYMBOL(String::from(".")));
+							self.tokens.insert(self.current + 2, Token::new(IDENTIFIER, name, line));
+							self.tokens.insert(self.current + 3, Token::new(COMMA, String::from(","), line));
+							self.size += 2;
+						}
+						_ => {
+							let t = self.peek(1);
+							return Err(self.expected("(", &t.lexeme(), t.line()));
+						}
 					}
 				}
 				SQUARE_BRACKET_OPEN | SAFE_SQUARE_BRACKET => {
@@ -1539,7 +1581,9 @@ impl<'a> ParserInfo<'a> {
 					let SYMBOL(name) = first_expr.pop_front().unwrap() else {
 						unreachable!()
 					};
-					name.split(" and ").next().unwrap().to_owned()
+					first_expr.pop_front();
+					first_expr.pop_front();
+					name
 				});
 				first_expr.push_front(name.clone());
 				self.expr.push_back(IF_STATEMENT {
