@@ -964,8 +964,12 @@ impl<'a> ParserInfo<'a> {
 							};
 							expr.push_back(SYMBOL(String::from(".")));
 							self.tokens.insert(self.current + 2, Token::new(IDENTIFIER, name, line));
-							self.tokens.insert(self.current + 3, Token::new(COMMA, String::from(","), line));
-							self.size += 2;
+							if self.peek(3).kind() != ROUND_BRACKET_CLOSED {
+								self.tokens.insert(self.current + 3, Token::new(COMMA, String::from(","), line));
+								self.size += 2;
+							} else {
+								self.size += 1;
+							}
 						}
 						_ => {
 							let t = self.peek(1);
