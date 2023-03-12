@@ -1599,6 +1599,7 @@ impl<'a> ParserInfo<'a> {
 					},
 					next: None,
 				});
+				self.current -= 1;
 			} else {
 				self.expr.push_back(IDENT {
 					expr: first_expr,
