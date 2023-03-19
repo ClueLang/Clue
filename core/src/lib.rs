@@ -9,6 +9,7 @@ use scanner::{scan_code, Token};
 
 #[cfg(feature = "rpmalloc")]
 #[global_allocator]
+/// The best memory allocator available for Clue
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
 pub mod code;
@@ -19,6 +20,9 @@ pub mod preprocessor;
 pub mod scanner;
 
 #[macro_export]
+/// Check whether `tocheck` is `Ok` or `Err`
+/// If it's `Ok` it returns it
+/// If it's `Err` it propagates the `Err` to the caller function
 macro_rules! check {
 	($tocheck:expr) => {
 		match $tocheck {
@@ -29,6 +33,7 @@ macro_rules! check {
 }
 
 #[macro_export]
+/// Format strings, used mainly inside the Clue code base
 macro_rules! format_clue {
 	($($strings:expr),+) => {{
 		use std::ops::AddAssign;
