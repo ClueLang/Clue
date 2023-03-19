@@ -1,0 +1,29 @@
+[package]
+name = "clue"
+version.workspace = true
+description.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+readme = "../README.md"
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[package.metadata.deb]
+extended-description = "Clue is a programming language that compiles blazingly fast into Lua code with a syntax similar to languages like C or Rust."
+
+[dependencies]
+flume = "0.10.14"
+num_cpus = "1.14.0"
+crossbeam-queue = "0.3.8"
+ahash.workspace = true
+clue_core = { path = "../core", version = "3.2.0-indev", default-features = false }
+clap.workspace = true
+mlua = { version = "0.8.3", features = ["luajit", "vendored"], optional = true }
+
+[features]
+default = ["interpreter", "rpmalloc"]
+interpreter = ["mlua"]
+rpmalloc = ["clue_core/rpmalloc"]

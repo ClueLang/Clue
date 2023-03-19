@@ -1,0 +1,14 @@
+name: Bench
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Cache build
+        uses: Swatinem/rust-cache@v2
+      - name: Bench
+        run: cargo bench

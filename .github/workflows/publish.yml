@@ -9,7 +9,11 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v3
-      - name: Publish
-        run: cargo publish
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Cache build
+        uses: Swatinem/rust-cache@v2
+      - name: Publish core
+        run: cargo publish -p clue_core
+      - name: Publish cli
+        run: cargo publish -p clue
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

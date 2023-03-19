@@ -1,10 +1,12 @@
 # The Clue programming language
 
 ![image](https://user-images.githubusercontent.com/87673997/156028540-7a94db51-dd90-4bc6-9718-96e056d24cab.png)  
-[![Crates.io](https://img.shields.io/crates/v/clue?style=flat-square)](https://crates.io/crates/clue)
-[![Crates.io](https://img.shields.io/crates/d/clue?style=flat-square)](https://crates.io/crates/clue)
+[![Crates.io](https://img.shields.io/crates/v/clue?logo=rust&style=for-the-badge)](https://crates.io/crates/clue)
+[![Crates.io](https://img.shields.io/crates/d/clue?logo=rust&style=for-the-badge)](https://crates.io/crates/clue)
+[![GitHub](https://img.shields.io/github/v/release/ClueLang/Clue?logo=github&color=181717&display_name=release&include_prereleases&sort=semver&style=for-the-badge)](https://github.com/ClueLang/Clue)
+[![AUR](https://img.shields.io/aur/version/clue?color=1793d1&logo=arch-linux&style=for-the-badge)](https://aur.archlinux.org/packages/clue/)
 
-Clue is a programming language that compiles into Lua code with a syntax similar to languages like C or Rust.
+Clue is a programming language that compiles blazingly fast into Lua code with a syntax similar to languages like C or Rust.
 
 Clue tries to be almost as simple as Lua (with only a slightly more advanced syntax) but adds many optional features that can make code look better or make some things (like metatables) easier to code.
 
@@ -32,9 +34,30 @@ while n < 10 {
     print(n)
 }
 ```
-More examples can be found in [the wiki](https://github.com/ClueLang/Clue/wiki), the [Examples directory](https://github.com/ClueLang/Clue/tree/main/examples) or you can check [an example program made with LOVE using Clue](https://github.com/ClueLang/Clue-example).
+More examples can be found in:
+- the [wiki](https://github.com/ClueLang/Clue/wiki)
+- the [Examples directory](https://github.com/ClueLang/Clue/tree/main/examples)
+- a [game made with LÖVE](https://github.com/Maiori44/ip-please)
+- Clue's [MessagePack library](https://github.com/Maiori44/msgpack-clue)
+- a [simple graph visualizer made with LÖVE](https://github.com/ClueLang/Clue-example)
 
 ## How to install
+
+### Using the [AUR](https://aur.archlinux.org/clue)
+* With paru
+```sh
+paru -S clue
+```
+* With yay
+```
+yay -S clue
+```
+* With makepkg
+```sh
+git clone https://aur.archlinux.org/clue.git
+cd clue
+makepkg -si
+```
 
 ### Using Cargo
 1. Paste and run this command in the console: `cargo install clue`
@@ -55,7 +78,6 @@ By default Clue enables both features.
 ## More coming soon!
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
-- preprocessor (coming in 3.0)
 - types (coming in 4.0)
 
 For any suggestion or bug you can make a github issue.
