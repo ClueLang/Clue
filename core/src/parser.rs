@@ -1152,12 +1152,13 @@ impl<'a> ParserInfo<'a> {
 
 	fn build_identifier_list(&mut self) -> Result<Vec<String>, String> {
 		let mut idents: Vec<String> = Vec::new();
-		while {
+		loop {
 			let t = self.assert_advance(IDENTIFIER, "<name>")?;
 			idents.push(t.lexeme());
-			self.advance_if(COMMA)
-		} {}
-		Ok(idents)
+			if !self.advance_if(COMMA) {
+				break Ok(idents);
+			}
+		}
 	}
 
 	fn build_function_args(&mut self) -> Result</*ArgsAndTypes*/ FunctionArgs, String> {
@@ -1328,7 +1329,7 @@ impl<'a> ParserInfo<'a> {
 			}
 		}
 	*/
-	fn build_variable(&mut self) -> Result</*(*/ String /*, LuaType)*/, String> {
+	/*fn build_variable(&mut self) -> Result</*(*/ String /*, LuaType)*/, String> {
 		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
 		/*if self.locals.is_some() {
 			let luatype = self.build_type()?;
@@ -1337,7 +1338,7 @@ impl<'a> ParserInfo<'a> {
 		} else {*/
 		Ok(/*(*/ name /*, LuaType::ANY)*/)
 		//}
-	}
+	}*/
 
 	fn build_variables(
 		&mut self,
@@ -1345,15 +1346,7 @@ impl<'a> ParserInfo<'a> {
 		line: usize,
 		destructure: bool,
 	) -> Result<ComplexToken, String> {
-		let mut names: Vec<String> = Vec::new();
-		loop {
-			let /*(*/pname/* , _)*/ = self.build_variable()?;
-			names.push(pname);
-			if !self.compare(COMMA) {
-				break;
-			}
-			self.current += 1;
-		}
+		let names = self.build_identifier_list()?;
 		if destructure {
 			self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
 		}
