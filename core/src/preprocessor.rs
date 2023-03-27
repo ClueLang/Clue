@@ -42,23 +42,25 @@ pub enum PPVar {
 	VarArgs(PPCode),
 }
 
-fn error(msg: impl Into<String>, line: usize, filename: &String) -> String {
-	println!("Error in file \"{filename}\" at line {line}!");
+fn error(msg: impl Into<String>, line: usize, column: usize, filename: &String) -> String {
+	println!("Error in file {filename}:{}:{}!", line, column);
 	msg.into()
 }
 
-fn expected(expected: &str, got: &str, line: usize, filename: &String) -> String {
+fn expected(expected: &str, got: &str, line: usize, column: usize, filename: &String) -> String {
 	error(
 		format_clue!("Expected '", expected, "', got '", got, "'"),
 		line,
+		column,
 		filename,
 	)
 }
 
-fn expected_before(expected: &str, before: &str, line: usize, filename: &String) -> String {
+fn expected_before(expected: &str, before: &str, line: usize, column: usize, filename: &String) -> String {
 	error(
 		format_clue!("Expected '", expected, "' before '", before, "'"),
 		line,
+		column,
 		filename,
 	)
 }
@@ -80,6 +82,7 @@ struct CodeFile<'a> {
 	read: usize,
 	peeked: Option<CodeChar>,
 	line: usize,
+	column: usize,
 	filename: &'a String,
 	last_if: bool,
 	cscope: u8,
@@ -102,6 +105,7 @@ impl<'a> CodeFile<'a> {
 			read: 0,
 			peeked: None,
 			line,
+			column: 1,
 			filename,
 			last_if: true,
 			cscope,
@@ -113,11 +117,12 @@ impl<'a> CodeFile<'a> {
 		match c {
 			None => Ok(None),
 			Some(c) if c.0.is_ascii() => Ok(Some(c)),
-			Some((_, line)) => {
+			Some((_, line, column)) => {
 				let c = check!(decode(&mut self.code[self.read - 1..self.read + 3].iter().copied()).unwrap());
 				Err(error(
 					format!("Invalid character '{c}'"),
 					line,
+					column,
 					self.filename,
 				))
 			}
@@ -125,7 +130,7 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn skip_whitespace(&mut self) {
-		while let Some((c, _)) = self.peek_char_unchecked() {
+		while let Some((c, ..)) = self.peek_char_unchecked() {
 			if c.is_ascii_whitespace() {
 				self.read_char_unchecked();
 			} else {
@@ -146,12 +151,15 @@ impl<'a> CodeFile<'a> {
 				let c = *current;
 				self.read += 1;
 				let line = self.line;
+				let column = self.column;
+				self.column += 1;
 				if self.comment > CommentState::None && *current != b'\n' {
 					*current = b' ';
 				}
 				match c {
 					b'\n' => {
 						self.line += 1;
+						self.column = 1;
 						if self.comment == CommentState::Single {
 							self.comment = CommentState::None;
 						}
@@ -183,7 +191,7 @@ impl<'a> CodeFile<'a> {
 					}
 					_ => {}
 				}
-				Some((*current, line))
+				Some((*current, line, column))
 			} else {
 				None
 			}
@@ -214,14 +222,16 @@ impl<'a> CodeFile<'a> {
 					&String::from_utf8_lossy(&[wanted_c]),
 					"<end>",
 					self.line,
+					self.column,
 					self.filename,
 				))
 			}
-			Some((c, line)) if c != wanted_c => {
+			Some((c, line, column)) if c != wanted_c => {
 				return Err(expected(
 					&String::from_utf8_lossy(&[wanted_c]),
 					&String::from_utf8_lossy(&[c]),
 					line,
+					column,
 					self.filename,
 				))
 			}
@@ -252,12 +262,12 @@ impl<'a> CodeFile<'a> {
 	fn read_line(&mut self) -> String {
 		self.read(
 			|code| Ok(code.read_char_unchecked()),
-			|_, (c, _)| c == b'\n',
+			|_, (c, ..)| c == b'\n',
 		).unwrap().to_string()
 	}
 
 	fn read_identifier(&mut self) -> Result<Code, String> {
-		self.read(Self::peek_char, |code, (c, _)| {
+		self.read(Self::peek_char, |code, (c, ..)| {
 			if c.is_ascii_alphanumeric() || c == b'_' {
 				code.read_char_unchecked().unwrap();
 				false
@@ -274,12 +284,12 @@ impl<'a> CodeFile<'a> {
 			|code| {
 				let stringc = code.read_char_unchecked();
 				if stringc.is_none() {
-					Err(error("Unterminated string", c.1, self.filename))
+					Err(error("Unterminated string", c.1, c.2, self.filename))
 				} else {
 					Ok(stringc)
 				}
 			},
-			|code, (stringc, _)| {
+			|code, (stringc, ..)| {
 				if stringc == b'\n' {
 					false
 				} else if skip_next {
@@ -304,7 +314,7 @@ impl<'a> CodeFile<'a> {
 		f: impl FnMut(&mut Self) -> Result<Option<CodeChar>, String>,
 	) -> Result<Option<Code>, String> {
 		let mut reached = false;
-		let result = self.read(f, |_, (c, _)| {
+		let result = self.read(f, |_, (c, ..)| {
 			if c == end {
 				reached = true;
 				true
@@ -321,6 +331,7 @@ impl<'a> CodeFile<'a> {
 				&(end as char).to_string(),
 				"<end>",
 				self.line,
+				self.column,
 				self.filename,
 			)
 		})
@@ -344,7 +355,7 @@ impl<'a> CodeFile<'a> {
 				_ => args.push(self.read_char_unchecked().unwrap()),
 			}
 		}
-		Err(expected_before(")", "<end>", self.line, self.filename))
+		Err(expected_before(")", "<end>", self.line, self.column, self.filename))
 	}
 
 	fn read_macro_block(&mut self) -> Result<(PPCode, PPVars), String> {
@@ -374,7 +385,7 @@ impl<'a> CodeFile<'a> {
 				_ => {}
 			}
 		}
-		Err(expected_before("}", "<end>", self.line, self.filename))
+		Err(expected_before("}", "<end>", self.line, self.column, self.filename))
 	}
 
 	fn keep_block(&mut self, to_keep: bool) -> Result<(), String> {
@@ -420,10 +431,10 @@ impl<'a> CodeFile<'a> {
 		self.skip_whitespace();
 		let comparison = [
 			self.read_char_unchecked()
-				.ok_or_else(|| expected("==' or '!=", "<end>", self.line, self.filename))?
+				.ok_or_else(|| expected("==' or '!=", "<end>", self.line, self.column, self.filename))?
 				.0,
 			self.read_char_unchecked()
-				.ok_or_else(|| expected("==' or '!=", "<end>", self.line, self.filename))?
+				.ok_or_else(|| expected("==' or '!=", "<end>", self.line, self.column, self.filename))?
 				.0,
 		];
 		let to_compare2 = self.read_until(end)?.trim();
@@ -435,6 +446,7 @@ impl<'a> CodeFile<'a> {
 					"==' or '!=",
 					&String::from_utf8_lossy(&comparison),
 					self.line,
+					self.column,
 					self.filename,
 				))
 			}
@@ -448,7 +460,7 @@ impl<'a> CodeFile<'a> {
 				result = b;
 			}
 			self.skip_whitespace();
-			if let Some((b')', _)) = self.peek_char_unchecked() {
+			if let Some((b')', ..)) = self.peek_char_unchecked() {
 				self.read_char_unchecked();
 				break Ok(result);
 			}
@@ -542,7 +554,7 @@ pub fn preprocess_code(
 					"import" => {
 						let str_start = code.read_char_unchecked();
 						let module = match str_start {
-							Some((b'\'' | b'"' | b'`', _)) => {
+							Some((b'\'' | b'"' | b'`', ..)) => {
 								code.read_string(str_start.unwrap())?
 							}
 							_ => {
@@ -591,7 +603,7 @@ pub fn preprocess_code(
 						let mut has_values = false;
 						let value = code.read(
 							|code| Ok(code.read_char_unchecked()),
-							|_, (c, _)| {
+							|_, (c, ..)| {
 								if c == b'$' {
 									has_values = true;
 								}
@@ -616,7 +628,7 @@ pub fn preprocess_code(
 							loop {
 								code.skip_whitespace();
 								if let Some((b'.', line)) = code.peek_char_unchecked() {
-									if code.read(CodeFile::peek_char, |code, (c, _)| {
+									if code.read(CodeFile::peek_char, |code, (c, ..)| {
 											if c == b'.' {
 												code.read_char_unchecked();
 												false
@@ -645,7 +657,7 @@ pub fn preprocess_code(
 									return Err(expected("<name>", &got, line, filename))
 								}
 								args.push(arg);
-								if let Some((b')', _)) = code.peek_char_unchecked() {
+								if let Some((b')', ..)) = code.peek_char_unchecked() {
 									code.read_char_unchecked();
 									break (false, args);
 								}
@@ -668,7 +680,7 @@ pub fn preprocess_code(
 				}
 				false
 			}
-			b'$' if is_block && matches!(code.peek_char_unchecked(), Some((b'{', _))) => {
+			b'$' if is_block && matches!(code.peek_char_unchecked(), Some((b'{', ..))) => {
 				size += currentcode.len() + 8;
 				finalcode.push_back((currentcode, false));
 				let name = format_clue!("_vararg", variables.len().to_string());
@@ -682,9 +694,9 @@ pub fn preprocess_code(
 			},
 			b'$' => {
 				let mut name = code.read_identifier()?;
-				if name.len() <= 1 && matches!(name.last(), Some((b'1'..=b'9', _)) | None) {
+				if name.len() <= 1 && matches!(name.last(), Some((b'1'..=b'9', ..)) | None) {
 					let n = match name.pop() {
-						Some((c, _)) => (c - b'0') as usize,
+						Some((c, ..)) => (c - b'0') as usize,
 						None => 1,
 					};
 					if pseudos.is_none() {
@@ -701,9 +713,9 @@ pub fn preprocess_code(
 					finalcode.push_back((currentcode, false));
 					name.push_start(c);
 					if {
-						if matches!(code.peek_char_unchecked(), Some((b'!', _))) {
+						if matches!(code.peek_char_unchecked(), Some((b'!', ..))) {
 							name.push(code.read_char_unchecked().unwrap());
-							matches!(code.peek_char_unchecked(), Some((b'(', _)))
+							matches!(code.peek_char_unchecked(), Some((b'(', ..)))
 						} else {
 							false
 						}
@@ -743,7 +755,7 @@ pub fn preprocess_code(
 			}
 			b'>' | b'<' => {
 				currentcode.push(c);
-				if let Some((nc, _)) = code.peek_char_unchecked() {
+				if let Some((nc, ..)) = code.peek_char_unchecked() {
 					match nc {
 						b'=' => {
 							currentcode.push(code.read_char_unchecked().unwrap());
@@ -759,7 +771,7 @@ pub fn preprocess_code(
 			}
 			b'=' => {
 				currentcode.push(c);
-				if let Some((nc, _)) = code.peek_char_unchecked() {
+				if let Some((nc, ..)) = code.peek_char_unchecked() {
 					if matches!(nc, b'=' | b'>') {
 						currentcode.push(code.read_char_unchecked().unwrap());
 					} else {
@@ -770,7 +782,7 @@ pub fn preprocess_code(
 			}
 			b'!' => {
 				currentcode.push(c);
-				if let Some((nc, _)) = code.peek_char_unchecked() {
+				if let Some((nc, ..)) = code.peek_char_unchecked() {
 					if nc == b'=' {
 						currentcode.push(code.read_char_unchecked().unwrap());
 					}
@@ -949,7 +961,7 @@ pub fn preprocess_variables(
 			b'$' => {
 				let name = {
 					let mut name = Code::with_capacity(min(size - 1, 8));
-					while let Some((c, _)) = chars.peek() {
+					while let Some((c, ..)) = chars.peek() {
 						if !(c.is_ascii_alphanumeric() || *c == b'_') {
 							break;
 						}
@@ -986,8 +998,8 @@ pub fn preprocess_variables(
 							&{
 								let mut macro_variables = variables.clone();
 								macro_variables.extend(ppvars.clone());
-								let is_called = matches!(chars.next(), Some((b'!', _)));
-								if !is_called || !matches!(chars.next(), Some((b'(', _))) {
+								let is_called = matches!(chars.next(), Some((b'!', ..)));
+								if !is_called || !matches!(chars.next(), Some((b'(', ..))) {
 									let name = name.to_string();
 									return Err(error(
 										format!(
