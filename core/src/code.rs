@@ -9,7 +9,7 @@ use std::{
 
 use utf8_decode::decode;
 
-pub type CodeChar = (u8, usize);
+pub type CodeChar = (u8, usize, usize);
 
 #[derive(Debug, Clone, Default)]
 pub struct Code {
@@ -30,7 +30,7 @@ impl Iterator for CodeBytes {
 	type Item = u8;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.code.pop_start().map(|(c, line)| {
+		self.code.pop_start().map(|(c, line, column)| {
 			self.read += 1;
 			self.line = line;
 			c
@@ -94,32 +94,33 @@ impl ToString for Code {
 	}
 }
 
-impl<'a> From<(&'a [u8], usize)> for Code {
-	fn from(value: (&'a [u8], usize)) -> Self {
-		let (iter, line) = value;
+impl<'a> From<(&'a [u8], usize, usize)> for Code {
+	fn from(value: (&'a [u8], usize, usize)) -> Self {
+		let (iter, line, mut column) = value;
 		let mut result = Code::with_capacity(iter.len());
 		for c in iter {
-			result.push((*c, line))
+			result.push((*c, line, column));
+			column += 1;
 		}
 		result
 	}
 }
 
-impl<'a, const N: usize> From<(&'a [u8; N], usize)> for Code {
-	fn from(value: (&'a [u8; N], usize)) -> Self {
-		Code::from((value.0 as &[u8], value.1))
+impl<'a, const N: usize> From<(&'a [u8; N], usize, usize)> for Code {
+	fn from(value: (&'a [u8; N], usize, usize)) -> Self {
+		Code::from((value.0 as &[u8], value.1, value.2))
 	}
 }
 
-impl<'a> From<(&'a str, usize)> for Code {
-	fn from(value: (&'a str, usize)) -> Self {
-		Code::from((value.0.as_bytes(), value.1))
+impl<'a> From<(&'a str, usize, usize)> for Code {
+	fn from(value: (&'a str, usize, usize)) -> Self {
+		Code::from((value.0.as_bytes(), value.1, value.2))
 	}
 }
 
-impl From<(String, usize)> for Code {
-	fn from(value: (String, usize)) -> Self {
-		Code::from((value.0.as_bytes(), value.1))
+impl From<(String, usize, usize)> for Code {
+	fn from(value: (String, usize, usize)) -> Self {
+		Code::from((value.0.as_bytes(), value.1, value.2))
 	}
 }
 
@@ -127,7 +128,7 @@ impl PartialEq for Code {
 	fn eq(&self, other: &Self) -> bool {
 		self.len() == other.len() && {
 			let mut other = other.into_iter();
-			for (c, _) in self {
+			for (c, ..) in self {
 				if *c != other.next().unwrap().0 {
 					return false;
 				}
@@ -141,7 +142,7 @@ impl PartialEq<str> for Code {
 	fn eq(&self, other: &str) -> bool {
 		self.len() == other.len() && {
 			let mut other = other.bytes();
-			for (c, _) in self {
+			for (c, ..) in self {
 				if *c != other.next().unwrap() {
 					return false;
 				}
@@ -173,7 +174,7 @@ impl Eq for Code {}
 
 impl Hash for Code {
 	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-		for (c, _) in &self.list {
+		for (c, ..) in &self.list {
 			c.hash(state)
 		}
 	}
@@ -240,14 +241,14 @@ impl Code {
 	}
 
 	pub fn trim(mut self) -> Self {
-		while let Some((c, _)) = self.list.front() {
+		while let Some((c, ..)) = self.list.front() {
 			if c.is_ascii_whitespace() {
 				self.list.pop_front();
 			} else {
 				break;
 			}
 		}
-		while let Some((c, _)) = self.list.back() {
+		while let Some((c, ..)) = self.list.back() {
 			if c.is_ascii_whitespace() {
 				self.list.pop_back();
 			} else {
