@@ -840,7 +840,12 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize) -> V
 				let Some(c) = code.next() else {
 					return newpseudos;
 				};
-				matches!(c, b'!' | b'=' | b'>' | b'<')
+				match c {
+					b'!' | b'=' | b'>' | b'<' => true,
+					b'.' | b'&' | b'|' | b'?' => code.next().unwrap_or(&b'\0') != c,
+					_ => false,
+				}
+				//matches!(c, b'!' | b'=' | b'>' | b'<')
 			}
 			b'>' if matches!(code.peek(), Some(b'=')) => {
 				code.next().unwrap();
