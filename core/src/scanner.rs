@@ -59,14 +59,16 @@ pub struct Token {
 	pub kind: TokenType,
 	pub lexeme: String,
 	pub line: usize,
+	pub column: usize,
 }
 
 impl Token {
-	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize) -> Self {
+	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize, column: usize) -> Self {
 		Self {
 			kind,
 			lexeme: lexeme.into(),
 			line,
+			column,
 		}
 	}
 }
@@ -95,6 +97,10 @@ impl BorrowedToken {
 
 	pub const fn line(&self) -> usize {
 		self.token().line
+	}
+
+	pub const fn column(&self) -> usize {
+		self.token().column
 	}
 
 	pub fn into_owned(&self) -> Token {
@@ -194,18 +200,18 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	fn add_literal_token(&mut self, kind: TokenType, literal: String) {
-		self.tokens.push(Token::new(kind, literal, self.line));
+		self.tokens.push(Token::new(kind, literal, self.line, self.column));
 	}
 
 	fn add_token(&mut self, kind: TokenType) {
 		let lexeme: String = self.substr(self.start, self.current);
 		self.last = kind;
-		self.tokens.push(Token::new(kind, lexeme, self.line));
+		self.tokens.push(Token::new(kind, lexeme, self.line, self.column));
 	}
 
 	fn warning(&mut self, message: impl Into<String>) {
 		println!(
-			"Error in file {}:{}:{}!\nError: \"{}\"\n",
+			"Error in {}:{}:{}!\nError: \"{}\"\n",
 			self.filename,
 			self.line,
 			self.column,

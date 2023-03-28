@@ -43,7 +43,7 @@ pub enum PPVar {
 }
 
 fn error(msg: impl Into<String>, line: usize, column: usize, filename: &String) -> String {
-	println!("Error in file {filename}:{}:{}!", line, column);
+	println!("Error in {filename}:{line}:{column}!");
 	msg.into()
 }
 
