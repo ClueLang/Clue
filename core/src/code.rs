@@ -19,6 +19,7 @@ pub struct Code {
 pub struct CodeBytes {
 	code: Code,
 	line: usize,
+	column: usize,
 	read: usize,
 }
 
@@ -30,9 +31,10 @@ impl Iterator for CodeBytes {
 	type Item = u8;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.code.pop_start().map(|(c, line, _)| {
+		self.code.pop_start().map(|(c, line, column)| {
 			self.read += 1;
 			self.line = line;
+			self.column = column;
 			c
 		})
 	}
@@ -57,6 +59,10 @@ impl CodeChars {
 
 	pub const fn line(&self) -> usize {
 		self.code.line
+	}
+
+	pub const fn column(&self) -> usize {
+		self.code.column
 	}
 
 	pub fn bytes_read(&mut self) -> usize {
@@ -232,6 +238,7 @@ impl Code {
 		CodeBytes {
 			code: self,
 			line: 0,
+			column: 0,
 			read: 0,
 		}
 	}

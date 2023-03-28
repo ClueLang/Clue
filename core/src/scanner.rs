@@ -104,11 +104,12 @@ impl BorrowedToken {
 
 struct CodeInfo<'a> {
 	line: usize,
+	column: usize,
 	start: usize,
 	current: usize,
 	size: usize,
 	code: CodeChars,
-	read: Vec<(char, usize)>,
+	read: Vec<(char, usize, usize)>,
 	filename: &'a String,
 	tokens: Vec<Token>,
 	last: TokenType,
@@ -120,10 +121,11 @@ impl<'a> CodeInfo<'a> {
 		let size = code.len() + 2;
 		let mut code = code.chars();
 		let mut read = Vec::with_capacity(size);
-		read.push((code.next_unwrapped(), code.line()));
-		read.push((code.next_unwrapped(), code.line()));
+		read.push((code.next_unwrapped(), code.line(), code.column()));
+		read.push((code.next_unwrapped(), code.line(), code.column()));
 		Self {
 			line: 1,
+			column: 1,
 			start: 0,
 			current: 0,
 			size,
@@ -145,8 +147,8 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	fn advance(&mut self) -> char {
-		self.read.push((self.code.next_unwrapped(), self.code.line()));
-		let (prev, line) = self.read[self.current];
+		self.read.push((self.code.next_unwrapped(), self.code.line(), self.code.column()));
+		let (prev, line, ..) = self.read[self.current];
 		self.line = line;
 		let read = self.code.bytes_read();
 		if read > 0 {
@@ -203,9 +205,10 @@ impl<'a> CodeInfo<'a> {
 
 	fn warning(&mut self, message: impl Into<String>) {
 		println!(
-			"Error in file \"{}\" at line {}!\nError: \"{}\"\n",
+			"Error in file {}:{}:{}!\nError: \"{}\"\n",
 			self.filename,
 			self.line,
+			self.column,
 			message.into()
 		);
 		self.errored = true;
@@ -337,6 +340,10 @@ impl<'a> CodeInfo<'a> {
 		} else {
 			false
 		}
+	}
+
+	fn update_column(&mut self) {
+		self.column = self.read[self.current].2
 	}
 }
 
@@ -634,6 +641,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() && i.peek(0) != '\0' {
 		i.start = i.current;
+		i.update_column();
 		let c = i.advance();
 		if !i.scan_char(&SYMBOLS, c) {
 			if c.is_whitespace() {
