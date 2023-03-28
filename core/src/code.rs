@@ -30,7 +30,7 @@ impl Iterator for CodeBytes {
 	type Item = u8;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.code.pop_start().map(|(c, line, column)| {
+		self.code.pop_start().map(|(c, line, _)| {
 			self.read += 1;
 			self.line = line;
 			c
