@@ -9,13 +9,18 @@ use std::{
 
 use utf8_decode::decode;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 pub type CodeChar = (u8, usize, usize);
 
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Code {
 	list: VecDeque<CodeChar>,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CodeBytes {
 	code: Code,
 	line: usize,
@@ -23,6 +28,7 @@ pub struct CodeBytes {
 	read: usize,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CodeChars {
 	code: CodeBytes,
 }

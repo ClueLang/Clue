@@ -1,8 +1,12 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use clap::ValueEnum;
 
 macro_rules! value_enum {
 	($enum:ident, $name1:ident, $value1:literal, $($name:ident, $value:literal),+) => {
 		#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+		#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 		pub enum $enum {
 			$name1, $($name,)+
 		}
@@ -76,6 +80,7 @@ value_enum!(
 );
 
 #[derive(Debug, Default, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Options {
 	pub env_tokens: bool,
 	pub env_struct: bool,

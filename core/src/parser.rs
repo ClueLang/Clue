@@ -10,6 +10,9 @@ use ahash::AHashMap;
 use std::vec;
 use std::{cmp, collections::VecDeque};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 macro_rules! count {
     () => { 0 };
     ($x:expr) => { 1 };
@@ -36,6 +39,7 @@ type OptionalEnd = Option<(TokenType, &'static str)>;
 type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ComplexToken {
 	VARIABLE {
 		local: bool,
@@ -127,6 +131,7 @@ pub enum ComplexToken {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CodeBlock {
 	pub start: usize,
 	pub code: Expression,
@@ -212,14 +217,22 @@ impl<'a> ParserInfo<'a> {
 	fn expected(&mut self, expected: &str, got: &str, line: usize, column: usize) -> String {
 		self.error(
 			format_clue!("Expected '", expected, "', got '", got, "'"),
-			line, column
+			line,
+			column,
 		)
 	}
 
-	fn expected_before(&mut self, expected: &str, before: &str, line: usize, column: usize) -> String {
+	fn expected_before(
+		&mut self,
+		expected: &str,
+		before: &str,
+		line: usize,
+		column: usize,
+	) -> String {
 		self.error(
 			format_clue!("Expected '", expected, "' before '", before, "'"),
-			line, column
+			line,
+			column,
 		)
 	}
 
@@ -299,7 +312,12 @@ impl<'a> ParserInfo<'a> {
 	) -> Result<T, String> {
 		if let Some((kind, lexeme)) = end {
 			if tocheck.kind() != kind {
-				return Err(self.expected(lexeme, &tocheck.lexeme(), tocheck.line(), tocheck.column()));
+				return Err(self.expected(
+					lexeme,
+					&tocheck.lexeme(),
+					tocheck.line(),
+					tocheck.column(),
+				));
 			}
 		}
 		Ok(iftrue)
@@ -380,11 +398,14 @@ impl<'a> ParserInfo<'a> {
 					iskey = true;
 					true
 				}
-				EOF => return Err(
-					self.expected_before("}", "<end>",
-					self.peek(0).line(),
-					self.peek(0).column()
-				)),
+				EOF => {
+					return Err(self.expected_before(
+						"}",
+						"<end>",
+						self.peek(0).line(),
+						self.peek(0).column(),
+					))
+				}
 				_ => true,
 			} {
 				self.current += 1;
@@ -414,11 +435,14 @@ impl<'a> ParserInfo<'a> {
 							qscope -= 1;
 							!matches!(qscope, 0)
 						}
-						EOF => return Err(
-							self.expected_before("]", "<end>",
-							self.peek(0).line(),
-							self.peek(0).column()
-						)),
+						EOF => {
+							return Err(self.expected_before(
+								"]",
+								"<end>",
+								self.peek(0).line(),
+								self.peek(0).column(),
+							))
+						}
 						_ => true,
 					} {}
 					self.current = start;
@@ -490,7 +514,7 @@ impl<'a> ParserInfo<'a> {
 								"<meta name>",
 								&name_token.lexeme(),
 								name_token.line(),
-								name_token.column()
+								name_token.column(),
 							));
 						}
 					}))
@@ -517,7 +541,14 @@ impl<'a> ParserInfo<'a> {
 					cscope -= 1;
 					true
 				}
-				EOF => return Err(self.expected_before("}", "<end>", self.peek(0).line(), self.peek(0).column())),
+				EOF => {
+					return Err(self.expected_before(
+						"}",
+						"<end>",
+						self.peek(0).line(),
+						self.peek(0).column(),
+					))
+				}
 				_ => true,
 			} {
 				self.current += 1;
@@ -544,8 +575,8 @@ impl<'a> ParserInfo<'a> {
 		checkback: bool,
 	) -> Result<(), String> {
 		if match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | TRUE | FALSE | MINUS | BIT_NOT
-			| NIL | NOT | HASHTAG | ROUND_BRACKET_OPEN | THREEDOTS | MATCH => false,
+			NUMBER | IDENTIFIER | STRING | TRUE | FALSE | MINUS | BIT_NOT | NIL | NOT | HASHTAG
+			| ROUND_BRACKET_OPEN | THREEDOTS | MATCH => false,
 			CURLY_BRACKET_OPEN => {
 				*notable = false;
 				false
@@ -555,7 +586,7 @@ impl<'a> ParserInfo<'a> {
 			return Err(self.error(
 				format!("Operator '{}' has invalid right hand token", t.lexeme()),
 				t.line(),
-				t.column()
+				t.column(),
 			));
 		}
 		if checkback
@@ -570,7 +601,7 @@ impl<'a> ParserInfo<'a> {
 			return Err(self.error(
 				format!("Operator '{}' has invalid left hand token", t.lexeme()),
 				t.line(),
-				t.column()
+				t.column(),
 			));
 		}
 		Ok(())
@@ -623,7 +654,7 @@ impl<'a> ParserInfo<'a> {
 			return Err(self.error(
 				format!("'{}' should be used only when indexing", t.lexeme()),
 				self.peek(0).line(),
-				self.peek(0).column()
+				self.peek(0).column(),
 			));
 		}
 		expr.push_back(SYMBOL(lexeme.to_owned()));
@@ -632,8 +663,8 @@ impl<'a> ParserInfo<'a> {
 
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind() {
-			NUMBER | IDENTIFIER | STRING | TRUE | BIT_NOT | FALSE | NIL | NOT
-			| HASHTAG | CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
+			NUMBER | IDENTIFIER | STRING | TRUE | BIT_NOT | FALSE | NIL | NOT | HASHTAG
+			| CURLY_BRACKET_OPEN | THREEDOTS | MATCH => {
 				self.current += 1;
 				true
 			}
@@ -905,7 +936,12 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
-	fn build_safe_index(&mut self, normal_kind: TokenType, kind: TokenType, expr: &mut Expression) -> bool {
+	fn build_safe_index(
+		&mut self,
+		normal_kind: TokenType,
+		kind: TokenType,
+		expr: &mut Expression,
+	) -> bool {
 		if (kind as u8).wrapping_sub(6) != normal_kind as u8 {
 			return false;
 		}
@@ -916,7 +952,7 @@ impl<'a> ParserInfo<'a> {
 			local: true,
 			names: vec![name.clone()],
 			values: vec![safe_expr],
-			line: self.peek(0).line()
+			line: self.peek(0).line(),
 		});
 		expr.push_back(SYMBOL(name.clone()));
 		expr.push_back(SYMBOL(String::from(" and ")));
@@ -967,7 +1003,7 @@ impl<'a> ParserInfo<'a> {
 									local: true,
 									names: vec![name.clone()],
 									values: vec![expr_self],
-									line
+									line,
 								});
 								expr.append(&mut start);
 								expr.push_back(SYMBOL(name.clone()));
@@ -979,9 +1015,13 @@ impl<'a> ParserInfo<'a> {
 								name.to_owned()
 							};
 							expr.push_back(SYMBOL(String::from(".")));
-							self.tokens.insert(self.current + 2, Token::new(IDENTIFIER, name, line, 0));
+							self.tokens
+								.insert(self.current + 2, Token::new(IDENTIFIER, name, line, 0));
 							if self.peek(3).kind() != ROUND_BRACKET_CLOSED {
-								self.tokens.insert(self.current + 3, Token::new(COMMA, String::from(","), line, 0));
+								self.tokens.insert(
+									self.current + 3,
+									Token::new(COMMA, String::from(","), line, 0),
+								);
 								self.size += 2;
 							} else {
 								self.size += 1;
@@ -994,7 +1034,8 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				SQUARE_BRACKET_OPEN | SAFE_SQUARE_BRACKET => {
-					safe_indexing |= self.build_safe_index(SQUARE_BRACKET_OPEN, t.kind(), &mut expr);
+					safe_indexing |=
+						self.build_safe_index(SQUARE_BRACKET_OPEN, t.kind(), &mut expr);
 					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
 					expr.push_back(SYMBOL(String::from("[(")));
 					expr.push_back(EXPR(qexpr));
@@ -1495,8 +1536,8 @@ impl<'a> ParserInfo<'a> {
 					}
 					Err(msg) => {
 						let (line, column) = self.testing.unwrap();
-						return Err(self.error(msg, line, column))
-					},
+						return Err(self.error(msg, line, column));
+					}
 				});
 				!self.advance_if(CURLY_BRACKET_CLOSED)
 			}
@@ -1609,10 +1650,13 @@ impl<'a> ParserInfo<'a> {
 				});
 				first_expr.push_front(name.clone());
 				self.expr.push_back(IF_STATEMENT {
-					condition: vec_deque![name.clone()],
+					condition: vec_deque![name],
 					code: CodeBlock {
 						start: line,
-						code: vec_deque![IDENT { expr: first_expr, line }],
+						code: vec_deque![IDENT {
+							expr: first_expr,
+							line
+						}],
 						end: line,
 					},
 					next: None,
@@ -1631,7 +1675,7 @@ impl<'a> ParserInfo<'a> {
 			return Err(self.error(
 				"Safe indexing cannot be used when altering variables",
 				t.line(),
-				t.column()
+				t.column(),
 			));
 		}
 		let mut names = vec_deque![first_expr];
@@ -1795,7 +1839,12 @@ impl<'a> ParserInfo<'a> {
 				WITH => self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?,
 				_ => {
 					let t = self.peek(0);
-					return Err(self.expected("of', 'in' or 'with", &t.lexeme(), t.line(), t.column()));
+					return Err(self.expected(
+						"of', 'in' or 'with",
+						&t.lexeme(),
+						t.line(),
+						t.column(),
+					));
 				}
 			};
 			let code = self.build_loop_block()?;
@@ -1874,7 +1923,7 @@ impl<'a> ParserInfo<'a> {
 				t.lexeme()
 			),
 			t.line(),
-			t.column()
+			t.column(),
 		))
 	}
 }

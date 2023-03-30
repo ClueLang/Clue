@@ -140,7 +140,7 @@ impl<'a> Compiler<'a> {
 				CALL(args) => {
 					format_clue!("(", self.compile_expressions(scope, args.clone()), ")")
 				}
-				_ => unreachable!()
+				_ => unreachable!(),
 			}
 		}
 		result
@@ -201,9 +201,7 @@ impl<'a> Compiler<'a> {
 						});
 						scope -= 1;
 						let line = self.compile_debug_comment(prevline);
-						format!(
-							"setmetatable({{{values}{pre2}}}, {{{metas}{line}\n{pre2}}})",
-						)
+						format!("setmetatable({{{values}{pre2}}}, {{{metas}{line}\n{pre2}}})",)
 					}
 				}
 				LAMBDA { args, code } => {
@@ -280,7 +278,7 @@ impl<'a> Compiler<'a> {
 								}
 							};
 							write!(result, "rawset(_G, \"{name}\", {value});{line}{end}")
-							.expect("something really unexpected happened");
+								.expect("something really unexpected happened");
 						}
 						result
 					} else {
@@ -546,7 +544,10 @@ impl<'a> Compiler<'a> {
 					let end = self.indentate_if(ctokens, scope);
 					format!(
 						"{};{}",
-						if matches!(self.options.env_continue, ContinueMode::LuaJIT | ContinueMode::Goto) {
+						if matches!(
+							self.options.env_continue,
+							ContinueMode::LuaJIT | ContinueMode::Goto
+						) {
 							"goto continue"
 						} else {
 							"continue"
