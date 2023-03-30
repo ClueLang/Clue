@@ -136,3 +136,32 @@ jobs:
           files: |
             target/${{ matrix.target }}/release/*.tar.gz
             target/${{ matrix.target }}/debian/*.deb
+  build-wasm:
+    runs-on: ubuntu-latest
+    env:
+      CRATE_NAME: "clue"
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Cache build
+        uses: Swatinem/rust-cache@v2
+      - name: Setup
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-pack
+      - name: Build wasm
+        run: |
+          cd wasm
+          wasm-pack build --target web --release
+          zip -r clue_wasm.zip pkg
+      - name: Upload clue_wasm.zip
+        uses: actions/upload-artifact@v3
+        with:
+          name: clue_wasm.zip
+          path: wasm/clue_wasm.zip
+      - name: Publish in release
+        uses: softprops/action-gh-release@v1
+        if: github.ref_type == 'tag'
+        with:
+          files: |
+            wasm/clue_wasm.zip
