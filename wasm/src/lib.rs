@@ -1,5 +1,8 @@
 use clue_core::{
+	code::Code,
 	env::{BitwiseMode, ContinueMode, LuaVersion},
+	parser::Expression,
+	scanner::Token,
 	Clue as ClueCore,
 };
 use wasm_bindgen::prelude::*;
@@ -11,6 +14,7 @@ pub struct Clue {
 
 #[wasm_bindgen]
 impl Clue {
+	#[wasm_bindgen(constructor)]
 	pub fn new() -> Self {
 		Clue {
 			inner: ClueCore::new(),
@@ -71,6 +75,67 @@ impl Clue {
 
 	pub fn target_os(&mut self, os: String) {
 		self.inner.target_os(os);
+	}
+}
+
+#[wasm_bindgen]
+impl Clue {
+	pub fn preprocess_code(&self, code: String) -> Result<JsValue, String> {
+		let preprocessed = self.inner.preprocess_code(code)?;
+		serde_wasm_bindgen::to_value(&preprocessed).map_err(|err| err.to_string())
+	}
+
+	pub fn scan_preprocessed(&self, code: JsValue) -> Result<JsValue, String> {
+		let code: Code = serde_wasm_bindgen::from_value(code).map_err(|err| err.to_string())?;
+		let scanned = self.inner.scan_preprocessed(code)?;
+		serde_wasm_bindgen::to_value(&scanned).map_err(|err| err.to_string())
+	}
+
+	pub fn scan_code(&self, code: String) -> Result<JsValue, String> {
+		let scanned = self.inner.scan_code(code)?;
+		serde_wasm_bindgen::to_value(&scanned).map_err(|err| err.to_string())
+	}
+
+	pub fn parse_preprocessed(&self, code: JsValue) -> Result<JsValue, String> {
+		let code: Code = serde_wasm_bindgen::from_value(code).map_err(|err| err.to_string())?;
+		let parsed = self.inner.parse_preprocessed(code)?;
+		serde_wasm_bindgen::to_value(&parsed).map_err(|err| err.to_string())
+	}
+
+	pub fn parse_tokens(&self, tokens: JsValue) -> Result<JsValue, String> {
+		let tokens: Vec<Token> =
+			serde_wasm_bindgen::from_value(tokens).map_err(|err| err.to_string())?;
+		let parsed = self.inner.parse_tokens(tokens)?;
+		serde_wasm_bindgen::to_value(&parsed).map_err(|err| err.to_string())
+	}
+
+	pub fn parse_code(&self, code: String) -> Result<JsValue, String> {
+		let parsed = self.inner.parse_code(code)?;
+		serde_wasm_bindgen::to_value(&parsed).map_err(|err| err.to_string())
+	}
+
+	pub fn compile_preprocessed(&self, code: JsValue) -> Result<String, String> {
+		let code: Code = serde_wasm_bindgen::from_value(code).map_err(|err| err.to_string())?;
+
+		self.inner.compile_preprocessed(code)
+	}
+
+	pub fn compile_tokens(&self, tokens: JsValue) -> Result<String, String> {
+		let tokens: Vec<Token> =
+			serde_wasm_bindgen::from_value(tokens).map_err(|err| err.to_string())?;
+
+		self.inner.compile_tokens(tokens)
+	}
+
+	pub fn compile_ast(&self, parse_result: JsValue) -> Result<String, String> {
+		let parse_result: (Expression, String) =
+			serde_wasm_bindgen::from_value(parse_result).map_err(|err| err.to_string())?;
+
+		self.inner.compile_ast(parse_result)
+	}
+
+	pub fn compile_code(&self, code: String) -> Result<String, String> {
+		self.inner.compile_code(code)
 	}
 }
 
