@@ -1,5 +1,5 @@
 [workspace]
-members = ["cli", "core"]
+members = ["cli", "core", "wasm"]
 default-members = ["cli", "core"]
 
 [workspace.package]
@@ -15,7 +15,7 @@ categories = ["compilers"]
 
 [workspace.dependencies]
 ahash = "0.8.2"
-clap = {version = "3.2.23", features = ["derive", "cargo"]}
+clap = { version = "3.2.23", features = ["derive", "cargo"] }
 
 [profile.release]
 lto = true

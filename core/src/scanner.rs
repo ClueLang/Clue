@@ -11,6 +11,9 @@ use ahash::AHashMap;
 use lazy_static::lazy_static;
 use std::fmt;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 type SymbolsMap<'a> = [Option<&'a SymbolType<'a>>; 127];
 
 const fn generate_map<'a>(elements: &'a [(char, SymbolType)]) -> SymbolsMap<'a> {
@@ -26,6 +29,7 @@ const fn generate_map<'a>(elements: &'a [(char, SymbolType)]) -> SymbolsMap<'a> 
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[rustfmt::skip]
 pub enum TokenType {
 	//symbols (NOTE: SAFE_* tokens must equal to their normal self + 6)
@@ -33,7 +37,7 @@ pub enum TokenType {
 	SQUARE_BRACKET_CLOSED, CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	SAFE_CALL, COMMA, SAFE_SQUARE_BRACKET, SEMICOLON, QUESTION_MARK,
 	NOT, AND, OR, PLUS, MINUS, STAR, SLASH, FLOOR_DIVISION,
-	PERCENTUAL, CARET, HASHTAG, COALESCE, DOT, DOUBLE_COLON, TWODOTS, 
+	PERCENTUAL, CARET, HASHTAG, COALESCE, DOT, DOUBLE_COLON, TWODOTS,
 	COLON, THREEDOTS, ARROW, SAFE_DOT, SAFE_DOUBLE_COLON,
 	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
 
@@ -55,18 +59,21 @@ pub enum TokenType {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Token {
 	pub kind: TokenType,
 	pub lexeme: String,
 	pub line: usize,
+	pub column: usize,
 }
 
 impl Token {
-	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize) -> Self {
+	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize, column: usize) -> Self {
 		Self {
 			kind,
 			lexeme: lexeme.into(),
 			line,
+			column,
 		}
 	}
 }
@@ -97,6 +104,10 @@ impl BorrowedToken {
 		self.token().line
 	}
 
+	pub const fn column(&self) -> usize {
+		self.token().column
+	}
+
 	pub fn into_owned(&self) -> Token {
 		self.token().clone()
 	}
@@ -104,11 +115,12 @@ impl BorrowedToken {
 
 struct CodeInfo<'a> {
 	line: usize,
+	column: usize,
 	start: usize,
 	current: usize,
 	size: usize,
 	code: CodeChars,
-	read: Vec<(char, usize)>,
+	read: Vec<(char, usize, usize)>,
 	filename: &'a String,
 	tokens: Vec<Token>,
 	last: TokenType,
@@ -120,10 +132,11 @@ impl<'a> CodeInfo<'a> {
 		let size = code.len() + 2;
 		let mut code = code.chars();
 		let mut read = Vec::with_capacity(size);
-		read.push((code.next_unwrapped(), code.line()));
-		read.push((code.next_unwrapped(), code.line()));
+		read.push((code.next_unwrapped(), code.line(), code.column()));
+		read.push((code.next_unwrapped(), code.line(), code.column()));
 		Self {
 			line: 1,
+			column: 1,
 			start: 0,
 			current: 0,
 			size,
@@ -145,8 +158,12 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	fn advance(&mut self) -> char {
-		self.read.push((self.code.next_unwrapped(), self.code.line()));
-		let (prev, line) = self.read[self.current];
+		self.read.push((
+			self.code.next_unwrapped(),
+			self.code.line(),
+			self.code.column(),
+		));
+		let (prev, line, ..) = self.read[self.current];
 		self.line = line;
 		let read = self.code.bytes_read();
 		if read > 0 {
@@ -192,20 +209,23 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	fn add_literal_token(&mut self, kind: TokenType, literal: String) {
-		self.tokens.push(Token::new(kind, literal, self.line));
+		self.tokens
+			.push(Token::new(kind, literal, self.line, self.column));
 	}
 
 	fn add_token(&mut self, kind: TokenType) {
 		let lexeme: String = self.substr(self.start, self.current);
 		self.last = kind;
-		self.tokens.push(Token::new(kind, lexeme, self.line));
+		self.tokens
+			.push(Token::new(kind, lexeme, self.line, self.column));
 	}
 
 	fn warning(&mut self, message: impl Into<String>) {
 		println!(
-			"Error in file \"{}\" at line {}!\nError: \"{}\"\n",
+			"Error in {}:{}:{}!\nError: \"{}\"\n",
 			self.filename,
 			self.line,
+			self.column,
 			message.into()
 		);
 		self.errored = true;
@@ -337,6 +357,10 @@ impl<'a> CodeInfo<'a> {
 		} else {
 			false
 		}
+	}
+
+	fn update_column(&mut self) {
+		self.column = self.read[self.current].2
 	}
 }
 
@@ -480,9 +504,7 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 				),
 				(
 					'>',
-					SymbolType::Function(|i| {
-						i.warning("'?>' is deprecated")
-					}),
+					SymbolType::Function(|i| i.warning("'?>' is deprecated")),
 				),
 				('.', SymbolType::Just(SAFE_DOT)),
 				(
@@ -634,6 +656,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() && i.peek(0) != '\0' {
 		i.start = i.current;
+		i.update_column();
 		let c = i.advance();
 		if !i.scan_char(&SYMBOLS, c) {
 			if c.is_whitespace() {
@@ -666,7 +689,11 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 					match keyword {
 						KeywordType::Lua(kind) => *kind,
 						KeywordType::Reserved(e) => i.reserved(&ident, e),
-						_ if matches!(i.last, DOT | SAFE_DOT | DOUBLE_COLON | SAFE_DOUBLE_COLON) => {
+						_ if matches!(
+							i.last,
+							DOT | SAFE_DOT | DOUBLE_COLON | SAFE_DOUBLE_COLON
+						) =>
+						{
 							IDENTIFIER
 						}
 						KeywordType::Just(kind) => *kind,

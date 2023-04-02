@@ -222,7 +222,7 @@ fn compile_file_dir(
 		let string = format_clue!(
 			"\t[\"",
 			realname.strip_suffix(".clue").unwrap(),
-			"\"] = function()\n",
+			"\"] = function(...)\n",
 			code,
 			"\n\tend,\n"
 		);
