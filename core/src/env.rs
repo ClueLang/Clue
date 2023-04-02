@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use clap::ValueEnum;
 
+/// Creates the enum given the name of the enum and its members all of which have their names and their values
 macro_rules! value_enum {
 	($enum:ident, $name1:ident, $value1:literal, $($name:ident, $value:literal),+) => {
 		#[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -80,7 +81,6 @@ value_enum!(
 );
 
 #[derive(Debug, Default, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Options {
 	pub env_tokens: bool,
 	pub env_struct: bool,
