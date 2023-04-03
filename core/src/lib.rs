@@ -179,6 +179,7 @@ impl Clue {
 	/// # Errors
 	/// If an error occurs while preprocessing the code, an [`Err`] containing a [`String`] with the error message will be returned
 	///
+	///
 	/// # Example
 	/// ```
 	/// use clue_core::Clue;
@@ -195,7 +196,11 @@ impl Clue {
 		path: P,
 	) -> Result<Code, String> {
 		let filepath: &Path = path.as_ref();
-		let filename = filepath.file_name().unwrap().to_string_lossy().into_owned();
+		let filename = filepath
+			.file_name()
+			.ok_or_else(|| format!("Invalid path: {}", path))?
+			.to_string_lossy()
+			.into_owned();
 		let (codes, variables) = read_file(path, &filename, &self.options)?;
 		preprocess_codes(0, codes, &variables, &filename)
 	}
@@ -221,7 +226,11 @@ impl Clue {
 		path: P,
 	) -> Result<Vec<Token>, String> {
 		let filepath: &Path = path.as_ref();
-		let filename = filepath.file_name().unwrap().to_string_lossy().into_owned();
+		let filename = filepath
+			.file_name()
+			.ok_or_else(|| format!("Invalid path: {}", path))?
+			.to_string_lossy()
+			.into_owned();
 		scan_code(code, &filename)
 	}
 
@@ -303,23 +312,108 @@ impl Clue {
 }
 
 impl Clue {
+	/// Parses the given preprocessed code
+	/// Takes a [`Code`] containing the preprocessed code to parse
+	/// Returns a [`Result`] containing the parsed expression
+	///
+	/// If the code was successfully parsed, the [`Result`] will return a `(Expression, String)` containing the parsed expression and the static variables
+	///
+	/// # Errors
+	/// If an error occurs while parsing the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///  let clue = Clue::new();
+	///  let code = clue.preprocess_code("print(\"Hello World!\")".to_owned())?;
+	///  let (expression, statics) = clue.parse_preprocessed(code)?;
+	///
+	///  Ok(())
+	/// }
 	pub fn parse_preprocessed(&self, code: Code) -> Result<(Expression, String), String> {
 		let tokens = self.scan_preprocessed(code)?;
 		self.parse_tokens(tokens)
 	}
+
+	/// Parses the given [`Vec`] of [`Token`]
+	/// Takes a [`Vec<Token>`] containing the tokens to parse
+	/// Returns a [`Result`] containing the parsed expression
+	///
+	/// If the code was successfully parsed, the [`Result`] will return a `(Expression, String)` containing the parsed expression and the static variables
+	///
+	/// # Errors
+	/// If an error occurs while parsing the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///    let clue = Clue::new();
+	///    let tokens = clue.scan_code("print(\"Hello World!\")".to_owned())?;
+	///    let (expression, statics) = clue.parse_tokens(tokens)?;
+	///
+	///    Ok(())
+	/// }
 	pub fn parse_tokens(&self, tokens: Vec<Token>) -> Result<(Expression, String), String> {
 		parse_tokens(tokens, &String::from("(library)"), &self.options)
 	}
+
+	/// Parses the given code
+	/// Takes a [`String`] containing the code to parse
+	/// Returns a [`Result`] containing the parsed expression
+	///
+	/// If the code was successfully parsed, the [`Result`] will return a `(Expression, String)` containing the parsed expression and the static variables
+	///
+	/// # Errors
+	/// If an error occurs while parsing the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///   let clue = Clue::new();
+	///   let (expression, statics) = clue.parse_code("print(\"Hello World!\")".to_owned())?;
+	///
+	///   Ok(())
+	/// }
 	pub fn parse_code(&self, code: String) -> Result<(Expression, String), String> {
 		let tokens = self.scan_code(code)?;
 		self.parse_tokens(tokens)
 	}
+
+	/// Parses the given file
+	/// Takes any type that implements [`AsRef<Path>`] and [`AsRef<OsStr>`] and [`Display`] containing the path to the file to parse
+	/// Returns a [`Result`] containing the parsed expression
+	///
+	/// If the code was successfully parsed, the [`Result`] will return a `(Expression, String)` containing the parsed expression and the static variables
+	///
+	/// # Errors
+	/// If an error occurs while parsing the file, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///   let clue = Clue::new();
+	///   let (expression, statics) = clue.parse_file("../examples/fizzbuzz.clue")?;
+	///
+	///   Ok(())
+	/// }
 	pub fn parse_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		path: P,
 	) -> Result<(Expression, String), String> {
 		let filepath: &Path = path.as_ref();
-		let filename = filepath.file_name().unwrap().to_string_lossy().into_owned();
+		let filename = filepath
+			.file_name()
+			.ok_or_else(|| format!("Invalid path: {}", path))?
+			.to_string_lossy()
+			.into_owned();
 		let tokens = self.scan_file(&path)?;
 
 		parse_tokens(tokens, &filename, &self.options)
@@ -363,7 +457,7 @@ impl Clue {
 /// ```
 /// use clue_core::Clue;
 ///
-/// let clue = Clue::new();
+/// let clue = Clue::default();
 /// ```
 impl Default for Clue {
 	fn default() -> Self {
