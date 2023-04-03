@@ -45,49 +45,82 @@ macro_rules! format_clue {
 	}};
 }
 
+/// The main Clue library API
+/// This is the API that you will use to interact with Clue for most use cases
+/// It's recommended to use this API instead of the lower level APIs unless you need to
 pub struct Clue {
 	options: Options,
 }
 
 impl Clue {
+	/// Create a new `Clue` instance
 	pub fn new() -> Self {
 		Clue {
 			options: Options::default(),
 		}
 	}
 
+	/// Sets the `tokens` option
+	/// If `tokens` is `true` then then the `tokens` option will be enabled
+	/// If `tokens` is `false` then then the `tokens` option will be disabled
 	pub fn tokens(&mut self, env_tokens: bool) {
 		self.options.env_tokens = env_tokens;
 	}
+
+	/// Sets the `struct` option
+	/// If `struct` is `true` then then the `struct` option will be enabled
+	/// If `struct` is `false` then then the `struct` option will be disabled
 	pub fn env_struct(&mut self, env_tokens: bool) {
 		self.options.env_tokens = env_tokens;
 	}
 
+	/// Sets the `bitwise_mode` option
+	/// The `bitwise_mode` option is used to set the bitwise mode
+	/// See [`BitwiseMode`] for the available bitwise modes
 	pub fn bitwise_mode(&mut self, mode: BitwiseMode) {
 		self.options.env_bitwise = mode;
 	}
 
+	/// Sets the `continue_mode` option
+	/// The `continue_mode` option is used to set the continue mode
+	/// See [`ContinueMode`] for the available continue modes
 	pub fn continue_mode(&mut self, mode: ContinueMode) {
 		self.options.env_continue = mode;
 	}
 
+	/// Sets the `rawsetglobals` option
+	/// When the `rawsetglobals` option is enabled, the `rawsetglobals` function will be used for settings globals
 	pub fn rawsetglobals(&mut self, env_rawsetglobal: bool) {
 		self.options.env_rawsetglobals = env_rawsetglobal;
 	}
 
+	/// Sets the `debug` option
+	/// When the `debug` option is enabled, debug mode will be enabled
 	pub fn debug(&mut self, env_debug: bool) {
 		self.options.env_debug = env_debug;
 	}
 
+	/// Sets the `output` option
+	/// When the `output` option is enabled, the output will be printed to the console
 	pub fn output(&mut self, output: bool) {
 		self.options.env_output = output;
 	}
 
+	/// Sets the `target` option
+	/// The `target` option is used to set the target Lua version
+	///
+	/// To enable the target Lua version, set `version` to the desired Lua version (e.g. `Some(LuaVersion::Lua53)`)
+	/// To disable the target Lua version, set `version` to `None`
+	///
+	/// See [`LuaVersion`] for the available Lua versions
 	pub fn target(&mut self, version: Option<LuaVersion>) {
 		self.options.env_target = version;
 		self.options.preset();
 	}
 
+	/// Sets the `target_os` option
+	/// The `target_os` option is used to set the target operating system
+	/// See [`std::env::const::OS`] for specifying the operating system
 	pub fn target_os(&mut self, os: String) {
 		self.options.env_targetos = os;
 	}
