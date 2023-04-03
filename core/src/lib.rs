@@ -37,7 +37,7 @@ macro_rules! check {
 /// This is used to format strings in a way that is more efficient than using `format!`
 ///
 /// # Example
-/// ```
+/// ```rust
 /// use clue_core::format_clue;
 ///
 /// let a = "Hello";
@@ -148,7 +148,7 @@ impl Clue {
 	/// If an error occurs while preprocessing the code, an [`Err`] containing a [`String`] with the error message will be returned
 	///
 	/// # Example
-	/// ```
+	/// ```rust
 	/// use clue_core::Clue;
 	///
 	/// fn main() -> Result<(), String> {
@@ -181,7 +181,7 @@ impl Clue {
 	///
 	///
 	/// # Example
-	/// ```
+	/// ```rust
 	/// use clue_core::Clue;
 	///
 	/// fn main() -> Result<(), String> {
@@ -245,7 +245,7 @@ impl Clue {
 	/// If an error occurs while scanning the code, an [`Err`] containing a [`String`] with the error message will be returned
 	///
 	/// # Example
-	/// ```
+	/// ```rust
 	/// use clue_core::Clue;
 	///
 	/// fn main() -> Result<(), String> {
@@ -269,7 +269,7 @@ impl Clue {
 	/// If an error occurs while scanning the code, an [`Err`] containing a [`String`] with the error message will be returned
 	///
 	/// # Example
-	/// ```
+	/// ```rust
 	/// use clue_core::Clue;
 	///
 	/// fn main() -> Result<(), String> {
@@ -293,7 +293,7 @@ impl Clue {
 	/// If an error occurs while scanning the file, an [`Err`] containing a [`String`] with the error message will be returned
 	///
 	/// # Example
-	/// ```
+	/// ```rust
 	/// use clue_core::Clue;
 	///
 	/// fn main() -> Result<(), String> {
@@ -322,7 +322,7 @@ impl Clue {
 	/// If an error occurs while parsing the code, an [`Err`] containing a [`String`] with the error message will be returned
 	///
 	/// # Example
-	/// ```
+	/// ```rust
 	/// use clue_core::Clue;
 	///
 	/// fn main() -> Result<(), String> {
@@ -347,7 +347,7 @@ impl Clue {
 	/// If an error occurs while parsing the code, an [`Err`] containing a [`String`] with the error message will be returned
 	///
 	/// # Example
-	/// ```
+	/// ```rust
 	/// use clue_core::Clue;
 	///
 	/// fn main() -> Result<(), String> {
@@ -371,7 +371,7 @@ impl Clue {
 	/// If an error occurs while parsing the code, an [`Err`] containing a [`String`] with the error message will be returned
 	///
 	/// # Example
-	/// ```
+	/// ```rust
 	/// use clue_core::Clue;
 	///
 	/// fn main() -> Result<(), String> {
@@ -395,7 +395,7 @@ impl Clue {
 	/// If an error occurs while parsing the file, an [`Err`] containing a [`String`] with the error message will be returned
 	///
 	/// # Example
-	/// ```
+	/// ```rust
 	/// use clue_core::Clue;
 	///
 	/// fn main() -> Result<(), String> {
@@ -421,23 +421,125 @@ impl Clue {
 }
 
 impl Clue {
+	/// Compiles the given [`Vec`] of [`Token`]
+	/// Takes a [`Vec<Token>`] containing the tokens to compile
+	/// Returns a [`Result`] containing the compiled code
+	///
+	/// If the code was successfully compiled, the [`Result`] will return a [`String`] containing the compiled code
+	///
+	/// # Errors
+	/// If an error occurs while compiling the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```rustrust
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///    let clue = Clue::new();
+	///    let tokens = clue.scan_code("print(\"Hello World!\")".to_owned())?;
+	///    let code = clue.compile_tokens(tokens)?;
+	///
+	///    Ok(())
+	/// }
 	pub fn compile_tokens(&self, tokens: Vec<Token>) -> Result<String, String> {
 		let (ctokens, statics) = self.parse_tokens(tokens)?;
 		let compiler = Compiler::new(&self.options);
 		Ok(statics + &compiler.compile_tokens(0, ctokens))
 	}
+
+	/// Compiles the given preprocessed code
+	/// Takes a [`Code`] containing the preprocessed code to compile
+	/// Returns a [`Result`] containing the compiled code
+	///
+	/// If the code was successfully compiled, the [`Result`] will return a [`String`] containing the compiled code
+	///
+	/// # Errors
+	/// If an error occurs while compiling the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```rust
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///     let clue = Clue::new();
+	///     let code = clue.preprocess_code("print(\"Hello World!\")".to_owned())?;
+	///     let compiled = clue.compile_preprocessed(code)?;
+	///
+	///     Ok(())
+	/// }
 	pub fn compile_preprocessed(&self, code: Code) -> Result<String, String> {
 		let tokens = self.scan_preprocessed(code)?;
 		self.compile_tokens(tokens)
 	}
+
+	/// Compiles the given AST
+	/// Takes a [`(Expression, String)`] containing the AST to compile and the statics
+	/// Returns a [`Result`] containing the compiled code
+	///
+	/// If the code was successfully compiled, the [`Result`] will return a [`String`] containing the compiled code
+	///
+	/// # Errors
+	/// If an error occurs while compiling the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```rust
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///    let clue = Clue::new();
+	///    let parse_result = clue.parse_code("print(\"Hello World!\")".to_owned())?;
+	///    let code = clue.compile_ast(parse_result)?;
+	///
+	///    Ok(())
+	/// }
 	pub fn compile_ast(&self, (ctokens, statics): (Expression, String)) -> Result<String, String> {
 		let compiler = Compiler::new(&self.options);
 		Ok(statics + &compiler.compile_tokens(0, ctokens))
 	}
+
+	/// Compiles the given code
+	/// Takes a [`String`] containing the code to compile
+	/// Returns a [`Result`] containing the compiled code
+	///
+	/// If the code was successfully compiled, the [`Result`] will return a [`String`] containing the compiled code
+	///
+	/// # Errors
+	/// If an error occurs while compiling the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```rust
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///    let clue = Clue::new();
+	///    let code = clue.compile_code("print(\"Hello World!\")".to_owned())?;
+	///
+	///    Ok(())
+	/// }
 	pub fn compile_code(&self, code: String) -> Result<String, String> {
 		let tokens = self.scan_code(code)?;
 		self.compile_tokens(tokens)
 	}
+
+	/// Compiles the given file
+	/// Takes any type that implements [`AsRef<Path>`] and [`AsRef<OsStr>`] and [`Display`] containing the path to the file to compile
+	/// Returns a [`Result`] containing the compiled code
+	///
+	/// If the code was successfully compiled, the [`Result`] will return a [`String`] containing the compiled code
+	///
+	/// # Errors
+	/// If an error occurs while compiling the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```rust
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///    let clue = Clue::new();
+	///    let code = clue.compile_file("../examples/fizzbuzz.clue")?;
+	///
+	///    Ok(())
+	/// }
 	pub fn compile_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		path: P,
@@ -454,7 +556,7 @@ impl Clue {
 /// Creates a new [`Clue`] instance with the default options
 ///
 /// # Example
-/// ```
+/// ```rust
 /// use clue_core::Clue;
 ///
 /// let clue = Clue::default();
