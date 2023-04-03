@@ -4,6 +4,14 @@ use serde::{Deserialize, Serialize};
 use clap::ValueEnum;
 
 /// Creates the enum given the name of the enum and its members all of which have their names and their values
+/// Example:
+/// ```rs
+/// value_enum!(
+/// 	Test,
+/// 	Attribute1, "Value1",
+/// 	Attribute2, "Value2",
+/// );
+/// ```
 macro_rules! value_enum {
 	($enum:ident, $name1:ident, $value1:literal, $($name:ident, $value:literal),+) => {
 		#[derive(Debug, Copy, Clone, PartialEq, Eq)]
