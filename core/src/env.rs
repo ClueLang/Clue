@@ -3,54 +3,18 @@ use serde::{Deserialize, Serialize};
 
 use clap::ValueEnum;
 
-/// Creates the enum given the name of the enum and its members all of which have their names and their values
-/// Example:
-/// ```rs
-/// value_enum!(
-/// 	Test,
-/// 	Attribute1, "Value1",
-/// 	Attribute2, "Value2",
-/// );
-/// ```
-macro_rules! value_enum {
-	($enum:ident, $name1:ident, $value1:literal, $($name:ident, $value:literal),+) => {
-		#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-		#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-		pub enum $enum {
-			$name1, $($name,)+
-		}
-
-		impl ValueEnum for $enum {
-			fn value_variants<'a>() -> &'a [Self] {
-				use $enum::*;
-				&[$name1, $($name,)+]
-			}
-
-			fn to_possible_value<'a>(&self) -> Option<clap::PossibleValue<'a>> {
-				use $enum::*;
-				Some(clap::PossibleValue::new(match self {
-					$name1 => $value1,
-					$($name => $value,)+
-				}))
-			}
-		}
-
-		impl Default for $enum {
-			fn default() -> Self {
-				return $enum::$name1
-			}
-		}
-	};
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[clap(rename_all = "verbatim")]
+pub enum ContinueMode {
+	#[default]
+	#[clap(name = "simple")]
+	Simple,
+	LuaJIT,
+	#[clap(name = "goto")]
+	Goto,
+	MoonScript,
 }
-
-#[rustfmt::skip]
-value_enum!(
-	ContinueMode,
-	Simple, "simple",
-	LuaJIT, "LuaJIT",
-	Goto, "goto",
-	MoonScript, "MoonScript"
-);
 
 /*
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -69,24 +33,30 @@ pub enum LuaSTD {
 }
 */
 
-#[rustfmt::skip]
-value_enum!(
-	LuaVersion,
-	LuaJIT, "LuaJIT",
-	Lua54, "Lua54",
-	Lua53, "Lua53",
-	Lua52, "Lua52",
-	Lua51, "Lua51",
-	BLUA, "BLUA"
-);
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[clap(rename_all = "verbatim")]
+pub enum LuaVersion {
+	#[default]
+	LuaJIT,
+	Lua54,
+	Lua53,
+	Lua52,
+	Lua51,
+	BLUA,
+}
 
-#[rustfmt::skip]
-value_enum!(
-	BitwiseMode,
-	Clue, "Clue",
-	Library, "library",
-	Vanilla, "vanilla"
-);
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[clap(rename_all = "verbatim")]
+pub enum BitwiseMode {
+	#[default]
+	Clue,
+	#[clap(name = "library")]
+	Library,
+	#[clap(name = "vanilla")]
+	Vanilla,
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct Options {
