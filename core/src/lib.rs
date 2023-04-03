@@ -22,7 +22,7 @@ pub mod scanner;
 #[macro_export]
 /// Check whether `tocheck` is `Ok` or `Err`
 /// If it's `Ok` it returns it
-/// If it's `Err` it propagates the `Err` to the caller function
+/// If it's `Err` it converts the error to a `String` and propagates it to the caller function
 macro_rules! check {
 	($tocheck:expr) => {
 		match $tocheck {
@@ -34,6 +34,17 @@ macro_rules! check {
 
 #[macro_export]
 /// Format strings, used mainly inside the Clue code base
+/// This is used to format strings in a way that is more efficient than using `format!`
+///
+/// # Example
+/// ```
+/// use clue_core::format_clue;
+///
+/// let a = "Hello";
+/// let b = "World";
+/// let c = format_clue!(a, ", " ,b, "!");
+/// assert_eq!(c, "Hello, World!");
+/// ```
 macro_rules! format_clue {
 	($($strings:expr),+) => {{
 		use std::ops::AddAssign;
@@ -127,6 +138,25 @@ impl Clue {
 }
 
 impl Clue {
+	/// Preprocesses the given code
+	/// Takes a [`String`] containing the code to preprocess
+	///
+	/// Returns a [`Result`] containing the preprocessed code
+	/// If the code was successfully preprocessed, the `Result` will return a [`Code`] containing the preprocessed code
+	///
+	/// # Errors
+	/// If an error occurs while preprocessing the code, an [`String`] will be returned containing the error message
+	///
+	/// # Example
+	/// ```
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///     let clue = Clue::new();
+	///     let code = clue.preprocess_code("print(\"Hello World!\")".to_owned())?;
+	///
+	///     Ok(())
+	/// }
 	pub fn preprocess_code(&self, code: String) -> Result<Code, String> {
 		let mut code = code;
 		let filename = String::from("(library)");
@@ -139,6 +169,27 @@ impl Clue {
 		)?;
 		preprocess_codes(0, codes, &variables, &filename)
 	}
+
+	/// Preprocesses the given file
+	/// Takes any type that implements [`AsRef<Path>`] and [`AsRef<OsStr>`] and [`Display`] containing the path to the file to preprocess
+	///
+	/// Returns a [`Result`] containing the preprocessed code
+	/// If the code was successfully preprocessed, the `Result` will return a [`Code`] containing the preprocessed code
+	///
+	/// # Errors
+	/// If an error occurs while preprocessing the code, an [`String`] will be returned containing the error message
+	///
+	/// # Example
+	/// ```
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///    let clue = Clue::new();
+	///    let code = clue.preprocess_file("../examples/fizzbuzz.clue")?;
+	///
+	///    Ok(())
+	/// }
+	/// ```
 	pub fn preprocess_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		path: P,
@@ -233,6 +284,14 @@ impl Clue {
 	}
 }
 
+/// Creates a new [`Clue`] instance with the default options
+///
+/// # Example
+/// ```
+/// use clue_core::Clue;
+///
+/// let clue = Clue::new();
+/// ```
 impl Default for Clue {
 	fn default() -> Self {
 		Clue::new()
