@@ -142,10 +142,10 @@ impl Clue {
 	/// Takes a [`String`] containing the code to preprocess
 	///
 	/// Returns a [`Result`] containing the preprocessed code
-	/// If the code was successfully preprocessed, the `Result` will return a [`Code`] containing the preprocessed code
+	/// If the code was successfully preprocessed, the [`Result`] will return a [`Code`] containing the preprocessed code
 	///
 	/// # Errors
-	/// If an error occurs while preprocessing the code, an [`String`] will be returned containing the error message
+	/// If an error occurs while preprocessing the code, an [`Err`] containing a [`String`] with the error message will be returned
 	///
 	/// # Example
 	/// ```
@@ -174,10 +174,10 @@ impl Clue {
 	/// Takes any type that implements [`AsRef<Path>`] and [`AsRef<OsStr>`] and [`Display`] containing the path to the file to preprocess
 	///
 	/// Returns a [`Result`] containing the preprocessed code
-	/// If the code was successfully preprocessed, the `Result` will return a [`Code`] containing the preprocessed code
+	/// If the code was successfully preprocessed, the [`Result`] will return a [`Code`] containing the preprocessed code
 	///
 	/// # Errors
-	/// If an error occurs while preprocessing the code, an [`String`] will be returned containing the error message
+	/// If an error occurs while preprocessing the code, an [`Err`] containing a [`String`] with the error message will be returned
 	///
 	/// # Example
 	/// ```
@@ -202,6 +202,19 @@ impl Clue {
 }
 
 impl Clue {
+	/// Scans the given preprocessed code for tokens also taking the filename
+	///
+	/// Takes a [`Code`] containing the preprocessed code to scan
+	/// and any type that implements [`AsRef<Path>`] and [`AsRef<OsStr>`] and [`Display`] containing the filename
+	///
+	/// Returns a [`Result`] containing the scanned tokens
+	///
+	/// If the code was successfully scanned, the [`Result`] will return a [`Vec<Token>`] containing the scanned tokens
+	///
+	/// # Errors
+	/// If an error occurs while scanning the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	///
 	pub fn scan_preprocessed_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		code: Code,
@@ -212,14 +225,74 @@ impl Clue {
 		scan_code(code, &filename)
 	}
 
+	/// Scans the given preprocessed code for tokens
+	/// Takes a [`Code`] containing the preprocessed code to scan
+	///
+	/// Returns a [`Result`] containing the scanned tokens
+	///
+	/// If the code was successfully scanned, the [`Result`] will return a [`Vec<Token>`] containing the scanned tokens
+	///
+	/// # Errors
+	/// If an error occurs while scanning the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///   let clue = Clue::new();
+	///   let code = clue.preprocess_code("print(\"Hello World!\")".to_owned())?;
+	///   let tokens = clue.scan_preprocessed(code)?;
+	///
+	///   Ok(())
+	/// }
 	pub fn scan_preprocessed(&self, code: Code) -> Result<Vec<Token>, String> {
 		scan_code(code, &String::from("(library)"))
 	}
 
+	/// Scans the given code for tokens
+	/// Takes a [`String`] containing the code to scan
+	/// Returns a [`Result`] containing the scanned tokens
+	///
+	/// If the code was successfully scanned, the [`Result`] will return a [`Vec<Token>`] containing the scanned tokens
+	///
+	/// # Errors
+	/// If an error occurs while scanning the code, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///    let clue = Clue::new();
+	///    let tokens = clue.scan_code("print(\"Hello World!\")".to_owned())?;
+	///
+	///   Ok(())
+	/// }
 	pub fn scan_code(&self, code: String) -> Result<Vec<Token>, String> {
 		let code = self.preprocess_code(code)?;
 		self.scan_preprocessed(code)
 	}
+
+	/// Scans the given file for tokens
+	/// Takes any type that implements [`AsRef<Path>`] and [`AsRef<OsStr>`] and [`Display`] containing the path to the file to scan
+	/// Returns a [`Result`] containing the scanned tokens
+	///
+	/// If the code was successfully scanned, the [`Result`] will return a [`Vec<Token>`] containing the scanned tokens
+	///
+	/// # Errors
+	/// If an error occurs while scanning the file, an [`Err`] containing a [`String`] with the error message will be returned
+	///
+	/// # Example
+	/// ```
+	/// use clue_core::Clue;
+	///
+	/// fn main() -> Result<(), String> {
+	///   let clue = Clue::new();
+	///   let tokens = clue.scan_file("../examples/fizzbuzz.clue")?;
+	///
+	///   Ok(())
+	/// }
 	pub fn scan_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		filename: P,
