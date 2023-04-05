@@ -55,7 +55,7 @@ impl<'a> Compiler<'a> {
 	}
 
 	fn compile_identifiers(&self, names: Vec<String>) -> Result<String, String> {
-		self.compile_list(names, ", ", &mut |name| Ok(name))
+		self.compile_list(names, ", ", &mut Ok)
 	}
 
 	fn compile_expressions(&self, scope: usize, values: Vec<Expression>) -> Result<String, String> {
