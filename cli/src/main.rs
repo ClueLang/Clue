@@ -173,7 +173,7 @@ pub fn compile_code(
 		println!("Parsed structure of file \"{name}\":\n{ctokens:#?}");
 	}
 
-	let code = Compiler::new(options).compile_tokens(scope, ctokens);
+	let code = Compiler::new(options).compile_tokens(scope, ctokens)?;
 
 	if options.env_output {
 		println!("Compiled Lua code of file \"{name}\":\n{code}");
@@ -219,11 +219,7 @@ fn finish(
 }
 
 #[cfg(not(feature = "mlua"))]
-fn finish(
-	debug: bool,
-	output_path: Option<String>,
-	code: String,
-) -> Result<(), String> {
+fn finish(debug: bool, output_path: Option<String>, code: String) -> Result<(), String> {
 	if debug {
 		let new_output = format!(include_str!("debug.lua"), &code);
 		if let Some(output_path) = output_path {
@@ -240,9 +236,9 @@ fn main() -> Result<(), String> {
 		print!(include_str!("../LICENSE"));
 		return Ok(());
 	} /*else if cli.types.is_some() {
-		//TEMPORARY PLACEHOLDER UNTIL 4.0
-		return Err(String::from("Type checking is not supported yet!"));
-	}*/
+	  //TEMPORARY PLACEHOLDER UNTIL 4.0
+	  return Err(String::from("Type checking is not supported yet!"));
+  }*/
 
 	if cli.r#continue == ContinueMode::LuaJIT {
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
@@ -378,8 +374,8 @@ fn main() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-	use clue_core::env::Options;
 	use crate::compile_folder;
+	use clue_core::env::Options;
 
 	#[test]
 	fn compilation_success() {
