@@ -145,7 +145,7 @@ impl<'a> Compiler<'a> {
 				CALL(args) => {
 					format_clue!("(", self.compile_expressions(scope, args.clone())?, ")")
 				}
-				_ => unreachable!(),
+				_ => return Err("Unexpected ComplexToken found".to_owned()),
 			}
 		}
 		Ok(result)
@@ -217,9 +217,7 @@ impl<'a> Compiler<'a> {
 				IDENT { expr, .. } => self.compile_identifier(scope, expr)?,
 				CALL(args) => format!("({})", self.compile_expressions(scope, args)?),
 				EXPR(expr) => format!("({})", self.compile_expression(scope, expr)?),
-				_ => {
-					unreachable!("Unexpected ComplexToken found")
-				}
+				_ => return Err("Unexpected ComplexToken found".to_owned()),
 			}
 		}
 		Ok(result)
@@ -284,7 +282,7 @@ impl<'a> Compiler<'a> {
 								}
 							};
 							write!(result, "rawset(_G, \"{name}\", {value});{line}{end}")
-								.expect("something really unexpected happened");
+								.map_err(|e| e.to_string())?
 						}
 						result
 					} else {
@@ -418,7 +416,7 @@ impl<'a> Compiler<'a> {
 								_ => "end",
 							};
 							write!(result, "{pre} {condition}{code}{end}")
-								.expect("something really unexpected happened");
+								.map_err(|e| e.to_string())?
 						}
 						result
 					};
