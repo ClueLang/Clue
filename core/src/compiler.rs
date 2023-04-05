@@ -39,26 +39,26 @@ impl<'a> Compiler<'a> {
 		&self,
 		list: Vec<T>,
 		separator: &str,
-		tostring: &mut impl FnMut(T) -> String,
-	) -> String {
+		tostring: &mut impl FnMut(T) -> Result<String, String>,
+	) -> Result<String, String> {
 		let mut result = String::new();
 		let end = list.len();
 		let mut start = 0usize;
 		for element in list {
-			result += &(tostring(element));
+			result += &(tostring(element)?);
 			start += 1;
 			if start < end {
 				result += separator
 			}
 		}
-		result
+		Ok(result)
 	}
 
-	fn compile_identifiers(&self, names: Vec<String>) -> String {
-		self.compile_list(names, ", ", &mut |name| name)
+	fn compile_identifiers(&self, names: Vec<String>) -> Result<String, String> {
+		self.compile_list(names, ", ", &mut Ok)
 	}
 
-	fn compile_expressions(&self, scope: usize, values: Vec<Expression>) -> String {
+	fn compile_expressions(&self, scope: usize, values: Vec<Expression>) -> Result<String, String> {
 		self.compile_list(values, ", ", &mut |expr| {
 			self.compile_expression(scope, expr)
 		})
@@ -69,11 +69,11 @@ impl<'a> Compiler<'a> {
 		scope: usize,
 		args: FunctionArgs,
 		code: CodeBlock,
-	) -> (String, String) {
-		let mut code = self.compile_code_block(scope, "", code);
+	) -> Result<(String, String), String> {
+		let mut code = self.compile_code_block(scope, "", code)?;
 		let args = self.compile_list(args, ", ", &mut |(arg, default)| {
 			if let Some((default, line)) = default {
-				let default = self.compile_expression(scope + 2, default);
+				let default = self.compile_expression(scope + 2, default)?;
 				let pre = self.indentate(scope + 1);
 				let debug = self.compile_debug_line(line, scope + 2);
 				let line = self.compile_debug_comment(line);
@@ -96,22 +96,27 @@ impl<'a> Compiler<'a> {
 					code
 				);
 			}
-			arg
-		});
-		(code, args)
+			Ok(arg)
+		})?;
+		Ok((code, args))
 	}
 
-	fn compile_code_block(&self, scope: usize, start: &str, block: CodeBlock) -> String {
+	fn compile_code_block(
+		&self,
+		scope: usize,
+		start: &str,
+		block: CodeBlock,
+	) -> Result<String, String> {
 		let pre = self.indentate(scope);
-		let code = self.compile_tokens(scope + 1, block.code);
+		let code = self.compile_tokens(scope + 1, block.code)?;
 		let debug = self.compile_debug_line(block.start, scope + 1);
 		if self.options.env_debug {
-			format!(
+			Ok(format!(
 				"{}\n{}\t{}--{}->{}\n{}\n{}",
 				start, pre, debug, block.start, block.end, code, pre
-			)
+			))
 		} else {
-			format_clue!(start, "\n", code, "\n", pre)
+			Ok(format_clue!(start, "\n", code, "\n", pre))
 		}
 	}
 
@@ -131,22 +136,22 @@ impl<'a> Compiler<'a> {
 		}
 	}
 
-	fn compile_identifier(&self, scope: usize, expr: Expression) -> String {
+	fn compile_identifier(&self, scope: usize, expr: Expression) -> Result<String, String> {
 		let mut result = String::with_capacity(32);
 		for t in expr {
 			result += &match t {
 				SYMBOL(lexeme) => lexeme,
-				EXPR(expr) => self.compile_expression(scope, expr),
+				EXPR(expr) => self.compile_expression(scope, expr)?,
 				CALL(args) => {
-					format_clue!("(", self.compile_expressions(scope, args.clone()), ")")
+					format_clue!("(", self.compile_expressions(scope, args.clone())?, ")")
 				}
-				_ => unreachable!(),
+				_ => return Err("Unexpected ComplexToken found".to_owned()),
 			}
 		}
-		result
+		Ok(result)
 	}
 
-	fn compile_expression(&self, mut scope: usize, expr: Expression) -> String {
+	fn compile_expression(&self, mut scope: usize, expr: Expression) -> Result<String, String> {
 		let mut result = String::with_capacity(64);
 		for t in expr {
 			result += &match t {
@@ -163,7 +168,7 @@ impl<'a> Compiler<'a> {
 						String::new()
 					} else {
 						self.compile_list(values, ", ", &mut |(name, value, line)| {
-							let value = self.compile_expression(scope, value);
+							let value = self.compile_expression(scope, value)?;
 							let l = if prevline != 0 {
 								self.compile_debug_comment(prevline)
 							} else {
@@ -171,12 +176,12 @@ impl<'a> Compiler<'a> {
 							};
 							prevline = line;
 							if let Some(name) = name {
-								let name = self.compile_expression(scope, name);
-								format_clue!(l, "\n", pre1, name, " = ", value)
+								let name = self.compile_expression(scope, name)?;
+								Ok(format_clue!(l, "\n", pre1, name, " = ", value))
 							} else {
-								format_clue!(l, "\n", pre1, value)
+								Ok(format_clue!(l, "\n", pre1, value))
 							}
-						}) + &self.compile_debug_comment(prevline)
+						})? + &self.compile_debug_comment(prevline)
 							+ "\n"
 					};
 					prevline = 0;
@@ -189,34 +194,33 @@ impl<'a> Compiler<'a> {
 							format!("{{{values}{pre2}}}")
 						}
 					} else {
-						let metas = self.compile_list(metas, ", ", &mut |(name, value, line)| {
-							let value = self.compile_expression(scope, value);
-							let l = if prevline != 0 {
-								self.compile_debug_comment(prevline)
-							} else {
-								String::new()
-							};
-							prevline = line;
-							format_clue!(l, "\n", pre1, name, " = ", value)
-						});
+						let metas =
+							self.compile_list(metas, ", ", &mut |(name, value, line)| {
+								let value = self.compile_expression(scope, value)?;
+								let l = if prevline != 0 {
+									self.compile_debug_comment(prevline)
+								} else {
+									String::new()
+								};
+								prevline = line;
+								Ok(format_clue!(l, "\n", pre1, name, " = ", value))
+							})?;
 						scope -= 1;
 						let line = self.compile_debug_comment(prevline);
 						format!("setmetatable({{{values}{pre2}}}, {{{metas}{line}\n{pre2}}})",)
 					}
 				}
 				LAMBDA { args, code } => {
-					let (code, args) = self.compile_function(scope, args, code);
+					let (code, args) = self.compile_function(scope, args, code)?;
 					format_clue!("function(", args, ")", code, "end")
 				}
-				IDENT { expr, .. } => self.compile_identifier(scope, expr),
-				CALL(args) => format!("({})", self.compile_expressions(scope, args)),
-				EXPR(expr) => format!("({})", self.compile_expression(scope, expr)),
-				_ => {
-					unreachable!("Unexpected ComplexToken found")
-				}
+				IDENT { expr, .. } => self.compile_identifier(scope, expr)?,
+				CALL(args) => format!("({})", self.compile_expressions(scope, args)?),
+				EXPR(expr) => format!("({})", self.compile_expression(scope, expr)?),
+				_ => return Err("Unexpected ComplexToken found".to_owned()),
 			}
 		}
-		result
+		Ok(result)
 	}
 
 	fn compile_elseif_chain(
@@ -225,9 +229,9 @@ impl<'a> Compiler<'a> {
 		condition: Expression,
 		code: CodeBlock,
 		next: Option<Box<ComplexToken>>,
-	) -> String {
-		let condition = self.compile_expression(scope, condition);
-		let code = self.compile_code_block(scope, "then", code);
+	) -> Result<String, String> {
+		let condition = self.compile_expression(scope, condition)?;
+		let code = self.compile_code_block(scope, "then", code)?;
 		let next = if let Some(next) = next {
 			String::from("else")
 				+ &match *next {
@@ -235,17 +239,17 @@ impl<'a> Compiler<'a> {
 						condition,
 						code,
 						next,
-					} => self.compile_elseif_chain(scope, condition, code, next),
-					DO_BLOCK(code) => self.compile_code_block(scope, "", code),
-					_ => panic!("Unexpected ComplexToken found"),
+					} => self.compile_elseif_chain(scope, condition, code, next)?,
+					DO_BLOCK(code) => self.compile_code_block(scope, "", code)?,
+					_ => return Err("Unexpected ComplexToken found".to_owned()),
 				}
 		} else {
 			String::new()
 		};
-		format_clue!("if ", condition, " ", code, next)
+		Ok(format_clue!("if ", condition, " ", code, next))
 	}
 
-	pub fn compile_tokens(&self, scope: usize, ctokens: Expression) -> String {
+	pub fn compile_tokens(&self, scope: usize, ctokens: Expression) -> Result<String, String> {
 		let mut result = self.indentate(scope);
 		let ctokens = &mut ctokens.into_iter().peekable();
 		while let Some(t) = ctokens.next() {
@@ -265,7 +269,7 @@ impl<'a> Compiler<'a> {
 						let namesit = &mut names.iter().peekable();
 						while let Some(name) = namesit.next() {
 							let value = if let Some(value) = valuesit.next() {
-								self.compile_expression(scope, value.clone())
+								self.compile_expression(scope, value.clone())?
 							} else {
 								String::from("nil")
 							};
@@ -278,18 +282,18 @@ impl<'a> Compiler<'a> {
 								}
 							};
 							write!(result, "rawset(_G, \"{name}\", {value});{line}{end}")
-								.expect("something really unexpected happened");
+								.map_err(|e| e.to_string())?
 						}
 						result
 					} else {
 						let end = self.indentate_if(ctokens, scope);
 						let pre = if local { "local " } else { "" };
 						if values.is_empty() {
-							let ident = self.compile_identifiers(names);
+							let ident = self.compile_identifiers(names)?;
 							format_clue!(debug, pre, ident, ";", line, end)
 						} else {
-							let values = self.compile_expressions(scope, values);
-							let names = self.compile_identifiers(names);
+							let values = self.compile_expressions(scope, values)?;
+							let names = self.compile_identifiers(names)?;
 							format_clue!(debug, pre, names, " = ", values, ";", line, end)
 						}
 					}
@@ -303,7 +307,7 @@ impl<'a> Compiler<'a> {
 					let iter = names.into_iter();
 					let mut names: Vec<String> = Vec::new();
 					for name in iter {
-						names.push(self.compile_expression(scope, name))
+						names.push(self.compile_expression(scope, name)?)
 					}
 					let mut i = 0usize;
 					let values = self.compile_list(values, ", ", &mut |expr| {
@@ -313,7 +317,7 @@ impl<'a> Compiler<'a> {
 							String::from("nil")
 						};
 						i += 1;
-						(if kind == DEFINE {
+						Ok((if kind == DEFINE {
 							String::new()
 						} else {
 							name + match kind {
@@ -326,11 +330,11 @@ impl<'a> Compiler<'a> {
 								EXPONENTIATE => " ^ ",
 								CONCATENATE => " .. ",
 								MODULATE => " % ",
-								_ => panic!("Unexpected alter type found"),
+								_ => return Err("Unexpected alter type found".to_owned()),
 							}
-						}) + &self.compile_expression(scope, expr)
-					});
-					let names = self.compile_identifiers(names);
+						}) + &self.compile_expression(scope, expr)?)
+					})?;
+					let names = self.compile_identifiers(names)?;
 					let debug = self.compile_debug_line(line, scope);
 					let line = self.compile_debug_comment(line);
 					format_clue!(
@@ -351,8 +355,8 @@ impl<'a> Compiler<'a> {
 				} => {
 					let pre = if local { "local " } else { "" };
 					let end = self.indentate_if(ctokens, scope);
-					let name = self.compile_expression(scope, name);
-					let (code, args) = self.compile_function(scope, args, code);
+					let name = self.compile_expression(scope, name)?;
+					let (code, args) = self.compile_function(scope, args, code)?;
 					format_clue!(pre, "function ", name, "(", args, ")", code, "end", end)
 				}
 				IF_STATEMENT {
@@ -360,7 +364,7 @@ impl<'a> Compiler<'a> {
 					code,
 					next,
 				} => {
-					let code = self.compile_elseif_chain(scope, condition, code, next);
+					let code = self.compile_elseif_chain(scope, condition, code, next)?;
 					format_clue!(code, "end", self.indentate_if(ctokens, scope))
 				}
 				MATCH_BLOCK {
@@ -369,7 +373,7 @@ impl<'a> Compiler<'a> {
 					branches,
 					line,
 				} => {
-					let value = self.compile_expression(scope, value);
+					let value = self.compile_expression(scope, value)?;
 					let debug = self.compile_debug_line(line, scope);
 					let line = self.compile_debug_comment(line);
 					let branches = {
@@ -382,12 +386,12 @@ impl<'a> Compiler<'a> {
 							let condition = {
 								let mut condition =
 									self.compile_list(conditions, "or ", &mut |expr| {
-										let expr = self.compile_expression(scope, expr);
-										format_clue!("(", name, " == ", expr, ") ")
-									});
+										let expr = self.compile_expression(scope, expr)?;
+										Ok(format_clue!("(", name, " == ", expr, ") "))
+									})?;
 								if let Some(extraif) = extraif {
 									condition.pop();
-									let extraif = self.compile_expression(scope, extraif);
+									let extraif = self.compile_expression(scope, extraif)?;
 									if empty {
 										extraif + " "
 									} else {
@@ -401,7 +405,7 @@ impl<'a> Compiler<'a> {
 								scope,
 								if default { "" } else { "then" },
 								code,
-							);
+							)?;
 							let end = match branches.peek() {
 								Some((conditions, extraif, _))
 									if conditions.is_empty() && matches!(extraif, None) =>
@@ -412,7 +416,7 @@ impl<'a> Compiler<'a> {
 								_ => "end",
 							};
 							write!(result, "{pre} {condition}{code}{end}")
-								.expect("something really unexpected happened");
+								.map_err(|e| e.to_string())?
 						}
 						result
 					};
@@ -422,8 +426,8 @@ impl<'a> Compiler<'a> {
 					)
 				}
 				WHILE_LOOP { condition, code } => {
-					let condition = self.compile_expression(scope, condition);
-					let code = self.compile_code_block(scope, "do", code);
+					let condition = self.compile_expression(scope, condition)?;
+					let code = self.compile_code_block(scope, "do", code)?;
 					format_clue!(
 						"while ",
 						condition,
@@ -434,8 +438,8 @@ impl<'a> Compiler<'a> {
 					)
 				}
 				LOOP_UNTIL { condition, code } => {
-					let condition = self.compile_expression(scope, condition);
-					let code = self.compile_code_block(scope, "", code);
+					let condition = self.compile_expression(scope, condition)?;
+					let code = self.compile_code_block(scope, "", code)?;
 					format_clue!(
 						"repeat ",
 						code,
@@ -451,10 +455,10 @@ impl<'a> Compiler<'a> {
 					alter,
 					code,
 				} => {
-					let start = self.compile_expression(scope, start);
-					let endexpr = self.compile_expression(scope, end);
-					let alter = self.compile_expression(scope, alter);
-					let code = self.compile_code_block(scope, "do", code);
+					let start = self.compile_expression(scope, start)?;
+					let endexpr = self.compile_expression(scope, end)?;
+					let alter = self.compile_expression(scope, alter)?;
+					let code = self.compile_code_block(scope, "do", code)?;
 					let end = self.indentate_if(ctokens, scope);
 					format_clue!(
 						"for ", iterator, " = ", start, ", ", endexpr, ", ", alter, " ", code,
@@ -466,9 +470,9 @@ impl<'a> Compiler<'a> {
 					expr,
 					code,
 				} => {
-					let expr = self.compile_expression(scope, expr);
-					let iterators = self.compile_identifiers(iterators);
-					let code = self.compile_code_block(scope, "do", code);
+					let expr = self.compile_expression(scope, expr)?;
+					let iterators = self.compile_identifiers(iterators)?;
+					let code = self.compile_code_block(scope, "do", code)?;
 					format_clue!(
 						"for ",
 						iterators,
@@ -486,9 +490,9 @@ impl<'a> Compiler<'a> {
 					catch,
 				} => {
 					let i = self.indentate_if(ctokens, scope);
-					let totry = self.compile_code_block(scope, "function()", totry);
+					let totry = self.compile_code_block(scope, "function()", totry)?;
 					if let Some(catch) = catch {
-						let catch = self.compile_code_block(scope, "if not _check then", catch);
+						let catch = self.compile_code_block(scope, "if not _check then", catch)?;
 						let i2 = self.indentate(scope);
 						if let Some(error) = error {
 							format_clue!(
@@ -518,24 +522,24 @@ impl<'a> Compiler<'a> {
 					}
 				}
 				IDENT { expr, line } => {
-					let expr = self.compile_identifier(scope, expr);
+					let expr = self.compile_identifier(scope, expr)?;
 					let debug = self.compile_debug_line(line, scope);
 					let line = self.compile_debug_comment(line);
 					format_clue!(debug, expr, ";", line, self.indentate_if(ctokens, scope))
 				}
 				EXPR(expr) => {
-					format!("({})", self.compile_expression(scope, expr))
+					format!("({})", self.compile_expression(scope, expr)?)
 				}
 				DO_BLOCK(code) => {
 					format!(
 						"{}end{}",
-						self.compile_code_block(scope, "do", code),
+						self.compile_code_block(scope, "do", code)?,
 						self.indentate_if(ctokens, scope)
 					)
 				}
 				RETURN_EXPR(exprs) => {
 					if let Some(exprs) = exprs {
-						format!("return {};", self.compile_expressions(scope, exprs))
+						format!("return {};", self.compile_expressions(scope, exprs)?)
 					} else {
 						String::from("return;")
 					}
@@ -556,11 +560,9 @@ impl<'a> Compiler<'a> {
 					)
 				}
 				BREAK_LOOP => String::from("break;") + &self.indentate_if(ctokens, scope),
-				_ => {
-					panic!("Unexpected ComplexToken found")
-				}
+				_ => return Err("Unexpected ComplexToken found".to_owned()),
 			}
 		}
-		result
+		Ok(result)
 	}
 }
