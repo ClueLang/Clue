@@ -47,7 +47,7 @@ fn compile_code(
 	};
 	let tokens: Vec<Token> = scan_code(code, name)?;
 	let (ctokens, statics) = parse_tokens(tokens, name, options)?;
-	let code = Compiler::new(options).compile_tokens(scope, ctokens);
+	let code = Compiler::new(options).compile_tokens(scope, ctokens)?;
 	Ok((code, statics))
 }
 
