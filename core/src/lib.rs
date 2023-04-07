@@ -1,3 +1,8 @@
+//! # The Clue compiler core
+//! This is the core of the Clue compiler
+//! This is used by the cli but can also be used by other projects
+//! It is recommended to use [`Clue`] instead of the lower level APIs unless you need to
+
 use std::{ffi::OsStr, fmt::Display, fs, path::Path};
 
 use code::Code;
@@ -100,7 +105,7 @@ impl Clue {
 	}
 
 	/// Sets the `rawsetglobals` option
-	/// When the `rawsetglobals` option is enabled, the `rawsetglobals` function will be used for settings globals
+	/// When the `rawsetglobals` option is enabled, Clue will rawset(_G, ...) instead of _G.x = ... for globals
 	pub fn rawsetglobals(&mut self, env_rawsetglobal: bool) {
 		self.options.env_rawsetglobals = env_rawsetglobal;
 	}
@@ -444,7 +449,7 @@ impl Clue {
 	pub fn compile_tokens(&self, tokens: Vec<Token>) -> Result<String, String> {
 		let (ctokens, statics) = self.parse_tokens(tokens)?;
 		let compiler = Compiler::new(&self.options);
-		Ok(statics + &compiler.compile_tokens(0, ctokens))
+		Ok(statics + &compiler.compile_tokens(0, ctokens)?)
 	}
 
 	/// Compiles the given preprocessed code
@@ -494,7 +499,7 @@ impl Clue {
 	/// }
 	pub fn compile_ast(&self, (ctokens, statics): (Expression, String)) -> Result<String, String> {
 		let compiler = Compiler::new(&self.options);
-		Ok(statics + &compiler.compile_tokens(0, ctokens))
+		Ok(statics + &compiler.compile_tokens(0, ctokens)?)
 	}
 
 	/// Compiles the given code

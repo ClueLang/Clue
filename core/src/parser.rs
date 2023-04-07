@@ -1482,9 +1482,10 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	/// TODO
-	fn compile_static(&mut self, expr: Expression) {
-		let code = self.compiler.compile_tokens(0, expr);
+	fn compile_static(&mut self, expr: Expression) -> Result<(), String> {
+		let code = self.compiler.compile_tokens(0, expr)?;
 		self.statics += &(code + "\n");
+		Ok(())
 	}
 
 	/// TODO
@@ -1609,15 +1610,15 @@ impl<'a> ParserInfo<'a> {
 		match self.peek(0).kind() {
 			FN => {
 				let function = vec_deque![self.build_function(true)?];
-				self.compile_static(function);
+				self.compile_static(function)?;
 			}
 			ENUM => {
 				let enums = self.build_enums(true)?;
-				self.compile_static(enums);
+				self.compile_static(enums)?;
 			}
 			_ => {
 				let vars = vec_deque![self.build_variables(true, t.line(), false)?];
-				self.compile_static(vars);
+				self.compile_static(vars)?;
 			}
 		}
 

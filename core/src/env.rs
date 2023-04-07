@@ -52,15 +52,15 @@ pub enum LuaVersion {
 	#[default]
 	/// LuaJIT
 	LuaJIT,
-	// Lua 5.4
+	/// Lua 5.4
 	Lua54,
-	// Lua 5.3
+	/// Lua 5.3
 	Lua53,
-	// Lua 5.2
+	/// Lua 5.2
 	Lua52,
-	// Lua 5.1
+	/// Lua 5.1
 	Lua51,
-	// BLUA
+	/// BLUA
 	BLUA,
 }
 
@@ -74,8 +74,8 @@ pub enum BitwiseMode {
 	/// Works in BLUA
 	Clue,
 	#[clap(name = "library")]
-	/// Library: This mode uses the bits library to perform bitwise operations
-	/// Works in LuaJIT
+	/// Library: This mode uses the bit library to perform bitwise operations
+	/// Works in LuaJIT (bit), Lua 5.2 (bit32)
 	Library,
 	/// Vanilla: This mode uses the bitwise operators from standard Lua
 	/// Works in Lua 5.3+
@@ -114,6 +114,8 @@ pub struct Options {
 }
 
 impl Options {
+	/// Applies the chosen preset to the options
+	/// This should be called after `env_jitbit` or `env_target` is set to reflect the chosen preset
 	pub fn preset(&mut self) {
 		use LuaVersion::*;
 		let Some(version) = self.env_target else {
