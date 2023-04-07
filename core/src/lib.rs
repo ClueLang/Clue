@@ -1,3 +1,8 @@
+//! # The Clue compiler core
+//! This is the core of the Clue compiler
+//! This is used by the cli but can also be used by other projects
+//! It is recommended to use [`Clue`] instead of the lower level APIs unless you need to
+
 use std::{ffi::OsStr, fmt::Display, fs, path::Path};
 
 use code::Code;
