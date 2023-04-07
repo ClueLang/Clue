@@ -31,6 +31,7 @@ const fn generate_map<'a>(elements: &'a [(char, SymbolType)]) -> SymbolsMap<'a> 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[rustfmt::skip]
+/// The token's type, used to represent keywords, literals, symbols, etc...
 pub enum TokenType {
 	//symbols (NOTE: SAFE_* tokens must equal to their normal self + 6)
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED, SQUARE_BRACKET_OPEN,
@@ -60,6 +61,8 @@ pub enum TokenType {
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+/// Represents a token with its type, its literal string and the location in the file
+/// The type is represented by a [`TokenType`]
 pub struct Token {
 	pub kind: TokenType,
 	pub lexeme: String,
@@ -68,7 +71,8 @@ pub struct Token {
 }
 
 impl Token {
-	/// TODO
+	/// Creates a new [`Token`] given its [`TokenType`], its literal token, the line and column where it is located
+	/// The literal token is the literal value of the token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`
 	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize, column: usize) -> Self {
 		Self {
 			kind,
@@ -79,33 +83,39 @@ impl Token {
 	}
 }
 
+/// A token that has a raw pointer to a [`Token`]
 pub struct BorrowedToken {
 	token: *const Token,
 }
 
 impl BorrowedToken {
+	/// Creates a new [`BorrowedToken`] from the raw pointer to a [`Token`]
 	pub const fn new(token: *const Token) -> Self {
 		Self { token }
 	}
 
+	/// Returns the token
 	pub const fn token(&self) -> &Token {
 		// SAFETY: This is safe because the pointer is guaranteed to be valid
 		unsafe { &(*self.token) }
 	}
 
+	/// Returns the [`TokenType`]
 	pub const fn kind(&self) -> TokenType {
 		self.token().kind
 	}
 
-	/// TODO
+	/// Returns the `clone`d literal token
 	pub fn lexeme(&self) -> String {
 		self.token().lexeme.clone()
 	}
 
+	/// Returns the line where the token is located
 	pub const fn line(&self) -> usize {
 		self.token().line
 	}
 
+	/// Returns the column where the token is located
 	pub const fn column(&self) -> usize {
 		self.token().column
 	}
@@ -654,7 +664,7 @@ lazy_static! {
 	]);
 }
 
-/// TODO
+/// Scans the code and returns a `Vec` of [`Token`]s
 pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() && i.peek(0) != '\0' {
