@@ -1,12 +1,14 @@
 use crate::{
 	check,
 	code::{Code, CodeChar},
-	format_clue, env::Options,
+	env::Options,
+	format_clue,
 };
 use ahash::AHashMap;
 use clap::crate_version;
-use semver::{VersionReq, Version};
+use semver::{Version, VersionReq};
 use std::{
+	cmp::min,
 	collections::VecDeque,
 	env,
 	ffi::OsStr,
@@ -15,7 +17,7 @@ use std::{
 	iter::{Peekable, Rev},
 	path::Path,
 	str::{self, FromStr},
-	u8::MAX, cmp::min,
+	u8::MAX,
 };
 use utf8_decode::decode;
 
@@ -56,7 +58,13 @@ fn expected(expected: &str, got: &str, line: usize, column: usize, filename: &St
 	)
 }
 
-fn expected_before(expected: &str, before: &str, line: usize, column: usize, filename: &String) -> String {
+fn expected_before(
+	expected: &str,
+	before: &str,
+	line: usize,
+	column: usize,
+	filename: &String,
+) -> String {
 	error(
 		format_clue!("Expected '", expected, "' before '", before, "'"),
 		line,
@@ -95,7 +103,7 @@ impl<'a> CodeFile<'a> {
 		line: usize,
 		filename: &'a String,
 		cscope: u8,
-		options: &'a Options
+		options: &'a Options,
 	) -> Self {
 		Self {
 			options,
@@ -118,7 +126,10 @@ impl<'a> CodeFile<'a> {
 			None => Ok(None),
 			Some(c) if c.0.is_ascii() => Ok(Some(c)),
 			Some((_, line, column)) => {
-				let c = check!(decode(&mut self.code[self.read - 1..self.read + 3].iter().copied()).unwrap());
+				let c = check!(decode(
+					&mut self.code[self.read - 1..self.read + 3].iter().copied()
+				)
+				.unwrap());
 				Err(error(
 					format!("Invalid character '{c}'"),
 					line,
@@ -263,7 +274,9 @@ impl<'a> CodeFile<'a> {
 		self.read(
 			|code| Ok(code.read_char_unchecked()),
 			|_, (c, ..)| c == b'\n',
-		).unwrap().to_string()
+		)
+		.unwrap()
+		.to_string()
 	}
 
 	fn read_identifier(&mut self) -> Result<Code, String> {
@@ -355,20 +368,21 @@ impl<'a> CodeFile<'a> {
 				_ => args.push(self.read_char_unchecked().unwrap()),
 			}
 		}
-		Err(expected_before(")", "<end>", self.line, self.column, self.filename))
+		Err(expected_before(
+			")",
+			"<end>",
+			self.line,
+			self.column,
+			self.filename,
+		))
 	}
 
 	fn read_macro_block(&mut self) -> Result<(PPCode, PPVars), String> {
 		let line = self.line;
 		let len = self.code.len();
 		let block = &mut self.code[self.read..len];
-		let (block, ppvars, line, read) = preprocess_code(
-			block,
-			line,
-			true,
-			self.filename,
-			&Options::default()
-		)?;
+		let (block, ppvars, line, read) =
+			preprocess_code(block, line, true, self.filename, &Options::default())?;
 		self.line = line;
 		self.read += read;
 		Ok((block, ppvars))
@@ -385,7 +399,13 @@ impl<'a> CodeFile<'a> {
 				_ => {}
 			}
 		}
-		Err(expected_before("}", "<end>", self.line, self.column, self.filename))
+		Err(expected_before(
+			"}",
+			"<end>",
+			self.line,
+			self.column,
+			self.filename,
+		))
 	}
 
 	fn keep_block(&mut self, to_keep: bool) -> Result<(), String> {
@@ -410,12 +430,14 @@ impl<'a> CodeFile<'a> {
 		let Some(target) = self.options.env_target else {
 			return Ok(false);
 		};
-		Ok(match checked_lua_version.to_string().to_lowercase().as_str() {
-			"luajit" | "jit" => target == LuaJIT,
-			"lua54" | "lua5.4" | "lua 54" | "lua 5.4" | "54" | "5.4" => target == Lua54,
-			"blua" => target == BLUA,
-			_ => false
-		})
+		Ok(
+			match checked_lua_version.to_string().to_lowercase().as_str() {
+				"luajit" | "jit" => target == LuaJIT,
+				"lua54" | "lua5.4" | "lua 54" | "lua 5.4" | "54" | "5.4" => target == Lua54,
+				"blua" => target == BLUA,
+				_ => false,
+			},
+		)
 	}
 
 	fn ifdef(&mut self, end: u8) -> Result<bool, String> {
@@ -423,7 +445,7 @@ impl<'a> CodeFile<'a> {
 		Ok(env::var_os(to_check.to_string()).is_some())
 	}
 
-	fn ifcmp(&mut self, end: u8) -> Result<bool, String> {	
+	fn ifcmp(&mut self, end: u8) -> Result<bool, String> {
 		let Some(to_compare1) = env::var_os(self.read_identifier()?.to_string()) else {
 			self.read_until(end)?;
 			return Ok(false)
@@ -431,10 +453,14 @@ impl<'a> CodeFile<'a> {
 		self.skip_whitespace();
 		let comparison = [
 			self.read_char_unchecked()
-				.ok_or_else(|| expected("==' or '!=", "<end>", self.line, self.column, self.filename))?
+				.ok_or_else(|| {
+					expected("==' or '!=", "<end>", self.line, self.column, self.filename)
+				})?
 				.0,
 			self.read_char_unchecked()
-				.ok_or_else(|| expected("==' or '!=", "<end>", self.line, self.column, self.filename))?
+				.ok_or_else(|| {
+					expected("==' or '!=", "<end>", self.line, self.column, self.filename)
+				})?
 				.0,
 		];
 		let to_compare2 = self.read_until(end)?.trim();
@@ -474,7 +500,13 @@ impl<'a> CodeFile<'a> {
 			let function = self.read_identifier()?.to_string();
 			self.assert_char(b'(')?;
 			if function.is_empty() {
-				return Err(expected_before("<name>", "(", self.line, self.column, self.filename))
+				return Err(expected_before(
+					"<name>",
+					"(",
+					self.line,
+					self.column,
+					self.filename,
+				));
 			}
 			self.skip_whitespace();
 			match function.as_str() {
@@ -504,6 +536,7 @@ impl<'a> CodeFile<'a> {
 	}
 }
 
+/// TODO
 pub fn read_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 	path: P,
 	filename: &String,
@@ -513,6 +546,7 @@ pub fn read_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 	Ok((result.0, result.1))
 }
 
+/// TODO
 #[allow(clippy::blocks_in_if_conditions)]
 pub fn preprocess_code(
 	code: &mut [u8],
@@ -561,7 +595,8 @@ pub fn preprocess_code(
 							_ => {
 								return Err(expected_before("<path>", "<end>", c.1, c.2, filename))
 							}
-						}.to_string();
+						}
+						.to_string();
 						let name = code.read_line();
 						let name = name.trim();
 						let (function, module) = match module.strip_suffix(".lua") {
@@ -572,19 +607,22 @@ pub fn preprocess_code(
 							Some(name) => name.trim_start(),
 							None => match module.rsplit_once('.') {
 								Some((_, name)) => name,
-								None => module
-							}
+								None => module,
+							},
 						};
 						currentcode.append(Code::from((
 							format_clue!("local ", name, " = ", function, "(\"", module, "\")"),
-							c.1, c.2
+							c.1,
+							c.2,
 						)));
 					}
 					"version" => {
 						let version = code.read_line();
 						match VersionReq::parse(version.as_ref()) {
 							Ok(version_req) => {
-								if !version_req.matches(&Version::from_str(crate_version!()).unwrap()) {
+								if !version_req
+									.matches(&Version::from_str(crate_version!()).unwrap())
+								{
 									return Err(error(
 										format_clue!(
 											"This code is only compatible with version '",
@@ -593,11 +631,13 @@ pub fn preprocess_code(
 										),
 										code.line,
 										code.column,
-										filename
-									))
+										filename,
+									));
 								}
 							}
-							Err(e) => return Err(error(e.to_string(), code.line, code.column, filename)),
+							Err(e) => {
+								return Err(error(e.to_string(), code.line, code.column, filename))
+							}
 						}
 					}
 					"define" => {
@@ -631,16 +671,17 @@ pub fn preprocess_code(
 								code.skip_whitespace();
 								if let Some((b'.', line, column)) = code.peek_char_unchecked() {
 									if code.read(CodeFile::peek_char, |code, (c, ..)| {
-											if c == b'.' {
-												code.read_char_unchecked();
-												false
-											} else {
-												true
-											}
-										})? == "..." {
+										if c == b'.' {
+											code.read_char_unchecked();
+											false
+										} else {
+											true
+										}
+									})? == "..."
+									{
 										code.skip_whitespace();
 										code.assert_char(b')')?;
-										break (true, args)
+										break (true, args);
 									} else {
 										return Err(expected(",", ".", line, column, filename));
 									}
@@ -653,10 +694,12 @@ pub fn preprocess_code(
 										break (false, args);
 									}
 									let (got, line, column) = match code.read_char_unchecked() {
-										Some((c, line, column)) => ((c as char).to_string(), line, column),
+										Some((c, line, column)) => {
+											((c as char).to_string(), line, column)
+										}
 										None => (String::from("<end>"), code.line, code.column),
 									};
-									return Err(expected("<name>", &got, line, column, filename))
+									return Err(expected("<name>", &got, line, column, filename));
 								}
 								args.push(arg);
 								if let Some((b')', ..)) = code.peek_char_unchecked() {
@@ -668,7 +711,15 @@ pub fn preprocess_code(
 						};
 						code.assert_reach(b'{')?;
 						let (code, ppvars) = code.read_macro_block()?;
-						variables.insert(name, PPVar::Macro { code, args, ppvars, vararg });
+						variables.insert(
+							name,
+							PPVar::Macro {
+								code,
+								args,
+								ppvars,
+								vararg,
+							},
+						);
 					}
 					"error" => return Err(error(code.read_line(), c.1, c.2, filename)),
 					"print" => println!("{}", code.read_line()),
@@ -694,7 +745,7 @@ pub fn preprocess_code(
 				variables.insert(Code::from((name, c.1, c.2)), PPVar::VarArgs(vararg_code));
 				currentcode = Code::with_capacity(code.code.len() - code.read);
 				false
-			},
+			}
 			b'$' => {
 				let mut name = code.read_identifier()?;
 				if name.len() <= 1 && matches!(name.last(), Some((b'1'..=b'9', ..)) | None) {
@@ -818,7 +869,13 @@ pub fn preprocess_code(
 		}
 	}
 	if code.cscope > 0 {
-		return Err(expected_before("}", "<end>", code.line, code.column, filename));
+		return Err(expected_before(
+			"}",
+			"<end>",
+			code.line,
+			code.column,
+			filename,
+		));
 	}
 	if !currentcode.is_empty() {
 		size += currentcode.len();
@@ -826,7 +883,11 @@ pub fn preprocess_code(
 	}
 	if bitwise && options.env_jitbit.is_some() {
 		let bit = options.env_jitbit.as_ref().unwrap();
-		let mut loader = Code::from((format_clue!("local ", bit, " = require(\"", bit, "\");"), 1, 1));
+		let mut loader = Code::from((
+			format_clue!("local ", bit, " = require(\"", bit, "\");"),
+			1,
+			1,
+		));
 		let first = finalcode.pop_front().unwrap();
 		loader.append(first.0);
 		finalcode.push_front((loader, first.1));
@@ -844,7 +905,11 @@ fn skip_whitespace_backwards(code: &mut Peekable<Rev<std::slice::Iter<u8>>>) {
 	}
 }
 
-fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize, column: usize) -> VecDeque<Code> {
+fn read_pseudos(
+	mut code: Peekable<Rev<std::slice::Iter<u8>>>,
+	line: usize,
+	column: usize,
+) -> VecDeque<Code> {
 	let mut newpseudos = VecDeque::new();
 	while {
 		let Some(c) = code.next() else {
@@ -877,7 +942,7 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize, colu
 					}
 				} {}
 				true
-			},
+			}
 			_ => true,
 		}
 	} {}
@@ -889,7 +954,7 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize, colu
 		while {
 			if let Some(c) = code.peek() {
 				match c {
-					b'\'' | b'"' | b'`'  => {
+					b'\'' | b'"' | b'`' => {
 						name.push_start((*code.next().unwrap(), line, column));
 						if !matches!(code.peek(), Some(b'\\')) {
 							in_string = !in_string;
@@ -907,7 +972,7 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize, colu
 						true
 					}
 					b'_' | b'.' | b':' => true,
-					_ => c.is_ascii_alphanumeric()
+					_ => c.is_ascii_alphanumeric(),
 				}
 			} else {
 				false
@@ -926,6 +991,7 @@ fn read_pseudos(mut code: Peekable<Rev<std::slice::Iter<u8>>>, line: usize, colu
 	newpseudos
 }
 
+/// TODO
 pub fn preprocess_codes(
 	stacklevel: u8,
 	codes: PPCode,
@@ -948,6 +1014,7 @@ pub fn preprocess_codes(
 	}
 }
 
+/// TODO
 pub fn preprocess_variables(
 	stacklevel: u8,
 	code: &Code,
@@ -995,7 +1062,12 @@ pub fn preprocess_variables(
 							variables,
 							filename,
 						)?,
-						PPVar::Macro { code, args, ppvars, vararg } => preprocess_codes(
+						PPVar::Macro {
+							code,
+							args,
+							ppvars,
+							vararg,
+						} => preprocess_codes(
 							stacklevel + 1,
 							code.clone(),
 							&{
@@ -1044,10 +1116,12 @@ pub fn preprocess_variables(
 									let value = value.trim();
 									if value.is_empty() {
 										if len == macro_variables.len() && end == b')' {
-											break
+											break;
 										} else {
 											let end = (end as char).to_string();
-											return Err(expected_before("<name>", &end, c.1, c.2, filename))
+											return Err(expected_before(
+												"<name>", &end, c.1, c.2, filename,
+											));
 										}
 									}
 									let value = PPVar::Simple(preprocess_variables(
@@ -1076,7 +1150,7 @@ pub fn preprocess_variables(
 										));
 									}
 									if end == b')' {
-										break
+										break;
 									}
 								}
 								if let Some(missed) = args.next() {
@@ -1104,12 +1178,12 @@ pub fn preprocess_variables(
 									stacklevel + 1,
 									(codes.clone(), *size),
 									&variables,
-									filename
+									filename,
 								)?);
 								name.push(*name.last().unwrap());
 							}
 							result
-						},
+						}
 					});
 				} else {
 					return Err(error(

@@ -68,6 +68,7 @@ pub struct Token {
 }
 
 impl Token {
+	/// TODO
 	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize, column: usize) -> Self {
 		Self {
 			kind,
@@ -96,6 +97,7 @@ impl BorrowedToken {
 		self.token().kind
 	}
 
+	/// TODO
 	pub fn lexeme(&self) -> String {
 		self.token().lexeme.clone()
 	}
@@ -652,6 +654,7 @@ lazy_static! {
 	]);
 }
 
+/// TODO
 pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() && i.peek(0) != '\0' {
