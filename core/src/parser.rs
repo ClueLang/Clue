@@ -37,11 +37,27 @@ macro_rules! vec_deque {
     };
 }
 
+/// A list of [`ComplexToken`]s, which is the AST.
 pub type Expression = VecDeque<ComplexToken>;
+/// Function arguments, a list of identifiers with optional default values
+/// used in function signatures.
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
+
 //pub type LocalsList = Option<AHashMap<String, LuaType>>;
 //pub type ArgsAndTypes = (FunctionArgs, Option<Vec<(String, LuaType)>>);
+
+/// An optional end token, which is used to check if the end token is present.
+/// It is a tuple of the token type and the token lexeme.
 type OptionalEnd = Option<(TokenType, &'static str)>;
+/// A tuple representing a match case, containing the things you can match, an optional condition and a code block.
+/// In the examples
+/// ```clue
+/// match x {
+///   1 if z==0 => {2+1},
+/// }
+/// ```
+///
+/// the first element of the tuple would be `1`, the second element would be `if z==0` and the third element would be `{2+1}`.
 type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
 
 #[derive(Debug, Clone, PartialEq)]
