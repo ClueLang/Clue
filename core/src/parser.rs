@@ -2072,17 +2072,17 @@ impl<'a> ParserInfo<'a> {
 /// fn main() -> Result<(), String> {
 ///     let options = Options::default();
 ///     let filename = String::from("fizzbuzz.clue");
-///     let code = include_str!("../examples/fizzbuzz.clue");
-///     let filename = String::from("(library)");
+///     let mut code = include_str!("../../examples/fizzbuzz.clue").to_owned();
+///
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
 ///         1,
 ///         false,
 ///         &filename,
-///         &self.options,
+///         &options,
 ///     )?;
-///     let codes= preprocess_codes(0, codes, &variables, &filename);
-///     let tokens = scan_code(&codes, &filename, &options)?;
+///     let codes= preprocess_codes(0, codes, &variables, &filename)?;
+///     let tokens = scan_code(codes, &filename)?;
 ///     let (expr, statics) = parse_tokens(tokens, &filename, &options)?;
 ///
 ///     Ok(())

@@ -69,9 +69,13 @@ pub enum TokenType {
 /// Represents a token with its type, its literal string and the location in the file
 /// The type is represented by a [`TokenType`]
 pub struct Token {
+	/// The token's type
 	pub kind: TokenType,
+	/// The literal token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`
 	pub lexeme: String,
+	/// The line where the token is located
 	pub line: usize,
+	/// The column where the token is located
 	pub column: usize,
 }
 
@@ -125,6 +129,7 @@ impl BorrowedToken {
 		self.token().column
 	}
 
+	/// Clones the inner [`Token`] and returns it
 	pub fn into_owned(&self) -> Token {
 		self.token().clone()
 	}
@@ -669,7 +674,33 @@ lazy_static! {
 	]);
 }
 
-/// Scans the code and returns a `Vec` of [`Token`]s
+/// Scans the code and returns a [`Vec`] of [`Token`]s
+/// It takes a preprocessed code and a filename as arguments
+///
+/// # Errors
+/// If the code is invalid, it will return an [`Err`] with the error message
+///
+/// # Examples
+/// ```
+/// use clue_core::{preprocessor::*, scanner::*, env::Options};
+///
+/// fn main() -> Result<(), String> {
+///     let options = Options::default();
+///     let filename = String::from("fizzbuzz.clue");
+///     let mut code = include_str!("../../examples/fizzbuzz.clue").to_owned();
+///
+///     let (codes, variables, ..) = preprocess_code(
+///         unsafe { code.as_bytes_mut() },
+///         1,
+///         false,
+///         &filename,
+///         &options,
+///     )?;
+///     let codes= preprocess_codes(0, codes, &variables, &filename)?;
+///     let tokens = scan_code(codes, &filename)?;
+///
+///    Ok(())
+/// }
 pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() && i.peek(0) != '\0' {
