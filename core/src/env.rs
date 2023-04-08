@@ -1,3 +1,9 @@
+//! The `env` module contains miscellaneous structs and enums related to the compiler options available
+//!
+//! It contains [`Options`] struct is the main struct used to store the compiler options,
+//! and is used by the [`Compiler`](crate::compiler::Compiler) to determine how to compile the code
+//! and also other helpful enums such as [`LuaVersion`], [`BitwiseMode`] and [`ContinueMode`]
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 

@@ -1,3 +1,8 @@
+//! The compiler is the last step of the compilation process which translates an AST to Lua code.
+//!
+//! The compiler module handles the compilation of a list of [`ComplexToken`] ([`Expression`]) into a Lua code.
+//! It exposes the [`Compiler`] struct which is used to compile to Lua.
+
 use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
 

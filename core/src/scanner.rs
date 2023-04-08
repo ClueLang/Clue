@@ -1,3 +1,8 @@
+//! The scanner is the second step of the compilation process, it takes the preprocessed source code and turns it
+//! into a list of tokens
+//!
+//! It exposes a single function, [`scan_code`], which takes a [`Code`] and returns a [`Vec`] of [`Token`]
+
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 

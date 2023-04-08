@@ -1,3 +1,8 @@
+//! The preprocessor is the first step in the compilation process.
+//! It is responsible for removing comments and expanding macros and directives.
+//!
+//! It exposes three functions: [`preprocess_code`], [`preprocess_codes`] and [`preprocess_variables`]
+
 use crate::{
 	check,
 	code::{Code, CodeChar},

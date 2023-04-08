@@ -1,3 +1,9 @@
+//! The parser is the third step of the compilation process. It takes the tokens from the scanner and
+//! converts them into an AST (Abstract Syntax Tree).
+//!
+//! The parser is a recursive descent parser, which means that it uses a recursive function to parse
+//! the tokens. This function is called [`parse_tokens`] and is the entry point for the parser.
+
 #![allow(non_camel_case_types)]
 
 use self::ComplexToken::*;

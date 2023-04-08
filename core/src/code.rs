@@ -1,3 +1,8 @@
+//! This module contains the [`Code`] data structure and its iterators.
+//!
+//! The [`Code`] data structure is used to store the characters and their positions in the source code
+//! also serves the purpose of efficient insertion and removal of characters in the preprocessor stage.
+
 use std::{
 	collections::{
 		vec_deque::{IntoIter, Iter},
