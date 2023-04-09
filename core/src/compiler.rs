@@ -1,3 +1,8 @@
+//! The compiler is the last step of the compilation process which translates an AST to Lua code.
+//!
+//! The compiler module handles the compilation of a list of [`ComplexToken`] ([`Expression`]) into a Lua code.
+//! It exposes the [`Compiler`] struct which is used to compile to Lua.
+
 use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
 
@@ -9,11 +14,37 @@ use crate::{
 	scanner::TokenType::*,
 };
 
+/// The Compiler struct is used to compile a list of [`ComplexToken`] ([`Expression`]) into a lua code.
+///
+/// # Example
+/// ```rust
+/// use clue_core::{compiler::*, env::Options, parser::*, scanner::*, Clue};
+///
+/// fn main() -> Result<(), String> {
+///     let options = Options::default();
+///     let compiler = Compiler::new(&options);
+///     let code = "local fn a() {return 1;}".to_owned();
+///     let clue = Clue::new();
+///
+///     let (ctokens, _) = clue.parse_code(code)?;
+///     let output = compiler.compile_tokens(0, ctokens)?;
+///
+///     Ok(())
+/// }
+/// ```
 pub struct Compiler<'a> {
 	options: &'a Options,
 }
 
 impl<'a> Compiler<'a> {
+	/// Creates a new [`Compiler`] instance.
+	/// # Example
+	/// ```rust
+	/// use clue_core::{compiler::Compiler, env::Options};
+	///
+	/// let options = Options::default();
+	/// let compiler = Compiler::new(&options);
+	/// ```
 	pub const fn new(options: &'a Options) -> Self {
 		Self { options }
 	}
@@ -249,6 +280,27 @@ impl<'a> Compiler<'a> {
 		Ok(format_clue!("if ", condition, " ", code, next))
 	}
 
+	/// Compiles an [`Expression`] into a [`String`] of Lua.
+	///
+	/// # Errors
+	/// Returns an error if an unexpected [`ComplexToken`] is found.
+	///
+	/// # Example
+	/// ```rust
+	/// use clue_core::{compiler::*, env::Options, parser::*, scanner::*, Clue};
+	///
+	/// fn main() -> Result<(), String> {
+	///     let options = Options::default();
+	///     let compiler = Compiler::new(&options);
+	///     let code = "local fn a() {return 1;}".to_owned();
+	///     let clue = Clue::new();
+	///
+	///     let (ctokens, _) = clue.parse_code(code)?;
+	///     let output = compiler.compile_tokens(0, ctokens)?;
+	///
+	///     Ok(())
+	/// }
+	/// ```
 	pub fn compile_tokens(&self, scope: usize, ctokens: Expression) -> Result<String, String> {
 		let mut result = self.indentate(scope);
 		let ctokens = &mut ctokens.into_iter().peekable();

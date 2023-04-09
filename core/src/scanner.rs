@@ -1,3 +1,8 @@
+//! The scanner is the second step of the compilation process, it takes the preprocessed source code and turns it
+//! into a list of tokens
+//!
+//! It exposes a single function, [`scan_code`], which takes a [`Code`] and returns a [`Vec`] of [`Token`]
+
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
@@ -31,6 +36,7 @@ const fn generate_map<'a>(elements: &'a [(char, SymbolType)]) -> SymbolsMap<'a> 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[rustfmt::skip]
+/// The token's type, used to represent keywords, literals, symbols, etc...
 pub enum TokenType {
 	//symbols (NOTE: SAFE_* tokens must equal to their normal self + 6)
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED, SQUARE_BRACKET_OPEN,
@@ -60,14 +66,22 @@ pub enum TokenType {
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+/// Represents a token with its type, its literal string and the location in the file
+/// The type is represented by a [`TokenType`]
 pub struct Token {
+	/// The token's type
 	pub kind: TokenType,
+	/// The literal token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`
 	pub lexeme: String,
+	/// The line where the token is located
 	pub line: usize,
+	/// The column where the token is located
 	pub column: usize,
 }
 
 impl Token {
+	/// Creates a new [`Token`] given its [`TokenType`], its literal token, the line and column where it is located
+	/// The literal token is the literal value of the token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`
 	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize, column: usize) -> Self {
 		Self {
 			kind,
@@ -78,36 +92,44 @@ impl Token {
 	}
 }
 
+/// A token that has a raw pointer to a [`Token`]
 pub struct BorrowedToken {
 	token: *const Token,
 }
 
 impl BorrowedToken {
+	/// Creates a new [`BorrowedToken`] from the raw pointer to a [`Token`]
 	pub const fn new(token: *const Token) -> Self {
 		Self { token }
 	}
 
+	/// Returns the token
 	pub const fn token(&self) -> &Token {
 		// SAFETY: This is safe because the pointer is guaranteed to be valid
 		unsafe { &(*self.token) }
 	}
 
+	/// Returns the [`TokenType`]
 	pub const fn kind(&self) -> TokenType {
 		self.token().kind
 	}
 
+	/// Returns the `clone`d literal token
 	pub fn lexeme(&self) -> String {
 		self.token().lexeme.clone()
 	}
 
+	/// Returns the line where the token is located
 	pub const fn line(&self) -> usize {
 		self.token().line
 	}
 
+	/// Returns the column where the token is located
 	pub const fn column(&self) -> usize {
 		self.token().column
 	}
 
+	/// Clones the inner [`Token`] and returns it
 	pub fn into_owned(&self) -> Token {
 		self.token().clone()
 	}
@@ -652,6 +674,34 @@ lazy_static! {
 	]);
 }
 
+/// Scans the code and returns a [`Vec`] of [`Token`]s
+/// It takes a preprocessed code and a filename as arguments
+///
+/// # Errors
+/// If the code is invalid, it will return an [`Err`] with the error message
+///
+/// # Examples
+/// ```
+/// use clue_core::{env::Options, preprocessor::*, scanner::*};
+///
+/// fn main() -> Result<(), String> {
+///     let options = Options::default();
+///     let filename = String::from("fizzbuzz.clue");
+///     let mut code = include_str!("../../examples/fizzbuzz.clue").to_owned();
+///
+///     let (codes, variables, ..) = preprocess_code(
+///         unsafe { code.as_bytes_mut() },
+///         1,
+///         false,
+///         &filename,
+///         &options,
+///     )?;
+///     let codes = preprocess_codes(0, codes, &variables, &filename)?;
+///     let tokens = scan_code(codes, &filename)?;
+///
+///     Ok(())
+/// }
+/// ```
 pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() && i.peek(0) != '\0' {
