@@ -18,18 +18,18 @@ use crate::{
 ///
 /// # Example
 /// ```rust
-/// use clue_core::{Clue, parser::*, scanner::*, compiler::*, env::Options};
+/// use clue_core::{compiler::*, env::Options, parser::*, scanner::*, Clue};
 ///
 /// fn main() -> Result<(), String> {
-///    let options = Options::default();
-///    let compiler = Compiler::new(&options);
-///    let code = "local fn a() {return 1;}".to_owned();
-///    let clue = Clue::new();
+///     let options = Options::default();
+///     let compiler = Compiler::new(&options);
+///     let code = "local fn a() {return 1;}".to_owned();
+///     let clue = Clue::new();
 ///
-///    let (ctokens, _) = clue.parse_code(code)?;
-///    let output = compiler.compile_tokens(0, ctokens)?;
+///     let (ctokens, _) = clue.parse_code(code)?;
+///     let output = compiler.compile_tokens(0, ctokens)?;
 ///
-///    Ok(())
+///     Ok(())
 /// }
 /// ```
 pub struct Compiler<'a> {
@@ -287,18 +287,18 @@ impl<'a> Compiler<'a> {
 	///
 	/// # Example
 	/// ```rust
-	/// use clue_core::{Clue, parser::*, scanner::*, compiler::*, env::Options};
+	/// use clue_core::{compiler::*, env::Options, parser::*, scanner::*, Clue};
 	///
 	/// fn main() -> Result<(), String> {
-	///    let options = Options::default();
-	///    let compiler = Compiler::new(&options);
-	///    let code = "local fn a() {return 1;}".to_owned();
-	///    let clue = Clue::new();
+	///     let options = Options::default();
+	///     let compiler = Compiler::new(&options);
+	///     let code = "local fn a() {return 1;}".to_owned();
+	///     let clue = Clue::new();
 	///
-	///    let (ctokens, _) = clue.parse_code(code)?;
-	///    let output = compiler.compile_tokens(0, ctokens)?;
+	///     let (ctokens, _) = clue.parse_code(code)?;
+	///     let output = compiler.compile_tokens(0, ctokens)?;
 	///
-	///    Ok(())
+	///     Ok(())
 	/// }
 	/// ```
 	pub fn compile_tokens(&self, scope: usize, ctokens: Expression) -> Result<String, String> {

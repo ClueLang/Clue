@@ -242,7 +242,7 @@ struct ParserInfo<'a> {
 
 impl<'a> ParserInfo<'a> {
 	fn new(
-		tokens: Vec<Token>, /*, locals: LocalsList*/
+		tokens: Vec<Token>, /* , locals: LocalsList */
 		filename: &'a String,
 		options: &'a Options,
 	) -> ParserInfo<'a> {
@@ -876,7 +876,7 @@ impl<'a> ParserInfo<'a> {
 				MATCH => {
 					let name = self.get_next_internal_var();
 					let ident = SYMBOL(name.clone());
-					let ctoken = self.build_match_block(name, &|i /*, _*/| {
+					let ctoken = self.build_match_block(name, &|i /* , _ */| {
 						let start = i.peek(0).line();
 						let expr = i.build_expression(None)?;
 						let end = i.look_back(1).line();
@@ -1188,7 +1188,7 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	/// TODO
-	fn build_code_block(&mut self /*, locals: LocalsList*/) -> Result<CodeBlock, String> {
+	fn build_code_block(&mut self /* , locals: LocalsList */) -> Result<CodeBlock, String> {
 		let start = self.get_code_block_start()?;
 		let mut tokens: Vec<Token> = Vec::new();
 		let mut cscope = 1u8;
@@ -1209,7 +1209,7 @@ impl<'a> ParserInfo<'a> {
 			}
 			tokens.push(t.into_owned());
 		}
-		let code = self.parse_code_block(tokens /*, locals*/)?;
+		let code = self.parse_code_block(tokens /* , locals */)?;
 		Ok(CodeBlock { start, code, end })
 	}
 
@@ -1270,7 +1270,7 @@ impl<'a> ParserInfo<'a> {
 			}
 			tokens.push(t.into_owned());
 		}
-		let mut code = self.parse_code_block(tokens /*, self.locals.clone()*/)?;
+		let mut code = self.parse_code_block(tokens /* , self.locals.clone() */)?;
 		if let Some(name) = hascontinue {
 			use ContinueMode::*;
 			match self.options.env_continue {
@@ -1323,7 +1323,7 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	/// TODO
-	fn build_function_args(&mut self) -> Result</*ArgsAndTypes*/ FunctionArgs, String> {
+	fn build_function_args(&mut self) -> Result</* ArgsAndTypes */ FunctionArgs, String> {
 		let mut args = FunctionArgs::new();
 		/*let mut types: Option<Vec<(String, LuaType)>> = if self.locals.is_some() {
 			Some(Vec::new())
@@ -1381,7 +1381,7 @@ impl<'a> ParserInfo<'a> {
 				_ => return Err(self.expected(")", &t.lexeme(), t.line(), t.column())),
 			}
 		} {}
-		Ok(/*(args, types)*/ args)
+		Ok(/* (args, types) */ args)
 	}
 
 	/// TODO
@@ -1571,7 +1571,7 @@ impl<'a> ParserInfo<'a> {
 	fn build_match_case(
 		&mut self,
 		pexpr: Option<Expression>,
-		func: &impl Fn(&mut ParserInfo<'a> /*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo<'a> /* , LocalsList */) -> Result<CodeBlock, String>,
 	) -> Result<MatchCase, String> {
 		let mut conditions: Vec<Expression> = Vec::new();
 		let mut current = Expression::with_capacity(3);
@@ -1597,14 +1597,14 @@ impl<'a> ParserInfo<'a> {
 		if !current.is_empty() {
 			conditions.push(current);
 		}
-		Ok((conditions, extraif, func(self /*, self.locals.clone()*/)?))
+		Ok((conditions, extraif, func(self /* , self.locals.clone() */)?))
 	}
 
 	/// TODO
 	fn build_match_block(
 		&mut self,
 		name: String,
-		func: &impl Fn(&mut ParserInfo<'a> /*, LocalsList*/) -> Result<CodeBlock, String>,
+		func: &impl Fn(&mut ParserInfo<'a> /* , LocalsList */) -> Result<CodeBlock, String>,
 	) -> Result<ComplexToken, String> {
 		let line = self.peek(0).line();
 		let value = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
@@ -1621,7 +1621,7 @@ impl<'a> ParserInfo<'a> {
 								t.column()
 							));
 						}
-						branches.push((Vec::new(), None, func(self /*, self.locals.clone()*/)?));
+						branches.push((Vec::new(), None, func(self /* , self.locals.clone() */)?));
 						self.assert(CURLY_BRACKET_CLOSED, "}")?;
 						false
 					}
@@ -1630,7 +1630,7 @@ impl<'a> ParserInfo<'a> {
 						branches.push((
 							Vec::new(),
 							Some(extraif),
-							func(self /*, self.locals.clone()*/)?,
+							func(self /* , self.locals.clone() */)?,
 						));
 						!self.advance_if(CURLY_BRACKET_CLOSED)
 					}
@@ -2067,7 +2067,7 @@ impl<'a> ParserInfo<'a> {
 ///
 /// # Examples
 /// ```
-/// use clue_core::{preprocessor::*, scanner::*, parser::*, env::Options};
+/// use clue_core::{env::Options, parser::*, preprocessor::*, scanner::*};
 ///
 /// fn main() -> Result<(), String> {
 ///     let options = Options::default();
@@ -2081,7 +2081,7 @@ impl<'a> ParserInfo<'a> {
 ///         &filename,
 ///         &options,
 ///     )?;
-///     let codes= preprocess_codes(0, codes, &variables, &filename)?;
+///     let codes = preprocess_codes(0, codes, &variables, &filename)?;
 ///     let tokens = scan_code(codes, &filename)?;
 ///     let (expr, statics) = parse_tokens(tokens, &filename, &options)?;
 ///
@@ -2094,7 +2094,7 @@ pub fn parse_tokens(
 	filename: &String,
 	options: &Options,
 ) -> Result<(Expression, String), String> {
-	let mut i = ParserInfo::new(tokens /*, locals*/, filename, options);
+	let mut i = ParserInfo::new(tokens /* , locals */, filename, options);
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {

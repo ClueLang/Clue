@@ -682,7 +682,7 @@ lazy_static! {
 ///
 /// # Examples
 /// ```
-/// use clue_core::{preprocessor::*, scanner::*, env::Options};
+/// use clue_core::{env::Options, preprocessor::*, scanner::*};
 ///
 /// fn main() -> Result<(), String> {
 ///     let options = Options::default();
@@ -696,11 +696,12 @@ lazy_static! {
 ///         &filename,
 ///         &options,
 ///     )?;
-///     let codes= preprocess_codes(0, codes, &variables, &filename)?;
+///     let codes = preprocess_codes(0, codes, &variables, &filename)?;
 ///     let tokens = scan_code(codes, &filename)?;
 ///
-///    Ok(())
+///     Ok(())
 /// }
+/// ```
 pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	let mut i: CodeInfo = CodeInfo::new(code, filename);
 	while !i.ended() && i.peek(0) != '\0' {

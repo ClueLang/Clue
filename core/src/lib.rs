@@ -47,7 +47,7 @@ macro_rules! check {
 ///
 /// let a = "Hello";
 /// let b = "World";
-/// let c = format_clue!(a, ", " ,b, "!");
+/// let c = format_clue!(a, ", ", b, "!");
 /// assert_eq!(c, "Hello, World!");
 /// ```
 macro_rules! format_clue {
@@ -191,10 +191,10 @@ impl Clue {
 	/// use clue_core::Clue;
 	///
 	/// fn main() -> Result<(), String> {
-	///    let clue = Clue::new();
-	///    let code = clue.preprocess_file("../examples/fizzbuzz.clue")?;
+	///     let clue = Clue::new();
+	///     let code = clue.preprocess_file("../examples/fizzbuzz.clue")?;
 	///
-	///    Ok(())
+	///     Ok(())
 	/// }
 	/// ```
 	pub fn preprocess_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
@@ -224,7 +224,6 @@ impl Clue {
 	///
 	/// # Errors
 	/// If an error occurs while scanning the code, an [`Err`] containing a [`String`] with the error message will be returned
-	///
 	///
 	pub fn scan_preprocessed_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
