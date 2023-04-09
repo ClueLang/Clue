@@ -33,19 +33,30 @@ macro_rules! pp_if {
 	}};
 }
 
+/// A HashMap of preprocessor variables
 pub type PPVars = AHashMap<Code, PPVar>;
+/// A list of code segments and its size
 pub type PPCode = (VecDeque<(Code, bool)>, usize);
 
 #[derive(Debug, Clone)]
+/// A preprocessor variable or macro
 pub enum PPVar {
+	/// A simple variable
 	Simple(Code),
+	/// A variable that has to be processed before expansion
 	ToProcess(Code),
+	/// A macro
 	Macro {
+		/// The code of the macro
 		code: PPCode,
+		/// The arguments of the macro
 		args: Vec<Code>,
+		/// The preprocessor variables of the macro
 		ppvars: PPVars,
+		/// Whether the macro is variadic
 		vararg: bool,
 	},
+	/// Variadic arguments variable in a macro
 	VarArgs(PPCode),
 }
 
@@ -541,7 +552,26 @@ impl<'a> CodeFile<'a> {
 	}
 }
 
-/// TODO
+/// Reads a file and gives back the a list of preprocessed code blocks and the variables
+///
+/// # Errors
+/// If the file cannot be read or the code cannot be preprocessed it will return an [`Err`] with the error message
+///
+/// # Examples
+/// ```
+/// use clue_core::{env::Options, preprocessor::read_file};
+///
+/// fn main() -> Result<(), String> {
+///     let options = Options::default();
+///     let (code, vars) = read_file(
+///         "../examples/macro.clue",
+///         &String::from("macro.clue"),
+///         &options,
+///     )?;
+///
+///     Ok(())
+/// }
+/// ```
 pub fn read_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 	path: P,
 	filename: &String,
@@ -551,7 +581,23 @@ pub fn read_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 	Ok((result.0, result.1))
 }
 
-/// TODO
+/// Preprocesses code and gives back the a list of preprocessed code blocks and the variable
+///
+/// # Errors
+/// If the code cannot be preprocessed it will return an [`Err`] with the error message
+///
+/// # Examples
+/// ```
+/// use clue_core::{preprocessor::preprocess_code, env::Options};
+///
+/// fn main() -> Result<(), String> {
+///   let options = Options::default();
+///   let mut code = include_str!("../../examples/macro.clue").to_owned();
+///
+///   let (code, vars, ..) = preprocess_code(&mut code.into_bytes(), 1, false, &String::from("macro.clue"), &options)?;
+///
+///   Ok(())
+/// }
 #[allow(clippy::blocks_in_if_conditions)]
 pub fn preprocess_code(
 	code: &mut [u8],
@@ -573,7 +619,12 @@ pub fn preprocess_code(
 				let directive_name = code.read_identifier()?.to_string();
 				code.skip_whitespace();
 				let (directive, prev) = if directive_name.starts_with("else_if") {
-					(directive_name.strip_prefix("else_").unwrap(), !code.last_if)
+					(
+						directive_name
+							.strip_prefix("else_")
+							.expect("else_if should start with else_"),
+						!code.last_if,
+					)
 				} else {
 					(directive_name.as_str(), true)
 				};
@@ -593,9 +644,10 @@ pub fn preprocess_code(
 					}
 					"import" => {
 						let str_start = code.read_char_unchecked();
+
 						let module = match str_start {
 							Some((b'\'' | b'"' | b'`', ..)) => {
-								code.read_string(str_start.unwrap())?
+								code.read_string(str_start.expect("character should not be None"))?
 							}
 							_ => {
 								return Err(expected_before("<path>", "<end>", c.1, c.2, filename))
@@ -625,9 +677,10 @@ pub fn preprocess_code(
 						let version = code.read_line();
 						match VersionReq::parse(version.as_ref()) {
 							Ok(version_req) => {
-								if !version_req
-									.matches(&Version::from_str(crate_version!()).unwrap())
-								{
+								if !version_req.matches(
+									&Version::from_str(crate_version!())
+										.expect("Something is very wrong with the Clue version"),
+								) {
 									return Err(error(
 										format_clue!(
 											"This code is only compatible with version '",
@@ -996,7 +1049,33 @@ fn read_pseudos(
 	newpseudos
 }
 
-/// TODO
+/// Preprocesses the list code segments, expands the variables and returns the final code.
+/// Take a stacklevel, a list of code segments, the variables, and a filename.
+///
+/// # Errors
+/// Returns an error if a variable is not found.
+///
+/// # Examples
+/// ```
+/// use clue_core::{env::Options, preprocessor::*};
+///
+/// fn main() -> Result<(), String> {
+///     let options = Options::default();
+///     let filename = String::from("macro.clue");
+///     let mut code = include_str!("../../examples/macro.clue").to_owned();
+///
+///     let (codes, variables, ..) = preprocess_code(
+///         unsafe { code.as_bytes_mut() },
+///         1,
+///         false,
+///         &filename,
+///         &options,
+///     )?;
+///     let codes = preprocess_codes(0, codes, &variables, &filename)?;
+///
+///     Ok(())
+/// }
+/// ```
 pub fn preprocess_codes(
 	stacklevel: u8,
 	codes: PPCode,
@@ -1019,7 +1098,43 @@ pub fn preprocess_codes(
 	}
 }
 
-/// TODO
+/// Expand the variables in a [`Code`]
+/// Takes a stacklevel, a code segment, the variables, and a filename.
+///
+/// # Errors
+/// Returns an error if a variable is not found, if macro expansion is too deep,
+/// if a macro is not found, or if a macro receives too many or too little arguments.
+///
+/// # Examples
+/// See [`preprocess_codes`]
+///
+/// ```
+/// use clue_core::{code::Code, env::Options, preprocessor::*};
+///
+/// fn main() -> Result<(), String> {
+///     let options = Options::default();
+///     let filename = String::from("macro.clue");
+///     let mut code = include_str!("../../examples/macro.clue").to_owned();
+///
+///     let (codes, variables, ..) = preprocess_code(
+///         unsafe { code.as_bytes_mut() },
+///         1,
+///         false,
+///         &filename,
+///         &options,
+///     )?;
+///     let codes: Code = codes
+///         .0
+///         .iter()
+///         .flat_map(|code| preprocess_variables(0, &code.0, codes.1, &variables, &filename))
+///         .fold(Code::new(), |mut acc, code| {
+///             acc.append(code);
+///             acc
+///         });
+///
+///     Ok(())
+/// }
+/// ```
 pub fn preprocess_variables(
 	stacklevel: u8,
 	code: &Code,
