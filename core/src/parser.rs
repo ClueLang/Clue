@@ -992,6 +992,9 @@ impl<'a> ParserInfo<'a> {
 					let fname = self.build_identifier()?;
 					expr.push_back(fname);
 					self.current -= 1;
+					if self.check_val() {
+						break t;
+					}
 				}
 				FN => {
 					let /*(*/args/*, types)*/ = if self.advance_if(ROUND_BRACKET_OPEN)
