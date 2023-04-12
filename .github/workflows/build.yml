@@ -96,29 +96,41 @@ jobs:
       - name: Setup
         run: |
           rustup target add ${{ matrix.target }}
-          cargo install cargo-deb
-      - name: Build ${{ matrix.target }}
-        run: |
+          cargo install cargo-deb cargo-make-rpm
+
+          write_var(){
+            echo "$1=$(eval echo \$$1)" >> $GITHUB_ENV
+          }
+
           sudo apt update
           if ! [[ -z "${{ matrix.host_cc }}" ]]; then
               export HOST_CC="${{ matrix.host_cc }}-gcc"
+              write_var HOST_CC
+
               sudo apt install -y -qq gcc-${{ matrix.host_cc }}
           fi
 
           if ! [[ -z "${{ matrix.target_cc }}" ]]; then
               export TARGET_CC="${{ matrix.target_cc }}-gcc"
+              write_var TARGET_CC
+
               sudo apt install -y -qq gcc-${{ matrix.target_cc }}
               mkdir -p .cargo
               echo '[target.${{ matrix.target }}]'>>.cargo/config
               echo "linker = \"$TARGET_CC\"">>.cargo/config
           fi
-
+      - name: Build ${{ matrix.target }}
+        run: |
           cargo build --target=${{ matrix.target }} --release -vv
-
+          cd target/${{ matrix.target }}/release/ && tar -cvf "$CRATE_NAME-${{ matrix.target }}.tar.gz" "$CRATE_NAME" && cd ../../..
+      - name: Build deb
+        run: |
           cd cli && cargo deb -p clue --target=${{ matrix.target }} && cd ..
           echo "DEB_FILENAME=$(basename $(echo target/${{ matrix.target }}/debian/*.deb))" >> $GITHUB_ENV
-
-          cd target/${{ matrix.target }}/release/ && tar -cvf "$CRATE_NAME-${{ matrix.target }}.tar.gz" "$CRATE_NAME" && cd ../../..
+      - name: Build rpm
+        run: |
+          cargo-make-rpm -p clue --target=${{ matrix.target }}
+          echo "RPM_FILENAME=$(basename $(echo target/${{ matrix.target }}/rpm/*.rpm))" >> $GITHUB_ENV
       - name: Upload ${{ env.CRATE_NAME }}-${{ matrix.target }}.tar.gz
         uses: actions/upload-artifact@v3
         with:
@@ -129,6 +141,11 @@ jobs:
         with:
           name: ${{ env.DEB_FILENAME }}
           path: target/${{ matrix.target }}/debian/*.deb
+      - name: Upload ${{ env.RPM_FILENAME }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.RPM_FILENAME }}
+          path: target/${{ matrix.target }}/rpm/*.rpm
       - name: Publish in release
         uses: softprops/action-gh-release@v1
         if: github.ref_type == 'tag'
@@ -136,6 +153,7 @@ jobs:
           files: |
             target/${{ matrix.target }}/release/*.tar.gz
             target/${{ matrix.target }}/debian/*.deb
+            target/${{ matrix.target }}/rpm/*.rpm
   build-wasm:
     runs-on: ubuntu-latest
     env:
