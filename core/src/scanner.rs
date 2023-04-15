@@ -243,7 +243,7 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	fn warning(&mut self, message: impl Into<String>) {
-		println!(
+		eprintln!(
 			"Error in {}:{}:{}!\nError: \"{}\"\n",
 			self.filename,
 			self.line,

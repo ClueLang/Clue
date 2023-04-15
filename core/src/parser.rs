@@ -288,7 +288,7 @@ impl<'a> ParserInfo<'a> {
 		if let Some((0, ..)) = self.testing {
 			self.testing = Some((line, column));
 		} else {
-			println!("Error in {}:{line}:{column}!", self.filename);
+			eprintln!("Error in {}:{line}:{column}!", self.filename);
 		}
 		msg.into()
 	}

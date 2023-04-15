@@ -70,7 +70,7 @@ fn compile_file_dir(
 					output: "".to_string(),
 				})
 				.unwrap();
-				println!("Error: {}", e);
+				eprintln!("Error: {}", e);
 				continue;
 			}
 		};
@@ -98,7 +98,7 @@ fn preprocess_file_dir(
 					variables: Default::default(),
 				})
 				.unwrap();
-				println!("Error: {}", e);
+				eprintln!("Error: {}", e);
 				continue;
 			}
 		};
