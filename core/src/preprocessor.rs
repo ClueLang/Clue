@@ -11,7 +11,6 @@ use crate::{
 };
 use ahash::AHashMap;
 use clap::crate_version;
-use semver::{Version, VersionReq};
 use std::{
 	cmp::min,
 	collections::VecDeque,
@@ -21,8 +20,8 @@ use std::{
 	fs,
 	iter::{Peekable, Rev},
 	path::Path,
-	str::{self, FromStr},
-	u8::MAX,
+	str::{self, Split},
+	u8::{MAX, self},
 };
 use utf8_decode::decode;
 
@@ -550,6 +549,19 @@ impl<'a> CodeFile<'a> {
 		self.skip_whitespace();
 		Ok(check)
 	}
+
+	fn get_version_number(&self, version: &mut Split<char>) -> Result<u8, String> {
+		let num = match version.next() {
+			None => return Err(
+				error("Incomplete version (must be 'X.Y.Z')", self.line, self.column, self.filename)
+			),
+			Some(num) => num,
+		};
+		match num.parse::<u8>() {
+			Ok(num) => Ok(num),
+			Err(_) => Err(error("Invalid version (must be 'X.Y.Z')", self.line, self.column, self.filename))
+		}
+	}
 }
 
 /// Reads a file and gives back the a list of preprocessed code blocks and the variables
@@ -675,7 +687,20 @@ pub fn preprocess_code(
 					}
 					"version" => {
 						let version = code.read_line();
-						match VersionReq::parse(version.as_ref()) {
+						let (mut version, check): (&str, &dyn Fn(&u8, &u8) -> bool) = match version.strip_prefix('=') {
+							Some(version) => (version, &u8::eq),
+							None => (version.as_str(), &u8::ge)
+						};
+						if let Some(v) = version.strip_prefix(">=") {
+							version = v;
+							println!("Note: \"@version directives should no longer start with '>='\"");
+						}
+						let mut version = version.split('.');
+						let wanted_major = code.get_version_number(&mut version)?;
+						let wanted_minor = code.get_version_number(&mut version)?;
+						let wanted_patch = code.get_version_number(&mut version)?;
+						//let major = version.next();
+						/*match VersionReq::parse(version.as_ref()) {
 							Ok(version_req) => {
 								if !version_req.matches(
 									&Version::from_str(crate_version!())
@@ -696,7 +721,7 @@ pub fn preprocess_code(
 							Err(e) => {
 								return Err(error(e.to_string(), code.line, code.column, filename))
 							}
-						}
+						}*/
 					}
 					"define" => {
 						let name = code.read_identifier()?;
