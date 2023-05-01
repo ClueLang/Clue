@@ -1031,10 +1031,12 @@ impl<'a> ParserInfo<'a> {
 	/// TODO
 	fn build_identifier(&mut self) -> Result<ComplexToken, String> {
 		let line = self.look_back(0).line();
-		Ok(IDENT {
-			expr: self.build_identifier_internal()?.0,
-			line,
-		})
+		let (mut expr, safe_indexing) = self.build_identifier_internal()?;
+		if safe_indexing {
+			expr.push_front(SYMBOL(String::from("(")));
+			expr.push_back(SYMBOL(String::from(")")));
+		}
+		Ok(IDENT { expr, line })
 	}
 
 	fn build_safe_index(
