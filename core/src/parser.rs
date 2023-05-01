@@ -1908,18 +1908,25 @@ impl<'a> ParserInfo<'a> {
 	/// TODO
 	fn parse_token_loop(&mut self) -> Result<(), String> {
 		let code = self.build_loop_block()?;
-		if self.peek(0).kind() == UNTIL {
-			self.current += 1;
-			let condition = self.build_expression(None)?;
-			self.current -= 1;
-			self.expr.push_back(LOOP_UNTIL { condition, code })
-		} else {
-			self.expr.push_back(WHILE_LOOP {
-				condition: vec_deque![SYMBOL(String::from("true"))],
-				code,
-			})
+		match self.advance().kind() {
+			UNTIL => {
+				let condition = self.build_expression(None)?;
+				self.expr.push_back(LOOP_UNTIL { condition, code })
+			}
+			WHILE => {
+				let mut condition = self.build_expression(None)?;
+				condition.push_front(SYMBOL(String::from("not (")));
+				condition.push_back(SYMBOL(String::from(")")));
+				self.expr.push_back(LOOP_UNTIL { condition, code })
+			}
+			_ => {
+				self.expr.push_back(WHILE_LOOP {
+					condition: vec_deque![SYMBOL(String::from("true"))],
+					code,
+				})
+			}
 		}
-
+		self.current -= 1;
 		Ok(())
 	}
 
