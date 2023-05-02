@@ -459,6 +459,10 @@ impl<'a> CodeFile<'a> {
 		Ok(env::var_os(to_check.to_string()).is_some())
 	}
 
+	fn ifndef(&mut self, end: u8) -> Result<bool, String> {
+		self.ifdef(end).map(|ok| !ok)
+	}
+
 	fn ifcmp(&mut self, end: u8) -> Result<bool, String> {
 		let Some(to_compare1) = env::var_os(self.read_identifier()?.to_string()) else {
 			self.read_until(end)?;
@@ -529,6 +533,7 @@ impl<'a> CodeFile<'a> {
 				"os" => self.ifos(b')')?,
 				"lua" => self.iflua(b')')?,
 				"def" => self.ifdef(b')')?,
+				"ndef" => self.ifndef(b')')?,
 				"cmp" => self.ifcmp(b')')?,
 				"not" => {
 					let result = self.r#if()?;
@@ -654,6 +659,7 @@ pub fn preprocess_code(
 					"ifos" => pp_if!(code, ifos, prev),
 					"iflua" => pp_if!(code, iflua, prev),
 					"ifdef" => pp_if!(code, ifdef, prev),
+					"ifndef" => pp_if!(code, ifndef, prev),
 					"ifcmp" => pp_if!(code, ifcmp, prev),
 					"if" => {
 						let check = code.r#if()?;
