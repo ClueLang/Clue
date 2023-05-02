@@ -1921,12 +1921,10 @@ impl<'a> ParserInfo<'a> {
 				condition.push_back(SYMBOL(String::from(")")));
 				self.expr.push_back(LOOP_UNTIL { condition, code })
 			}
-			_ => {
-				self.expr.push_back(WHILE_LOOP {
-					condition: vec_deque![SYMBOL(String::from("true"))],
-					code,
-				})
-			}
+			_ => self.expr.push_back(WHILE_LOOP {
+				condition: vec_deque![SYMBOL(String::from("true"))],
+				code,
+			}),
 		}
 		self.current -= 1;
 		Ok(())
