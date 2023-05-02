@@ -10,7 +10,6 @@ use crate::{
 	format_clue,
 };
 use ahash::AHashMap;
-use clap::crate_version;
 use std::{
 	cmp::min,
 	collections::VecDeque,
@@ -21,7 +20,7 @@ use std::{
 	iter::{Peekable, Rev},
 	path::Path,
 	str::{self, Split},
-	u8::{MAX, self},
+	u8::{self, MAX},
 };
 use utf8_decode::decode;
 
@@ -550,16 +549,27 @@ impl<'a> CodeFile<'a> {
 		Ok(check)
 	}
 
-	fn get_version_number(&self, version: &mut Split<char>) -> Result<u8, String> {
+	fn get_version_number(&self, version: &mut Split<char>, default : &str) -> Result<u8, String> {
 		let num = match version.next() {
-			None => return Err(
-				error("Incomplete version (must be 'X.Y.Z')", self.line, self.column, self.filename)
-			),
+			None => {
+				return Err(error(
+					"Incomplete version (must be 'X.Y.Z')",
+					self.line,
+					self.column,
+					self.filename,
+				))
+			}
+			Some(num) if num == "*" => default,
 			Some(num) => num,
 		};
 		match num.parse::<u8>() {
 			Ok(num) => Ok(num),
-			Err(_) => Err(error("Invalid version (must be 'X.Y.Z')", self.line, self.column, self.filename))
+			Err(_) => Err(error(
+				"Invalid version (must be 'X.Y.Z')",
+				self.line,
+				self.column,
+				self.filename,
+			)),
 		}
 	}
 }
@@ -686,42 +696,51 @@ pub fn preprocess_code(
 						)));
 					}
 					"version" => {
-						let version = code.read_line();
-						let (mut version, check): (&str, &dyn Fn(&u8, &u8) -> bool) = match version.strip_prefix('=') {
-							Some(version) => (version, &u8::eq),
-							None => (version.as_str(), &u8::ge)
-						};
-						if let Some(v) = version.strip_prefix(">=") {
-							version = v;
-							println!("Note: \"@version directives should no longer start with '>='\"");
+						let full_wanted_version = code.read_line();
+						let full_wanted_version = full_wanted_version.trim();
+						let (mut wanted_version, check): (&str, &dyn Fn(&u8, &u8) -> bool) =
+							match full_wanted_version.strip_prefix('=') {
+								Some(wanted_version) => (wanted_version, &u8::ne),
+								None => (full_wanted_version, &u8::lt),
+							};
+						if let Some(v) = full_wanted_version.strip_prefix(">=") {
+							wanted_version = v;
+							println!(
+								"Note: \"@version directives should no longer start with '>='\""
+							);
 						}
-						let mut version = version.split('.');
-						let wanted_major = code.get_version_number(&mut version)?;
-						let wanted_minor = code.get_version_number(&mut version)?;
-						let wanted_patch = code.get_version_number(&mut version)?;
-						//let major = version.next();
-						/*match VersionReq::parse(version.as_ref()) {
-							Ok(version_req) => {
-								if !version_req.matches(
-									&Version::from_str(crate_version!())
-										.expect("Something is very wrong with the Clue version"),
-								) {
-									return Err(error(
-										format_clue!(
-											"This code is only compatible with version '",
-											version,
-											"'"
-										),
-										code.line,
-										code.column,
-										filename,
-									));
-								}
-							}
-							Err(e) => {
-								return Err(error(e.to_string(), code.line, code.column, filename))
-							}
-						}*/
+						let wanted_version_iter = &mut wanted_version.split('.');
+						const CURRENT_MAJOR: &str = env!("CARGO_PKG_VERSION_MAJOR");
+						const CURRENT_MINOR: &str = env!("CARGO_PKG_VERSION_MINOR");
+						const CURRENT_PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
+						let wanted_major = code.get_version_number(wanted_version_iter, CURRENT_MAJOR)?;
+						let wanted_minor = code.get_version_number(wanted_version_iter, CURRENT_MINOR)?;
+						let wanted_patch = code.get_version_number(wanted_version_iter, CURRENT_PATCH)?;
+						let current_major: u8 = CURRENT_MAJOR.parse().unwrap();
+						let current_minor: u8 = CURRENT_MINOR.parse().unwrap();
+						let current_patch: u8 = CURRENT_PATCH.parse().unwrap();
+						if check(&current_major, &wanted_major)
+						|| check(&current_minor, &wanted_minor)
+						|| check(&current_patch, &wanted_patch) {
+							return Err(error(
+								if full_wanted_version.starts_with('=') {
+									format_clue!(
+										"This code is only compatible with version '",
+										wanted_version,
+										"'"
+									)
+								} else {
+									format_clue!(
+										"This code is only compatible with versions not older than '",
+										wanted_version,
+										"'"
+									)
+								},
+								code.line,
+								code.column,
+								filename
+							));
+						}
 					}
 					"define" => {
 						let name = code.read_identifier()?;
