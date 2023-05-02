@@ -43,6 +43,27 @@ More examples can be found in:
 
 ## How to install
 
+### Using Cargo
+1. Paste and run this command in the console: `cargo install clue`
+2. Type `clue` in the console to run the compiler, it will explain the rest
+
+Clue supports extra features that can be toggled when installing:
+* `interpreter`: adds the `--execute` flag to let Clue run the generated output using [mlua](https://github.com/khvzak/mlua)
+* `rpmalloc`: uses [rpmalloc](https://github.com/EmbarkStudios/rpmalloc-rs) to improve performance, not available on all platforms
+
+By default Clue enables both features.
+
+### Using Linux packages
+These can be downloaded in the [latest release](https://github.com/ClueLang/Clue/releases/latest).
+* .deb
+```
+sudo dpkg -i clue_<version>_<arch>.deb
+```
+* .rpm
+```
+sudo rpm -i clue-<version>.<arch>.rpm
+```
+
 ### Using the [AUR](https://aur.archlinux.org/clue)
 * With paru
 ```sh
@@ -59,18 +80,8 @@ cd clue
 makepkg -si
 ```
 
-### Using Cargo
-1. Paste and run this command in the console: `cargo install clue`
-2. Type `clue` in the console to run the compiler, it will explain the rest
-
-Clue supports extra features that can be toggled when installing:
-* `interpreter`: adds the `--execute` flag to let Clue run the generated output using [mlua](https://github.com/khvzak/mlua)
-* `rpmalloc`: uses [rpmalloc](https://github.com/EmbarkStudios/rpmalloc-rs) to improve performance, not available on all platforms
-
-By default Clue enables both features.
-
 ### Manual insallation
-1. Download the latest release and save it somewhere
+1. Download the [latest release](https://github.com/ClueLang/Clue/releases/latest) and save it somewhere
 2. Open your system environment variables
 3. Add the path to the directory that contains `clue.exe` in the PATH variable
 4. Type `clue` in your cmd/PowerShell to run the compiler, it will explain the rest
