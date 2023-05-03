@@ -10,10 +10,8 @@ use crate::{
 	format_clue,
 };
 use ahash::AHashMap;
-use clap::crate_version;
-use semver::{Version, VersionReq};
 use std::{
-	cmp,
+	cmp::min,
 	collections::VecDeque,
 	env,
 	ffi::OsStr,
@@ -21,8 +19,8 @@ use std::{
 	fs,
 	iter::{Peekable, Rev},
 	path::Path,
-	str::{self, FromStr},
-	u8::MAX,
+	str::{self, Split},
+	u8::{self, MAX},
 };
 use utf8_decode::decode;
 
@@ -143,7 +141,7 @@ impl<'a> CodeFile<'a> {
 			Some(c) if c.0.is_ascii() => Ok(Some(c)),
 			Some((_, line, column)) => {
 				let c = check!(decode(
-					&mut self.code[self.read - 1..cmp::min(self.read + 3, self.code.len())].iter().copied()
+					&mut self.code[self.read - 1..self.read + 3].iter().copied()
 				)
 				.unwrap());
 				Err(error(
@@ -461,6 +459,10 @@ impl<'a> CodeFile<'a> {
 		Ok(env::var_os(to_check.to_string()).is_some())
 	}
 
+	fn ifndef(&mut self, end: u8) -> Result<bool, String> {
+		self.ifdef(end).map(|ok| !ok)
+	}
+
 	fn ifcmp(&mut self, end: u8) -> Result<bool, String> {
 		let Some(to_compare1) = env::var_os(self.read_identifier()?.to_string()) else {
 			self.read_until(end)?;
@@ -531,6 +533,7 @@ impl<'a> CodeFile<'a> {
 				"os" => self.ifos(b')')?,
 				"lua" => self.iflua(b')')?,
 				"def" => self.ifdef(b')')?,
+				"ndef" => self.ifndef(b')')?,
 				"cmp" => self.ifcmp(b')')?,
 				"not" => {
 					let result = self.r#if()?;
@@ -549,6 +552,30 @@ impl<'a> CodeFile<'a> {
 		};
 		self.skip_whitespace();
 		Ok(check)
+	}
+
+	fn get_version_number(&self, version: &mut Split<char>, default : &str) -> Result<u8, String> {
+		let num = match version.next() {
+			None => {
+				return Err(error(
+					"Incomplete version (must be 'X.Y.Z')",
+					self.line,
+					self.column,
+					self.filename,
+				))
+			}
+			Some(num) if num == "*" => default,
+			Some(num) => num,
+		};
+		match num.parse::<u8>() {
+			Ok(num) => Ok(num),
+			Err(_) => Err(error(
+				"Invalid version (must be 'X.Y.Z')",
+				self.line,
+				self.column,
+				self.filename,
+			)),
+		}
 	}
 }
 
@@ -632,6 +659,7 @@ pub fn preprocess_code(
 					"ifos" => pp_if!(code, ifos, prev),
 					"iflua" => pp_if!(code, iflua, prev),
 					"ifdef" => pp_if!(code, ifdef, prev),
+					"ifndef" => pp_if!(code, ifndef, prev),
 					"ifcmp" => pp_if!(code, ifcmp, prev),
 					"if" => {
 						let check = code.r#if()?;
@@ -674,28 +702,50 @@ pub fn preprocess_code(
 						)));
 					}
 					"version" => {
-						let version = code.read_line();
-						match VersionReq::parse(version.as_ref()) {
-							Ok(version_req) => {
-								if !version_req.matches(
-									&Version::from_str(crate_version!())
-										.expect("Something is very wrong with the Clue version"),
-								) {
-									return Err(error(
-										format_clue!(
-											"This code is only compatible with version '",
-											version,
-											"'"
-										),
-										code.line,
-										code.column,
-										filename,
-									));
-								}
-							}
-							Err(e) => {
-								return Err(error(e.to_string(), code.line, code.column, filename))
-							}
+						let full_wanted_version = code.read_line();
+						let full_wanted_version = full_wanted_version.trim();
+						let (mut wanted_version, check): (&str, &dyn Fn(&u8, &u8) -> bool) =
+							match full_wanted_version.strip_prefix('=') {
+								Some(wanted_version) => (wanted_version, &u8::ne),
+								None => (full_wanted_version, &u8::lt),
+							};
+						if let Some(v) = full_wanted_version.strip_prefix(">=") {
+							wanted_version = v;
+							println!(
+								"Note: \"@version directives should no longer start with '>='\""
+							);
+						}
+						let wanted_version_iter = &mut wanted_version.split('.');
+						const CURRENT_MAJOR: &str = env!("CARGO_PKG_VERSION_MAJOR");
+						const CURRENT_MINOR: &str = env!("CARGO_PKG_VERSION_MINOR");
+						const CURRENT_PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
+						let wanted_major = code.get_version_number(wanted_version_iter, CURRENT_MAJOR)?;
+						let wanted_minor = code.get_version_number(wanted_version_iter, CURRENT_MINOR)?;
+						let wanted_patch = code.get_version_number(wanted_version_iter, CURRENT_PATCH)?;
+						let current_major: u8 = CURRENT_MAJOR.parse().unwrap();
+						let current_minor: u8 = CURRENT_MINOR.parse().unwrap();
+						let current_patch: u8 = CURRENT_PATCH.parse().unwrap();
+						if check(&current_major, &wanted_major)
+						|| check(&current_minor, &wanted_minor)
+						|| check(&current_patch, &wanted_patch) {
+							return Err(error(
+								if full_wanted_version.starts_with('=') {
+									format_clue!(
+										"This code is only compatible with version '",
+										wanted_version,
+										"'"
+									)
+								} else {
+									format_clue!(
+										"This code is only compatible with versions not older than '",
+										wanted_version,
+										"'"
+									)
+								},
+								code.line,
+								code.column,
+								filename
+							));
 						}
 					}
 					"define" => {
@@ -1149,7 +1199,7 @@ pub fn preprocess_variables(
 		match c.0 {
 			b'$' => {
 				let name = {
-					let mut name = Code::with_capacity(cmp::min(size - 1, 8));
+					let mut name = Code::with_capacity(min(size - 1, 8));
 					while let Some((c, ..)) = chars.peek() {
 						if !(c.is_ascii_alphanumeric() || *c == b'_') {
 							break;
