@@ -11,7 +11,7 @@ use crate::{
 };
 use ahash::AHashMap;
 use std::{
-	cmp::min,
+	cmp,
 	collections::VecDeque,
 	env,
 	ffi::OsStr,
@@ -141,7 +141,7 @@ impl<'a> CodeFile<'a> {
 			Some(c) if c.0.is_ascii() => Ok(Some(c)),
 			Some((_, line, column)) => {
 				let c = check!(decode(
-					&mut self.code[self.read - 1..self.read + 3].iter().copied()
+					&mut self.code[self.read - 1..cmp::min(self.read + 3, self.code.len())].iter().copied()
 				)
 				.unwrap());
 				Err(error(
@@ -1199,7 +1199,7 @@ pub fn preprocess_variables(
 		match c.0 {
 			b'$' => {
 				let name = {
-					let mut name = Code::with_capacity(min(size - 1, 8));
+					let mut name = Code::with_capacity(cmp::min(size - 1, 8));
 					while let Some((c, ..)) = chars.peek() {
 						if !(c.is_ascii_alphanumeric() || *c == b'_') {
 							break;
