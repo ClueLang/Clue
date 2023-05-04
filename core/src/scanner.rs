@@ -71,10 +71,13 @@ pub enum TokenType {
 pub struct Token {
 	/// The token's type
 	pub kind: TokenType,
+
 	/// The literal token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`
 	pub lexeme: String,
+
 	/// The line where the token is located
 	pub line: usize,
+
 	/// The column where the token is located
 	pub column: usize,
 }

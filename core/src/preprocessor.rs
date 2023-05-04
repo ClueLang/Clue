@@ -41,19 +41,25 @@ pub type PPCode = (VecDeque<(Code, bool)>, usize);
 pub enum PPVar {
 	/// A simple variable
 	Simple(Code),
+
 	/// A variable that has to be processed before expansion
 	ToProcess(Code),
+
 	/// A macro
 	Macro {
 		/// The code of the macro
 		code: PPCode,
+
 		/// The arguments of the macro
 		args: Vec<Code>,
+
 		/// The preprocessor variables of the macro
 		ppvars: PPVars,
+
 		/// Whether the macro is variadic
 		vararg: bool,
 	},
+
 	/// Variadic arguments variable in a macro
 	VarArgs(PPCode),
 }
