@@ -704,6 +704,7 @@ pub fn preprocess_code(
 					"version" => {
 						let full_wanted_version = code.read_line();
 						let full_wanted_version = full_wanted_version.trim();
+						#[allow(clippy::type_complexity)]
 						let (mut wanted_version, check): (&str, &dyn Fn(&u8, &u8) -> bool) =
 							match full_wanted_version.strip_prefix('=') {
 								Some(wanted_version) => (wanted_version, &u8::ne),
