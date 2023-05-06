@@ -69,110 +69,146 @@ pub enum ComplexToken {
 	VARIABLE {
 		/// Whether the variable(s) is/are local or not
 		local: bool,
+
 		/// The names of the variable(s)
 		names: Vec<String>,
+
 		/// The values of the variable(s)
 		values: Vec<Expression>,
+
 		/// The line number of the variable declaration.
 		line: usize,
 	},
+
 	/// An assignment to a variable or a list of variables.
 	ALTER {
 		/// The kind of assignment (e.g. `+=`, `-=`, `=`)
 		kind: TokenType,
+
 		/// The names of the variable(s)
 		names: VecDeque<Expression>,
+
 		/// The values of the variable(s)
 		values: Vec<Expression>,
+
 		/// The line number of the assignment.
 		line: usize,
 	},
+
 	/// A table
 	TABLE {
 		/// the table's keys and values values
 		values: Vec<(Option<Expression>, Expression, usize)>,
+
 		/// the table's metamethods
 		metas: Vec<(String, Expression, usize)>,
+
 		/// the table's metatable
 		metatable: Option<String>,
 	},
+
 	/// A function declaration
 	FUNCTION {
 		/// Whether the function is local or not
 		local: bool,
+
 		/// The name of the function
 		name: Expression,
+
 		/// The arguments of the function
 		args: FunctionArgs,
+
 		/// The code block of the function
 		code: CodeBlock,
 	},
+
 	/// A lambda function
 	LAMBDA {
 		/// The arguments of the function
 		args: FunctionArgs,
+
 		/// The code block of the function
 		code: CodeBlock,
 	},
+
 	/// An if statement
 	IF_STATEMENT {
 		/// The condition of the if statement
 		condition: Expression,
+
 		/// The code block of the if statement
 		code: CodeBlock,
+
 		/// The next else if/else statement
 		next: Option<Box<ComplexToken>>,
 	},
+
 	/// A match statement
 	MATCH_BLOCK {
 		///
 		name: String,
+
 		/// The expression to match on
 		value: Expression,
+
 		/// The list of match cases
 		branches: Vec<MatchCase>,
+
 		/// The line number of the match statement.
 		line: usize,
 	},
+
 	/// A while loop
 	WHILE_LOOP {
 		/// The condition of the while loop
 		condition: Expression,
+
 		/// The code block of the while loop
 		code: CodeBlock,
 	},
+
 	/// An until loop
 	LOOP_UNTIL {
 		/// The condition of the loop
 		condition: Expression,
+
 		/// The code block of the loop
 		code: CodeBlock,
 	},
+
 	/// A for loop over a range of number e.g. i=0,10,1
 	FOR_LOOP {
 		/// The iterator of the for loop
 		iterator: String,
+
 		/// The start of the for loop
 		start: Expression,
+
 		/// The end of the for loop
 		end: Expression,
+
 		/// The variable being altered in the for loop
 		alter: Expression,
+
 		/// The code block of the for loop
 		code: CodeBlock,
 	},
+
 	/// A for loop over a some iterator which can be either a for..in loop, a for..of loop or a for..with loop
 	FOR_FUNC_LOOP {
 		/// The iterator of the for loop
 		iterators: Vec<String>,
+
 		/// The expression of the for loop
 		/// for..in loops: for k,v in pairs(t) do end
 		/// for..of loops: for k,v in ipairs(t) do end
 		/// for..with loops: for k,v in custom_iter(t) do end
 		expr: Expression,
+
 		/// The code block of the for loop
 		code: CodeBlock,
 	},
+
 	/// A try catch block
 	TRY_CATCH {
 		/// The code block of the try block
@@ -182,25 +218,34 @@ pub enum ComplexToken {
 		/// The name of the error variable in the catch block
 		error: Option<String>,
 	},
+
 	/// An identifier
 	IDENT {
 		/// The expression of the identifier
 		expr: Expression,
+
 		/// The line number of the identifier.
 		line: usize,
 	},
+
 	/// Any symbol
 	SYMBOL(String),
+
 	/// A function call
 	CALL(Vec<Expression>),
+
 	/// An expression
 	EXPR(Expression),
+
 	/// A do block
 	DO_BLOCK(CodeBlock),
+
 	/// A return statement
 	RETURN_EXPR(Option<Vec<Expression>>),
+
 	/// A loop with continue
 	CONTINUE_LOOP,
+
 	/// A loop with break
 	BREAK_LOOP,
 }
@@ -211,8 +256,10 @@ pub enum ComplexToken {
 pub struct CodeBlock {
 	/// The start line of the code block
 	pub start: usize,
+
 	/// The code of the code block
 	pub code: Expression,
+
 	/// The end line of the code block
 	pub end: usize,
 }
