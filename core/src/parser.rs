@@ -880,23 +880,27 @@ impl<'a> ParserInfo<'a> {
 					let ident = SYMBOL(name.clone());
 					let ctoken = self.build_match_block(name, &|i /* , _ */| {
 						let start = i.peek(0).line();
+						let mut code = Expression::new();
+						i.internal_stack.push(&mut code);
 						let expr = i.build_expression(None)?;
+						i.internal_stack.pop();
 						let end = i.look_back(1).line();
 						if matches!(i.look_back(0).kind(), CURLY_BRACKET_CLOSED | DEFAULT) {
 							i.current -= 1
 						}
-						Ok(CodeBlock {
-							code: vec_deque![ALTER {
-								kind: DEFINE,
-								names: vec_deque![vec_deque![ident.clone()]],
-								values: vec![expr],
-								line: end
-							}],
-							start,
-							end,
-						})
+						code.push_back(ALTER {
+							kind: DEFINE,
+							names: vec_deque![vec_deque![ident.clone()]],
+							values: vec![expr],
+							line: end
+						});
+						Ok(CodeBlock { start, code, end })
 					})?;
-					self.expr.push_back(ctoken);
+					unsafe {
+						//SAFETY: prev_expr is guaranteed to be valid and the stack is never empty.
+						let prev_expr = *self.internal_stack.last().unwrap();
+						(*prev_expr).push_back(ctoken);
+					}
 					expr.push_back(ident);
 					if self.check_val() {
 						break t;
