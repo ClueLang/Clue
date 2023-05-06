@@ -234,6 +234,7 @@ struct ParserInfo<'a> {
 	tokens: Vec<Token>,
 	testing: Option<(usize, usize)>,
 	internal_var_id: u8,
+	internal_stack: Vec<*mut Expression>,
 	statics: String,
 	macros: AHashMap<String, Expression>,
 	compiler: Compiler<'a>,
@@ -254,6 +255,7 @@ impl<'a> ParserInfo<'a> {
 			tokens,
 			testing: None,
 			internal_var_id: 0,
+			internal_stack: Vec::new(),
 			statics: String::new(),
 			macros: AHashMap::default(),
 			compiler: Compiler::new(options),
@@ -935,42 +937,56 @@ impl<'a> ParserInfo<'a> {
 				QUESTION_MARK => {
 					let mut condition = Expression::with_capacity(expr.len());
 					condition.append(&mut expr);
+					let mut codetrue = Expression::new();
+					self.internal_stack.push(&mut codetrue);
 					let exprtrue = self.build_expression(Some((COLON, ":")))?;
+					self.internal_stack.pop();
+					let mut codefalse = Expression::new();
+					self.internal_stack.push(&mut codefalse);
 					let t2 = self.look_back(0);
 					let exprfalse = self.build_expression(end)?;
+					self.internal_stack.pop();
 					self.current -= 1;
 					let name = self.get_next_internal_var();
-					self.expr.push_back(VARIABLE {
-						line: t.line(),
-						local: true,
-						names: vec![name.clone()],
-						values: Vec::new(),
-					});
-					let name = SYMBOL(name);
-					self.expr.push_back(IF_STATEMENT {
-						condition,
-						code: CodeBlock {
-							start: self.at(start).line(),
-							code: vec_deque![ALTER {
-								kind: DEFINE,
-								line: t.line(),
-								names: vec_deque![vec_deque![name.clone()]],
-								values: vec![exprtrue]
-							}],
-							end: t2.line(),
-						},
-						next: Some(Box::new(DO_BLOCK(CodeBlock {
-							start: t2.line(),
-							code: vec_deque![ALTER {
-								kind: DEFINE,
-								line: t.line(),
-								names: vec_deque![vec_deque![name.clone()]],
-								values: vec![exprfalse]
-							}],
-							end: self.at(self.current).line(),
-						}))),
-					});
-					expr.push_back(name);
+					let start = self.at(start).line();
+					let end = self.at(self.current).line();
+					unsafe {
+						//SAFETY: prev_expr is guaranteed to be valid and the stack is never empty.
+						let prev_expr = *self.internal_stack.last().unwrap();
+						(*prev_expr).push_back(VARIABLE {
+							line: t.line(),
+							local: true,
+							names: vec![name.clone()],
+							values: Vec::new(),
+						});
+						let name = SYMBOL(name);
+						codetrue.push_back(ALTER {
+							kind: DEFINE,
+							line: t.line(),
+							names: vec_deque![vec_deque![name.clone()]],
+							values: vec![exprtrue]
+						});
+						codefalse.push_back(ALTER {
+							kind: DEFINE,
+							line: t.line(),
+							names: vec_deque![vec_deque![name.clone()]],
+							values: vec![exprfalse]
+						});
+						(*prev_expr).push_back(IF_STATEMENT {
+							condition,
+							code: CodeBlock {
+								start,
+								code: codetrue,
+								end: t2.line(),
+							},
+							next: Some(Box::new(DO_BLOCK(CodeBlock {
+								start: t2.line(),
+								code: codefalse,
+								end,
+							}))),
+						});
+						expr.push_back(name);
+					}
 					if self.check_val() {
 						break t;
 					}
@@ -2105,6 +2121,7 @@ pub fn parse_tokens(
 	options: &Options,
 ) -> Result<(Expression, String), String> {
 	let mut i = ParserInfo::new(tokens /* , locals */, filename, options);
+	i.internal_stack.push(&mut i.expr);
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {
