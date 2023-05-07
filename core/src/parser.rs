@@ -800,6 +800,13 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
+	fn get_prev_expr(&mut self) -> &mut Expression {
+		return match self.internal_stack.last_mut() {
+			Some(last) => last.get_mut(),
+			None => &mut self.expr
+		};
+	}
+
 	/// TODO
 	fn build_expression(&mut self, end: OptionalEnd) -> Result<Expression, String> {
 		let mut expr = Expression::with_capacity(16);
@@ -926,10 +933,7 @@ impl<'a> ParserInfo<'a> {
 						});
 						Ok(CodeBlock { start, code, end })
 					})?;
-					match self.internal_stack.last_mut() {
-						Some(last) => last.get_mut(),
-						None => &mut self.expr
-					}.push_back(ctoken);
+					self.get_prev_expr().push_back(ctoken);
 					expr.push_back(ident);
 					if self.check_val() {
 						break t;
@@ -945,10 +949,7 @@ impl<'a> ParserInfo<'a> {
 					let name = self.get_next_internal_var();
 					let start = self.at(start).line();
 					let end = self.at(self.current).line();
-					let prev_expr = match self.internal_stack.last_mut() {
-						Some(last) => last.get_mut(),
-						None => &mut self.expr
-					};
+					let prev_expr = self.get_prev_expr();
 					prev_expr.push_back(VARIABLE {
 						line: start,
 						local: true,
@@ -990,10 +991,7 @@ impl<'a> ParserInfo<'a> {
 					let name = self.get_next_internal_var();
 					let start = self.at(start).line();
 					let end = self.at(self.current).line();
-					let prev_expr = match self.internal_stack.last_mut() {
-						Some(last) => last.get_mut(),
-						None => &mut self.expr
-					};
+					let prev_expr = self.get_prev_expr();
 					prev_expr.push_back(VARIABLE {
 						line: t.line(),
 						local: true,
