@@ -807,6 +807,13 @@ impl<'a> ParserInfo<'a> {
 		};
 	}
 
+	fn use_internal_stack(&mut self, end: OptionalEnd) -> Result<(Expression, Expression), String> {
+		self.internal_stack.push(Cell::new(Expression::new()));
+		let expr = self.build_expression(end)?;
+		let code = self.internal_stack.pop().unwrap().into_inner();
+		Ok((expr, code))
+	}
+
 	/// TODO
 	fn build_expression(&mut self, end: OptionalEnd) -> Result<Expression, String> {
 		let mut expr = Expression::with_capacity(16);
@@ -918,13 +925,11 @@ impl<'a> ParserInfo<'a> {
 					let ident = SYMBOL(name.clone());
 					let ctoken = self.build_match_block(name, &|i /* , _ */| {
 						let start = i.peek(0).line();
-						i.internal_stack.push(Cell::new(Expression::new()));
-						let expr = i.build_expression(None)?;
+						let (expr, mut code) = i.use_internal_stack(None)?;
 						let end = i.look_back(1).line();
 						if matches!(i.look_back(0).kind(), CURLY_BRACKET_CLOSED | DEFAULT) {
 							i.current -= 1
 						}
-						let mut code = i.internal_stack.pop().unwrap().into_inner();
 						code.push_back(ALTER {
 							kind: DEFINE,
 							names: vec_deque![vec_deque![ident.clone()]],
@@ -942,9 +947,7 @@ impl<'a> ParserInfo<'a> {
 				COALESCE => {
 					let mut leftexpr = Expression::with_capacity(expr.len());
 					leftexpr.append(&mut expr);
-					self.internal_stack.push(Cell::new(Expression::new()));
-					let rightexpr = self.build_expression(end)?;
-					let mut code = self.internal_stack.pop().unwrap().into_inner();
+					let (rightexpr, mut code) = self.use_internal_stack(end)?;
 					self.current -= 1;
 					let name = self.get_next_internal_var();
 					let start = self.at(start).line();
@@ -980,13 +983,9 @@ impl<'a> ParserInfo<'a> {
 				QUESTION_MARK => {
 					let mut condition = Expression::with_capacity(expr.len());
 					condition.append(&mut expr);
-					self.internal_stack.push(Cell::new(Expression::new()));
-					let exprtrue = self.build_expression(Some((COLON, ":")))?;
-					let mut codetrue = self.internal_stack.pop().unwrap().into_inner();
-					self.internal_stack.push(Cell::new(Expression::new()));
+					let (exprtrue, mut codetrue) = self.use_internal_stack(Some((COLON, ":")))?;
 					let t2 = self.look_back(0);
-					let exprfalse = self.build_expression(end)?;
-					let mut codefalse = self.internal_stack.pop().unwrap().into_inner();
+					let (exprfalse, mut codefalse) = self.use_internal_stack(end)?;
 					self.current -= 1;
 					let name = self.get_next_internal_var();
 					let start = self.at(start).line();
