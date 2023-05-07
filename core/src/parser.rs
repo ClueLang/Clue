@@ -1620,39 +1620,6 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	/// TODO
-	fn build_match_case(
-		&mut self,
-		pexpr: Option<Expression>,
-		func: &impl Fn(&mut ParserInfo<'a> /* , LocalsList */) -> Result<CodeBlock, String>,
-	) -> Result<MatchCase, String> {
-		let mut conditions: Vec<Expression> = Vec::new();
-		let mut current = Expression::with_capacity(3);
-		let (expr, extraif) = match pexpr {
-			Some(expr) => (expr, None),
-			None => {
-				self.current += 1;
-				(
-					self.build_expression(Some((IF, "if")))?,
-					Some(self.build_expression(Some((ARROW, "=>")))?),
-				)
-			}
-		};
-		for ctoken in expr {
-			match ctoken {
-				SYMBOL(lexeme) if lexeme == " or " => {
-					conditions.push(current.clone());
-					current.clear();
-				}
-				_ => current.push_back(ctoken),
-			}
-		}
-		if !current.is_empty() {
-			conditions.push(current);
-		}
-		Ok((conditions, extraif, func(self /* , self.locals.clone() */)?))
-	}
-
-	/// TODO
 	fn build_match_block(
 		&mut self,
 		name: String,
