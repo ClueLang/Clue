@@ -1706,20 +1706,28 @@ impl<'a> ParserInfo<'a> {
 					_ => return Err(self.expected("=>", &t.lexeme(), t.line(), t.column())),
 				}
 			} else {
-				let (testexpr, reached) = self.test(|i| i.build_expression(Some((ARROW, "=>"))));
-				branches.push(match testexpr {
-					Err(msg) if msg == "Expected '=>', got 'if'" => {
-						self.build_match_case(None, func)?
+				let expr = self.build_expression(None)?;
+				let t = self.look_back(0);
+				let extra_if = match t.kind() {
+					ARROW => None,
+					IF => Some(self.build_expression(Some((ARROW, "=>")))?),
+					_ => return Err(self.expected("=>", &t.lexeme(), t.line(), t.column()))
+				};
+				let mut conditions: Vec<Expression> = Vec::new();
+				let mut current = Expression::with_capacity(3);
+				for ctoken in expr {
+					match ctoken {
+						SYMBOL(lexeme) if lexeme == " or " => {
+							conditions.push(current.clone());
+							current.clear();
+						}
+						_ => current.push_back(ctoken),
 					}
-					Ok(expr) => {
-						self.current = reached;
-						self.build_match_case(Some(expr), func)?
-					}
-					Err(msg) => {
-						let (line, column) = self.testing.unwrap();
-						return Err(self.error(msg, line, column));
-					}
-				});
+				}
+				if !current.is_empty() {
+					conditions.push(current);
+				}
+				branches.push((conditions, extra_if, func(self /* , self.locals.clone() */)?));
 				!self.advance_if(CURLY_BRACKET_CLOSED)
 			}
 		} {}
