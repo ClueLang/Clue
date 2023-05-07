@@ -938,27 +938,36 @@ impl<'a> ParserInfo<'a> {
 				COALESCE => {
 					let mut leftexpr = Expression::with_capacity(expr.len());
 					leftexpr.append(&mut expr);
+					self.internal_stack.push(Cell::new(Expression::new()));
 					let rightexpr = self.build_expression(end)?;
+					let mut code = self.internal_stack.pop().unwrap().into_inner();
 					self.current -= 1;
 					let name = self.get_next_internal_var();
-					self.expr.push_back(VARIABLE {
-						line: self.at(start).line(),
+					let start = self.at(start).line();
+					let end = self.at(self.current).line();
+					let prev_expr = match self.internal_stack.last_mut() {
+						Some(last) => last.get_mut(),
+						None => &mut self.expr
+					};
+					prev_expr.push_back(VARIABLE {
+						line: start,
 						local: true,
 						names: vec![name.clone()],
 						values: vec![leftexpr],
 					});
 					let name = SYMBOL(name);
-					self.expr.push_back(IF_STATEMENT {
+					code.push_back(ALTER {
+						kind: DEFINE,
+						line: t.line(),
+						names: vec_deque![vec_deque![name.clone()]],
+						values: vec![rightexpr]
+					});
+					prev_expr.push_back(IF_STATEMENT {
 						condition: vec_deque![name.clone(), SYMBOL(String::from(" == nil"))],
 						code: CodeBlock {
 							start: t.line(),
-							code: vec_deque![ALTER {
-								kind: DEFINE,
-								line: t.line(),
-								names: vec_deque![vec_deque![name.clone()]],
-								values: vec![rightexpr]
-							}],
-							end: self.at(self.current).line(),
+							code,
+							end,
 						},
 						next: None,
 					});
