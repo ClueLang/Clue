@@ -280,7 +280,6 @@ struct ParserInfo<'a> {
 	filename: &'a String,
 	expr: Expression,
 	tokens: Vec<Token>,
-	testing: Option<(usize, usize)>,
 	internal_var_id: u8,
 	internal_stack: Vec<Cell<Expression>>,
 	statics: String,
@@ -301,7 +300,6 @@ impl<'a> ParserInfo<'a> {
 			filename,
 			expr: Expression::with_capacity(tokens.len()),
 			tokens,
-			testing: None,
 			internal_var_id: 0,
 			internal_stack: Vec::new(),
 			statics: String::new(),
@@ -312,18 +310,6 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
-	fn test<T>(&mut self, func: impl FnOnce(&mut ParserInfo) -> T) -> (T, usize) {
-		let start = self.current - 1;
-		self.testing = Some((0, 0));
-		let result = func(self);
-		self.testing = match self.testing {
-			Some((line, ..)) if line > 0 => self.testing,
-			_ => None,
-		};
-		let reached = self.current;
-		self.current = start;
-		(result, reached)
-	}
 	/*
 		fn warning(&self, msg: impl Into<String>, line: usize) {
 			println!(
@@ -334,12 +320,9 @@ impl<'a> ParserInfo<'a> {
 			);
 		}
 	*/
+
 	fn error(&mut self, msg: impl Into<String>, line: usize, column: usize) -> String {
-		if let Some((0, ..)) = self.testing {
-			self.testing = Some((line, column));
-		} else {
-			eprintln!("Error in {}:{line}:{column}!", self.filename);
-		}
+		eprintln!("Error in {}:{line}:{column}!", self.filename);
 		msg.into()
 	}
 
