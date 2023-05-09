@@ -652,7 +652,7 @@ impl<'a> ParserInfo<'a> {
 			let mut cscope = 0u8;
 			while match self.peek(0).kind() {
 				COMMA | CURLY_BRACKET_CLOSED => cscope != 0,
-				ROUND_BRACKET_OPEN => {
+				ROUND_BRACKET_OPEN | SAFE_CALL => {
 					cscope += 1;
 					true
 				}
