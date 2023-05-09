@@ -129,6 +129,9 @@ pub struct Options {
 	/// Whether to print the output to stdout
 	pub env_output: bool,
 
+	/// Whether to print the preprocessed file
+	pub env_expand: bool,
+
 	/// The Lua version to target
 	pub env_target: Option<LuaVersion>,
 

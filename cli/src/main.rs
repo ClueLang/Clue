@@ -48,6 +48,10 @@ struct Cli {
 	#[clap(short, long)]
 	output: bool,
 
+	/// Print preprocessed file
+	#[clap(short = 'E', long)]
+	expand: bool,
+
 	/// Use LuaJIT's bit library for bitwise operations
 	#[clap(
 		short,
@@ -155,6 +159,9 @@ pub fn compile_code(
 ) -> Result<(String, String), String> {
 	let time = Instant::now();
 	let code = preprocess_codes(0, codes, variables, name)?;
+	if options.env_expand {
+		println!("Preprocessed file \"{name}\":\n{}", code.to_string());
+	}
 	let tokens: Vec<Token> = scan_code(code, name)?;
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{name}\":\n{tokens:#?}");
@@ -247,6 +254,7 @@ fn main() -> Result<(), String> {
 	let mut options = Options {
 		env_tokens: cli.tokens,
 		env_struct: cli.r#struct,
+		env_expand: cli.expand,
 		env_jitbit: {
 			if cli.jitbit.is_some() {
 				println!("Warning: \"--jitbit was deprecated and replaced by --bitwise\"");
