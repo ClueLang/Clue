@@ -20,9 +20,17 @@ If you want a complete documentation of every change and addition in Clue check 
 
 ## Example code
 ```rs
-@define HELLO_MESSAGE "Hello world!"
-
-print($HELLO_MESSAGE)
+@ifos linux {
+	@define GREETING "Hello, Linux user "
+} @else_ifos macos {
+	@define GREETING "Hello, MacOS user "
+} @else {
+	@define GREETING "Hello, Windows user "
+}
+  
+@macro GREET(target) { $GREETING .. $target .. "!" }
+  
+print($GREET!("Maiori"))
 
 local fn add(x = 0, y = 0) {
     return x + y
