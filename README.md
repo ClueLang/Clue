@@ -90,6 +90,8 @@ makepkg -si
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
 - types (coming in 4.0)
+- `async` and `yield` (coming maybe in 3.4)
+- `if local` (coming in 3.3)
 
 For any suggestion or bug you can make a github issue.
 If you need help with the language itself, you can check out the new [Discord server](https://discord.gg/EQsnWpqN3C).
