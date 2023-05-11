@@ -651,7 +651,9 @@ pub fn preprocess_code(
 			b'@' => {
 				let directive_name = code.read_identifier()?.to_string();
 				code.skip_whitespace();
-				let (directive, prev) = if directive_name.starts_with("else_if") {
+				let else_if = directive_name.starts_with("else_if");
+				let skip = else_if && code.last_if;
+				let (directive, prev) = if else_if {
 					(
 						directive_name
 							.strip_prefix("else_")
@@ -846,6 +848,9 @@ pub fn preprocess_code(
 							filename,
 						))
 					}
+				}
+				if skip {
+					code.last_if = true;
 				}
 				false
 			}
