@@ -19,19 +19,30 @@ Clue does not compile to a specfic version of Lua: flags can be toggled to alter
 If you want a complete documentation of every change and addition in Clue check [the wiki](https://github.com/ClueLang/Clue/wiki).
 
 ## Example code
-```
-print("Hello world!")
+```rs
+@define HELLO_MESSAGE "Hello world!"
 
-local fn add(x, y) {
+print($HELLO_MESSAGE)
+
+local fn add(x = 0, y = 0) {
     return x + y
 }
 
 global n = 1
 
 while n < 10 {
-    n += add(n, n)
-    if n == 3 {continue}
-    print(n)
+    n += add($, $)
+    match n {
+        3 => {
+            continue
+        }
+        4 if x => {
+            break
+        }
+        default => {
+            print(n < 3 ? n : -n)
+        }
+    }
 }
 ```
 More examples can be found in:
