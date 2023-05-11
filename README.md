@@ -19,19 +19,38 @@ Clue does not compile to a specfic version of Lua: flags can be toggled to alter
 If you want a complete documentation of every change and addition in Clue check [the wiki](https://github.com/ClueLang/Clue/wiki).
 
 ## Example code
-```
-print("Hello world!")
+```rs
+@ifos linux {
+	@define GREETING "Hello, Linux user "
+} @else_ifos macos {
+	@define GREETING "Hello, MacOS user "
+} @else {
+	@define GREETING "Hello, Windows user "
+}
+  
+@macro GREET(target) { $GREETING .. $target .. "!" }
+  
+print($GREET!("Maiori"))
 
-local fn add(x, y) {
+local fn add(x = 0, y = 0) {
     return x + y
 }
 
 global n = 1
 
 while n < 10 {
-    n += add(n, n)
-    if n == 3 {continue}
-    print(n)
+    n += add($, $)
+    match n {
+        3 => {
+            continue
+        }
+        4 if x => {
+            break
+        }
+        default => {
+            print(n < 3 ? n : -n)
+        }
+    }
 }
 ```
 More examples can be found in:
@@ -90,6 +109,8 @@ makepkg -si
 There are still some features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
 - types (coming in 4.0)
+- `async` and `yield` (coming maybe in 3.4)
+- `if local` (coming in 3.3)
 
 For any suggestion or bug you can make a github issue.
 If you need help with the language itself, you can check out the new [Discord server](https://discord.gg/EQsnWpqN3C).
