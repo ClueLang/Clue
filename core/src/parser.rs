@@ -807,11 +807,15 @@ impl<'a> ParserInfo<'a> {
 		};
 	}
 
-	fn use_internal_stack(&mut self, end: OptionalEnd) -> Result<(Expression, Expression), String> {
+	fn use_internal_stack<T>(
+		&mut self,
+		f: impl FnOnce(&mut Self) -> Result<T, String>
+	) -> Result<(T, Expression), String> {
 		self.internal_stack.push(Cell::new(Expression::new()));
-		let expr = self.build_expression(end)?;
+		//let expr = self.build_expression(end)?;
+		let result = f(self)?;
 		let code = self.internal_stack.pop().unwrap().into_inner();
-		Ok((expr, code))
+		Ok((result, code))
 	}
 
 	/// TODO
@@ -925,7 +929,7 @@ impl<'a> ParserInfo<'a> {
 					let ident = SYMBOL(name.clone());
 					let ctoken = self.build_match_block(name, &|i /* , _ */| {
 						let start = i.peek(0).line();
-						let (expr, mut code) = i.use_internal_stack(None)?;
+						let (expr, mut code) = i.use_internal_stack(|i| i.build_expression(None))?;
 						let end = i.look_back(1).line();
 						if matches!(i.look_back(0).kind(), CURLY_BRACKET_CLOSED | DEFAULT) {
 							i.current -= 1
@@ -947,7 +951,7 @@ impl<'a> ParserInfo<'a> {
 				COALESCE => {
 					let mut leftexpr = Expression::with_capacity(expr.len());
 					leftexpr.append(&mut expr);
-					let (rightexpr, mut code) = self.use_internal_stack(end)?;
+					let (rightexpr, mut code) = self.use_internal_stack(|i| i.build_expression(end))?;
 					self.current -= 1;
 					let name = self.get_next_internal_var();
 					let start = self.at(start).line();
@@ -983,9 +987,13 @@ impl<'a> ParserInfo<'a> {
 				QUESTION_MARK => {
 					let mut condition = Expression::with_capacity(expr.len());
 					condition.append(&mut expr);
-					let (exprtrue, mut codetrue) = self.use_internal_stack(Some((COLON, ":")))?;
+					let (exprtrue, mut codetrue) = self.use_internal_stack(
+						|i| i.build_expression(Some((COLON, ":")))
+					)?;
 					let t2 = self.look_back(0);
-					let (exprfalse, mut codefalse) = self.use_internal_stack(end)?;
+					let (exprfalse, mut codefalse) = self.use_internal_stack(
+						|i| i.build_expression(end)
+					)?;
 					self.current -= 1;
 					let name = self.get_next_internal_var();
 					let start = self.at(start).line();
@@ -1450,7 +1458,10 @@ impl<'a> ParserInfo<'a> {
 				if self.advance_if(LOCAL) {
 					let start = self.look_back(0).line();
 					let destructure = self.advance_if(CURLY_BRACKET_OPEN);
-					let vars = self.build_variables(true, start, destructure)?;
+					let (vars, mut code) = self.use_internal_stack(
+						|i| i.build_variables(true, start, destructure)
+					)?;
+					//let vars = self.build_variables(true, start, destructure)?;
 					let (condition, end) = {
 						let VARIABLE {names, line: end, ..} = &vars else {
 							unreachable!()
@@ -1464,11 +1475,9 @@ impl<'a> ParserInfo<'a> {
 						}
 						(condition, *end)
 					};
-					return Ok(DO_BLOCK(CodeBlock {
-						start,
-						code: vec_deque![vars, self.build_elseif_chain(Some(condition))?],
-						end
-					}))
+					code.push_back(vars);
+					code.push_back(self.build_elseif_chain(Some(condition))?);
+					return Ok(DO_BLOCK(CodeBlock { start, code, end }))
 				}
 				self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?
 			}
@@ -1627,7 +1636,7 @@ impl<'a> ParserInfo<'a> {
 		self.current -= 1;
 		if destructure {
 			let name = self.get_next_internal_var();
-			self.expr.push_back(VARIABLE {
+			self.get_prev_expr().push_back(VARIABLE {
 				local: true,
 				names: vec![name.clone()],
 				values,
