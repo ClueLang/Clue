@@ -1461,7 +1461,6 @@ impl<'a> ParserInfo<'a> {
 					let (vars, mut code) = self.use_internal_stack(
 						|i| i.build_variables(true, start, destructure)
 					)?;
-					//let vars = self.build_variables(true, start, destructure)?;
 					let (condition, end) = {
 						let VARIABLE {names, line: end, ..} = &vars else {
 							unreachable!()
