@@ -122,6 +122,12 @@ impl Clue {
 		self.options.env_output = output;
 	}
 
+	/// Sets the `expand` option
+	/// When the `expand` option is enabled, the preprocessed file will be printed to the console
+	pub fn expand(&mut self, expand: bool) {
+		self.options.env_expand = expand;
+	}
+
 	/// Sets the `target` option
 	/// The `target` option is used to set the target Lua version
 	///
