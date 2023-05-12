@@ -1443,8 +1443,36 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	/// TODO
-	fn build_elseif_chain(&mut self) -> Result<ComplexToken, String> {
-		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
+	fn build_elseif_chain(&mut self, condition: Option<Expression>) -> Result<ComplexToken, String> {
+		let condition = match condition {
+			Some(condition) => condition,
+			None => {
+				if self.advance_if(LOCAL) {
+					let start = self.look_back(0).line();
+					let destructure = self.advance_if(CURLY_BRACKET_OPEN);
+					let vars = self.build_variables(true, start, destructure)?;
+					let (condition, end) = {
+						let VARIABLE {names, line: end, ..} = &vars else {
+							unreachable!()
+						};
+						let mut condition = Expression::with_capacity(names.len());
+						let mut names = names.iter();
+						let first = names.next().unwrap();
+						condition.push_back(SYMBOL(format_clue!(first, " ~= nil")));
+						for name in names {
+							condition.push_back(SYMBOL(format_clue!(" and ", name, " ~= nil")))
+						}
+						(condition, *end)
+					};
+					return Ok(DO_BLOCK(CodeBlock {
+						start,
+						code: vec_deque![vars, self.build_elseif_chain(Some(condition))?],
+						end
+					}))
+				}
+				self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?
+			}
+		};
 		let code = self.build_code_block(/*self.locals.clone()*/)?;
 		Ok(IF_STATEMENT {
 			condition,
@@ -1452,7 +1480,7 @@ impl<'a> ParserInfo<'a> {
 			next: {
 				let t = self.advance();
 				match t.kind() {
-					ELSEIF => Some(Box::new(self.build_elseif_chain()?)),
+					ELSEIF => Some(Box::new(self.build_elseif_chain(None)?)),
 					ELSE => Some(Box::new(DO_BLOCK(
 						self.build_code_block(/*self.locals.clone()*/)?,
 					))),
@@ -1900,7 +1928,7 @@ impl<'a> ParserInfo<'a> {
 
 	/// TODO
 	fn parse_token_if(&mut self) -> Result<(), String> {
-		let ctoken = self.build_elseif_chain()?;
+		let ctoken = self.build_elseif_chain(None)?;
 		self.expr.push_back(ctoken);
 
 		Ok(())
