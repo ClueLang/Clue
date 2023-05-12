@@ -2170,7 +2170,6 @@ pub fn parse_tokens(
 	options: &Options,
 ) -> Result<(Expression, String), String> {
 	let mut i = ParserInfo::new(tokens /* , locals */, filename, options);
-	//i.internal_stack.push(Cell::new(i.expr));
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {
