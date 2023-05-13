@@ -1294,8 +1294,34 @@ impl<'a> ParserInfo<'a> {
 				Some(locals)
 			})
 		} else {*/
-		self.build_code_block(/*self.locals.clone()*/)
+		//self.build_code_block(/*self.locals.clone()*/)
 		//}
+		let code = self.build_code_block()?;
+		Ok(if self.options.env_debug {
+			CodeBlock {
+				start: code.start,
+				code: vec_deque![
+					TRY_CATCH {
+						totry: CodeBlock {
+							start: code.start,
+							code: code.code,
+							end: code.end,
+						},
+						catch:  Some(CodeBlock {
+							start: code.start,
+							code: vec_deque![SYMBOL(String::from(
+								"error(_err .. \"\\nEstimated Clue line: \" .. _clueline)"
+							))],
+							end: code.end
+						}),
+						error: Some(String::from("_err"))
+					}
+				],
+				end: code.end
+			}
+		} else {
+			code
+		})
 	}
 
 	/// TODO

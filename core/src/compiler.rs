@@ -139,10 +139,10 @@ impl<'a> Compiler<'a> {
 		block: CodeBlock,
 	) -> Result<String, String> {
 		let pre = self.indentate(scope);
-		let code = self.compile_tokens(scope + if self.options.env_debug {2} else {1}, block.code)?;
+		let code = self.compile_tokens(scope + 1, block.code)?;
 		let debug = self.compile_debug_line(block.start, scope + 1);
 		Ok(if self.options.env_debug {
-			format_clue!(
+			/*format_clue!(
 				start,
 				"\n",
 				pre,
@@ -162,11 +162,11 @@ impl<'a> Compiler<'a> {
 				pre,
 				"\tif not ok then _clue_error(err) end\n",
 				pre
-			)
-			/*format!(
+			)*/
+			format!(
 				"{}\n{}\t{}--{}->{}\n{}\n{}",
 				start, pre, debug, block.start, block.end, code, pre
-			)*/
+			)
 		} else {
 			format_clue!(start, "\n", code, "\n", pre)
 		})
