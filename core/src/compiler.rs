@@ -139,16 +139,37 @@ impl<'a> Compiler<'a> {
 		block: CodeBlock,
 	) -> Result<String, String> {
 		let pre = self.indentate(scope);
-		let code = self.compile_tokens(scope + 1, block.code)?;
+		let code = self.compile_tokens(scope + if self.options.env_debug {2} else {1}, block.code)?;
 		let debug = self.compile_debug_line(block.start, scope + 1);
-		if self.options.env_debug {
-			Ok(format!(
+		Ok(if self.options.env_debug {
+			format_clue!(
+				start,
+				"\n",
+				pre,
+				"\t",
+				debug,
+				"--",
+				block.start.to_string(),
+				"->",
+				block.end.to_string(),
+				"\n",
+				pre,
+				"\tlocal ok, err = pcall(function()\n",
+				code,
+				"\n",
+				pre,
+				"\tend)\n",
+				pre,
+				"\tif not ok then _clue_error(err) end\n",
+				pre
+			)
+			/*format!(
 				"{}\n{}\t{}--{}->{}\n{}\n{}",
 				start, pre, debug, block.start, block.end, code, pre
-			))
+			)*/
 		} else {
-			Ok(format_clue!(start, "\n", code, "\n", pre))
-		}
+			format_clue!(start, "\n", code, "\n", pre)
+		})
 	}
 
 	fn compile_debug_comment(&self, line: usize) -> String {
