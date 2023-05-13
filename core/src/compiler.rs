@@ -129,6 +129,7 @@ impl<'a> Compiler<'a> {
 			}
 			Ok(arg)
 		})?;
+		//TODO: put debug here?
 		Ok((code, args))
 	}
 
@@ -142,27 +143,6 @@ impl<'a> Compiler<'a> {
 		let code = self.compile_tokens(scope + 1, block.code)?;
 		let debug = self.compile_debug_line(block.start, scope + 1);
 		Ok(if self.options.env_debug {
-			/*format_clue!(
-				start,
-				"\n",
-				pre,
-				"\t",
-				debug,
-				"--",
-				block.start.to_string(),
-				"->",
-				block.end.to_string(),
-				"\n",
-				pre,
-				"\tlocal ok, err = pcall(function()\n",
-				code,
-				"\n",
-				pre,
-				"\tend)\n",
-				pre,
-				"\tif not ok then _clue_error(err) end\n",
-				pre
-			)*/
 			format!(
 				"{}\n{}\t{}--{}->{}\n{}\n{}",
 				start, pre, debug, block.start, block.end, code, pre

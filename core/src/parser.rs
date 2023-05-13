@@ -1310,7 +1310,7 @@ impl<'a> ParserInfo<'a> {
 						catch:  Some(CodeBlock {
 							start: code.start,
 							code: vec_deque![SYMBOL(String::from(
-								"error(_err .. \"\\nEstimated Clue line: \" .. _clueline)"
+								"_clue_error(_err)"
 							))],
 							end: code.end
 						}),
