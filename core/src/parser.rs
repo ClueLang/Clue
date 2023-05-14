@@ -2097,7 +2097,10 @@ impl<'a> ParserInfo<'a> {
 			Some(self.find_expressions(None)?)
 		};
 		self.expr.push_back(RETURN_EXPR(expr));
-
+		if !self.ended() {
+			let t = self.look_back(0);
+			return Err(self.expected("<end>", &t.lexeme(), t.line(), t.column()))
+		}
 		Ok(())
 	}
 
