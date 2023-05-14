@@ -1240,7 +1240,7 @@ impl<'a> ParserInfo<'a> {
 			self.current -= 2;
 			let t2 = self.advance();
 			if t2.kind() == CURLY_BRACKET_OPEN {
-				Ok(t.line())
+				Ok(t2.line())
 			} else {
 				Err(self.expected("{", &t.lexeme(), t.line(), t.column()))
 			}
