@@ -107,7 +107,7 @@ impl<'a> Compiler<'a> {
 			if let Some((default, line)) = default {
 				let default = self.compile_expression(scope + 2, default)?;
 				let pre = self.indentate(scope + 1);
-				let debug = self.compile_debug_line(line, scope + 2);
+				let debug = self.compile_debug_line(line, scope + 2, true);
 				let line = self.compile_debug_comment(line);
 				code = format_clue!(
 					"\n",
@@ -172,7 +172,7 @@ impl<'a> Compiler<'a> {
 	) -> Result<String, String> {
 		let pre = self.indentate(scope);
 		let code = self.compile_tokens(scope + 1, block.code)?;
-		let debug = self.compile_debug_line(block.start, scope + 1);
+		let debug = self.compile_debug_line(block.start, scope + 1, true);
 		Ok(if self.options.env_debug {
 			format!(
 				"{}\n{}\t{}--{}->{}\n{}\n{}",
@@ -191,9 +191,14 @@ impl<'a> Compiler<'a> {
 		}
 	}
 
-	fn compile_debug_line(&self, line: usize, scope: usize) -> String {
+	fn compile_debug_line(&self, line: usize, scope: usize, indentate_last: bool) -> String {
 		if self.options.env_debug {
-			format!("_clueline = {line};\n{}", self.indentate(scope))
+			let debug = format_clue!("_clueline = ", line.to_string(), ";");
+			if indentate_last {
+				format_clue!(debug, "\n", self.indentate(scope))
+			} else {
+				format_clue!("\n", self.indentate(scope), debug)
+			}
 		} else {
 			String::new()
 		}
@@ -345,7 +350,7 @@ impl<'a> Compiler<'a> {
 					values,
 					line,
 				} => {
-					let debug = self.compile_debug_line(line, scope);
+					let debug = self.compile_debug_line(line, scope, true);
 					let line = self.compile_debug_comment(line);
 					if !local && self.options.env_rawsetglobals {
 						let mut result = debug;
@@ -419,7 +424,7 @@ impl<'a> Compiler<'a> {
 						}) + &self.compile_expression(scope, expr)?)
 					})?;
 					let names = self.compile_identifiers(names)?;
-					let debug = self.compile_debug_line(line, scope);
+					let debug = self.compile_debug_line(line, scope, true);
 					let line = self.compile_debug_comment(line);
 					format_clue!(
 						debug,
@@ -458,7 +463,7 @@ impl<'a> Compiler<'a> {
 					line,
 				} => {
 					let value = self.compile_expression(scope, value)?;
-					let debug = self.compile_debug_line(line, scope);
+					let debug = self.compile_debug_line(line, scope, true);
 					let line = self.compile_debug_comment(line);
 					let branches = {
 						let mut result = self.indentate(scope);
@@ -511,24 +516,36 @@ impl<'a> Compiler<'a> {
 				}
 				WHILE_LOOP { condition, code } => {
 					let condition = self.compile_expression(scope, condition)?;
+					let debug_start = self.compile_debug_line(code.start, scope, true);
+					let debug_condition = self.compile_debug_line(code.start, scope, true);
+					let debug_end = self.compile_debug_line(code.end, scope, false);
 					let code = self.compile_code_block(scope, "do", code)?;
 					format_clue!(
+						debug_start,
 						"while ",
 						condition,
 						" ",
 						code,
+						debug_condition,
 						"end",
+						debug_end,
 						self.indentate_if(ctokens, scope)
 					)
 				}
 				LOOP_UNTIL { condition, code } => {
 					let condition = self.compile_expression(scope, condition)?;
+					let debug_start = self.compile_debug_line(code.start, scope, true);
+					let debug_condition = self.compile_debug_line(code.end, scope, true);
+					let debug_end = self.compile_debug_line(code.end, scope, false);
 					let code = self.compile_code_block(scope, "", code)?;
 					format_clue!(
+						debug_start,
 						"repeat ",
 						code,
+						debug_condition,
 						"until ",
 						condition,
+						debug_end,
 						self.indentate_if(ctokens, scope)
 					)
 				}
@@ -542,11 +559,27 @@ impl<'a> Compiler<'a> {
 					let start = self.compile_expression(scope, start)?;
 					let endexpr = self.compile_expression(scope, end)?;
 					let alter = self.compile_expression(scope, alter)?;
+					let debug_start = self.compile_debug_line(code.start, scope, true);
+					let debug_condition = self.compile_debug_line(code.start, scope, true);
+					let debug_end = self.compile_debug_line(code.end, scope, false);
 					let code = self.compile_code_block(scope, "do", code)?;
 					let end = self.indentate_if(ctokens, scope);
 					format_clue!(
-						"for ", iterator, " = ", start, ", ", endexpr, ", ", alter, " ", code,
-						"end", end
+						debug_start,
+						"for ",
+						iterator,
+						" = ",
+						start,
+						", ",
+						endexpr,
+						", ",
+						alter,
+						" ",
+						code,
+						debug_condition,
+						"end",
+						debug_end,
+						end
 					)
 				}
 				FOR_FUNC_LOOP {
@@ -556,15 +589,21 @@ impl<'a> Compiler<'a> {
 				} => {
 					let expr = self.compile_expression(scope, expr)?;
 					let iterators = self.compile_identifiers(iterators)?;
+					let debug_start = self.compile_debug_line(code.start, scope, true);
+					let debug_condition = self.compile_debug_line(code.start, scope, true);
+					let debug_end = self.compile_debug_line(code.end, scope, false);
 					let code = self.compile_code_block(scope, "do", code)?;
 					format_clue!(
+						debug_start,
 						"for ",
 						iterators,
 						" in ",
 						expr,
 						" ",
 						code,
+						debug_condition,
 						"end",
+						debug_end,
 						self.indentate_if(ctokens, scope)
 					)
 				}
@@ -607,7 +646,7 @@ impl<'a> Compiler<'a> {
 				}
 				IDENT { expr, line } => {
 					let expr = self.compile_identifier(scope, expr)?;
-					let debug = self.compile_debug_line(line, scope);
+					let debug = self.compile_debug_line(line, scope, true);
 					let line = self.compile_debug_comment(line);
 					format_clue!(debug, expr, ";", line, self.indentate_if(ctokens, scope))
 				}
