@@ -1,4 +1,4 @@
-local _clueline, _errored, _errored_file = "???"
+local _clueline, _errored, _errored_file = 0
 
 local function _clue_error(err)
 	_errored = ("%s:%d: %s"):format(_errored_file, _clueline, err:match(".+: (.-)$"))
