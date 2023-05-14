@@ -102,7 +102,7 @@ impl<'a> Compiler<'a> {
 		args: FunctionArgs,
 		code: CodeBlock,
 	) -> Result<(String, String), String> {
-		let mut code = self.compile_code_block(scope + (self.options.env_debug || true) as usize, "", code)?;
+		let mut code = self.compile_code_block(scope + self.options.env_debug as usize, "", code)?;
 		let args = self.compile_list(args, ", ", &mut |(arg, default)| {
 			if let Some((default, line)) = default {
 				let default = self.compile_expression(scope + 2, default)?;
@@ -130,7 +130,7 @@ impl<'a> Compiler<'a> {
 			}
 			Ok(arg)
 		})?;
-		if self.options.env_debug || true {
+		if self.options.env_debug {
 			let pre = self.indentate(scope);
 			code = format_clue!(
 				"\n",
