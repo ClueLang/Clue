@@ -143,8 +143,12 @@ impl<'a> Compiler<'a> {
 				args,
 				")",
 				code,
-				"end, _clue_error, ",
-				args,
+				"end, _clue_error",
+				if args.is_empty() {
+					String::new()
+				} else {
+					format_clue!(", ", args)
+				},
 				"))}\n",
 				pre,
 				"\tif _errored then error(_errored) end\n",
