@@ -454,7 +454,8 @@ impl Clue {
 	/// }
 	pub fn compile_tokens(&self, tokens: Vec<Token>) -> Result<String, String> {
 		let (ctokens, statics) = self.parse_tokens(tokens)?;
-		let compiler = Compiler::new(&self.options);
+		let filename = String::from("(library)");
+		let compiler = Compiler::new(&self.options, &filename);
 		Ok(statics + &compiler.compile_tokens(0, ctokens)?)
 	}
 
@@ -504,7 +505,8 @@ impl Clue {
 	///    Ok(())
 	/// }
 	pub fn compile_ast(&self, (ctokens, statics): (Expression, String)) -> Result<String, String> {
-		let compiler = Compiler::new(&self.options);
+		let filename = String::from("(library)");
+		let compiler = Compiler::new(&self.options, &filename);
 		Ok(statics + &compiler.compile_tokens(0, ctokens)?)
 	}
 

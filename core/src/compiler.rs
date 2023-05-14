@@ -34,6 +34,7 @@ use crate::{
 /// ```
 pub struct Compiler<'a> {
 	options: &'a Options,
+	filename: &'a String,
 }
 
 impl<'a> Compiler<'a> {
@@ -43,10 +44,10 @@ impl<'a> Compiler<'a> {
 	/// use clue_core::{compiler::Compiler, env::Options};
 	///
 	/// let options = Options::default();
-	/// let compiler = Compiler::new(&options);
+	/// let compiler = Compiler::new(&options, "file.clue");
 	/// ```
-	pub const fn new(options: &'a Options) -> Self {
-		Self { options }
+	pub const fn new(options: &'a Options, filename: &'a String) -> Self {
+		Self { options, filename }
 	}
 
 	fn indentate(&self, scope: usize) -> String {
@@ -101,7 +102,7 @@ impl<'a> Compiler<'a> {
 		args: FunctionArgs,
 		code: CodeBlock,
 	) -> Result<(String, String), String> {
-		let mut code = self.compile_code_block(scope, "", code)?;
+		let mut code = self.compile_code_block(scope + (self.options.env_debug || true) as usize, "", code)?;
 		let args = self.compile_list(args, ", ", &mut |(arg, default)| {
 			if let Some((default, line)) = default {
 				let default = self.compile_expression(scope + 2, default)?;
@@ -129,7 +130,29 @@ impl<'a> Compiler<'a> {
 			}
 			Ok(arg)
 		})?;
-		//TODO: put debug here?
+		if self.options.env_debug || true {
+			let pre = self.indentate(scope);
+			code = format_clue!(
+				"\n",
+				pre,
+				"\t_errored_file = \"",
+				self.filename,
+				"\"\n",
+				pre,
+				"\tlocal result = {select(2, xpcall(function(",
+				args,
+				")",
+				code,
+				"end, _clue_error, ",
+				args,
+				"))}\n",
+				pre,
+				"\tif _errored then error(_errored) end\n",
+				pre,
+				"\treturn (unpack or table.unpack)(result)\n",
+				pre
+			)
+		}
 		Ok((code, args))
 	}
 

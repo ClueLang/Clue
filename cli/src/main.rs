@@ -180,7 +180,7 @@ pub fn compile_code(
 		println!("Parsed structure of file \"{name}\":\n{ctokens:#?}");
 	}
 
-	let code = Compiler::new(options).compile_tokens(scope, ctokens)?;
+	let code = Compiler::new(options, name).compile_tokens(scope, ctokens)?;
 
 	if options.env_output {
 		println!("Compiled Lua code of file \"{name}\":\n{code}");
@@ -212,7 +212,7 @@ fn finish(
 	code: String,
 ) -> Result<(), String> {
 	if debug {
-		let new_output = format!(include_str!("debug.lua"), &code);
+		let new_output = format!(include_str!("debug.lua"), format_clue!("\t", code.replace('\n', "\n\t")));
 		if let Some(output_path) = output_path {
 			check!(fs::write(output_path, &new_output));
 		}
