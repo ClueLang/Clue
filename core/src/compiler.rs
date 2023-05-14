@@ -135,15 +135,19 @@ impl<'a> Compiler<'a> {
 			code = format_clue!(
 				"\n",
 				pre,
-				"\t_errored_file = \"",
-				self.filename,
-				"\"\n",
-				pre,
 				"\tlocal result = {select(2, xpcall(function(",
 				args,
 				")",
 				code,
-				"end, _clue_error",
+				"end, function(err)\n",
+				pre,
+				"\t\t_errored_file = \"",
+				self.filename,
+				"\"\n",
+				pre,
+				"\t\t_clue_error(err)\n",
+				pre,
+				"\tend",
 				if args.is_empty() {
 					String::new()
 				} else {
