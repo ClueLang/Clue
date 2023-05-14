@@ -40,6 +40,7 @@ macro_rules! vec_deque {
 
 /// A list of [`ComplexToken`]s, which is the AST.
 pub type Expression = VecDeque<ComplexToken>;
+
 /// Function arguments, a list of identifiers with optional default values
 /// used in function signatures.
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
@@ -50,6 +51,7 @@ pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
 /// An optional end token, which is used to check if the end token is present.
 /// It is a tuple of the token type and the token lexeme.
 type OptionalEnd = Option<(TokenType, &'static str)>;
+
 /// A tuple representing a match case, containing the things you can match, an optional condition and a code block.
 /// In the example
 /// ```clue
@@ -226,8 +228,10 @@ pub enum ComplexToken {
 	TRY_CATCH {
 		/// The code block of the try block
 		totry: CodeBlock,
+		
 		/// An optional code block of the catch block
 		catch: Option<CodeBlock>,
+		
 		/// The name of the error variable in the catch block
 		error: Option<String>,
 	},
@@ -1762,7 +1766,6 @@ impl<'a> ParserInfo<'a> {
 				self.expr.push_back(vars);
 			}
 		}
-
 		Ok(())
 	}
 
@@ -1782,7 +1785,6 @@ impl<'a> ParserInfo<'a> {
 				self.compile_static(vars)?;
 			}
 		}
-
 		Ok(())
 	}
 
@@ -1827,7 +1829,6 @@ impl<'a> ParserInfo<'a> {
 			args,
 			code,
 		});
-
 		Ok(())
 	}
 
@@ -1934,7 +1935,6 @@ impl<'a> ParserInfo<'a> {
 		self.expr.push_back(call);
 		self.current += 1;
 		self.advance_if(SEMICOLON);
-
 		Ok(())
 	}
 
@@ -1943,7 +1943,6 @@ impl<'a> ParserInfo<'a> {
 		self.current -= 1;
 		let block = self.build_code_block(/*self.locals.clone()*/)?;
 		self.expr.push_back(DO_BLOCK(block));
-
 		Ok(())
 	}
 
@@ -1951,7 +1950,6 @@ impl<'a> ParserInfo<'a> {
 	fn parse_token_if(&mut self) -> Result<(), String> {
 		let ctoken = self.build_elseif_chain(None)?;
 		self.expr.push_back(ctoken);
-
 		Ok(())
 	}
 
@@ -1960,7 +1958,6 @@ impl<'a> ParserInfo<'a> {
 		let name = self.get_next_internal_var();
 		let ctoken = self.build_match_block(name, &ParserInfo::build_code_block)?;
 		self.expr.push_back(ctoken);
-
 		Ok(())
 	}
 
@@ -1969,7 +1966,6 @@ impl<'a> ParserInfo<'a> {
 		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
 		let code = self.build_loop_block()?;
 		self.expr.push_back(WHILE_LOOP { condition, code, line });
-
 		Ok(())
 	}
 
@@ -1980,7 +1976,6 @@ impl<'a> ParserInfo<'a> {
 		condition.push_back(SYMBOL(String::from(")")));
 		let code = self.build_loop_block()?;
 		self.expr.push_back(WHILE_LOOP { condition, code, line });
-
 		Ok(())
 	}
 
@@ -2069,7 +2064,6 @@ impl<'a> ParserInfo<'a> {
 				line,
 			});
 		}
-
 		Ok(())
 	}
 
@@ -2077,7 +2071,6 @@ impl<'a> ParserInfo<'a> {
 	fn parse_token_continue(&mut self) -> Result<(), String> {
 		self.expr.push_back(CONTINUE_LOOP);
 		self.advance_if(SEMICOLON);
-
 		Ok(())
 	}
 
@@ -2085,7 +2078,6 @@ impl<'a> ParserInfo<'a> {
 	fn parse_token_break(&mut self) -> Result<(), String> {
 		self.expr.push_back(BREAK_LOOP);
 		self.advance_if(SEMICOLON);
-
 		Ok(())
 	}
 
@@ -2126,7 +2118,6 @@ impl<'a> ParserInfo<'a> {
 			error,
 			catch,
 		});
-
 		Ok(())
 	}
 
