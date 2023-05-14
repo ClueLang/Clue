@@ -22,7 +22,8 @@ use crate::{
 ///
 /// fn main() -> Result<(), String> {
 ///     let options = Options::default();
-///     let compiler = Compiler::new(&options);
+/// 	let filename = String::from("file.clue");
+///     let compiler = Compiler::new(&options, &filename);
 ///     let code = "local fn a() {return 1;}".to_owned();
 ///     let clue = Clue::new();
 ///
@@ -44,7 +45,7 @@ impl<'a> Compiler<'a> {
 	/// use clue_core::{compiler::Compiler, env::Options};
 	///
 	/// let options = Options::default();
-	/// let compiler = Compiler::new(&options, "file.clue");
+	/// let compiler = Compiler::new(&options, &String::from("file.clue"));
 	/// ```
 	pub const fn new(options: &'a Options, filename: &'a String) -> Self {
 		Self { options, filename }
@@ -328,7 +329,8 @@ impl<'a> Compiler<'a> {
 	///
 	/// fn main() -> Result<(), String> {
 	///     let options = Options::default();
-	///     let compiler = Compiler::new(&options);
+	/// 	let filename = String::from("file.clue");
+	///     let compiler = Compiler::new(&options, &filename);
 	///     let code = "local fn a() {return 1;}".to_owned();
 	///     let clue = Clue::new();
 	///
