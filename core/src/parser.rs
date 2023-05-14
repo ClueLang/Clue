@@ -166,6 +166,9 @@ pub enum ComplexToken {
 
 		/// The code block of the while loop
 		code: CodeBlock,
+
+		/// The line number of the while loop
+		line: usize,
 	},
 
 	/// An until loop
@@ -175,6 +178,9 @@ pub enum ComplexToken {
 
 		/// The code block of the loop
 		code: CodeBlock,
+
+		/// The line number of the loop
+		line: usize,
 	},
 
 	/// A for loop over a range of number e.g. i=0,10,1
@@ -193,6 +199,9 @@ pub enum ComplexToken {
 
 		/// The code block of the for loop
 		code: CodeBlock,
+
+		/// The line number of the for loop
+		line: usize,
 	},
 
 	/// A for loop over a some iterator which can be either a for..in loop, a for..of loop or a for..with loop
@@ -208,6 +217,9 @@ pub enum ComplexToken {
 
 		/// The code block of the for loop
 		code: CodeBlock,
+
+		/// The line number of the for loop
+		line: usize,
 	},
 
 	/// A try catch block
@@ -1358,7 +1370,8 @@ impl<'a> ParserInfo<'a> {
 						},
 						LOOP_UNTIL {
 							condition: vec_deque![SYMBOL(String::from("true"))],
-							code: CodeBlock { start, code, end }
+							code: CodeBlock { start, code, end },
+							line: start
 						},
 						IF_STATEMENT {
 							condition: vec_deque![SYMBOL(String::from("not ")), SYMBOL(name)],
@@ -1952,42 +1965,44 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	/// TODO
-	fn parse_token_while(&mut self) -> Result<(), String> {
+	fn parse_token_while(&mut self, line: usize) -> Result<(), String> {
 		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
 		let code = self.build_loop_block()?;
-		self.expr.push_back(WHILE_LOOP { condition, code });
+		self.expr.push_back(WHILE_LOOP { condition, code, line });
 
 		Ok(())
 	}
 
 	/// TODO
-	fn parse_token_until(&mut self) -> Result<(), String> {
+	fn parse_token_until(&mut self, line: usize) -> Result<(), String> {
 		let mut condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
 		condition.push_front(SYMBOL(String::from("not (")));
 		condition.push_back(SYMBOL(String::from(")")));
 		let code = self.build_loop_block()?;
-		self.expr.push_back(WHILE_LOOP { condition, code });
+		self.expr.push_back(WHILE_LOOP { condition, code, line });
 
 		Ok(())
 	}
 
 	/// TODO
-	fn parse_token_loop(&mut self) -> Result<(), String> {
+	fn parse_token_loop(&mut self, line: usize) -> Result<(), String> {
 		let code = self.build_loop_block()?;
-		match self.advance().kind() {
+		let t = self.advance();
+		match t.kind() {
 			UNTIL => {
 				let condition = self.build_expression(None)?;
-				self.expr.push_back(LOOP_UNTIL { condition, code })
+				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })
 			}
 			WHILE => {
 				let mut condition = self.build_expression(None)?;
 				condition.push_front(SYMBOL(String::from("not (")));
 				condition.push_back(SYMBOL(String::from(")")));
-				self.expr.push_back(LOOP_UNTIL { condition, code })
+				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })
 			}
 			_ => self.expr.push_back(WHILE_LOOP {
 				condition: vec_deque![SYMBOL(String::from("true"))],
 				code,
+				line,
 			}),
 		}
 		self.current -= 1;
@@ -1995,7 +2010,7 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	/// TODO
-	fn parse_token_for(&mut self) -> Result<(), String> {
+	fn parse_token_for(&mut self, line: usize) -> Result<(), String> {
 		if self.peek(1).kind() == DEFINE {
 			let iterator = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
 			self.current += 1;
@@ -2018,6 +2033,7 @@ impl<'a> ParserInfo<'a> {
 				end,
 				alter,
 				code,
+				line,
 			})
 		} else {
 			let iterators = self.build_identifier_list()?;
@@ -2050,6 +2066,7 @@ impl<'a> ParserInfo<'a> {
 				iterators,
 				expr,
 				code,
+				line,
 			});
 		}
 
@@ -2180,10 +2197,10 @@ pub fn parse_tokens(
 			CURLY_BRACKET_OPEN => i.parse_token_curly_bracket_open()?,
 			IF => i.parse_token_if()?,
 			MATCH => i.parse_token_match()?,
-			WHILE => i.parse_token_while()?,
-			UNTIL => i.parse_token_until()?,
-			LOOP => i.parse_token_loop()?,
-			FOR => i.parse_token_for()?,
+			WHILE => i.parse_token_while(t.line())?,
+			UNTIL => i.parse_token_until(t.line())?,
+			LOOP => i.parse_token_loop(t.line())?,
+			FOR => i.parse_token_for(t.line())?,
 			CONTINUE => i.parse_token_continue()?,
 			BREAK => i.parse_token_break()?,
 			RETURN => i.parse_token_return()?,
