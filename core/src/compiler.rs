@@ -136,7 +136,7 @@ impl<'a> Compiler<'a> {
 			code = format_clue!(
 				"\n",
 				pre,
-				"\tlocal result = {select(2, xpcall(function(",
+				"\tlocal _result = {xpcall(function(",
 				args,
 				")",
 				code,
@@ -154,11 +154,21 @@ impl<'a> Compiler<'a> {
 				} else {
 					format_clue!(", ", args)
 				},
-				"))}\n",
+				")}\n",
 				pre,
-				"\tif _errored then error(_errored) end\n",
+				"\tlocal _ok = table.remove(_result, 1)\n",
 				pre,
-				"\treturn (unpack or table.unpack)(result)\n",
+				"\tif _errored then\n",
+				pre,
+				"\t\tlocal err, caller = _errored, debug.getinfo(2, \"f\").func\n",
+				pre,
+				"\t\tif caller == pcall or caller == xpcall then _errored = nil end\n",
+				pre,
+				"\t\terror(err)\n",
+				pre,
+				"\tend\n",
+				pre,
+				"\treturn (unpack or table.unpack)(_result)\n",
 				pre
 			)
 		}
