@@ -224,7 +224,7 @@ impl<'a> Compiler<'a> {
 				CALL(args) => {
 					format_clue!("(", self.compile_expressions(scope, args.clone())?, ")")
 				}
-				_ => return Err("Unexpected ComplexToken found".to_owned()),
+				_ => return Err(String::from("Unexpected ComplexToken found")),
 			}
 		}
 		Ok(result)
@@ -296,7 +296,7 @@ impl<'a> Compiler<'a> {
 				IDENT { expr, .. } => self.compile_identifier(scope, expr)?,
 				CALL(args) => format!("({})", self.compile_expressions(scope, args)?),
 				EXPR(expr) => format!("({})", self.compile_expression(scope, expr)?),
-				_ => return Err("Unexpected ComplexToken found".to_owned()),
+				_ => return Err(String::from("Unexpected ComplexToken found")),
 			}
 		}
 		Ok(result)
@@ -320,7 +320,7 @@ impl<'a> Compiler<'a> {
 						next,
 					} => self.compile_elseif_chain(scope, condition, code, next)?,
 					DO_BLOCK(code) => self.compile_code_block(scope, "", code)?,
-					_ => return Err("Unexpected ComplexToken found".to_owned()),
+					_ => return Err(String::from("Unexpected ComplexToken found")),
 				}
 		} else {
 			String::new()
@@ -431,7 +431,7 @@ impl<'a> Compiler<'a> {
 								EXPONENTIATE => " ^ ",
 								CONCATENATE => " .. ",
 								MODULATE => " % ",
-								_ => return Err("Unexpected alter type found".to_owned()),
+								_ => return Err(String::from("Unexpected alter type found")),
 							}
 						}) + &self.compile_expression(scope, expr)?)
 					})?;
@@ -684,7 +684,7 @@ impl<'a> Compiler<'a> {
 					)
 				}
 				BREAK_LOOP => String::from("break;") + &self.indentate_if(ctokens, scope),
-				_ => return Err("Unexpected ComplexToken found".to_owned()),
+				_ => return Err(String::from("Unexpected ComplexToken found")),
 			}
 		}
 		Ok(result)
