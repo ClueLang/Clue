@@ -374,7 +374,18 @@ fn main() -> Result<(), String> {
 		};
 		save_result(cli.dontsave, cli.outputname, code)?
 	} else if {
-		path.set_extension("clue");
+		match path.extension() {
+			Some(extension) if extension != "clue" => {
+				path.set_extension(format_clue!(
+					extension.to_string_lossy(),
+					".clue"
+				));
+			}
+			None => {
+				path.set_extension("clue");
+			}
+			_ => {}
+		}
 		path.is_file()
 	} {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
