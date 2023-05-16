@@ -374,7 +374,7 @@ fn main() -> Result<(), String> {
 			code,
 		)
 	} else {
-		return Err(String::from("The given path doesn't exist"));
+		return Err(format!("{} was not found!", path.to_string_lossy().into_owned()));
 	};
 
 	#[cfg(feature = "mlua")]
