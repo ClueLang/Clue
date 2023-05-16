@@ -19,7 +19,7 @@ flume = "0.10.14"
 num_cpus = "1.14.0"
 crossbeam-queue = "0.3.8"
 ahash.workspace = true
-clue_core = { path = "../core", version = "3.3.0-indev+fd1b6170", default-features = false }
+clue_core = { path = "../core", version = "3.3.0-indev+fdb50b30", default-features = false }
 clap.workspace = true
 mlua = { version = "0.8.3", features = ["luajit", "vendored"], optional = true }
 
