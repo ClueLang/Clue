@@ -4,8 +4,9 @@ use clue_core as clue;
 use criterion::{criterion_group, criterion_main, Criterion};
 use crossbeam_queue::SegQueue;
 use flume::Sender;
+use std::path::PathBuf;
 use std::thread::JoinHandle;
-use std::{cmp::min, ffi::OsStr, fmt::Display, fs, path::Path, sync::Arc, thread};
+use std::{cmp::min, fs, sync::Arc, thread};
 
 pub type CodeQueue = SegQueue<(PPCode, String)>;
 
@@ -80,17 +81,21 @@ fn compile_file_dir(
 }
 
 fn preprocess_file_dir(
-	files: Arc<SegQueue<(String, String)>>,
+	files: Arc<SegQueue<(PathBuf, String)>>,
 	tx: Sender<PreprocessorAnalyzerData>,
 	options: &Options,
 ) {
 	loop {
-		let (filename, realname) = match files.pop() {
+		let (filename, filepath, realname) = match files.pop() {
 			None => break,
-			Some((filename, realname)) => (filename, realname),
+			Some((filepath, realname)) => (
+				filepath.to_string_lossy().into_owned(),
+				filepath,
+				realname
+			),
 		};
 
-		let (file_codes, file_variables) = match read_file(&filename, &filename, options) {
+		let (file_codes, file_variables) = match read_file(filepath, &filename, options) {
 			Ok(t) => t,
 			Err(e) => {
 				tx.send(PreprocessorAnalyzerData {
@@ -111,13 +116,10 @@ fn preprocess_file_dir(
 	}
 }
 
-fn check_for_files<P: AsRef<Path>>(
-	path: P,
+fn check_for_files(
+	path: PathBuf,
 	rpath: String,
-) -> Result<SegQueue<(String, String)>, std::io::Error>
-where
-	P: AsRef<OsStr> + Display,
-{
+) -> Result<SegQueue<(PathBuf, String)>, std::io::Error> {
 	let files = SegQueue::new();
 	for entry in fs::read_dir(&path)? {
 		let entry = entry?;
@@ -127,21 +129,20 @@ where
 			.unwrap()
 			.to_string_lossy()
 			.into_owned();
-		let filepath_name = format!("{path}/{name}");
-		let filepath = Path::new(&filepath_name);
+		let filepath = path.join(&name);
 		let realname = rpath.clone() + &name;
 		if filepath.is_dir() {
-			for file in check_for_files(filepath_name, realname + ".")? {
+			for file in check_for_files(filepath, realname + ".")? {
 				files.push(file)
 			}
-		} else if filepath_name.ends_with(".clue") {
-			files.push((filepath_name, realname));
+		} else if filepath.extension().map_or(false, |extension| extension == "clue") {
+			files.push((filepath, realname));
 		}
 	}
 	Ok(files)
 }
 
-fn compile_folder(files: Arc<SegQueue<(String, String)>>) {
+fn compile_folder(files: Arc<SegQueue<(PathBuf, String)>>) {
 	let files_len = files.len();
 	let threads_count = min(files_len, num_cpus::get() * 2);
 	let codes = SegQueue::new();
@@ -202,7 +203,7 @@ fn compile_folder(files: Arc<SegQueue<(String, String)>>) {
 fn benchmark(c: &mut Criterion) {
 	let files = Arc::new(
 		check_for_files(
-			env!("CARGO_MANIFEST_DIR").to_owned() + "/../" + "examples/",
+			PathBuf::from(env!("CARGO_MANIFEST_DIR").to_owned() + "/../" + "examples/"),
 			String::new(),
 		)
 		.expect("Unexpected error happened in checking for files to compile"),

@@ -14,11 +14,9 @@ use std::{
 	cmp,
 	collections::VecDeque,
 	env,
-	ffi::OsStr,
-	fmt::Display,
 	fs,
 	iter::{Peekable, Rev},
-	path::Path,
+	path::PathBuf,
 	str::{self, Split},
 	u8::{self, MAX},
 };
@@ -605,8 +603,8 @@ impl<'a> CodeFile<'a> {
 ///     Ok(())
 /// }
 /// ```
-pub fn read_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
-	path: P,
+pub fn read_file(
+	path: PathBuf,
 	filename: &String,
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {

@@ -3,7 +3,7 @@
 //! This is used by the cli but can also be used by other projects
 //! It is recommended to use [`Clue`] instead of the lower level APIs unless you need to
 
-use std::{ffi::OsStr, fmt::Display, fs, path::Path};
+use std::{ffi::OsStr, fmt::Display, fs, path::{Path, PathBuf}};
 
 use code::Code;
 use compiler::Compiler;
@@ -207,13 +207,13 @@ impl Clue {
 		&self,
 		path: P,
 	) -> Result<Code, String> {
-		let filepath: &Path = path.as_ref();
+		let filepath = PathBuf::from(path.to_string());
 		let filename = filepath
 			.file_name()
 			.ok_or_else(|| format!("Invalid path: {}", path))?
 			.to_string_lossy()
 			.into_owned();
-		let (codes, variables) = read_file(path, &filename, &self.options)?;
+		let (codes, variables) = read_file(filepath, &filename, &self.options)?;
 		preprocess_codes(0, codes, &variables, &filename)
 	}
 }

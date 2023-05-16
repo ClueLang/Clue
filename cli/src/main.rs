@@ -8,7 +8,7 @@ use clue_core::{
 	preprocessor::*,
 	scanner::*,
 };
-use std::{fs, path::Path, time::Instant};
+use std::{fs, path::PathBuf, time::Instant};
 use threads::compile_folder;
 
 mod threads;
@@ -318,9 +318,9 @@ fn main() -> Result<(), String> {
 			Ok(())
 		};
 	}
-	let path: &Path = Path::new(&codepath);
+	let mut path = PathBuf::from(codepath);
 	let (output_path, code) = if path.is_dir() {
-		let (output, statics) = compile_folder(&codepath, String::new(), options)?;
+		let (output, statics) = compile_folder(path, String::new(), options)?;
 
 		let code = match cli.base {
 			Some(filename) => {
@@ -351,9 +351,12 @@ fn main() -> Result<(), String> {
 			},
 			code,
 		)
-	} else if path.is_file() {
+	} else if {
+		path.set_extension("clue");
+		path.is_file()
+	} {
 		let name = path.file_name().unwrap().to_string_lossy().into_owned();
-		let (rawcode, variables) = read_file(&codepath, &name, &options)?;
+		let (rawcode, variables) = read_file(path, &name, &options)?;
 		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
 		let code = statics + &output;
 		(

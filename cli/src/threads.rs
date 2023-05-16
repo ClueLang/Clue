@@ -6,10 +6,8 @@ use clue_core::{check, format_clue};
 use crossbeam_queue::SegQueue;
 use flume::Sender;
 use std::cmp;
-use std::ffi::OsStr;
-use std::fmt::Display;
 use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
@@ -29,13 +27,10 @@ struct ThreadData {
 	static_vars: String,
 }
 
-fn check_for_files<P: AsRef<Path>>(
-	path: P,
+fn check_for_files(
+	path: PathBuf,
 	rpath: String,
-) -> Result<SegQueue<(String, String)>, std::io::Error>
-where
-	P: AsRef<OsStr> + Display,
-{
+) -> Result<SegQueue<(PathBuf, String)>, std::io::Error> {
 	let files = SegQueue::new();
 	for entry in fs::read_dir(&path)? {
 		let entry = entry?;
@@ -45,15 +40,14 @@ where
 			.unwrap()
 			.to_string_lossy()
 			.into_owned();
-		let filepath_name = format!("{path}/{name}");
-		let filepath = Path::new(&filepath_name);
+		let filepath = path.join(&name);
 		let realname = rpath.clone() + &name;
 		if filepath.is_dir() {
-			for file in check_for_files(filepath_name, realname + ".")? {
+			for file in check_for_files(filepath, realname + ".")? {
 				files.push(file)
 			}
-		} else if filepath_name.ends_with(".clue") {
-			files.push((filepath_name, realname));
+		} else if filepath.extension().map_or(false, |extension| extension == "clue") {
+			files.push((filepath, realname));
 		}
 	}
 	Ok(files)
@@ -65,15 +59,12 @@ fn wait_threads(threads: Vec<JoinHandle<()>>) {
 	}
 }
 
-pub fn compile_folder<P: AsRef<Path>>(
-	file_path: P,
+pub fn compile_folder(
+	file_path: impl Into<PathBuf>,
 	rpath: String,
 	options: Options,
-) -> Result<(String, String), String>
-where
-	P: AsRef<OsStr> + Display,
-{
-	let files = check!(check_for_files(file_path, rpath));
+) -> Result<(String, String), String> {
+	let files = check!(check_for_files(file_path.into(), rpath));
 	let files_len = files.len();
 	let threads_count = cmp::min(files_len, num_cpus::get() * 2);
 	let codes = SegQueue::new();
@@ -160,17 +151,21 @@ where
 }
 
 fn preprocess_file_dir(
-	files: Arc<SegQueue<(String, String)>>,
+	files: Arc<SegQueue<(PathBuf, String)>>,
 	tx: Sender<PreprocessorAnalyzerData>,
 	options: &Options,
 ) {
 	loop {
-		let (filename, realname) = match files.pop() {
+		let (filename, filepath, realname) = match files.pop() {
 			None => break,
-			Some((filename, realname)) => (filename, realname),
+			Some((filepath, realname)) => (
+				filepath.to_string_lossy().into_owned(),
+				filepath,
+				realname
+			),
 		};
 
-		let (file_codes, file_variables) = match read_file(&filename, &filename, options) {
+		let (file_codes, file_variables) = match read_file(filepath, &filename, options) {
 			Ok(t) => t,
 			Err(e) => {
 				tx.send(PreprocessorAnalyzerData {
