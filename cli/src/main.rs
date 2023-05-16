@@ -32,7 +32,7 @@ struct Cli {
 	/// [default for compiling a directory: main]
 	/// [default for compiling a single file: that file's name]
 	#[clap(value_name = "OUTPUT FILE NAME")]
-	outputname: Option<String>,
+	outputname: Option<PathBuf>,
 
 	/// Print license information
 	#[clap(short = 'L', long, display_order = 1000)]
@@ -210,7 +210,7 @@ fn execute_lua_code(code: &str) {
 fn finish(
 	debug: bool,
 	execute: bool,
-	output_path: Option<String>,
+	output_path: Option<PathBuf>,
 	code: String,
 ) -> Result<(), String> {
 	if debug {
@@ -236,6 +236,40 @@ fn finish(debug: bool, output_path: Option<String>, code: String) -> Result<(), 
 		}
 	}
 	Ok(())
+}
+
+fn save_result(
+	dont_save: bool,
+	output_name: Option<PathBuf>,
+	code: String,
+) -> Result<(Option<PathBuf>, String), String> {
+	Ok((
+		if !dont_save {
+			let output_path = match output_name {
+				Some(mut output_path) => {
+					match output_path.extension() {
+						Some(extension) if extension != "lua" => {
+							output_path.set_extension(format_clue!(
+								extension.to_string_lossy(),
+								".lua"
+							));
+						}
+						None => {
+							output_path.set_extension("lua");
+						}
+						_ => {}
+					}
+					output_path
+				}
+				None => PathBuf::from("main.lua"),
+			};
+			check!(fs::write(&output_path, &code));
+			Some(output_path)
+		} else {
+			None
+		},
+		code,
+	))
 }
 
 fn main() -> Result<(), String> {
@@ -338,20 +372,7 @@ fn main() -> Result<(), String> {
 				.replace("--STATICS\n", &statics)
 				.replace('§', &output),
 		};
-		(
-			if !cli.dontsave {
-				let output_name = match cli.outputname {
-					Some(output_name) if output_name.ends_with(".lua") => output_name,
-					Some(output_name) => output_name + ".lua",
-					None => String::from("main.lua"),
-				};
-				check!(fs::write(&output_name, &code));
-				Some(output_name)
-			} else {
-				None
-			},
-			code,
-		)
+		save_result(cli.dontsave, cli.outputname, code)?
 	} else if {
 		path.set_extension("clue");
 		path.is_file()
@@ -360,20 +381,7 @@ fn main() -> Result<(), String> {
 		let (rawcode, variables) = read_file(path, &name, &options)?;
 		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
 		let code = statics + &output;
-		(
-			if !cli.dontsave {
-				let output_name = match cli.outputname {
-					Some(output_name) if output_name.ends_with(".lua") => output_name,
-					Some(output_name) => output_name + ".lua",
-					None => format_clue!(name.strip_suffix(".clue").unwrap(), ".lua"),
-				};
-				check!(fs::write(&output_name, &code));
-				Some(output_name)
-			} else {
-				None
-			},
-			code,
-		)
+		save_result(cli.dontsave, cli.outputname, code)?
 	} else {
 		return Err(format!("{} was not found!", path.to_string_lossy().into_owned()));
 	};
