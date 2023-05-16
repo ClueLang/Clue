@@ -1,3 +1,5 @@
+#![allow(clippy::blocks_in_if_conditions)]
+
 use clap::{crate_version, Parser};
 use clue_core::{
 	check,

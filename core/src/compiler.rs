@@ -22,7 +22,7 @@ use crate::{
 ///
 /// fn main() -> Result<(), String> {
 ///     let options = Options::default();
-/// 	let filename = String::from("file.clue");
+///     let filename = String::from("file.clue");
 ///     let compiler = Compiler::new(&options, &filename);
 ///     let code = "local fn a() {return 1;}".to_owned();
 ///     let clue = Clue::new();
@@ -339,7 +339,7 @@ impl<'a> Compiler<'a> {
 	///
 	/// fn main() -> Result<(), String> {
 	///     let options = Options::default();
-	/// 	let filename = String::from("file.clue");
+	///     let filename = String::from("file.clue");
 	///     let compiler = Compiler::new(&options, &filename);
 	///     let code = "local fn a() {return 1;}".to_owned();
 	///     let clue = Clue::new();
