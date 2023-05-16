@@ -245,9 +245,9 @@ fn main() -> Result<(), String> {
 		print!(include_str!("../LICENSE"));
 		return Ok(());
 	} /*else if cli.types.is_some() {
-	  //TEMPORARY PLACEHOLDER UNTIL 4.0
-	  return Err(String::from("Type checking is not supported yet!"));
-  }*/
+		//TEMPORARY PLACEHOLDER UNTIL 4.0
+		return Err(String::from("Type checking is not supported yet!"));
+	}*/
 
 	if cli.r#continue == ContinueMode::LuaJIT {
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
