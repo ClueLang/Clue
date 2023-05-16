@@ -604,11 +604,11 @@ impl<'a> CodeFile<'a> {
 /// }
 /// ```
 pub fn read_file(
-	path: PathBuf,
+	path: impl Into<PathBuf>,
 	filename: &String,
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
-	let result = preprocess_code(&mut check!(fs::read(path)), 1, false, filename, options)?;
+	let result = preprocess_code(&mut check!(fs::read(path.into())), 1, false, filename, options)?;
 	Ok((result.0, result.1))
 }
 
