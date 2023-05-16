@@ -4,6 +4,8 @@
 //! and is used by the [`Compiler`](crate::compiler::Compiler) to determine how to compile the code
 //! and also other helpful enums such as [`LuaVersion`], [`BitwiseMode`] and [`ContinueMode`]
 
+use std::path::PathBuf;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -103,6 +105,9 @@ pub enum BitwiseMode {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// The compiler options for Clue
 pub struct Options {
+	/// The path of the output file, if any
+	pub env_outputname: Option<PathBuf>,
+
 	/// Prints the tokens to stdout
 	pub env_tokens: bool,
 

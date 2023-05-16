@@ -637,6 +637,7 @@ pub fn preprocess_code(
 	filename: &String,
 	options: &Options,
 ) -> Result<(PPCode, PPVars, usize, usize), String> {
+	let mut output_dir: Option<Option<PathBuf>> = None;
 	let mut finalcode = VecDeque::new();
 	let mut currentcode = Code::with_capacity(code.len());
 	let mut size = 0;
@@ -677,8 +678,16 @@ pub fn preprocess_code(
 						code.keep_block(!code.last_if)?;
 					}
 					"import" => {
+						if output_dir.is_none() {
+							output_dir = Some(options.env_outputname.as_ref().map_or_else(
+								|| env::current_dir().ok(),
+								|output_dir| output_dir
+									.parent()
+									.and_then(|output_dir| Some(output_dir.to_path_buf()))
+							));
+						}
+						let output_dir = output_dir.as_ref().unwrap();
 						let str_start = code.read_char_unchecked();
-
 						let module = match str_start {
 							Some((b'\'' | b'"' | b'`', ..)) => {
 								code.read_string(str_start.expect("character should not be None"))?
@@ -690,15 +699,19 @@ pub fn preprocess_code(
 						.to_string();
 						let name = code.read_line();
 						let name = name.trim();
-						let (function, module) = match module.strip_suffix(".lua") {
-							Some(module) => ("require", module),
-							None => ("import", module.as_str()),
+						let function = match output_dir {
+							Some(output_dir) if {
+								let mut module_path = output_dir.join(&module);
+								module_path.set_extension("lua");
+								module_path.exists()
+							} => "require",
+							_ => "import",
 						};
 						let name = match name.strip_prefix("=>") {
 							Some(name) => name.trim_start(),
 							None => match module.rsplit_once('.') {
 								Some((_, name)) => name,
-								None => module,
+								None => &module,
 							},
 						};
 						currentcode.append(Code::from((

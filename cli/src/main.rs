@@ -288,6 +288,7 @@ fn main() -> Result<(), String> {
 	}
 
 	let mut options = Options {
+		env_outputname: cli.outputname.clone(),
 		env_tokens: cli.tokens,
 		env_struct: cli.r#struct,
 		env_expand: cli.expand,
