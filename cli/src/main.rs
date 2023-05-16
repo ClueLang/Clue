@@ -26,7 +26,7 @@ struct Cli {
 	/// Every directory inside the given directory will be checked too.
 	/// If the path points to a single *.clue file, only that file will be compiled.
 	#[clap(required_unless_present = "license")]
-	path: Option<String>,
+	path: Option<PathBuf>,
 
 	/// The name the output file will have
 	/// [default for compiling a directory: main]
@@ -292,11 +292,11 @@ fn main() -> Result<(), String> {
 			_ => Some(AHashMap::default()),
 		};
 	}*/
-	let codepath = cli.path.unwrap();
+	let mut path = cli.path.unwrap();
 	if cli.pathiscode {
-		let mut codepath = codepath;
 		let filename = String::from("(command line)");
-		let code = unsafe { codepath.as_bytes_mut() };
+		let mut code = path.to_string_lossy().into_owned();
+		let code = unsafe { code.as_bytes_mut() };
 		let preprocessed_code = preprocess_code(code, 1, false, &filename, &options)?;
 		let (code, statics) = compile_code(
 			preprocessed_code.0,
@@ -320,7 +320,6 @@ fn main() -> Result<(), String> {
 			Ok(())
 		};
 	}
-	let mut path = PathBuf::from(codepath);
 	let (output_path, code) = if path.is_dir() {
 		let (output, statics) = compile_folder(path, String::new(), options)?;
 
