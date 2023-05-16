@@ -751,8 +751,8 @@ pub fn preprocess_code(
 										"'"
 									)
 								},
-								code.line,
-								code.column,
+								c.1,
+								c.2,
 								filename
 							));
 						}
