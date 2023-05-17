@@ -943,7 +943,7 @@ impl<'a> ParserInfo<'a> {
 				MATCH => {
 					let name = self.get_next_internal_var();
 					let ident = SYMBOL(name.clone());
-					let ctoken = self.build_match_block(name, &|i /* , _ */| {
+					let mut ctoken = self.build_match_block(name, &|i /* , _ */| {
 						let start = i.peek(0).line();
 						let (expr, mut code) = i.use_internal_stack(|i| i.build_expression(None))?;
 						let end = i.look_back(1).line();
@@ -958,6 +958,22 @@ impl<'a> ParserInfo<'a> {
 						});
 						Ok(CodeBlock { start, code, end })
 					})?;
+					let MATCH_BLOCK {branches, line, ..} = &mut ctoken else {
+						unreachable!()
+					};
+					let last_branch = branches.last().unwrap();
+					if !(last_branch.0.is_empty() && last_branch.1.is_none()) {
+						branches.push((Vec::new(), None, CodeBlock {
+							start: *line,
+							code: vec_deque![ALTER {
+								kind: DEFINE,
+								names: vec_deque![vec_deque![ident.clone()]],
+								values: vec![vec_deque![SYMBOL(String::from("nil"))]],
+								line: *line
+							}],
+							end: *line
+						}))
+					}
 					self.get_prev_expr().push_back(ctoken);
 					expr.push_back(ident);
 					if self.check_val() {
