@@ -183,6 +183,24 @@ impl<'a> CodeInfo<'a> {
 		}
 	}
 
+	fn error(&mut self, message: impl Into<String>) {
+		eprintln!(
+			"Error in {}:{}:{}!\nError: \"{}\"\n",
+			self.filename,
+			self.current.line,
+			self.current.column,
+			message.into()
+		);
+		self.errored = true;
+	}
+
+	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
+		self.error(format!(
+			"'{keyword}' is a reserved keyword in Lua and it cannot be used as a variable, {msg}",
+		));
+		IDENTIFIER
+	}
+
 	const fn ended(&self) -> bool {
 		self.current.index >= self.size
 	}
@@ -254,24 +272,6 @@ impl<'a> CodeInfo<'a> {
 			.push(Token::new(kind, lexeme, self.start..=self.current));
 	}
 
-	fn warning(&mut self, message: impl Into<String>) {
-		eprintln!(
-			"Error in {}:{}:{}!\nError: \"{}\"\n",
-			self.filename,
-			self.current.line,
-			self.current.column,
-			message.into()
-		);
-		self.errored = true;
-	}
-
-	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
-		self.warning(format!(
-			"'{keyword}' is a reserved keyword in Lua and it cannot be used as a variable, {msg}",
-		));
-		IDENTIFIER
-	}
-
 	fn read_number(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
 		let start = self.current.index;
 		while check(&self.peek(0)) {
@@ -291,7 +291,7 @@ impl<'a> CodeInfo<'a> {
 					if c == '-' && self.peek(2).is_ascii_digit() {
 						self.advance();
 					} else {
-						self.warning("Malformed number");
+						self.error("Malformed number");
 					}
 				}
 				self.advance();
@@ -300,7 +300,7 @@ impl<'a> CodeInfo<'a> {
 				}
 			}
 		} else if self.current.index == start {
-			self.warning("Malformed number");
+			self.error("Malformed number");
 		}
 		let llcheck = self.substr(self.current.index, self.current.index + 2);
 		if llcheck == "LL" {
@@ -309,7 +309,7 @@ impl<'a> CodeInfo<'a> {
 			if self.peek(2) == 'L' {
 				self.current.index += 3;
 			} else {
-				self.warning("Malformed number");
+				self.error("Malformed number");
 			}
 		}
 		self.add_token(NUMBER);
@@ -323,7 +323,7 @@ impl<'a> CodeInfo<'a> {
 			}
 		}
 		if self.ended() {
-			self.warning("Unterminated string");
+			self.error("Unterminated string");
 			false
 		} else {
 			true
@@ -533,12 +533,12 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 				(
 					'=',
 					SymbolType::Function(|i| {
-						i.warning("'?=' is deprecated and was replaced with '&&='")
+						i.error("'?=' is deprecated and was replaced with '&&='")
 					}),
 				),
 				(
 					'>',
-					SymbolType::Function(|i| i.warning("'?>' is deprecated")),
+					SymbolType::Function(|i| i.error("'?>' is deprecated")),
 				),
 				('.', SymbolType::Just(SAFE_DOT)),
 				(
@@ -582,7 +582,7 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 				(
 					'=',
 					SymbolType::Function(|i| {
-						i.warning("':=' is deprecated and was replaced with '||='")
+						i.error("':=' is deprecated and was replaced with '||='")
 					}),
 				),
 			]),
@@ -760,7 +760,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 						}
 						KeywordType::Just(kind) => *kind,
 						KeywordType::Error(e) => {
-							i.warning(*e);
+							i.error(*e);
 							IDENTIFIER
 						}
 					}
@@ -769,7 +769,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 				};
 				i.add_token(kind);
 			} else {
-				i.warning(format!("Unexpected character '{c}'").as_str());
+				i.error(format!("Unexpected character '{c}'").as_str());
 			}
 		}
 	}
