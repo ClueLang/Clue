@@ -3,7 +3,12 @@
 //! This is used by the cli but can also be used by other projects
 //! It is recommended to use [`Clue`] instead of the lower level APIs unless you need to
 
-use std::{ffi::OsStr, fmt::Display, fs, path::{Path, PathBuf}};
+use std::{
+	ffi::OsStr,
+	fmt::Display,
+	fs,
+	path::{Path, PathBuf},
+};
 
 use code::Code;
 use compiler::Compiler;
@@ -51,14 +56,13 @@ macro_rules! check {
 /// assert_eq!(c, "Hello, World!");
 /// ```
 macro_rules! format_clue {
-	($($strings:expr),+) => {{
-		use std::ops::AddAssign;
-		let mut len_format_clue = 0;
-		$(len_format_clue.add_assign(AsRef::<str>::as_ref(&$strings).len());)+
-		let mut output_format_clue = String::with_capacity(len_format_clue);
-		$(output_format_clue.push_str($strings.as_ref());)+
-		output_format_clue
-	}};
+    ($($strings:expr),+) => {{
+        let vc: Vec<String> = vec![
+          $($strings.to_string(),)+
+        ];
+
+        vc.join("")
+    }};
 }
 
 /// The main Clue library API
