@@ -890,7 +890,7 @@ impl<'a> ParserInfo<'a> {
 				BIT_XOR => {
 					//SAFETY: the token goes out of scope after BorrowedToken is used, so it stays valid
 					let t = if self.options.env_bitwise == BitwiseMode::Vanilla {
-						Token::new(t.kind(), '~', t.line(), t.column())
+						Token::new(t.kind(), '~', t.position())
 					} else {
 						t.into_owned()
 					};
@@ -1180,7 +1180,7 @@ impl<'a> ParserInfo<'a> {
 						ROUND_BRACKET_OPEN => {}
 						SAFE_CALL => {
 							expr.pop_back();
-							let line = self.peek(0).line();
+							let position = self.peek(0).position();
 							let name = if t.kind() == DOUBLE_COLON {
 								let mut start = {
 									let mut start = Expression::with_capacity(2);
@@ -1199,7 +1199,7 @@ impl<'a> ParserInfo<'a> {
 									local: true,
 									names: vec![name.clone()],
 									values: vec![expr_self],
-									line,
+									line: position.start().line,
 								});
 								expr.append(&mut start);
 								expr.push_back(SYMBOL(name.clone()));
@@ -1212,11 +1212,11 @@ impl<'a> ParserInfo<'a> {
 							};
 							expr.push_back(SYMBOL(String::from(".")));
 							self.tokens
-								.insert(self.current + 2, Token::new(IDENTIFIER, name, line, 0));
+								.insert(self.current + 2, Token::new(IDENTIFIER, name, position.clone()));
 							if self.peek(3).kind() != ROUND_BRACKET_CLOSED {
 								self.tokens.insert(
 									self.current + 3,
-									Token::new(COMMA, String::from(","), line, 0),
+									Token::new(COMMA, String::from(","), position),
 								);
 								self.size += 2;
 							} else {
@@ -1354,12 +1354,12 @@ impl<'a> ParserInfo<'a> {
 				CONTINUE if !is_in_other_loop => {
 					let name = self.get_next_internal_var();
 					hascontinue = Some(name.clone());
-					let line = t.line();
+					let position = t.position();
 					if self.options.env_continue == ContinueMode::MoonScript {
-						tokens.push(Token::new(IDENTIFIER, name, line, 0));
-						tokens.push(Token::new(DEFINE, "=", line, 0));
-						tokens.push(Token::new(TRUE, "true", line, 0));
-						tokens.push(Token::new(BREAK, "break", line, 0));
+						tokens.push(Token::new(IDENTIFIER, name, position.clone()));
+						tokens.push(Token::new(DEFINE, "=", position.clone()));
+						tokens.push(Token::new(TRUE, "true", position.clone()));
+						tokens.push(Token::new(BREAK, "break", position));
 						continue;
 					}
 				}
