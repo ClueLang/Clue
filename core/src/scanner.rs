@@ -15,6 +15,7 @@ use self::TokenType::*;
 use ahash::AHashMap;
 use lazy_static::lazy_static;
 use std::ops::RangeInclusive;
+use colored::*;
 use std::fmt;
 
 #[cfg(feature = "serde")]
@@ -183,13 +184,36 @@ impl<'a> CodeInfo<'a> {
 		}
 	}
 
+	//this function is not really optimized...but it doesn't matter after an error
 	fn error(&mut self, message: impl Into<String>) {
+		let code = {
+			let mut code = String::with_capacity(self.size);
+			for (c, _, _) in &self.read {
+				code.push(*c);
+			}
+			while {
+				let c = self.code.next_unwrapped();
+				code.push(c);
+				c != '\n'
+			} {}
+			code
+		};
+		let before_err = code[..self.start.index].rsplit('\n').next().unwrap_or("");
+		let errored = &code[self.start.index..self.current.index];
+		let after_err = code[self.current.index..].split('\n').next().unwrap_or("");
 		eprintln!(
-			"Error in {}:{}:{}!\nError: \"{}\"\n",
-			self.filename,
-			self.current.line,
-			self.current.column,
-			message.into()
+			"{}\n\n{}{}{}\n\n{}: {}\n",
+			format!(
+				"Error in {}:{}:{}!",
+				self.filename,
+				self.current.line,
+				self.current.column
+			).red().bold(),
+			before_err,
+			errored.red(),
+			after_err,
+			"Error".red(),
+			message.into().bold()
 		);
 		self.errored = true;
 	}
