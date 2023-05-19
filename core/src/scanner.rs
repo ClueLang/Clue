@@ -556,7 +556,7 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 				(
 					'=',
 					SymbolType::Function(|i| {
-						i.error("'?=' is deprecated and was replaced with '&&='", None)
+						i.error("'?=' is deprecated", Some("Use '&&=' instead"))
 					}),
 				),
 				(
@@ -605,7 +605,7 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 				(
 					'=',
 					SymbolType::Function(|i| {
-						i.error("':=' is deprecated and was replaced with '||='", None)
+						i.error("':=' is deprecated", Some("Use '||=' instead"))
 					}),
 				),
 			]),
