@@ -6,17 +6,16 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
-use crate::{
-	code::{Code, CodeChars},
-	format_clue,
-};
-
 use self::TokenType::*;
 use ahash::AHashMap;
 use lazy_static::lazy_static;
 use std::ops::Range;
-use colored::*;
 use std::fmt;
+use crate::{
+	code::{Code, CodeChars},
+	format_clue,
+	ErrorMessaging,
+};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -161,6 +160,38 @@ struct CodeInfo<'a> {
 	errored: bool,
 }
 
+impl ErrorMessaging for CodeInfo<'_> {
+	fn get_code(&mut self) -> String {
+		self.errored = true;
+		let mut code = String::with_capacity(self.size);
+		for (c, _, _) in &self.read {
+			code.push(*c);
+		}
+		while {
+			let c = self.code.next_unwrapped();
+			code.push(c);
+			c != '\n'
+		} {}
+		code
+	}
+
+	fn get_range(&self) -> Range<usize> {
+		self.start.index..self.current.index
+	}
+
+	fn get_filename(&self) -> &str {
+		self.filename
+	}
+
+	fn get_line(&self) -> usize {
+		self.current.line
+	}
+
+	fn get_column(&self) -> usize {
+		self.current.column
+	}
+}
+
 impl<'a> CodeInfo<'a> {
 	fn new(code: Code, filename: &'a String) -> Self {
 		let size = code.len() + 2;
@@ -182,7 +213,7 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	//this function is not really optimized...but it doesn't matter after an error
-	fn error(&mut self, message: impl Into<String>) {
+	/*fn error(&mut self, message: impl Into<String>) {
 		let code = {
 			let mut code = String::with_capacity(self.size);
 			for (c, _, _) in &self.read {
@@ -213,7 +244,7 @@ impl<'a> CodeInfo<'a> {
 			message.into().bold()
 		);
 		self.errored = true;
-	}
+	}*/
 
 	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
 		self.error(format!(
