@@ -581,28 +581,42 @@ impl Default for Clue {
 }
 
 pub trait ErrorMessaging {
-	fn send(&self, message: impl Into<String>, code: String, range: Range<usize>, filename: &str, line: usize, column: usize) {
+	fn send(
+		&self,
+		message: impl Into<String>,
+		help: Option<&str>,
+		code: String,
+		range: Range<usize>,
+		filename: &str,
+		line: usize,
+		column: usize,
+	) {
 		let before_err = code[..range.start].rsplit('\n').next().unwrap_or("");
 		let after_err = code[range.end..].split('\n').next().unwrap_or("");
 		let errored = &code[range];
 		eprintln!(
-			"{}\n\n{}{}{}\n\n{}: {}\n",
+			"{}\n\n{}{}{}\n\n{}: {}{}",
 			format!("Error in {}:{}:{}!", filename, line, column).red().bold(),
 			before_err,
 			errored.red(),
 			after_err,
 			"Error".red(),
-			message.into().bold()
+			message.into().bold(),
+			if let Some(help) = help {
+				format!("\n{}: {}\n", "Help".cyan(), help.bold())
+			} else {
+				String::from("\n")
+			}
 		);
 	}
 
-	fn error<'a>(&mut self, message: impl Into<String>) {
+	fn error<'a>(&mut self, message: impl Into<String>, help: Option<&str>) {
 		let code = self.get_code();
 		let range = self.get_range();
 		let filename = self.get_filename();
 		let line = self.get_line();
 		let column = self.get_column();
-		self.send(message, code, range, filename, line, column)
+		self.send(message, help, code, range, filename, line, column)
 	}
 
 	fn get_code(&mut self) -> String;
