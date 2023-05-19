@@ -169,8 +169,13 @@ impl ErrorMessaging for CodeInfo<'_> {
 		}
 		while {
 			let c = self.code.next_unwrapped();
+			self.read.push((c, self.code.line(), self.code.column()));
+			let read = self.code.bytes_read();
+			if read > 0 {
+				self.size -= read - 1
+			}
 			code.push(c);
-			c != '\n'
+			!matches!(c, '\n' | '\0')
 		} {}
 		code
 	}

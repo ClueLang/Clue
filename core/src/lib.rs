@@ -597,9 +597,9 @@ pub trait ErrorMessaging {
 		eprintln!(
 			"{}\n\n{}{}{}\n\n{}: {}{}",
 			format!("Error in {}:{}:{}!", filename, line, column).red().bold(),
-			before_err,
+			before_err.trim_start(),
 			errored.red(),
-			after_err,
+			after_err.trim_end(),
 			"Error".red(),
 			message.into().bold(),
 			if let Some(help) = help {
