@@ -162,7 +162,6 @@ struct CodeInfo<'a> {
 
 impl ErrorMessaging for CodeInfo<'_> {
 	fn get_code(&mut self) -> String {
-		self.errored = true;
 		let mut code = String::with_capacity(self.size);
 		for (c, _, _) in &self.read {
 			code.push(*c);
@@ -194,6 +193,12 @@ impl ErrorMessaging for CodeInfo<'_> {
 
 	fn get_column(&self) -> usize {
 		self.current.column
+	}
+
+	fn is_first(&mut self) -> bool {
+		let first = !self.errored;
+		self.errored = true;
+		first
 	}
 }
 

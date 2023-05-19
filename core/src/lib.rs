@@ -590,28 +590,33 @@ pub trait ErrorMessaging {
 		let before_err = code[..range.start].rsplit('\n').next().unwrap_or("");
 		let after_err = code[range.end..].split('\n').next().unwrap_or("");
 		let errored = &code[range];
+		let header = format!("{} in {}:{}:{}!", kind, filename, line, column);
 		eprintln!(
 			"{}\n\n{}{}{}\n\n{}: {}{}",
-			format!("{} in {}:{}:{}!", kind, filename, line, column).color(kind.fgcolor().unwrap()).bold(),
+			if self.is_first() {
+				header
+			} else {
+				format!("\n----------------------------------\n\n{}", header)
+			},
 			before_err.trim_start(),
 			errored.red().underline(),
 			after_err.trim_end(),
 			kind,
-			message.into().bold(),
+			message.into(),
 			if let Some(help) = help {
-				format!("\n{}: {}\n", "Help".cyan(), help.bold())
+				format!("\n{}: {}", "Help".cyan().bold(), help)
 			} else {
-				String::from("\n")
+				String::from("")
 			}
 		);
 	}
 
-	fn error<'a>(&mut self, message: impl Into<String>, help: Option<&str>) {
-		self.send("Error".red(), message, help)
+	fn error(&mut self, message: impl Into<String>, help: Option<&str>) {
+		self.send("Error".red().bold(), message, help)
 	}
 
-	fn warning<'a>(&mut self, message: impl Into<String>, help: Option<&str>) {
-		self.send("Warning".yellow(), message, help)
+	fn warning(&mut self, message: impl Into<String>, help: Option<&str>) {
+		self.send("Warning".yellow().bold(), message, help)
 	}
 
 	fn get_code(&mut self) -> String;
@@ -623,4 +628,6 @@ pub trait ErrorMessaging {
 	fn get_line(&self) -> usize;
 
 	fn get_column(&self) -> usize;
+
+	fn is_first(&mut self) -> bool;
 }
