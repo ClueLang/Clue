@@ -57,7 +57,7 @@ macro_rules! check {
 /// ```
 macro_rules! format_clue {
     ($($strings:expr),+) => {{
-        let vc: Vec<String> = vec![
+        let vc = [
           $($strings.to_string(),)+
         ];
 
