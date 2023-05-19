@@ -1199,7 +1199,7 @@ impl<'a> ParserInfo<'a> {
 									local: true,
 									names: vec![name.clone()],
 									values: vec![expr_self],
-									line: position.start().line,
+									line: position.start.line,
 								});
 								expr.append(&mut start);
 								expr.push_back(SYMBOL(name.clone()));

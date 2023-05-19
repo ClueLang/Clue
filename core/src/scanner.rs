@@ -14,15 +14,12 @@ use crate::{
 use self::TokenType::*;
 use ahash::AHashMap;
 use lazy_static::lazy_static;
-use std::ops::RangeInclusive;
+use std::ops::Range;
 use colored::*;
 use std::fmt;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
-/// The position of the start and end of the token
-pub type TokenRange = RangeInclusive<TokenPosition>;
 
 type SymbolsMap<'a> = [Option<&'a SymbolType<'a>>; 127];
 
@@ -89,13 +86,13 @@ pub struct Token {
 	pub lexeme: String,
 
 	/// The position (as lines, columns and indexes) of the token in the code
-	pub position: TokenRange,
+	pub position: Range<TokenPosition>,
 }
 
 impl Token {
 	/// Creates a new [`Token`] given its [`TokenType`], its literal token, the line and column where it is located
 	/// The literal token is the literal value of the token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`
-	pub fn new(kind: TokenType, lexeme: impl Into<String>, position: TokenRange) -> Self {
+	pub fn new(kind: TokenType, lexeme: impl Into<String>, position: Range<TokenPosition>) -> Self {
 		Self {
 			kind,
 			lexeme: lexeme.into(),
@@ -131,19 +128,19 @@ impl BorrowedToken {
 		self.token().lexeme.clone()
 	}
 
-	/// Returns a clone of the [`TokenRange`]
-	pub fn position(&self) -> TokenRange {
+	/// Returns a clone of the [`Range<TokenPosition>`]
+	pub fn position(&self) -> Range<TokenPosition> {
 		self.token().position.clone()
 	}
 
 	/// Returns the line where the token is located
 	pub const fn line(&self) -> usize {
-		self.token().position.end().line
+		self.token().position.end.line
 	}
 
 	/// Returns the column where the token is located
 	pub const fn column(&self) -> usize {
-		self.token().position.end().column
+		self.token().position.end.column
 	}
 
 	/// Clones the inner [`Token`] and returns it
@@ -286,14 +283,14 @@ impl<'a> CodeInfo<'a> {
 
 	fn add_literal_token(&mut self, kind: TokenType, literal: String) {
 		self.tokens
-			.push(Token::new(kind, literal, self.start..=self.current));
+			.push(Token::new(kind, literal, self.start..self.current));
 	}
 
 	fn add_token(&mut self, kind: TokenType) {
 		let lexeme: String = self.substr(self.start.index, self.current.index);
 		self.last = kind;
 		self.tokens
-			.push(Token::new(kind, lexeme, self.start..=self.current));
+			.push(Token::new(kind, lexeme, self.start..self.current));
 	}
 
 	fn read_number(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
