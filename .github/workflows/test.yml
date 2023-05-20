@@ -24,4 +24,6 @@ jobs:
           rustup target add wasm32-unknown-unknown
           cargo install wasm-pack
       - name: Test wasm
-        run: wasm-pack test --node
+        run: |
+          cd wasm
+          wasm-pack test --node
