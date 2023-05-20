@@ -109,7 +109,7 @@ impl Clue {
 	}
 
 	/// Sets the `rawsetglobals` option
-	/// When the `rawsetglobals` option is enabled, Clue will rawset(_G, ...) instead of _G.x = ... for globals
+	/// When the `rawsetglobals` option is enabled, Clue will rawset(_G, ...) instead of simply x = ... for globals
 	pub fn rawsetglobals(&mut self, env_rawsetglobal: bool) {
 		self.options.env_rawsetglobals = env_rawsetglobal;
 	}

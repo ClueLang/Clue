@@ -19,7 +19,7 @@ pub enum ContinueMode {
 	#[default]
 	#[clap(name = "simple")]
 	/// Simple: This mode uses the native continue keyword.
-	/// This can only be used in implementations which support it.
+	/// This can only be used in implementations which support it (like BLUA).
 	Simple,
 
 	/// DEPRECATED
@@ -30,11 +30,11 @@ pub enum ContinueMode {
 	#[clap(name = "goto")]
 	/// Goto: Clue will use goto continue; and a ::continue:: label when compiling `continue` keywords
 	/// instead of assuming the version of Lua you're compiling to has a proper continue keyword.
-	/// This will work with most versions of lua (lua 5.2, luajit, blua)
+	/// This will work with most versions of Lua (Lua 5.2, LuaJIT).
 	Goto,
 
-	/// Moonscript: This approach is guaranteed to work with any version of lua although
-	/// it has a performance impact because it uses a loop.
+	/// Moonscript: This approach is guaranteed to work with any version of Lua although
+	/// it has a performance impact because it uses an additional loop.
 	MoonScript,
 }
 
@@ -125,7 +125,7 @@ pub struct Options {
 	/// The continue mode to use when compiling `continue` keywords
 	pub env_continue: ContinueMode,
 
-	/// Whether to use rawset(_G, ...) instead of _G.x = ...
+	/// Whether to use rawset(_G, ...) instead of simply x = ... for globals
 	pub env_rawsetglobals: bool,
 
 	/// Whether to print debug information
