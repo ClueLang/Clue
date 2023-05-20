@@ -73,9 +73,6 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             host_cc: ""
             target_cc: ""
-          - target: i686-unknown-linux-gnu
-            host_cc: i686-linux-gnu
-            target_cc: i686-linux-gnu
           - target: aarch64-unknown-linux-gnu
             host_cc: ""
             target_cc: aarch64-linux-gnu
