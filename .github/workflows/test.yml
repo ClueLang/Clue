@@ -8,16 +8,20 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v3
-      - name: Install rust toolchain
-        uses: actions-rs/toolchain@v1.0.6
-        with:
-          default: true
-          override: true
-          toolchain: nightly
-          target: "i686-pc-windows-msvc"
       - name: Cache build
         uses: Swatinem/rust-cache@v2
-      - name: Test dev build
+      - name: Test core
         run: cargo test
-      - name: Test release build
-        run: cargo test --release
+  test-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Cache build
+        uses: Swatinem/rust-cache@v2
+      - name: Setup
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-pack
+      - name: Test wasm
+        run: wasm-pack test --node

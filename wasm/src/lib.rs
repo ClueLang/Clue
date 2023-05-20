@@ -262,3 +262,21 @@ impl Default for Clue {
 		Self::new()
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use wasm_bindgen_test::*;
+
+	#[wasm_bindgen_test]
+	fn test_version() {
+		assert_eq!(get_version(), env!("CARGO_PKG_VERSION"));
+	}
+
+	#[wasm_bindgen_test]
+	fn test_compiles() {
+		let clue = Clue::new();
+		clue.compile_code(include_str!("../../examples/fizzbuzz.clue").to_owned())
+			.unwrap();
+	}
+}
