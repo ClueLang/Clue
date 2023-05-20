@@ -90,7 +90,7 @@ impl Clue {
 	/// Sets the `struct` option
 	/// If `struct` is `true` then then the `struct` option will be enabled
 	/// If `struct` is `false` then then the `struct` option will be disabled
-	pub fn struct(&mut self, env_struct: bool) {
+	pub fn env_struct(&mut self, env_struct: bool) {
 		self.options.env_struct = env_struct;
 	}
 
