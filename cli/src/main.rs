@@ -228,9 +228,9 @@ fn finish(
 }
 
 #[cfg(not(feature = "mlua"))]
-fn finish(debug: bool, output_path: Option<String>, code: String) -> Result<(), String> {
+fn finish(debug: bool, output_path: Option<PathBuf>, code: String) -> Result<(), String> {
 	if debug {
-		let new_output = format!(include_str!("debug.lua"), &code);
+		let new_output = format!(include_str!("debug.lua"), format_clue!("\t", code.replace('\n', "\n\t")));
 		if let Some(output_path) = output_path {
 			check!(fs::write(output_path, &new_output));
 		}
