@@ -206,36 +206,31 @@ fn execute_lua_code(code: &str) {
 	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 }
 
-#[cfg(feature = "mlua")]
 fn finish(
-	debug: bool,
-	execute: bool,
-	output_path: Option<PathBuf>,
-	code: String,
+    debug: bool,
+    #[cfg(feature = "mlua")] execute: bool,
+    output_path: Option<PathBuf>,
+    code: String,
 ) -> Result<(), String> {
-	if debug {
-		let new_output = format!(include_str!("debug.lua"), format_clue!("\t", code.replace('\n', "\n\t")));
-		if let Some(output_path) = output_path {
-			check!(fs::write(output_path, &new_output));
-		}
-		if execute {
-			execute_lua_code(&new_output)
-		}
-	} else if execute {
-		execute_lua_code(&code)
-	}
-	Ok(())
-}
-
-#[cfg(not(feature = "mlua"))]
-fn finish(debug: bool, output_path: Option<PathBuf>, code: String) -> Result<(), String> {
-	if debug {
-		let new_output = format!(include_str!("debug.lua"), format_clue!("\t", code.replace('\n', "\n\t")));
-		if let Some(output_path) = output_path {
-			check!(fs::write(output_path, &new_output));
-		}
-	}
-	Ok(())
+    if debug {
+        let new_output = format!(
+            include_str!("debug.lua"),
+            format_clue!("\t", code.replace('\n', "\n\t"))
+        );
+        if let Some(output_path) = output_path {
+            check!(fs::write(output_path, &new_output));
+        }
+        #[cfg(feature = "mlua")]
+        if execute {
+            execute_lua_code(&new_output)
+        }
+        return Ok(());
+    }
+    #[cfg(feature = "mlua")]
+    if execute {
+        execute_lua_code(&code)
+    }
+    Ok(())
 }
 
 fn save_result(
