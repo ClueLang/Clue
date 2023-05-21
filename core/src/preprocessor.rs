@@ -29,36 +29,36 @@ macro_rules! pp_if {
 	}};
 }
 
-/// A HashMap of preprocessor variables
+/// A HashMap of preprocessor variables.
 pub type PPVars = AHashMap<Code, PPVar>;
-/// A list of code segments and its size
+/// A list of code segments and its size.
 pub type PPCode = (VecDeque<(Code, bool)>, usize);
 
 #[derive(Debug, Clone)]
-/// A preprocessor variable or macro
+/// A preprocessor variable or macro.
 pub enum PPVar {
-	/// A simple variable
+	/// A simple variable.
 	Simple(Code),
 
-	/// A variable that has to be processed before expansion
+	/// A variable that has to be processed before expansion.
 	ToProcess(Code),
 
-	/// A macro
+	/// A macro.
 	Macro {
-		/// The code of the macro
+		/// The code of the macro.
 		code: PPCode,
 
-		/// The arguments of the macro
+		/// The arguments of the macro.
 		args: Vec<Code>,
 
-		/// The preprocessor variables of the macro
+		/// The preprocessor variables of the macro.
 		ppvars: PPVars,
 
-		/// Whether the macro is variadic
+		/// Whether the macro is variadic.
 		vararg: bool,
 	},
 
-	/// Variadic arguments variable in a macro
+	/// Variadic arguments variable in a macro.
 	VarArgs(PPCode),
 }
 

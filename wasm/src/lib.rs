@@ -11,14 +11,14 @@ use clue_core::{
 };
 use wasm_bindgen::prelude::*;
 
-/// Returns the version of the `clue` crate
+/// Returns the version of the `clue` crate.
 #[wasm_bindgen(js_name = "getVersion")]
 pub fn get_version() -> String {
 	env!("CARGO_PKG_VERSION").to_string()
 }
 
-/// The Clue WebAssembly API
-/// uses the `clue_core` crate
+/// The Clue WebAssembly API.
+/// uses the `clue_core` crate.
 #[wasm_bindgen]
 pub struct Clue {
 	inner: ClueCore,
@@ -26,7 +26,7 @@ pub struct Clue {
 
 #[wasm_bindgen]
 impl Clue {
-	/// Create a new `Clue` instance
+	/// Create a new `Clue` instance.
 	#[wasm_bindgen(constructor)]
 	pub fn new() -> Self {
 		Clue {
@@ -260,5 +260,23 @@ impl Clue {
 impl Default for Clue {
 	fn default() -> Self {
 		Self::new()
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use wasm_bindgen_test::*;
+
+	#[wasm_bindgen_test]
+	fn test_version() {
+		assert_eq!(get_version(), env!("CARGO_PKG_VERSION"));
+	}
+
+	#[wasm_bindgen_test]
+	fn test_compiles() {
+		let clue = Clue::new();
+		clue.compile_code(include_str!("../../examples/fizzbuzz.clue").to_owned())
+			.unwrap();
 	}
 }

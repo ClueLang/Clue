@@ -66,25 +66,25 @@ pub enum TokenType {
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-/// Represents a token with its type, its literal string and the location in the file
+/// Represents a token with its type, its literal string and the location in the file.
 /// The type is represented by a [`TokenType`]
 pub struct Token {
-	/// The token's type
+	/// The token's type.
 	pub kind: TokenType,
 
-	/// The literal token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`
+	/// The literal token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`.
 	pub lexeme: String,
 
-	/// The line where the token is located
+	/// The line where the token is located.
 	pub line: usize,
 
-	/// The column where the token is located
+	/// The column where the token is located.
 	pub column: usize,
 }
 
 impl Token {
-	/// Creates a new [`Token`] given its [`TokenType`], its literal token, the line and column where it is located
-	/// The literal token is the literal value of the token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`
+	/// Creates a new [`Token`] given its [`TokenType`], its literal token, the line and column where it is located.
+	/// The literal token is the literal value of the token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`.
 	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize, column: usize) -> Self {
 		Self {
 			kind,
@@ -95,44 +95,44 @@ impl Token {
 	}
 }
 
-/// A token that has a raw pointer to a [`Token`]
+/// A token that has a raw pointer to a [`Token`].
 pub struct BorrowedToken {
 	token: *const Token,
 }
 
 impl BorrowedToken {
-	/// Creates a new [`BorrowedToken`] from the raw pointer to a [`Token`]
+	/// Creates a new [`BorrowedToken`] from the raw pointer to a [`Token`].
 	pub const fn new(token: *const Token) -> Self {
 		Self { token }
 	}
 
 	/// Returns the token
 	pub const fn token(&self) -> &Token {
-		// SAFETY: This is safe because the pointer is guaranteed to be valid
+		// SAFETY: This is safe because the pointer is guaranteed to be valid.
 		unsafe { &(*self.token) }
 	}
 
-	/// Returns the [`TokenType`]
+	/// Returns the [`TokenType`].
 	pub const fn kind(&self) -> TokenType {
 		self.token().kind
 	}
 
-	/// Returns the `clone`d literal token
+	/// Returns the `clone`d literal token.
 	pub fn lexeme(&self) -> String {
 		self.token().lexeme.clone()
 	}
 
-	/// Returns the line where the token is located
+	/// Returns the line where the token is located.
 	pub const fn line(&self) -> usize {
 		self.token().line
 	}
 
-	/// Returns the column where the token is located
+	/// Returns the column where the token is located.
 	pub const fn column(&self) -> usize {
 		self.token().column
 	}
 
-	/// Clones the inner [`Token`] and returns it
+	/// Clones the inner [`Token`] and returns it.
 	pub fn into_owned(&self) -> Token {
 		self.token().clone()
 	}

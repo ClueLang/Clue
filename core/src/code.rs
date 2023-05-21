@@ -93,7 +93,7 @@ impl CodeChars {
 		self.code.column
 	}
 
-	/// Returns the number of bytes read by the iterator.
+	/// Returns the number of bytes read by the iterator since the last time this function was called.
 	pub fn bytes_read(&mut self) -> usize {
 		let read = self.code.read;
 		self.code.read = 0;

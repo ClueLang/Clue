@@ -3,7 +3,12 @@
 //! This is used by the cli but can also be used by other projects
 //! It is recommended to use [`Clue`] instead of the lower level APIs unless you need to
 
-use std::{ffi::OsStr, fmt::Display, fs, path::{Path, PathBuf}};
+use std::{
+	ffi::OsStr,
+	fmt::Display,
+	fs,
+	path::{Path, PathBuf},
+};
 
 use code::Code;
 use compiler::Compiler;
@@ -51,14 +56,13 @@ macro_rules! check {
 /// assert_eq!(c, "Hello, World!");
 /// ```
 macro_rules! format_clue {
-	($($strings:expr),+) => {{
-		use std::ops::AddAssign;
-		let mut len_format_clue = 0;
-		$(len_format_clue.add_assign(AsRef::<str>::as_ref(&$strings).len());)+
-		let mut output_format_clue = String::with_capacity(len_format_clue);
-		$(output_format_clue.push_str($strings.as_ref());)+
-		output_format_clue
-	}};
+    ($($strings:expr),+) => {{
+        let vc = [
+          $($strings.to_string(),)+
+        ];
+
+        vc.join("")
+    }};
 }
 
 /// The main Clue library API
@@ -86,8 +90,8 @@ impl Clue {
 	/// Sets the `struct` option
 	/// If `struct` is `true` then then the `struct` option will be enabled
 	/// If `struct` is `false` then then the `struct` option will be disabled
-	pub fn env_struct(&mut self, env_tokens: bool) {
-		self.options.env_tokens = env_tokens;
+	pub fn env_struct(&mut self, env_struct: bool) {
+		self.options.env_struct = env_struct;
 	}
 
 	/// Sets the `bitwise_mode` option
@@ -105,7 +109,7 @@ impl Clue {
 	}
 
 	/// Sets the `rawsetglobals` option
-	/// When the `rawsetglobals` option is enabled, Clue will rawset(_G, ...) instead of _G.x = ... for globals
+	/// When the `rawsetglobals` option is enabled, Clue will rawset(_G, ...) instead of simply x = ... for globals
 	pub fn rawsetglobals(&mut self, env_rawsetglobal: bool) {
 		self.options.env_rawsetglobals = env_rawsetglobal;
 	}

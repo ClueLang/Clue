@@ -22,3 +22,6 @@ clue_core = { path = "../core", version = "3.3.1", default-features = false, fea
 ] }
 serde-wasm-bindgen = "0.5.0"
 getrandom = { version = "0.2.3", features = ["js"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.34"
