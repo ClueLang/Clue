@@ -10,8 +10,13 @@ jobs:
         uses: actions/checkout@v3
       - name: Cache build
         uses: Swatinem/rust-cache@v2
+      - name: Setup
+        run: |
+          cargo install cargo-all-features
+      - name: Check
+        run: cargo check-all-features
       - name: Test core
-        run: cargo test
+        run: cargo test-all-features
   test-wasm:
     runs-on: ubuntu-latest
     steps:
