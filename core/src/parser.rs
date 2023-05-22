@@ -41,7 +41,7 @@ macro_rules! vec_deque {
 /// A list of [`ComplexToken`]s, which is the AST.
 pub type Expression = VecDeque<ComplexToken>;
 
-/// Function arguments, a list of identifiers with optional default values
+/// Function arguments, a list of identifiers with optional default values.
 /// used in function signatures.
 pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
 
@@ -56,11 +56,11 @@ type OptionalEnd = Option<(TokenType, &'static str)>;
 /// In the example
 /// ```clue
 /// match x {
-///   1 if z==0 => {2+1},
+///   1 if z == 0 => {foo()},
 /// }
 /// ```
-/// the first element of the tuple would be `1`, the second element would be `if z==0`
-/// and the third element would be `{2+1}`.
+/// the first element of the tuple would be `1`, the second element would be `z == 0`
+/// and the third element would be `{foo()}`.
 type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,15 +68,15 @@ type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
 /// An enum representing all the possible complex tokens that can be parsed
 /// such as functions, if statements, variables, tables etc.
 pub enum ComplexToken {
-	/// A variable declaration
+	/// A variable declaration.
 	VARIABLE {
-		/// Whether the variable(s) is/are local or not
+		/// Whether the variable(s) is/are local or not.
 		local: bool,
 
-		/// The names of the variable(s)
+		/// The names of the variable(s).
 		names: Vec<String>,
 
-		/// The values of the variable(s)
+		/// The values of the variable(s).
 		values: Vec<Expression>,
 
 		/// The line number of the variable declaration.
@@ -88,127 +88,127 @@ pub enum ComplexToken {
 		/// The kind of assignment (e.g. `+=`, `-=`, `=`)
 		kind: TokenType,
 
-		/// The names of the variable(s)
+		/// The names of the variable(s).
 		names: VecDeque<Expression>,
 
-		/// The values of the variable(s)
+		/// The values of the variable(s).
 		values: Vec<Expression>,
 
 		/// The line number of the assignment.
 		line: usize,
 	},
 
-	/// A table
+	/// A table.
 	TABLE {
-		/// the table's keys and values values
+		/// the table's keys and values values.
 		values: Vec<(Option<Expression>, Expression, usize)>,
 
-		/// the table's metamethods
+		/// the table's metamethods.
 		metas: Vec<(String, Expression, usize)>,
 
-		/// the table's metatable
+		/// the table's metatable.
 		metatable: Option<String>,
 	},
 
-	/// A function declaration
+	/// A function declaration.
 	FUNCTION {
-		/// Whether the function is local or not
+		/// Whether the function is local or not.
 		local: bool,
 
-		/// The name of the function
+		/// The name of the function.
 		name: Expression,
 
-		/// The arguments of the function
+		/// The arguments of the function.
 		args: FunctionArgs,
 
-		/// The code block of the function
+		/// The code block of the function.
 		code: CodeBlock,
 	},
 
-	/// A lambda function
+	/// A lambda function.
 	LAMBDA {
-		/// The arguments of the function
+		/// The arguments of the function.
 		args: FunctionArgs,
 
-		/// The code block of the function
+		/// The code block of the function.
 		code: CodeBlock,
 	},
 
-	/// An if statement
+	/// An if statement.
 	IF_STATEMENT {
-		/// The condition of the if statement
+		/// The condition of the if statement.
 		condition: Expression,
 
-		/// The code block of the if statement
+		/// The code block of the if statement.
 		code: CodeBlock,
 
-		/// The next else if/else statement
+		/// The next elseif/else statement.
 		next: Option<Box<ComplexToken>>,
 	},
 
-	/// A match statement
+	/// A match statement.
 	MATCH_BLOCK {
-		///
+		/// The name of the internal variable used to store the matched expression.
 		name: String,
 
-		/// The expression to match on
+		/// The expression to match on.
 		value: Expression,
 
-		/// The list of match cases
+		/// The list of match cases.
 		branches: Vec<MatchCase>,
 
 		/// The line number of the match statement.
 		line: usize,
 	},
 
-	/// A while loop
+	/// A while loop.
 	WHILE_LOOP {
-		/// The condition of the while loop
+		/// The condition of the while loop.
 		condition: Expression,
 
-		/// The code block of the while loop
+		/// The code block of the while loop.
 		code: CodeBlock,
 
-		/// The line number of the while loop
+		/// The line number of the while loop.
 		line: usize,
 	},
 
-	/// An until loop
+	/// An until loop.
 	LOOP_UNTIL {
-		/// The condition of the loop
+		/// The condition of the loop.
 		condition: Expression,
 
-		/// The code block of the loop
+		/// The code block of the loop.
 		code: CodeBlock,
 
-		/// The line number of the loop
+		/// The line number of the loop.
 		line: usize,
 	},
 
-	/// A for loop over a range of number e.g. i=0,10,1
+	/// A for loop over a range of number e.g. `for i = 0, 10, 1 {...}`.
 	FOR_LOOP {
-		/// The iterator of the for loop
+		/// The iterator variable of the for loop.
 		iterator: String,
 
-		/// The start of the for loop
+		/// The starting value of the for loop.
 		start: Expression,
 
-		/// The end of the for loop
+		/// The last value of the for loop.
 		end: Expression,
 
-		/// The variable being altered in the for loop
+		/// The amount to alter the iterator every iteration.
 		alter: Expression,
 
-		/// The code block of the for loop
+		/// The code block of the for loop.
 		code: CodeBlock,
 
-		/// The line number of the for loop
+		/// The line number of the for loop.
 		line: usize,
 	},
 
-	/// A for loop over a some iterator which can be either a for..in loop, a for..of loop or a for..with loop
+	/// A for loop over a some iterator which can be either a for..in loop, a for..of loop or a for..with loop.
 	FOR_FUNC_LOOP {
-		/// The iterator of the for loop
+		/// The iterator of the for loop.
 		iterators: Vec<String>,
 
 		/// The expression of the for loop
@@ -217,67 +217,67 @@ pub enum ComplexToken {
 		/// for..with loops: for k,v in custom_iter(t) do end
 		expr: Expression,
 
-		/// The code block of the for loop
+		/// The code block of the for loop.
 		code: CodeBlock,
 
-		/// The line number of the for loop
+		/// The line number of the for loop.
 		line: usize,
 	},
 
-	/// A try catch block
+	/// A try catch block.
 	TRY_CATCH {
-		/// The code block of the try block
+		/// The code block of the try block.
 		totry: CodeBlock,
 		
-		/// An optional code block of the catch block
+		/// An optional code block of the catch block.
 		catch: Option<CodeBlock>,
 		
-		/// The name of the error variable in the catch block
+		/// The name of the error variable in the catch block.
 		error: Option<String>,
 	},
 
-	/// An identifier
+	/// An identifier.
 	IDENT {
-		/// The expression of the identifier
+		/// The expression of the identifier.
 		expr: Expression,
 
 		/// The line number of the identifier.
 		line: usize,
 	},
 
-	/// Any symbol
+	/// Any symbol.
 	SYMBOL(String),
 
-	/// A function call
+	/// A function call.
 	CALL(Vec<Expression>),
 
-	/// An expression
+	/// An expression.
 	EXPR(Expression),
 
-	/// A do block
+	/// A do block.
 	DO_BLOCK(CodeBlock),
 
-	/// A return statement
+	/// A return statement.
 	RETURN_EXPR(Option<Vec<Expression>>),
 
-	/// A loop with continue
+	/// A continue keyword.
 	CONTINUE_LOOP,
 
-	/// A loop with break
+	/// A break keyword.
 	BREAK_LOOP,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-/// A code block
+/// A code block.
 pub struct CodeBlock {
-	/// The start line of the code block
+	/// The start line of the code block.
 	pub start: usize,
 
-	/// The code of the code block
+	/// The code of the code block.
 	pub code: Expression,
 
-	/// The end line of the code block
+	/// The end line of the code block.
 	pub end: usize,
 }
 
@@ -372,30 +372,25 @@ impl<'a> ParserInfo<'a> {
 		self.current >= self.size
 	}
 
-	/// TODO
 	fn at(&self, pos: usize) -> BorrowedToken {
 		BorrowedToken::new(&self.tokens[cmp::min(pos, self.size)])
 	}
 
-	/// TODO
 	fn advance(&mut self) -> BorrowedToken {
 		self.current += 1;
 		self.look_back(0)
 	}
 
-	/// TODO
 	fn peek(&self, pos: usize) -> BorrowedToken {
 		let pos: usize = self.current + pos;
 		self.at(pos)
 	}
 
-	/// TODO
 	fn look_back(&self, pos: usize) -> BorrowedToken {
 		let pos: usize = self.current - pos - 1;
 		self.at(pos)
 	}
 
-	/// TODO
 	fn compare(&self, expected: TokenType) -> bool {
 		if self.ended() {
 			return false;
@@ -406,7 +401,6 @@ impl<'a> ParserInfo<'a> {
 		true
 	}
 
-	/// TODO
 	fn advance_if(&mut self, expected: TokenType) -> bool {
 		if self.ended() {
 			return false;
@@ -418,7 +412,6 @@ impl<'a> ParserInfo<'a> {
 		true
 	}
 
-	/// TODO
 	fn assert_advance(
 		&mut self,
 		expected: TokenType,
@@ -431,7 +424,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(t)
 	}
 
-	/// TODO
 	fn assert_compare(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
 		if !self.compare(expected) {
 			let t = self.peek(0);
@@ -440,7 +432,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn assert_end<T>(
 		&mut self,
 		tocheck: &BorrowedToken,
@@ -460,7 +451,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(iftrue)
 	}
 
-	/// TODO
 	fn assert(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
 		if !self.advance_if(expected) {
 			let t = self.peek(0);
@@ -510,7 +500,6 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
-	/// TODO
 	fn build_table(&mut self) -> Result<ComplexToken, String> {
 		let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
 		let mut metas: Vec<(String, Expression, usize)> = Vec::new();
@@ -707,7 +696,6 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
-	/// TODO
 	fn check_operator(
 		&mut self,
 		t: &BorrowedToken,
@@ -747,7 +735,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn build_function_op(
 		&mut self,
 		t: &BorrowedToken,
@@ -766,7 +753,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn build_bitwise_op(
 		&mut self,
 		t: &BorrowedToken,
@@ -784,7 +770,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn check_index(
 		&mut self,
 		t: &BorrowedToken,
@@ -804,7 +789,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn check_val(&mut self) -> bool {
 		match self.peek(0).kind() {
 			NUMBER | IDENTIFIER | STRING | TRUE | BIT_NOT | FALSE | NIL | NOT | HASHTAG
@@ -834,7 +818,6 @@ impl<'a> ParserInfo<'a> {
 		Ok((result, code))
 	}
 
-	/// TODO
 	fn build_expression(&mut self, end: OptionalEnd) -> Result<Expression, String> {
 		let mut expr = Expression::with_capacity(16);
 		let notable = &mut true;
@@ -1116,12 +1099,10 @@ impl<'a> ParserInfo<'a> {
 		self.assert_end(&self.look_back(0), end, expr)
 	}
 
-	/// TODO
 	fn build_name(&mut self) -> Result<Expression, String> {
 		Ok(vec_deque![self.build_identifier()?])
 	}
 
-	/// TODO
 	fn build_identifier(&mut self) -> Result<ComplexToken, String> {
 		let line = self.look_back(0).line();
 		let (mut expr, safe_indexing) = self.build_identifier_internal()?;
@@ -1253,7 +1234,6 @@ impl<'a> ParserInfo<'a> {
 		Ok((expr, safe_indexing))
 	}
 
-	/// TODO
 	fn get_code_block_start(&mut self) -> Result<usize, String> {
 		let t = self.advance();
 		if t.kind() != CURLY_BRACKET_OPEN {
@@ -1269,7 +1249,6 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
-	/// TODO
 	fn parse_code_block(
 		&mut self,
 		mut tokens: Vec<Token>,
@@ -1285,7 +1264,6 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
-	/// TODO
 	fn build_code_block(&mut self /* , locals: LocalsList */) -> Result<CodeBlock, String> {
 		let start = self.get_code_block_start()?;
 		let mut tokens: Vec<Token> = Vec::new();
@@ -1311,7 +1289,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(CodeBlock { start, code, end })
 	}
 
-	/// TODO
 	fn build_function_block(
 		&mut self,
 		//args: Option<Vec<(String, LuaType)>>,
@@ -1330,7 +1307,6 @@ impl<'a> ParserInfo<'a> {
 		//}
 	}
 
-	/// TODO
 	fn build_loop_block(&mut self) -> Result<CodeBlock, String> {
 		let mut hascontinue: Option<String> = None;
 		let mut is_in_other_loop = false;
@@ -1409,7 +1385,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(CodeBlock { start, code, end })
 	}
 
-	/// TODO
 	fn build_identifier_list(&mut self) -> Result<Vec<String>, String> {
 		let mut idents: Vec<String> = Vec::new();
 		loop {
@@ -1421,7 +1396,6 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
-	/// TODO
 	fn build_function_args(&mut self) -> Result</* ArgsAndTypes */ FunctionArgs, String> {
 		let mut args = FunctionArgs::new();
 		/*let mut types: Option<Vec<(String, LuaType)>> = if self.locals.is_some() {
@@ -1483,7 +1457,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(/* (args, types) */ args)
 	}
 
-	/// TODO
 	fn build_elseif_chain(&mut self, condition: Option<Expression>) -> Result<ComplexToken, String> {
 		let condition = match condition {
 			Some(condition) => condition,
@@ -1534,7 +1507,6 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
-	/// TODO
 	fn build_enums(&mut self, local: bool) -> Result<Expression, String> {
 		self.current += 1;
 		self.assert(CURLY_BRACKET_OPEN, "{")?;
@@ -1588,7 +1560,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(enums)
 	}
 
-	/// TODO
 	fn build_function(&mut self, local: bool) -> Result<ComplexToken, String> {
 		self.current += 1;
 		let t = self.assert_advance(IDENTIFIER, "<name>")?;
@@ -1687,14 +1658,12 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
-	/// TODO
 	fn compile_static(&mut self, expr: Expression) -> Result<(), String> {
 		let code = self.compiler.compile_tokens(0, expr)?;
 		self.statics += &(code + "\n");
 		Ok(())
 	}
 
-	/// TODO
 	fn build_match_block(
 		&mut self,
 		name: String,
@@ -1764,7 +1733,6 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
-	/// TODO
 	fn parse_token_local_global(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let local = t.kind() == LOCAL;
 		match self.peek(0).kind() {
@@ -1785,7 +1753,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_static(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		match self.peek(0).kind() {
 			FN => {
@@ -1804,7 +1771,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_method(&mut self) -> Result<(), String> {
 		let name = {
 			let mut expr = Expression::with_capacity(4);
@@ -1848,7 +1814,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let start = self.current - 1;
 		let (mut first_expr, safe_indexing) = self.build_identifier_internal()?;
@@ -1942,7 +1907,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_round_bracket_open(&mut self) -> Result<(), String> {
 		let expr = self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?;
 		self.expr.push_back(EXPR(expr));
@@ -1954,7 +1918,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_curly_bracket_open(&mut self) -> Result<(), String> {
 		self.current -= 1;
 		let block = self.build_code_block(/*self.locals.clone()*/)?;
@@ -1962,14 +1925,12 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_if(&mut self) -> Result<(), String> {
 		let ctoken = self.build_elseif_chain(None)?;
 		self.expr.push_back(ctoken);
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_match(&mut self) -> Result<(), String> {
 		let name = self.get_next_internal_var();
 		let ctoken = self.build_match_block(name, &ParserInfo::build_code_block)?;
@@ -1977,7 +1938,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_while(&mut self, line: usize) -> Result<(), String> {
 		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
 		let code = self.build_loop_block()?;
@@ -1985,7 +1945,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_until(&mut self, line: usize) -> Result<(), String> {
 		let mut condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
 		condition.push_front(SYMBOL(String::from("not (")));
@@ -1995,7 +1954,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_loop(&mut self, line: usize) -> Result<(), String> {
 		let code = self.build_loop_block()?;
 		let t = self.advance();
@@ -2020,7 +1978,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_for(&mut self, line: usize) -> Result<(), String> {
 		if self.peek(1).kind() == DEFINE {
 			let iterator = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
@@ -2083,21 +2040,18 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_continue(&mut self) -> Result<(), String> {
 		self.expr.push_back(CONTINUE_LOOP);
 		self.advance_if(SEMICOLON);
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_break(&mut self) -> Result<(), String> {
 		self.expr.push_back(BREAK_LOOP);
 		self.advance_if(SEMICOLON);
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_return(&mut self) -> Result<(), String> {
 		let expr = if self.ended() || self.advance_if(SEMICOLON) {
 			None
@@ -2112,7 +2066,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_try(&mut self) -> Result<(), String> {
 		let totry = self.build_code_block(/*self.locals.clone()*/)?;
 		let error: Option<String>;
@@ -2137,7 +2090,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_macro(&mut self) -> Result<(), String> {
 		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
 		let code = self.build_expression(None)?;
@@ -2146,7 +2098,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	/// TODO
 	fn parse_token_fn_enum(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		Err(self.error(
 			format!(

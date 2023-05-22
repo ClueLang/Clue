@@ -75,13 +75,13 @@ pub struct TokenPosition {
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-/// Represents a token with its type, its literal string and the location in the file
+/// Represents a token with its type, its literal string and the location in the file.
 /// The type is represented by a [`TokenType`]
 pub struct Token {
-	/// The token's type
+	/// The token's type.
 	pub kind: TokenType,
 
-	/// The literal token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`
+	/// The literal token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`.
 	pub lexeme: String,
 
 	/// The position (as lines, columns and indexes) of the token in the code
@@ -100,49 +100,53 @@ impl Token {
 	}
 }
 
-/// A token that has a raw pointer to a [`Token`]
+/// A token that has a raw pointer to a [`Token`].
 pub struct BorrowedToken {
 	token: *const Token,
 }
 
 impl BorrowedToken {
-	/// Creates a new [`BorrowedToken`] from the raw pointer to a [`Token`]
+	/// Creates a new [`BorrowedToken`] from the raw pointer to a [`Token`].
 	pub const fn new(token: *const Token) -> Self {
 		Self { token }
 	}
 
 	/// Returns the token
 	pub const fn token(&self) -> &Token {
-		// SAFETY: This is safe because the pointer is guaranteed to be valid
+		// SAFETY: This is safe because the pointer is guaranteed to be valid.
 		unsafe { &(*self.token) }
 	}
 
-	/// Returns the [`TokenType`]
+	/// Returns the [`TokenType`].
 	pub const fn kind(&self) -> TokenType {
 		self.token().kind
 	}
 
-	/// Returns the `clone`d literal token
+	/// Returns the `clone`d literal token.
 	pub fn lexeme(&self) -> String {
 		self.token().lexeme.clone()
 	}
 
+<<<<<<< HEAD
 	/// Returns a clone of the [`Range<TokenPosition>`]
 	pub fn position(&self) -> Range<TokenPosition> {
 		self.token().position.clone()
 	}
 
 	/// Returns the line where the token is located
+=======
+	/// Returns the line where the token is located.
+>>>>>>> main
 	pub const fn line(&self) -> usize {
 		self.token().position.end.line
 	}
 
-	/// Returns the column where the token is located
+	/// Returns the column where the token is located.
 	pub const fn column(&self) -> usize {
 		self.token().position.end.column
 	}
 
-	/// Clones the inner [`Token`] and returns it
+	/// Clones the inner [`Token`] and returns it.
 	pub fn into_owned(&self) -> Token {
 		self.token().clone()
 	}

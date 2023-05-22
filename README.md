@@ -106,14 +106,14 @@ makepkg -si
 4. Type `clue` in your cmd/PowerShell to run the compiler, it will explain the rest
 
 ## More coming soon!
-There are still some features that I'm considering adding and others that will be added soon.
+There are still features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
 - types (coming in 4.0)
-- `async` and `yield` (coming maybe in 3.4)
-- `if local` (coming in 3.3)
+- better errors (comming in 4.0)
+- `async` and `yield` (coming in 3.4)
 
 For any suggestion or bug you can make a github issue.
-If you need help with the language itself, you can check out the new [Discord server](https://discord.gg/EQsnWpqN3C).
+If you need help with the language itself, you can check out the [Discord server](https://discord.gg/EQsnWpqN3C).
 
 I hope Clue will be useful to you :)
 
