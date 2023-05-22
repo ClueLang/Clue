@@ -201,11 +201,9 @@ pub fn compile_code(
 fn execute_lua_code(code: &str) {
 	println!(" {} compiled code...", "Running".blue().bold());
 	let lua = mlua::Lua::new();
-	let time = Instant::now();
 	if let Err(error) = lua.load(code).exec() {
 		println!("{error}");
 	}
-	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 }
 
 fn finish(
