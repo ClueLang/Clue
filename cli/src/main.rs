@@ -12,6 +12,7 @@ use clue_core::{
 };
 use std::{fs, path::PathBuf, time::Instant};
 use threads::compile_folder;
+use colored::*;
 
 mod threads;
 
@@ -188,7 +189,8 @@ pub fn compile_code(
 		println!("Compiled Lua code of file \"{name}\":\n{code}");
 	}
 	println!(
-		"Compiled file \"{}\" in {} seconds!",
+		"{} \"{}\" in {} seconds!",
+		"Compiled".green().bold(),
 		name,
 		time.elapsed().as_secs_f32()
 	);
@@ -197,7 +199,7 @@ pub fn compile_code(
 
 #[cfg(feature = "mlua")]
 fn execute_lua_code(code: &str) {
-	println!("Running compiled code...");
+	println!(" {} compiled code...", "Running".blue().bold());
 	let lua = mlua::Lua::new();
 	let time = Instant::now();
 	if let Err(error) = lua.load(code).exec() {
@@ -351,7 +353,14 @@ fn main() -> Result<(), String> {
 		};
 	}
 	let (output_path, code) = if path.is_dir() {
-		let (output, statics) = compile_folder(path, String::new(), options)?;
+		let time = Instant::now();
+		let (output, statics) = compile_folder(&path, String::new(), options)?;
+		println!(
+			"{} \"{}\" in {} seconds!",
+			"Finished".green().bold(),
+			path.display(),
+			time.elapsed().as_secs_f32()
+		);
 
 		let code = match cli.base {
 			Some(filename) => {

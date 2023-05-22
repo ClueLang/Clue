@@ -22,6 +22,7 @@ ahash.workspace = true
 clue_core = { path = "../core", version = "3.3.1", default-features = false }
 clap.workspace = true
 mlua = { version = "0.8.3", features = ["luajit", "vendored"], optional = true }
+colored.workspace = true
 
 [features]
 default = ["interpreter", "rpmalloc"]
