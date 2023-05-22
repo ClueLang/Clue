@@ -150,6 +150,10 @@ struct Cli {
 	/// Execute the output Lua code once it's compiled
 	#[clap(short, long)]
 	execute: bool,
+
+	/// Print the symbol table of the compiled files
+	#[clap(long, hide(true))]
+	symbols: bool,
 }
 
 pub fn compile_code(
@@ -308,6 +312,7 @@ fn main() -> Result<(), String> {
 		},
 		env_target: cli.target,
 		env_targetos: cli.targetos,
+		env_symbols: cli.symbols,
 	};
 	options.preset();
 
