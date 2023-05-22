@@ -66,6 +66,7 @@ pub enum TokenType {
 }
 
 #[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// The position (as line, column and index) of the start or end of the token
 pub struct TokenPosition {
 	pub line: usize,
