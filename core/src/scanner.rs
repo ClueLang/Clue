@@ -127,16 +127,12 @@ impl BorrowedToken {
 		self.token().lexeme.clone()
 	}
 
-<<<<<<< HEAD
 	/// Returns a clone of the [`Range<TokenPosition>`]
 	pub fn position(&self) -> Range<TokenPosition> {
 		self.token().position.clone()
 	}
 
 	/// Returns the line where the token is located
-=======
-	/// Returns the line where the token is located.
->>>>>>> main
 	pub const fn line(&self) -> usize {
 		self.token().position.end.line
 	}
