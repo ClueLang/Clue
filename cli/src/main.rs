@@ -312,6 +312,7 @@ fn main() -> Result<(), String> {
 		},
 		env_target: cli.target,
 		env_targetos: cli.targetos,
+		env_symbols: cli.symbols,
 	};
 	options.preset();
 

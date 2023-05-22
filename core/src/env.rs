@@ -143,6 +143,9 @@ pub struct Options {
 	/// The path to the output file
 	pub env_targetos: String,
 
+	/// Whether to print the symbol table
+	pub env_symbols: bool,
+
 	//pub env_types: TypesMode,
 	//pub env_std: LuaSTD,
 }
