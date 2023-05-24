@@ -180,10 +180,6 @@ impl ErrorMessaging for CodeInfo<'_> {
 		code.chars().collect()
 	}
 
-	fn get_range(&mut self) -> Range<usize> {
-		self.start.index..self.current.index
-	}
-
 	fn get_filename(&self) -> &str {
 		self.filename
 	}
@@ -226,7 +222,7 @@ impl<'a> CodeInfo<'a> {
 	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
 		self.error(format!(
 			"'{keyword}' is a reserved keyword in Lua and it cannot be used as a variable",
-		), Some(msg));
+		), self.start.index..self.current.index, Some(msg));
 		IDENTIFIER
 	}
 
@@ -320,7 +316,7 @@ impl<'a> CodeInfo<'a> {
 					if c == '-' && self.peek(2).is_ascii_digit() {
 						self.advance();
 					} else {
-						self.error("Malformed number", None);
+						self.error("Malformed number", self.start.index..self.current.index, None);
 					}
 				}
 				self.advance();
@@ -329,7 +325,7 @@ impl<'a> CodeInfo<'a> {
 				}
 			}
 		} else if self.current.index == start {
-			self.error("Malformed number", None);
+			self.error("Malformed number", self.start.index..self.current.index, None);
 		}
 		let llcheck = self.substr(self.current.index, self.current.index + 2);
 		if llcheck == "LL" {
@@ -338,7 +334,7 @@ impl<'a> CodeInfo<'a> {
 			if self.peek(2) == 'L' {
 				self.current.index += 3;
 			} else {
-				self.error("Malformed number", None);
+				self.error("Malformed number", self.start.index..self.current.index, None);
 			}
 		}
 		self.add_token(NUMBER);
@@ -352,7 +348,7 @@ impl<'a> CodeInfo<'a> {
 			}
 		}
 		if self.ended() {
-			self.error("Unterminated string", None);
+			self.error("Unterminated string", self.start.index..self.current.index, None);
 			false
 		} else {
 			true
@@ -789,7 +785,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 						}
 						KeywordType::Just(kind) => *kind,
 						KeywordType::Error(e) => {
-							i.error(*e, None);
+							i.error(*e, i.start.index..i.current.index, None);
 							IDENTIFIER
 						}
 					}
@@ -798,7 +794,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 				};
 				i.add_token(kind);
 			} else {
-				i.error(format!("Unexpected character '{c}'").as_str(), None);
+				i.error(format!("Unexpected character '{c}'").as_str(), i.start.index..i.current.index, None);
 			}
 		}
 	}

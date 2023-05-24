@@ -580,9 +580,8 @@ impl Default for Clue {
 }
 
 pub trait ErrorMessaging {
-	fn send(&mut self, kind: ColoredString, message: impl Into<String>, help: Option<&str>) {
+	fn send(&mut self, kind: ColoredString, message: impl Into<String>, range: Range<uisze>, help: Option<&str>) {
 		let code = self.get_code();
-		let range = self.get_range();
 		let filename = self.get_filename();
 		let line = self.get_line();
 		let column = self.get_column();
@@ -610,19 +609,12 @@ pub trait ErrorMessaging {
 		);
 	}
 
-	fn error(&mut self, message: impl Into<String>, help: Option<&str>) {
-		self.send("Error".red().bold(), message, help)
+	fn error(&mut self, message: impl Into<String>, range: Range<usize>, help: Option<&str>) {
+		self.send("Error".red().bold(), message, range, help)
 	}
 
-	fn warning(&mut self, message: impl Into<String>, help: Option<&str>) {
-		self.send("Warning".yellow().bold(), message, help)
-	}
-
-	fn assert_result<T: Default + std::fmt::Debug>(&mut self, result: Result<T, (String, Option<&str>)>) -> T {
-		result.map_or_else(|(message, help)| {
-			self.error(message, help);
-			T::default()
-		}, |t| t)
+	fn warning(&mut self, message: impl Into<String>, range: Range<usize>, help: Option<&str>) {
+		self.send("Warning".yellow().bold(), message, range, help)
 	}
 
 	fn get_code(&mut self) -> Vec<char>;
