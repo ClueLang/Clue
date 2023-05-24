@@ -613,6 +613,14 @@ pub trait ErrorMessaging {
 		self.send("Error".red().bold(), message, range, help)
 	}
 
+	fn expected(&mut self, expected: &str, got: &str, range: Range<usize>, help: Option<&str>) {
+		self.send("Error".red().bold(), format!("Expected '{expected}', got '{got}'"), range, help)
+	}
+
+	fn expected_before(&mut self, expected: &str, before: &str, range: Range<usize>, help: Option<&str>) {
+		self.send("Error".red().bold(), format!("Expected '{expected}' before '{before}'"), range, help)
+	}
+
 	fn warning(&mut self, message: impl Into<String>, range: Range<usize>, help: Option<&str>) {
 		self.send("Warning".yellow().bold(), message, range, help)
 	}
