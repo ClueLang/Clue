@@ -586,9 +586,9 @@ pub trait ErrorMessaging {
 		let filename = self.get_filename();
 		let line = self.get_line();
 		let column = self.get_column();
-		let before_err = code[..range.start].rsplit('\n').next().unwrap_or("");
-		let after_err = code[range.end..].split('\n').next().unwrap_or("");
-		let errored = &code[range];
+		let before_err: String = code[..range.start].rsplit(|c| *c == '\n').next().unwrap_or(&[]).into_iter().collect();
+		let after_err: String = code[range.end..].split(|c| *c == '\n').next().unwrap_or(&[]).into_iter().collect();
+		let errored: String = code[range].into_iter().collect();
 		let header = format!("{} in {}:{}:{}!", kind, filename, line, column);
 		eprintln!(
 			"{}\n\n{}{}{}\n\n{}: {}{}",
@@ -618,9 +618,16 @@ pub trait ErrorMessaging {
 		self.send("Warning".yellow().bold(), message, help)
 	}
 
-	fn get_code(&mut self) -> String;
+	fn assert_result<T: Default + std::fmt::Debug>(&mut self, result: Result<T, (String, Option<&str>)>) -> T {
+		result.map_or_else(|(message, help)| {
+			self.error(message, help);
+			T::default()
+		}, |t| t)
+	}
 
-	fn get_range(&self) -> Range<usize>;
+	fn get_code(&mut self) -> Vec<char>;
+
+	fn get_range(&mut self) -> Range<usize>;
 
 	fn get_filename(&self) -> &str;
 

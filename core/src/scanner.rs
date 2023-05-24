@@ -162,7 +162,7 @@ struct CodeInfo<'a> {
 }
 
 impl ErrorMessaging for CodeInfo<'_> {
-	fn get_code(&mut self) -> String {
+	fn get_code(&mut self) -> Vec<char> {
 		let mut code = String::with_capacity(self.size);
 		for (c, _, _) in &self.read {
 			code.push(*c);
@@ -177,10 +177,10 @@ impl ErrorMessaging for CodeInfo<'_> {
 			code.push(c);
 			!matches!(c, '\n' | '\0')
 		} {}
-		code
+		code.chars().collect()
 	}
 
-	fn get_range(&self) -> Range<usize> {
+	fn get_range(&mut self) -> Range<usize> {
 		self.start.index..self.current.index
 	}
 
