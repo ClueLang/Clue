@@ -327,7 +327,7 @@ fn main() -> Result<(), String> {
 		let filename = String::from("(command line)");
 		let mut code = path.to_string_lossy().into_owned();
 		let code = unsafe { code.as_bytes_mut() };
-		let preprocessed_code = preprocess_code(code, 1, false, &filename, &options)?;
+		let preprocessed_code = preprocess_code(code, 1, false, &filename, &options).unwrap();
 		let (code, statics) = compile_code(
 			preprocessed_code.0,
 			&preprocessed_code.1,

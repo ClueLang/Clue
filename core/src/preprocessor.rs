@@ -20,7 +20,6 @@ use std::{
 	path::PathBuf,
 	str::{self, Split},
 	u8::{self, MAX},
-	ops::Range,
 };
 use utf8_decode::decode;
 
@@ -69,15 +68,6 @@ fn error(msg: impl Into<String>, line: usize, column: usize, filename: &String) 
 	msg.into()
 }
 
-fn expected(expected: &str, got: &str, line: usize, column: usize, filename: &String) -> String {
-	error(
-		format_clue!("Expected '", expected, "', got '", got, "'"),
-		line,
-		column,
-		filename,
-	)
-}
-
 fn expected_before(
 	expected: &str,
 	before: &str,
@@ -115,8 +105,7 @@ struct CodeFile<'a> {
 	last_if: bool,
 	cscope: u8,
 	ends: Vec<u8>,
-	errored: bool,
-	range: Option<Range<usize>>
+	errors: u8,
 }
 
 impl ErrorMessaging for CodeFile<'_> {
@@ -137,9 +126,8 @@ impl ErrorMessaging for CodeFile<'_> {
 	}
 
 	fn is_first(&mut self) -> bool {
-		let first = !self.errored;
-		self.errored = true;
-		first
+		self.errors += 1;
+		self.errors == 1
 	}
 }
 
@@ -164,20 +152,19 @@ impl<'a> CodeFile<'a> {
 			last_if: true,
 			cscope,
 			ends: Vec::new(),
-			errored: false,
+			errors: 0,
 		}
 	}
 
 	fn is_ascii(&mut self, c: Option<CodeChar>) -> Option<CodeChar> {
 		match c {
-			None => Ok(None),
-			Some(c) if c.0.is_ascii() => Ok(Some(c)),
+			None => None,
+			Some(c) if c.0.is_ascii() => Some(c),
 			Some((_, line, column)) => {
-				let c = check!(decode(
+				let c = decode(
 					&mut self.code[self.read - 1..cmp::min(self.read + 3, self.code.len())].iter().copied()
-				)
-				.unwrap());
-				self.error(format!("Invalid character '{c}'"), self.read - 1..self.read, None)
+				).unwrap().unwrap();
+				self.error(format!("Invalid character '{c}'"), self.read - 1..self.read, None);
 				None
 			}
 		}
@@ -269,54 +256,55 @@ impl<'a> CodeFile<'a> {
 		self.is_ascii(c)
 	}
 
-	fn assert_char(&mut self, wanted_c: u8) {
-		match self.read_char()? {
+	fn assert_char(&mut self, wanted_c: u8) -> bool {
+		match self.read_char() {
 			None => {
 				self.expected_before(
 					&String::from_utf8_lossy(&[wanted_c]),
 					"<end>",
-					self.read - 1..self.read
-				)
+					self.read - 1..self.read,
+					None
+				);
+				false
 			}
 			Some((c, line, column)) if c != wanted_c => {
 				self.expected(
 					&String::from_utf8_lossy(&[wanted_c]),
 					&String::from_utf8_lossy(&[c]),
-					self.read - 1..self.read
-				)
+					self.read - 1..self.read,
+					None
+				);
+				false
 			}
+			_ => true
 		}
 	}
 
-	fn assert_reach(&mut self, wanted_c: u8) {
+	fn assert_reach(&mut self, wanted_c: u8) -> bool {
 		self.skip_whitespace();
 		self.assert_char(wanted_c)
 	}
 
 	fn read(
 		&mut self,
-		mut get: impl FnMut(&mut Self) -> Result<Option<CodeChar>, (String, Range<usize>, Option<&str>)>,
+		mut get: impl FnMut(&mut Self) -> Option<CodeChar>,
 		mut check: impl FnMut(&mut Self, CodeChar) -> bool,
 	) -> Code {
 		let mut code = Code::new();
-		while let Some(c) = get(self).map_or_else(
-			|(error, range, help)| {self.error(error, range, help); None},
-			|c| c
-		) {
+		while let Some(c) = get(self) {
 			if check(self, c) {
 				break;
 			}
 			code.push(c)
 		}
-		Ok(code)
+		code
 	}
 
 	fn read_line(&mut self) -> String {
 		self.read(
-			|code| Ok(code.read_char_unchecked()),
+			Self::read_char_unchecked,
 			|_, (c, ..)| c == b'\n',
 		)
-		.unwrap()
 		.to_string()
 	}
 
@@ -334,14 +322,14 @@ impl<'a> CodeFile<'a> {
 	fn read_string(&mut self, c: CodeChar) -> Code {
 		self.comment = CommentState::String;
 		let mut skip_next = false;
+		let start = self.read - 1;
 		self.read(
 			|code| {
 				let stringc = code.read_char_unchecked();
 				if stringc.is_none() {
-					Err(error("Unterminated string", c.1, c.2, self.filename))
-				} else {
-					Ok(stringc)
+					code.error("Unterminated string", start..code.read, None)
 				}
+				stringc
 			},
 			|code, (stringc, ..)| {
 				if stringc == b'\n' {
@@ -365,7 +353,7 @@ impl<'a> CodeFile<'a> {
 	fn read_until_with(
 		&mut self,
 		end: u8,
-		f: impl FnMut(&mut Self) -> Result<Option<CodeChar>, (String, Range<usize>, Option<&str>)>,
+		f: impl FnMut(&mut Self) -> Option<CodeChar>,
 	) -> Option<Code> {
 		let mut reached = false;
 		let result = self.read(f, |_, (c, ..)| {
@@ -376,18 +364,19 @@ impl<'a> CodeFile<'a> {
 				false
 			}
 		});
-		Ok(reached.then_some(result))
+		reached.then_some(result)
 	}
 
 	fn read_until(&mut self, end: u8) -> Code {
-		self.read_until_with(end, Self::read_char).ok_or_else(|| {
-			expected_before(
+		let start = self.read - 1;
+		self.read_until_with(end, Self::read_char).unwrap_or_else(|| {
+			self.expected_before(
 				&(end as char).to_string(),
 				"<end>",
-				self.line,
-				self.column,
-				self.filename,
-			)
+				start..self.read,
+				None
+			);
+			Code::new()
 		})
 	}
 
@@ -399,7 +388,7 @@ impl<'a> CodeFile<'a> {
 				b'(' => args.append(self.read_macro_args()),
 				b')' => {
 					args.push(self.read_char_unchecked().unwrap());
-					return Ok(args);
+					return args;
 				}
 				b'\'' | b'"' | b'`' => {
 					args.push(self.read_char_unchecked().unwrap());
@@ -409,16 +398,16 @@ impl<'a> CodeFile<'a> {
 				_ => args.push(self.read_char_unchecked().unwrap()),
 			}
 		}
-		Err(expected_before(
+		self.expected_before(
 			")",
 			"<end>",
-			self.line,
-			self.column,
-			self.filename,
-		))
+			self.read - 1..self.read,
+			None
+		);
+		Code::new()
 	}
 
-	fn read_macro_block(&mut self) -> Result<(PPCode, PPVars), String> {
+	fn read_macro_block(&mut self) -> Result<(PPCode, PPVars), ()> {
 		let line = self.line;
 		let len = self.code.len();
 		let block = &mut self.code[self.read..len];
@@ -430,23 +419,23 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn skip_block(&mut self) {
+		let start = self.read - 1;
 		while let Some(c) = self.read_char() {
 			match c.0 {
 				b'{' => self.skip_block(),
-				b'}' => return Ok(()),
+				b'}' => return,
 				b'\'' | b'"' | b'`' => {
 					self.read_string(c);
 				}
 				_ => {}
 			}
 		}
-		Err(expected_before(
+		self.expected_before(
 			"}",
 			"<end>",
-			self.line,
-			self.column,
-			self.filename,
-		))
+			start..self.read,
+			None
+		)
 	}
 
 	fn keep_block(&mut self, to_keep: bool) {
@@ -454,7 +443,6 @@ impl<'a> CodeFile<'a> {
 		if to_keep {
 			self.ends.push(self.cscope);
 			self.cscope += 1;
-			Ok(())
 		} else {
 			self.skip_block()
 		}
@@ -462,32 +450,30 @@ impl<'a> CodeFile<'a> {
 
 	fn ifos(&mut self, end: u8) -> bool {
 		let checked_os = self.read_until(end).trim();
-		Ok(checked_os == self.options.env_targetos)
+		checked_os == self.options.env_targetos
 	}
 
 	fn iflua(&mut self, end: u8) -> bool {
 		use crate::env::LuaVersion::*;
 		let checked_lua_version = self.read_until(end).trim();
 		let Some(target) = self.options.env_target else {
-			return Ok(false);
+			return false;
 		};
-		Ok(
-			match checked_lua_version.to_string().to_lowercase().as_str() {
-				"luajit" | "jit" => target == LuaJIT,
-				"lua54" | "lua5.4" | "lua 54" | "lua 5.4" | "54" | "5.4" => target == Lua54,
-				"blua" => target == BLUA,
-				_ => false,
-			},
-		)
+		match checked_lua_version.to_string().to_lowercase().as_str() {
+			"luajit" | "jit" => target == LuaJIT,
+			"lua54" | "lua5.4" | "lua 54" | "lua 5.4" | "54" | "5.4" => target == Lua54,
+			"blua" => target == BLUA,
+			_ => false,
+		}
 	}
 
 	fn ifdef(&mut self, end: u8) -> bool {
 		let to_check = self.read_until(end).trim();
-		Ok(env::var_os(to_check.to_string()).is_some())
+		env::var_os(to_check.to_string()).is_some()
 	}
 
 	fn ifndef(&mut self, end: u8) -> bool {
-		self.ifdef(end).map(|ok| !ok)
+		!self.ifdef(end)
 	}
 
 	fn ifcmp(&mut self, end: u8) -> bool {
@@ -496,19 +482,23 @@ impl<'a> CodeFile<'a> {
 			return false
 		};
 		self.skip_whitespace();
+		let comp_pos = self.read - 1;
 		let comparison = [
+			self.read_char_unchecked(),
 			self.read_char_unchecked()
-				.ok_or_else(|| {
-					expected("==' or '!=", "<end>", self.line, self.column, self.filename)
-				})?
-				.0,
-			self.read_char_unchecked()
-				.ok_or_else(|| {
-					expected("==' or '!=", "<end>", self.line, self.column, self.filename)
-				})?
-				.0,
 		];
+		if comparison.contains(&None) {
+			let size = self.get_code().len();
+			self.expected(
+				"==' or '!=",
+				"<end>",
+				comp_pos..cmp::min(comp_pos + 2, size),
+				None
+			);
+			return false;
+		}
 		let to_compare2 = self.read_until(end).trim();
+		let comparison = comparison.map(|c| c.unwrap().0);
 		match &comparison {
 			b"==" => to_compare2 == to_compare1,
 			b"!=" => to_compare2 != to_compare1,
@@ -516,7 +506,7 @@ impl<'a> CodeFile<'a> {
 				self.expected(
 					"==' or '!=",
 					&String::from_utf8_lossy(&comparison),
-					self.read - 1..self.read,
+					comp_pos..comp_pos + 2,
 					None
 				);
 				false
@@ -542,9 +532,11 @@ impl<'a> CodeFile<'a> {
 
 	fn r#if(&mut self) -> bool {
 		let check = {
-			let start = self.read;
+			let start = self.read - 1;
 			let function = self.read_identifier().to_string();
-			self.assert_char(b'(');
+			if !self.assert_char(b'(') {
+				return false;
+			}
 			if function.is_empty() {
 				self.expected_before("<name>", "(", start..self.read, None);
 				return false;
@@ -565,7 +557,7 @@ impl<'a> CodeFile<'a> {
 				}
 				_ => {
 					self.error(format!("Unknown function '{function}'"), start..self.read, None);
-					false
+					return false;
 				}
 			}
 		};
@@ -573,27 +565,29 @@ impl<'a> CodeFile<'a> {
 		check
 	}
 
-	fn get_version_number(&self, version: &mut Split<char>, default : &str) -> Result<u8, String> {
+	fn get_version_number(&mut self, start: usize, version: &mut Split<char>, default : &str) -> u8 {
 		let num = match version.next() {
 			None => {
-				return Err(error(
-					"Incomplete version (must be 'X.Y.Z')",
-					self.line,
-					self.column,
-					self.filename,
-				))
+				self.error(
+					"Incomplete version",
+					start..self.read,
+					Some("Version must be 'X.Y.Z'")
+				);
+				return u8::MAX;
 			}
 			Some(num) if num == "*" => default,
 			Some(num) => num,
 		};
 		match num.parse::<u8>() {
-			Ok(num) => Ok(num),
-			Err(_) => Err(error(
-				"Invalid version (must be 'X.Y.Z')",
-				self.line,
-				self.column,
-				self.filename,
-			)),
+			Ok(num) => num,
+			Err(_) => {
+				self.error(
+					"Invalid version",
+					start..self.read,
+					Some("Version must be 'X.Y.Z'")
+				);
+				u8::MAX
+			},
 		}
 	}
 }
@@ -623,7 +617,7 @@ pub fn read_file(
 	filename: &String,
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
-	let result = preprocess_code(&mut check!(fs::read(path.into())), 1, false, filename, options)?;
+	let result = preprocess_code(&mut check!(fs::read(path.into())), 1, false, filename, options).unwrap();
 	Ok((result.0, result.1))
 }
 
@@ -651,7 +645,7 @@ pub fn preprocess_code(
 	is_block: bool,
 	filename: &String,
 	options: &Options,
-) -> Result<(PPCode, PPVars, usize, usize), String> {
+) -> Result<(PPCode, PPVars, usize, usize), ()> {
 	let mut output_dir: Option<PathBuf> = None;
 	let mut finalcode = VecDeque::new();
 	let mut currentcode = Code::with_capacity(code.len());
@@ -660,9 +654,10 @@ pub fn preprocess_code(
 	let mut variables = PPVars::new();
 	let mut pseudos: Option<VecDeque<Code>> = None;
 	let mut bitwise = false;
-	while let Some(c) = code.read_char() {
+	'main: while let Some(c) = code.read_char() {
 		if match c.0 {
 			b'@' => {
+				let start = code.read - 1;
 				let directive_name = code.read_identifier().to_string();
 				code.skip_whitespace();
 				let else_if = directive_name.starts_with("else_if");
@@ -684,12 +679,17 @@ pub fn preprocess_code(
 					"ifndef" => pp_if!(code, ifndef, prev),
 					"ifcmp" => pp_if!(code, ifcmp, prev),
 					"if" => {
+						let errors = code.errors;
 						let check = code.r#if();
-						code.assert_char(b'{');
+						if errors < code.errors || !code.assert_char(b'{') {
+							break;
+						}
 						code.keep_block(prev && check);
 					}
 					"else" => {
-						code.assert_reach(b'{');
+						if !code.assert_reach(b'{') {
+							break;
+						}
 						code.keep_block(!code.last_if);
 					}
 					"import" => {
@@ -701,7 +701,17 @@ pub fn preprocess_code(
 										|| output_dir.to_path_buf(),
 										|output_dir| output_dir.to_path_buf()
 									),
-								None => check!(env::current_dir())
+								None => match env::current_dir() {
+									Ok(current_dir) => current_dir,
+									Err(err) => {
+										code.error(
+											"Could not get the output directory!",
+											code.read - 1..code.read,
+											Some(&err.to_string())
+										);
+										break
+									}
+								}
 							})
 						}
 						let output_dir = output_dir.as_ref().unwrap();
@@ -711,7 +721,8 @@ pub fn preprocess_code(
 								code.read_string(str_start.expect("character should not be None"))
 							}
 							_ => {
-								return Err(expected_before("<path>", "<end>", c.1, c.2, filename))
+								code.expected_before("<path>", "<end>", code.read - 1..code.read, None);
+								continue
 							}
 						}.to_string();
 						let name = code.read_line();
@@ -741,6 +752,7 @@ pub fn preprocess_code(
 						)));
 					}
 					"version" => {
+						let start = code.read - 1;
 						let full_wanted_version = code.read_line();
 						let full_wanted_version = full_wanted_version.trim();
 						#[allow(clippy::type_complexity)]
@@ -759,16 +771,32 @@ pub fn preprocess_code(
 						const CURRENT_MAJOR: &str = env!("CARGO_PKG_VERSION_MAJOR");
 						const CURRENT_MINOR: &str = env!("CARGO_PKG_VERSION_MINOR");
 						const CURRENT_PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
-						let wanted_major = code.get_version_number(wanted_version_iter, CURRENT_MAJOR)?;
-						let wanted_minor = code.get_version_number(wanted_version_iter, CURRENT_MINOR)?;
-						let wanted_patch = code.get_version_number(wanted_version_iter, CURRENT_PATCH)?;
+						let errors = code.errors;
+						let wanted_major = code.get_version_number(
+							start,
+							wanted_version_iter,
+							CURRENT_MAJOR
+						);
+						if errors < code.errors {continue}
+						let wanted_minor = code.get_version_number(
+							start,
+							wanted_version_iter,
+							CURRENT_MINOR
+						);
+						if errors < code.errors {continue}
+						let wanted_patch = code.get_version_number(
+							start,
+							wanted_version_iter,
+							CURRENT_PATCH
+						);
+						if errors < code.errors {continue}
 						let current_major: u8 = CURRENT_MAJOR.parse().unwrap();
 						let current_minor: u8 = CURRENT_MINOR.parse().unwrap();
 						let current_patch: u8 = CURRENT_PATCH.parse().unwrap();
 						if check(&current_major, &wanted_major)
 						|| check(&current_minor, &wanted_minor)
 						|| check(&current_patch, &wanted_patch) {
-							return Err(error(
+							code.error(
 								if full_wanted_version.starts_with('=') {
 									format_clue!(
 										"This code is only compatible with version '",
@@ -782,17 +810,17 @@ pub fn preprocess_code(
 										"'"
 									)
 								},
-								c.1,
-								c.2,
-								filename
-							));
+								start..code.read,
+								None
+							);
+							break;
 						}
 					}
 					"define" => {
 						let name = code.read_identifier();
 						let mut has_values = false;
 						let value = code.read(
-							|code| Ok(code.read_char_unchecked()),
+							CodeFile::read_char_unchecked,
 							|_, (c, ..)| {
 								if c == b'$' {
 									has_values = true;
@@ -817,8 +845,9 @@ pub fn preprocess_code(
 							let mut args = Vec::new();
 							loop {
 								code.skip_whitespace();
+								let start = code.read - 1;
 								if let Some((b'.', line, column)) = code.peek_char_unchecked() {
-									if code.read(|code| Ok(code.peek_char()), |code, (c, ..)| {
+									if code.read(CodeFile::peek_char, |code, (c, ..)| {
 										if c == b'.' {
 											code.read_char_unchecked();
 											false
@@ -831,7 +860,7 @@ pub fn preprocess_code(
 										code.assert_char(b')');
 										break (true, args);
 									} else {
-										return Err(expected(",", ".", line, column, filename));
+										code.expected(",", ".", start..code.read - 1, None);
 									}
 								}
 								let arg = code.read_identifier();
@@ -847,14 +876,17 @@ pub fn preprocess_code(
 										}
 										None => (String::from("<end>"), code.line, code.column),
 									};
-									return Err(expected("<name>", &got, line, column, filename));
+									code.expected("<name>", &got, start..code.read, None);
+									break 'main;
 								}
 								args.push(arg);
 								if let Some((b')', ..)) = code.peek_char_unchecked() {
 									code.read_char_unchecked();
 									break (false, args);
 								}
-								code.assert_char(b',');
+								if !code.assert_char(b',') {
+									break 'main;
+								}
 							}
 						};
 						code.assert_reach(b'{');
@@ -869,15 +901,17 @@ pub fn preprocess_code(
 							},
 						);
 					}
-					"error" => return Err(error(code.read_line(), c.1, c.2, filename)),
+					"error" => {
+						let err = code.read_line();
+						code.error(err, start..code.read, None)
+					},
 					"print" => println!("{}", code.read_line()),
 					_ => {
-						return Err(error(
+						code.error(
 							format!("Unknown directive '{directive_name}'"),
-							c.1,
-							c.2,
-							filename,
-						))
+							start..start + directive_name.len() + 1,
+							None
+						)
 					}
 				}
 				if skip {
@@ -891,7 +925,7 @@ pub fn preprocess_code(
 				let name = format_clue!("_vararg", variables.len().to_string());
 				finalcode.push_back((Code::from((format_clue!("$", name), c.1, c.2)), true));
 				code.read_char_unchecked();
-				let (vararg_code, ppvars) = code.read_macro_block()?;
+				let (vararg_code, ppvars) = code.read_macro_block().unwrap();
 				variables.extend(ppvars);
 				variables.insert(Code::from((name, c.1, c.2)), PPVar::VarArgs(vararg_code));
 				currentcode = Code::with_capacity(code.code.len() - code.read);
@@ -1020,13 +1054,12 @@ pub fn preprocess_code(
 		}
 	}
 	if code.cscope > 0 {
-		return Err(expected_before(
+		code.expected_before(
 			"}",
 			"<end>",
-			code.line,
-			code.column,
-			filename,
-		));
+			code.read - 1..code.read,
+			None
+		);
 	}
 	if !currentcode.is_empty() {
 		size += currentcode.len();

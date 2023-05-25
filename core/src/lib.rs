@@ -167,7 +167,7 @@ impl Clue {
 	///
 	///     Ok(())
 	/// }
-	pub fn preprocess_code(&self, code: String) -> Result<Code, String> {
+	pub fn preprocess_code(&self, code: String) -> Code {
 		let mut code = code;
 		let filename = String::from("(library)");
 		let (codes, variables, ..) = preprocess_code(
@@ -177,8 +177,8 @@ impl Clue {
 			false,
 			&filename,
 			&self.options,
-		)?;
-		preprocess_codes(0, codes, &variables, &filename)
+		).unwrap();
+		preprocess_codes(0, codes, &variables, &filename).unwrap()
 	}
 
 	/// Preprocesses the given file
@@ -212,7 +212,7 @@ impl Clue {
 			.ok_or_else(|| format!("Invalid path: {}", path))?
 			.to_string_lossy()
 			.into_owned();
-		let (codes, variables) = read_file(filepath, &filename, &self.options)?;
+		let (codes, variables) = read_file(filepath, &filename, &self.options).unwrap();
 		preprocess_codes(0, codes, &variables, &filename)
 	}
 }
@@ -289,7 +289,7 @@ impl Clue {
 	///   Ok(())
 	/// }
 	pub fn scan_code(&self, code: String) -> Result<Vec<Token>, String> {
-		let code = self.preprocess_code(code)?;
+		let code = self.preprocess_code(code);
 		self.scan_preprocessed(code)
 	}
 
@@ -316,7 +316,7 @@ impl Clue {
 		&self,
 		filename: P,
 	) -> Result<Vec<Token>, String> {
-		let code = self.preprocess_file(&filename)?;
+		let code = self.preprocess_file(&filename).unwrap();
 		self.scan_preprocessed_file(code, &filename)
 	}
 }
@@ -424,7 +424,7 @@ impl Clue {
 			.ok_or_else(|| format!("Invalid path: {}", path))?
 			.to_string_lossy()
 			.into_owned();
-		let tokens = self.scan_file(&path)?;
+		let tokens = self.scan_file(&path).unwrap();
 
 		parse_tokens(tokens, &filename, &self.options)
 	}
@@ -556,7 +556,7 @@ impl Clue {
 		&self,
 		path: P,
 	) -> Result<String, String> {
-		let tokens = self.scan_file(&path)?;
+		let tokens = self.scan_file(&path).unwrap();
 		let result = self.compile_tokens(tokens)?;
 		if self.options.env_output {
 			fs::write(path, &result).map_err(|e| e.to_string())?;
@@ -580,7 +580,7 @@ impl Default for Clue {
 }
 
 pub trait ErrorMessaging {
-	fn send(&mut self, kind: ColoredString, message: impl Into<String>, range: Range<uisze>, help: Option<&str>) {
+	fn send(&mut self, kind: ColoredString, message: impl Into<String>, range: Range<usize>, help: Option<&str>) {
 		let code = self.get_code();
 		let filename = self.get_filename();
 		let line = self.get_line();
@@ -600,7 +600,7 @@ pub trait ErrorMessaging {
 			errored.red().underline(),
 			after_err.trim_end(),
 			kind,
-			message.into(),
+			message.into().replace('\n', "<new line>").replace('\t', "<tab>"),
 			if let Some(help) = help {
 				format!("\n{}: {}", "Help".cyan().bold(), help)
 			} else {
@@ -626,8 +626,6 @@ pub trait ErrorMessaging {
 	}
 
 	fn get_code(&mut self) -> Vec<char>;
-
-	fn get_range(&mut self) -> Range<usize>;
 
 	fn get_filename(&self) -> &str;
 

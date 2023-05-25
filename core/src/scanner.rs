@@ -558,12 +558,12 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 				(
 					'=',
 					SymbolType::Function(|i| {
-						i.error("'?=' is deprecated", Some("Use '&&=' instead"))
+						i.error("'?=' is deprecated", i.start.index..i.current.index, Some("Use '&&=' instead"))
 					}),
 				),
 				(
 					'>',
-					SymbolType::Function(|i| i.error("'?>' is deprecated", None)),
+					SymbolType::Function(|i| i.error("'?>' is deprecated", i.start.index..i.current.index, None)),
 				),
 				('.', SymbolType::Just(SAFE_DOT)),
 				(
@@ -607,7 +607,7 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 				(
 					'=',
 					SymbolType::Function(|i| {
-						i.error("':=' is deprecated", Some("Use '||=' instead"))
+						i.error("':=' is deprecated", i.start.index..i.current.index, Some("Use '||=' instead"))
 					}),
 				),
 			]),
