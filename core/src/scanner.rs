@@ -184,14 +184,6 @@ impl ErrorMessaging for CodeInfo<'_> {
 		self.filename
 	}
 
-	fn get_line(&self) -> usize {
-		self.current.line
-	}
-
-	fn get_column(&self) -> usize {
-		self.current.column
-	}
-
 	fn is_first(&mut self) -> bool {
 		let first = !self.errored;
 		self.errored = true;
@@ -219,10 +211,22 @@ impl<'a> CodeInfo<'a> {
 		}
 	}
 
+	fn error(&mut self, message: impl Into<String>, help: Option<&str>) {
+		ErrorMessaging::error(
+			self,
+			message,
+			self.current.line,
+			self.current.column,
+			self.start.index..self.current.index,
+			help
+		)
+	}
+
 	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
-		self.error(format!(
-			"'{keyword}' is a reserved keyword in Lua and it cannot be used as a variable",
-		), self.start.index..self.current.index, Some(msg));
+		self.error(
+			format!("'{keyword}' is a reserved keyword in Lua and it cannot be used as a variable"),
+			Some(msg),
+		);
 		IDENTIFIER
 	}
 
@@ -316,7 +320,7 @@ impl<'a> CodeInfo<'a> {
 					if c == '-' && self.peek(2).is_ascii_digit() {
 						self.advance();
 					} else {
-						self.error("Malformed number", self.start.index..self.current.index, None);
+						self.error("Malformed number", None);
 					}
 				}
 				self.advance();
@@ -325,7 +329,7 @@ impl<'a> CodeInfo<'a> {
 				}
 			}
 		} else if self.current.index == start {
-			self.error("Malformed number", self.start.index..self.current.index, None);
+			self.error("Malformed number", None);
 		}
 		let llcheck = self.substr(self.current.index, self.current.index + 2);
 		if llcheck == "LL" {
@@ -334,7 +338,7 @@ impl<'a> CodeInfo<'a> {
 			if self.peek(2) == 'L' {
 				self.current.index += 3;
 			} else {
-				self.error("Malformed number", self.start.index..self.current.index, None);
+				self.error("Malformed number", None);
 			}
 		}
 		self.add_token(NUMBER);
@@ -348,7 +352,7 @@ impl<'a> CodeInfo<'a> {
 			}
 		}
 		if self.ended() {
-			self.error("Unterminated string", self.start.index..self.current.index, None);
+			self.error("Unterminated string", None);
 			false
 		} else {
 			true
@@ -558,12 +562,12 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 				(
 					'=',
 					SymbolType::Function(|i| {
-						i.error("'?=' is deprecated", i.start.index..i.current.index, Some("Use '&&=' instead"))
+						i.error("'?=' is deprecated", Some("Use '&&=' instead"))
 					}),
 				),
 				(
 					'>',
-					SymbolType::Function(|i| i.error("'?>' is deprecated", i.start.index..i.current.index, None)),
+					SymbolType::Function(|i| i.error("'?>' is deprecated", None)),
 				),
 				('.', SymbolType::Just(SAFE_DOT)),
 				(
@@ -607,7 +611,7 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 				(
 					'=',
 					SymbolType::Function(|i| {
-						i.error("':=' is deprecated", i.start.index..i.current.index, Some("Use '||=' instead"))
+						i.error("':=' is deprecated", Some("Use '||=' instead"))
 					}),
 				),
 			]),
@@ -785,7 +789,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 						}
 						KeywordType::Just(kind) => *kind,
 						KeywordType::Error(e) => {
-							i.error(*e, i.start.index..i.current.index, None);
+							i.error(*e, None);
 							IDENTIFIER
 						}
 					}
@@ -794,7 +798,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 				};
 				i.add_token(kind);
 			} else {
-				i.error(format!("Unexpected character '{c}'").as_str(), i.start.index..i.current.index, None);
+				i.error(format!("Unexpected character '{c}'"), None);
 			}
 		}
 	}
