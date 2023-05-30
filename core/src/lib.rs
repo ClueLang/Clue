@@ -589,11 +589,17 @@ fn get_errored_edges<'a, T: Iterator<Item = &'a [char]>>(
 }
 
 pub trait ErrorMessaging {
-	fn send(&mut self, kind: ColoredString, message: impl Into<String>, range: Range<usize>, help: Option<&str>) {
+	fn send(
+		&mut self,
+		kind: ColoredString,
+		message: impl Into<String>,
+		line: usize,
+		column: usize,
+		range: Range<usize>,
+		help: Option<&str>
+	) {
 		let code = self.get_code();
 		let filename = self.get_filename();
-		let line = self.get_line();
-		let column = self.get_column();
 		let before_err = get_errored_edges(&code[..range.start], <[char]>::rsplit);
 		let after_err = get_errored_edges(&code[range.end..], <[char]>::split);
 		let errored: String = code[range].into_iter().collect();
@@ -618,29 +624,55 @@ pub trait ErrorMessaging {
 		);
 	}
 
-	fn error(&mut self, message: impl Into<String>, range: Range<usize>, help: Option<&str>) {
-		self.send("Error".red().bold(), message, range, help)
+	fn error(
+		&mut self,
+		message: impl Into<String>,
+		line: usize,
+		column: usize,
+		range: Range<usize>,
+		help: Option<&str>
+	) {
+		self.send("Error".red().bold(), message, line, column, range, help)
 	}
 
-	fn expected(&mut self, expected: &str, got: &str, range: Range<usize>, help: Option<&str>) {
-		self.send("Error".red().bold(), format!("Expected '{expected}', got '{got}'"), range, help)
+	fn expected(
+		&mut self,
+		expected: &str,
+		got: &str,
+		line: usize,
+		column: usize,
+		range: Range<usize>,
+		help: Option<&str>)
+	{
+		self.error(format!("Expected '{expected}', got '{got}'"), line, column, range, help)
 	}
 
-	fn expected_before(&mut self, expected: &str, before: &str, range: Range<usize>, help: Option<&str>) {
-		self.send("Error".red().bold(), format!("Expected '{expected}' before '{before}'"), range, help)
+	fn expected_before(
+		&mut self,
+		expected: &str,
+		before: &str,
+		line: usize,
+		column: usize,
+		range: Range<usize>,
+		help: Option<&str>
+	) {
+		self.error(format!("Expected '{expected}' before '{before}'"), line, column, range, help)
 	}
 
-	fn warning(&mut self, message: impl Into<String>, range: Range<usize>, help: Option<&str>) {
-		self.send("Warning".yellow().bold(), message, range, help)
+	fn warning(
+		&mut self,
+		message: impl Into<String>,
+		line: usize,
+		column: usize,
+		range: Range<usize>,
+		help: Option<&str>
+	) {
+		self.send("Warning".yellow().bold(), message, line, column, range, help)
 	}
 
 	fn get_code(&mut self) -> Vec<char>;
 
 	fn get_filename(&self) -> &str;
-
-	fn get_line(&self) -> usize;
-
-	fn get_column(&self) -> usize;
 
 	fn is_first(&mut self) -> bool;
 }
