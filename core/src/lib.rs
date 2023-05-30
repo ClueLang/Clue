@@ -579,14 +579,23 @@ impl Default for Clue {
 	}
 }
 
+fn get_errored_edges<'a, T: Iterator<Item = &'a [char]>>(
+    code: &'a [char],
+    splitter: impl FnOnce(&'a [char], &'a dyn Fn(&char) -> bool) -> T,
+) -> String {
+    splitter(code, &|c: &char| *c == '\n')
+        .next()
+        .map_or_else(String::new, |code| code.iter().collect())
+}
+
 pub trait ErrorMessaging {
 	fn send(&mut self, kind: ColoredString, message: impl Into<String>, range: Range<usize>, help: Option<&str>) {
 		let code = self.get_code();
 		let filename = self.get_filename();
 		let line = self.get_line();
 		let column = self.get_column();
-		let before_err: String = code[..range.start].rsplit(|c| *c == '\n').next().unwrap_or(&[]).into_iter().collect();
-		let after_err: String = code[range.end..].split(|c| *c == '\n').next().unwrap_or(&[]).into_iter().collect();
+		let before_err = get_errored_edges(&code[..range.start], <[char]>::rsplit);
+		let after_err = get_errored_edges(&code[range.end..], <[char]>::split);
 		let errored: String = code[range].into_iter().collect();
 		let header = format!("{} in {}:{}:{}!", kind, filename, line, column);
 		eprintln!(
