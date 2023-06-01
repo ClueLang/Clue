@@ -1265,10 +1265,9 @@ pub fn preprocess_variables(
 							args,
 							ppvars,
 							vararg,
-						} => preprocess_codes(
-							stacklevel + 1,
-							code.clone(),
-							&{
+						} => {
+							let vars = env::vars();
+							let macro_variables = {
 								let mut macro_variables = variables.clone();
 								macro_variables.extend(ppvars.clone());
 								let is_called = matches!(chars.next(), Some((b'!', ..)));
@@ -1363,9 +1362,15 @@ pub fn preprocess_variables(
 									));
 								}
 								macro_variables
-							},
-							filename,
-						)?,
+							};
+							let result = preprocess_codes(
+								stacklevel + 1,
+								code.clone(),
+								macro_variables,
+								filename,
+							)?;
+							result
+						}
 						PPVar::VarArgs((codes, size)) => {
 							let mut result = Code::with_capacity(size * 3);
 							let mut variables = variables.clone();
