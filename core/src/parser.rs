@@ -1613,10 +1613,25 @@ impl<'a> ParserInfo<'a> {
 		line: usize,
 		destructure: bool,
 	) -> Result<ComplexToken, String> {
-		let names = self.build_identifier_list()?;
-		if destructure {
-			self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
-		}
+		let (names, key_names) = if destructure {
+			let mut names: Vec<String> = Vec::new();
+			let mut key_names: Vec<String> = Vec::new();
+			loop {
+				let t = self.assert_advance(IDENTIFIER, "<name>")?;
+				names.push(if self.advance_if(ARROW) {
+					self.assert_advance(IDENTIFIER, "<name>")?.lexeme()
+				} else {
+					t.lexeme()
+				});
+				key_names.push(t.lexeme());
+				if !self.advance_if(COMMA) {
+					self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
+					break (names, Some(key_names))
+				}
+			}
+		} else {
+			(self.build_identifier_list()?, None)
+		};
 		let check = self.advance().kind();
 		let mut values: Vec<Expression> = if check != DEFINE {
 			if check == SEMICOLON {
@@ -1637,7 +1652,7 @@ impl<'a> ParserInfo<'a> {
 			self.find_expressions(None)?
 		};
 		self.current -= 1;
-		if destructure {
+		if let Some(key_names) = key_names {
 			let name = self.get_next_internal_var();
 			self.get_prev_expr().push_back(VARIABLE {
 				local: true,
@@ -1646,7 +1661,7 @@ impl<'a> ParserInfo<'a> {
 				line,
 			});
 			values = Vec::new();
-			for key_name in &names {
+			for key_name in key_names {
 				values.push(vec_deque!(SYMBOL(format_clue!(name, ".", key_name))))
 			}
 		}
