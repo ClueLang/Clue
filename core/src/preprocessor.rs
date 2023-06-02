@@ -1266,7 +1266,7 @@ pub fn preprocess_variables(
 							ppvars,
 							vararg,
 						} => {
-							let vars = env::vars();
+							// TODO: See issue #87
 							let macro_variables = {
 								let mut macro_variables = variables.clone();
 								macro_variables.extend(ppvars.clone());
@@ -1366,7 +1366,7 @@ pub fn preprocess_variables(
 							let result = preprocess_codes(
 								stacklevel + 1,
 								code.clone(),
-								macro_variables,
+								&macro_variables,
 								filename,
 							)?;
 							result
