@@ -812,7 +812,6 @@ impl<'a> ParserInfo<'a> {
 		f: impl FnOnce(&mut Self) -> Result<T, String>
 	) -> Result<(T, Expression), String> {
 		self.internal_stack.push(Cell::new(Expression::new()));
-		//let expr = self.build_expression(end)?;
 		let result = f(self)?;
 		let code = self.internal_stack.pop().unwrap().into_inner();
 		Ok((result, code))
@@ -1607,28 +1606,61 @@ impl<'a> ParserInfo<'a> {
 		//}
 	}*/
 
+	fn build_destructure_table(
+		&mut self,
+		names: &mut Vec<String>,
+		key_names: &mut Vec<String>,
+		internal_names: &mut Vec<String>,
+		key_start: String,
+		line: usize,
+	) -> Result<(), String> {
+		loop {
+			let t = self.assert_advance(IDENTIFIER, "<name>")?;
+			names.push(if self.advance_if(ARROW) {
+				if self.advance_if(CURLY_BRACKET_OPEN) {
+					let name = self.get_next_internal_var();
+					internal_names.push(format_clue!(key_start, t.lexeme()));
+					internal_names.push(name.clone());
+					self.build_destructure_table(
+						names,
+						key_names,
+						internal_names,
+						name + ".",
+						line
+					)?;
+					if self.advance_if(COMMA) {
+						continue;
+					} else {
+						self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
+						break Ok(());
+					}
+				} else {
+					self.assert_advance(IDENTIFIER, "<name>")?.lexeme()
+				}
+			} else {
+				t.lexeme()
+			});
+			key_names.push(format_clue!(key_start, t.lexeme()));
+			if !self.advance_if(COMMA) {
+				self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
+				break Ok(());
+			}
+		}
+	}
+
 	fn build_variables(
 		&mut self,
 		local: bool,
 		line: usize,
 		destructure: bool,
 	) -> Result<ComplexToken, String> {
-		let (names, key_names) = if destructure {
-			let mut names: Vec<String> = Vec::new();
-			let mut key_names: Vec<String> = Vec::new();
-			loop {
-				let t = self.assert_advance(IDENTIFIER, "<name>")?;
-				names.push(if self.advance_if(ARROW) {
-					self.assert_advance(IDENTIFIER, "<name>")?.lexeme()
-				} else {
-					t.lexeme()
-				});
-				key_names.push(t.lexeme());
-				if !self.advance_if(COMMA) {
-					self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
-					break (names, Some(key_names))
-				}
-			}
+		let (names, destructure) = if destructure {
+			let mut names = Vec::new();
+			let mut key_names = Vec::new();
+			let name = self.get_next_internal_var();
+			let mut internal_names = vec![name.clone()];
+			self.build_destructure_table(&mut names, &mut key_names, &mut internal_names, name + ".", line)?;
+			(names, Some((key_names, internal_names)))
 		} else {
 			(self.build_identifier_list()?, None)
 		};
@@ -1652,17 +1684,26 @@ impl<'a> ParserInfo<'a> {
 			self.find_expressions(None)?
 		};
 		self.current -= 1;
-		if let Some(key_names) = key_names {
-			let name = self.get_next_internal_var();
-			self.get_prev_expr().push_back(VARIABLE {
+		if let Some((key_names, internal_names)) = destructure {
+			let prev_expr = self.get_prev_expr();
+			let mut names = internal_names.into_iter();
+			prev_expr.push_back(VARIABLE {
 				local: true,
-				names: vec![name.clone()],
+				names: vec![names.next().unwrap()],
 				values,
 				line,
 			});
+			while let (Some(prev_name), Some(name)) = (names.next(), names.next()) {
+				prev_expr.push_back(VARIABLE {
+					local: true,
+					names: vec![name.clone()],
+					values: vec![vec_deque![SYMBOL(prev_name)]],
+					line,
+				});
+			}
 			values = Vec::new();
 			for key_name in key_names {
-				values.push(vec_deque!(SYMBOL(format_clue!(name, ".", key_name))))
+				values.push(vec_deque!(SYMBOL(key_name)))
 			}
 		}
 		Ok(VARIABLE {
