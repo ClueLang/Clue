@@ -1771,6 +1771,7 @@ impl<'a> ParserInfo<'a> {
 				}
 			} else {
 				let expr = if self.advance_if(CURLY_BRACKET_OPEN) {
+					let (names, key_names, internal_names) = self.build_destructure_table(line)?;
 					unimplemented!()
 				} else {
 					self.build_expression(None)?
