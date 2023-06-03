@@ -1608,6 +1608,24 @@ impl<'a> ParserInfo<'a> {
 
 	fn build_destructure_table(
 		&mut self,
+		line: usize
+	) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
+		let mut names = Vec::new();
+		let mut key_names = Vec::new();
+		let name = self.get_next_internal_var();
+		let mut internal_names = vec![name.clone()];
+		self.build_destructure_table_internal(
+			&mut names,
+			&mut key_names,
+			&mut internal_names,
+			name + ".",
+			line
+		)?;
+		Ok((names, key_names, internal_names))
+	}
+
+	fn build_destructure_table_internal(
+		&mut self,
 		names: &mut Vec<String>,
 		key_names: &mut Vec<String>,
 		internal_names: &mut Vec<String>,
@@ -1621,7 +1639,7 @@ impl<'a> ParserInfo<'a> {
 					let name = self.get_next_internal_var();
 					internal_names.push(format_clue!(key_start, t.lexeme()));
 					internal_names.push(name.clone());
-					self.build_destructure_table(
+					self.build_destructure_table_internal(
 						names,
 						key_names,
 						internal_names,
@@ -1655,11 +1673,7 @@ impl<'a> ParserInfo<'a> {
 		destructure: bool,
 	) -> Result<ComplexToken, String> {
 		let (names, destructure) = if destructure {
-			let mut names = Vec::new();
-			let mut key_names = Vec::new();
-			let name = self.get_next_internal_var();
-			let mut internal_names = vec![name.clone()];
-			self.build_destructure_table(&mut names, &mut key_names, &mut internal_names, name + ".", line)?;
+			let (names, key_names, internal_names) = self.build_destructure_table(line)?;
 			(names, Some((key_names, internal_names)))
 		} else {
 			(self.build_identifier_list()?, None)
@@ -1756,7 +1770,11 @@ impl<'a> ParserInfo<'a> {
 					_ => return Err(self.expected("=>", &t.lexeme(), t.line(), t.column())),
 				}
 			} else {
-				let expr = self.build_expression(None)?;
+				let expr = if self.advance_if(CURLY_BRACKET_OPEN) {
+					unimplemented!()
+				} else {
+					self.build_expression(None)?
+				};
 				let t = self.look_back(0);
 				let extra_if = match t.kind() {
 					ARROW => None,
