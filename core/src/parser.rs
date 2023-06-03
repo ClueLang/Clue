@@ -700,7 +700,7 @@ impl<'a> ParserInfo<'a> {
 		&mut self,
 		t: &BorrowedToken,
 		notable: &mut bool,
-		checkback: bool,
+		checkback: Option<&Expression>,
 	) -> Result<(), String> {
 		if match self.peek(0).kind() {
 			NUMBER | IDENTIFIER | STRING | TRUE | FALSE | MINUS | BIT_NOT | NIL | NOT | HASHTAG
@@ -717,8 +717,14 @@ impl<'a> ParserInfo<'a> {
 				t.column(),
 			));
 		}
-		if checkback
-			&& !matches!(
+		if let Some(expr) = checkback {
+			if expr.is_empty() {
+				return Err(self.error(
+					format!("Operator '{}' lacks a left hand token", t.lexeme()),
+					t.line(),
+					t.column(),
+				));
+			} else if !matches!(
 				self.look_back(1).kind(),
 				NUMBER
 					| IDENTIFIER | STRING
@@ -726,11 +732,12 @@ impl<'a> ParserInfo<'a> {
 					| SQUARE_BRACKET_CLOSED
 					| THREEDOTS | CURLY_BRACKET_CLOSED
 			) {
-			return Err(self.error(
-				format!("Operator '{}' has invalid left hand token", t.lexeme()),
-				t.line(),
-				t.column(),
-			));
+				return Err(self.error(
+					format!("Operator '{}' has invalid left hand token", t.lexeme()),
+					t.line(),
+					t.column(),
+				));
+			}
 		}
 		Ok(())
 	}
@@ -743,7 +750,7 @@ impl<'a> ParserInfo<'a> {
 		end: OptionalEnd,
 		notable: &mut bool,
 	) -> Result<(), String> {
-		self.check_operator(t, notable, true)?;
+		self.check_operator(t, notable, Some(expr))?;
 		let mut arg1 = Expression::with_capacity(expr.len());
 		arg1.append(expr);
 		let arg2 = self.build_expression(end)?;
@@ -761,7 +768,7 @@ impl<'a> ParserInfo<'a> {
 		end: OptionalEnd,
 		notable: &mut bool,
 	) -> Result<(), String> {
-		self.check_operator(t, notable, true)?;
+		self.check_operator(t, notable, Some(expr))?;
 		if let Some(bit) = &self.options.env_jitbit {
 			self.build_function_op(t, expr, format!("{bit}.{fname}"), end, notable)?
 		} else {
@@ -846,11 +853,11 @@ impl<'a> ParserInfo<'a> {
 				}
 				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS | EQUAL | BIGGER
 				| BIGGER_EQUAL | SMALLER | SMALLER_EQUAL => {
-					self.check_operator(&t, notable, true)?;
+					self.check_operator(&t, notable, Some(&expr))?;
 					expr.push_back(SYMBOL(t.lexeme()))
 				}
 				MINUS => {
-					self.check_operator(&t, notable, false)?;
+					self.check_operator(&t, notable, None)?;
 					expr.push_back(SYMBOL(if self.look_back(1).kind() == MINUS {
 						format!(" {}", t.lexeme())
 					} else {
@@ -858,7 +865,7 @@ impl<'a> ParserInfo<'a> {
 					}))
 				}
 				FLOOR_DIVISION => {
-					self.check_operator(&t, notable, true)?;
+					self.check_operator(&t, notable, Some(&expr))?;
 					let mut division = Expression::with_capacity(expr.len());
 					division.append(&mut expr);
 					division.push_back(SYMBOL(String::from('/')));
@@ -879,7 +886,7 @@ impl<'a> ParserInfo<'a> {
 					self.build_bitwise_op(&BorrowedToken::new(&t), &mut expr, "bxor", end, notable)?
 				}
 				BIT_NOT => {
-					self.check_operator(&t, notable, false)?;
+					self.check_operator(&t, notable, None)?;
 					if let Some(bit) = self.options.env_jitbit.clone() {
 						let arg = self.build_expression(end)?;
 						expr.push_back(SYMBOL(bit.clone() + ".bnot"));
@@ -892,7 +899,7 @@ impl<'a> ParserInfo<'a> {
 				LEFT_SHIFT => self.build_bitwise_op(&t, &mut expr, "lshift", end, notable)?,
 				RIGHT_SHIFT => self.build_bitwise_op(&t, &mut expr, "rshift", end, notable)?,
 				NOT_EQUAL => {
-					self.check_operator(&t, notable, true)?;
+					self.check_operator(&t, notable, Some(&expr))?;
 					expr.push_back(SYMBOL(String::from("~=")))
 				}
 				HASHTAG => {
@@ -911,15 +918,15 @@ impl<'a> ParserInfo<'a> {
 					expr.push_back(PGET(self.build_identifier(true)?));
 				}*/
 				AND => {
-					self.check_operator(&t, notable, true)?;
+					self.check_operator(&t, notable, Some(&expr))?;
 					expr.push_back(SYMBOL(String::from(" and ")))
 				}
 				OR => {
-					self.check_operator(&t, notable, true)?;
+					self.check_operator(&t, notable, Some(&expr))?;
 					expr.push_back(SYMBOL(String::from(" or ")))
 				}
 				NOT => {
-					self.check_operator(&t, notable, false)?;
+					self.check_operator(&t, notable, None)?;
 					expr.push_back(SYMBOL(String::from("not ")))
 				}
 				MATCH => {
@@ -1660,6 +1667,30 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
+	fn build_table_destructuring(
+		&mut self,
+		internal_names: Vec<String>,
+		values: Vec<Expression>,
+		line: usize,
+	) {
+		let prev_expr = self.get_prev_expr();
+		let mut names = internal_names.into_iter();
+		prev_expr.push_back(VARIABLE {
+			local: true,
+			names: vec![names.next().unwrap()],
+			values,
+			line,
+		});
+		while let (Some(prev_name), Some(name)) = (names.next(), names.next()) {
+			prev_expr.push_back(VARIABLE {
+				local: true,
+				names: vec![name.clone()],
+				values: vec![vec_deque![SYMBOL(prev_name)]],
+				line,
+			});
+		}
+	}
+
 	fn build_variables(
 		&mut self,
 		local: bool,
@@ -1693,22 +1724,7 @@ impl<'a> ParserInfo<'a> {
 		};
 		self.current -= 1;
 		if let Some((key_names, internal_names)) = destructure {
-			let prev_expr = self.get_prev_expr();
-			let mut names = internal_names.into_iter();
-			prev_expr.push_back(VARIABLE {
-				local: true,
-				names: vec![names.next().unwrap()],
-				values,
-				line,
-			});
-			while let (Some(prev_name), Some(name)) = (names.next(), names.next()) {
-				prev_expr.push_back(VARIABLE {
-					local: true,
-					names: vec![name.clone()],
-					values: vec![vec_deque![SYMBOL(prev_name)]],
-					line,
-				});
-			}
+			self.build_table_destructuring(internal_names, values, line);
 			values = Vec::new();
 			for key_name in key_names {
 				values.push(vec_deque!(SYMBOL(key_name)))
@@ -1769,8 +1785,11 @@ impl<'a> ParserInfo<'a> {
 			} else {
 				let ((expr, extra_if), internal_expr) = self.use_internal_stack(|i| {
 					let expr = if i.advance_if(CURLY_BRACKET_OPEN) {
+						unimplemented!();
 						let (names, key_names, internal_names) = i.build_destructure_table()?;
-						unimplemented!()
+						i.build_table_destructuring(internal_names, vec![vec_deque![
+							
+						]], line);
 					} else {
 						i.build_expression(None)?
 					};
