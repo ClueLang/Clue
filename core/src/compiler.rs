@@ -560,11 +560,15 @@ impl<'a> Compiler<'a> {
 							};
 							result += &code;
 						}
-						result.push('\n');
-						for i in (1..last - 1).rev() {
-							result += &(self.indentate(scope + i) + "end\n");
+						if last > 1 {
+							result.push('\n');
+							for i in (1..last - 1).rev() {
+								result += &(self.indentate(scope + i) + "end\n");
+							}
+							format_clue!(result, self.indentate(scope), "end")
+						} else {
+							result
 						}
-						format_clue!(result, self.indentate(scope), "end")
 					};
 					let end = self.indentate_if(ctokens, scope);
 					format_clue!(
