@@ -1606,10 +1606,7 @@ impl<'a> ParserInfo<'a> {
 		//}
 	}*/
 
-	fn build_destructure_table(
-		&mut self,
-		line: usize
-	) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
+	fn build_destructure_table(&mut self) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
 		let mut names = Vec::new();
 		let mut key_names = Vec::new();
 		let name = self.get_next_internal_var();
@@ -1619,7 +1616,6 @@ impl<'a> ParserInfo<'a> {
 			&mut key_names,
 			&mut internal_names,
 			name + ".",
-			line
 		)?;
 		Ok((names, key_names, internal_names))
 	}
@@ -1630,7 +1626,6 @@ impl<'a> ParserInfo<'a> {
 		key_names: &mut Vec<String>,
 		internal_names: &mut Vec<String>,
 		key_start: String,
-		line: usize,
 	) -> Result<(), String> {
 		loop {
 			let t = self.assert_advance(IDENTIFIER, "<name>")?;
@@ -1644,7 +1639,6 @@ impl<'a> ParserInfo<'a> {
 						key_names,
 						internal_names,
 						name + ".",
-						line
 					)?;
 					if self.advance_if(COMMA) {
 						continue;
@@ -1673,7 +1667,7 @@ impl<'a> ParserInfo<'a> {
 		destructure: bool,
 	) -> Result<ComplexToken, String> {
 		let (names, destructure) = if destructure {
-			let (names, key_names, internal_names) = self.build_destructure_table(line)?;
+			let (names, key_names, internal_names) = self.build_destructure_table()?;
 			(names, Some((key_names, internal_names)))
 		} else {
 			(self.build_identifier_list()?, None)
@@ -1775,7 +1769,7 @@ impl<'a> ParserInfo<'a> {
 			} else {
 				let ((expr, extra_if), internal_expr) = self.use_internal_stack(|i| {
 					let expr = if i.advance_if(CURLY_BRACKET_OPEN) {
-						let (names, key_names, internal_names) = i.build_destructure_table(line)?;
+						let (names, key_names, internal_names) = i.build_destructure_table()?;
 						unimplemented!()
 					} else {
 						i.build_expression(None)?
