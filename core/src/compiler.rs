@@ -479,7 +479,8 @@ impl<'a> Compiler<'a> {
 					let branches = {
 						let mut result = self.indentate(scope);
 						let last = branches.len() - 1;
-						for (i, (conditions, extraif, code)) in branches.into_iter().enumerate() {
+						let branches = branches.into_iter().enumerate();
+						for (i, (conditions, internal_expr, extraif, code)) in branches {
 							let empty = conditions.is_empty();
 							let default = empty && extraif.is_none();
 							let condition = {
@@ -505,12 +506,28 @@ impl<'a> Compiler<'a> {
 							} else {
 								"else"
 							};
+							let pre = self.indentate(scope + i);
+							let internal_code = if internal_expr.is_empty() {
+								None
+							} else {
+								Some(self.compile_tokens(scope + i, internal_expr)?)
+							};
 							let code = if i == 0 {
-								self.compile_code_block(
+								let code = self.compile_code_block(
 									scope,
 									&condition,
 									code,
-								)? + end
+								)? + end;
+								if let Some(internal_code) = internal_code {
+									format_clue!(
+										internal_code,
+										'\n',
+										pre,
+										code
+									)
+								} else {
+									code
+								}
 							} else if default {
 								self.compile_code_block(
 									scope + i - 1,
@@ -523,13 +540,19 @@ impl<'a> Compiler<'a> {
 									&condition,
 									code,
 								)?;
-								let pre = self.indentate(scope + i);
 								let mut code = format_clue!(
-									"\n",
+									'\n',
 									pre,
 									code,
 									end
 								);
+								if let Some(internal_code) = internal_code {
+									code = format_clue!(
+										'\n',
+										internal_code,
+										code
+									)
+								}
 								if i >= last {
 									code += &format_clue!('\n', self.indentate(scope + i - 1), "end");
 								}
@@ -538,14 +561,14 @@ impl<'a> Compiler<'a> {
 							result += &code;
 						}
 						result.push('\n');
-						for i in (0..last - 1).rev() {
-							result += &(self.indentate(i) + "end\n");
+						for i in (1..last - 1).rev() {
+							result += &(self.indentate(scope + i) + "end\n");
 						}
-						result
+						format_clue!(result, self.indentate(scope), "end")
 					};
 					let end = self.indentate_if(ctokens, scope);
 					format_clue!(
-						debug, "local ", name, " = ", value, ";", line, "\n", branches, end
+						debug, "local ", name, " = ", value, ';', line, '\n', branches, end
 					)
 				}
 				WHILE_LOOP { condition, code, line } => {

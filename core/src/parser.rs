@@ -52,7 +52,7 @@ pub type FunctionArgs = Vec<(String, Option<(Expression, usize)>)>;
 /// It is a tuple of the token type and the token lexeme.
 type OptionalEnd = Option<(TokenType, &'static str)>;
 
-/// A tuple representing a match case, containing the things you can match, an optional condition and a code block.
+/// A tuple representing a match case, containing the things you can match, it's internal code, an optional condition and a code block.
 /// In the example
 /// ```clue
 /// match x {
@@ -61,7 +61,7 @@ type OptionalEnd = Option<(TokenType, &'static str)>;
 /// ```
 /// the first element of the tuple would be `1`, the second element would be `z == 0`
 /// and the third element would be `{foo()}`.
-type MatchCase = (Vec<Expression>, Option<Expression>, CodeBlock);
+type MatchCase = (Vec<Expression>, Expression, Option<Expression>, CodeBlock);
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -944,8 +944,8 @@ impl<'a> ParserInfo<'a> {
 						unreachable!()
 					};
 					let last_branch = branches.last().unwrap();
-					if !(last_branch.0.is_empty() && last_branch.1.is_none()) {
-						branches.push((Vec::new(), None, CodeBlock {
+					if !(last_branch.0.is_empty() && last_branch.2.is_none()) {
+						branches.push((Vec::new(), Expression::new(), None, CodeBlock {
 							start: *line,
 							code: vec_deque![ALTER {
 								kind: DEFINE,
@@ -1754,15 +1754,18 @@ impl<'a> ParserInfo<'a> {
 								t.column()
 							));
 						}
-						branches.push((Vec::new(), None, func(self /* , self.locals.clone() */)?));
+						branches.push((Vec::new(), Expression::new(), None, func(self /* , self.locals.clone() */)?));
 						self.assert(CURLY_BRACKET_CLOSED, "}")?;
 						false
 					}
 					IF => {
-						let extraif = self.build_expression(Some((ARROW, "=>")))?;
+						let (extra_if, internal_expr) = self.use_internal_stack(|i|
+							i.build_expression(Some((ARROW, "=>")))
+						)?;
 						branches.push((
 							Vec::new(),
-							Some(extraif),
+							internal_expr,
+							Some(extra_if),
 							func(self /* , self.locals.clone() */)?,
 						));
 						!self.advance_if(CURLY_BRACKET_CLOSED)
@@ -1770,18 +1773,21 @@ impl<'a> ParserInfo<'a> {
 					_ => return Err(self.expected("=>", &t.lexeme(), t.line(), t.column())),
 				}
 			} else {
-				let expr = if self.advance_if(CURLY_BRACKET_OPEN) {
-					let (names, key_names, internal_names) = self.build_destructure_table(line)?;
-					unimplemented!()
-				} else {
-					self.build_expression(None)?
-				};
-				let t = self.look_back(0);
-				let extra_if = match t.kind() {
-					ARROW => None,
-					IF => Some(self.build_expression(Some((ARROW, "=>")))?),
-					_ => return Err(self.expected("=>", &t.lexeme(), t.line(), t.column()))
-				};
+				let ((expr, extra_if), internal_expr) = self.use_internal_stack(|i| {
+					let expr = if i.advance_if(CURLY_BRACKET_OPEN) {
+						let (names, key_names, internal_names) = i.build_destructure_table(line)?;
+						unimplemented!()
+					} else {
+						i.build_expression(None)?
+					};
+					let t = i.look_back(0);
+					let extra_if = match t.kind() {
+						ARROW => None,
+						IF => Some(i.build_expression(Some((ARROW, "=>")))?),
+						_ => return Err(i.expected("=>", &t.lexeme(), t.line(), t.column()))
+					};
+					Ok((expr, extra_if))
+				})?;
 				let mut conditions: Vec<Expression> = Vec::new();
 				let mut current = Expression::with_capacity(3);
 				for ctoken in expr {
@@ -1796,7 +1802,12 @@ impl<'a> ParserInfo<'a> {
 				if !current.is_empty() {
 					conditions.push(current);
 				}
-				branches.push((conditions, extra_if, func(self /* , self.locals.clone() */)?));
+				branches.push((
+					conditions,
+					internal_expr,
+					extra_if,
+					func(self /* , self.locals.clone() */)?
+				));
 				!self.advance_if(CURLY_BRACKET_CLOSED)
 			}
 		} {}
