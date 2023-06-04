@@ -12,8 +12,7 @@ use crate::{
 };
 
 use self::TokenType::*;
-use ahash::AHashMap;
-use lazy_static::lazy_static;
+use phf::phf_map;
 use std::fmt;
 
 #[cfg(feature = "serde")]
@@ -595,87 +594,48 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 	('`', SymbolType::Function(|i| i.read_raw_string())),
 ]);
 
-lazy_static! {
-	static ref KEYWORDS: AHashMap<&'static str, KeywordType> = AHashMap::from([
-		(
-			"and",
-			KeywordType::Reserved("'and' operators in Clue are made with '&&'")
-		),
-		(
-			"not",
-			KeywordType::Reserved("'not' operators in Clue are made with '!'")
-		),
-		(
-			"or",
-			KeywordType::Reserved("'or' operators in Clue are made with '||'")
-		),
-		(
-			"do",
-			KeywordType::Reserved("'do ... end' blocks in Clue are made like this: '{ ... }'")
-		),
-		(
-			"end",
-			KeywordType::Reserved("code blocks in Clue are closed with '}'")
-		),
-		(
-			"function",
-			KeywordType::Reserved("functions in Clue are defined with the 'fn' keyword")
-		),
-		(
-			"repeat",
-			KeywordType::Reserved(
-				"'repeat ... until x' loops in Clue are made like this: 'loop { ... } until x'"
-			)
-		),
-		(
-			"then",
-			KeywordType::Reserved("code blocks in Clue are opened with '{'")
-		),
-		("if", KeywordType::Lua(IF)),
-		("elseif", KeywordType::Lua(ELSEIF)),
-		("else", KeywordType::Lua(ELSE)),
-		("for", KeywordType::Lua(FOR)),
-		("in", KeywordType::Lua(IN)),
-		("while", KeywordType::Lua(WHILE)),
-		("until", KeywordType::Lua(UNTIL)),
-		("local", KeywordType::Lua(LOCAL)),
-		("return", KeywordType::Lua(RETURN)),
-		("true", KeywordType::Lua(TRUE)),
-		("false", KeywordType::Lua(FALSE)),
-		("nil", KeywordType::Lua(NIL)),
-		("break", KeywordType::Lua(BREAK)),
-		("of", KeywordType::Just(OF)),
-		("with", KeywordType::Just(WITH)),
-		("meta", KeywordType::Just(META)),
-		("global", KeywordType::Just(GLOBAL)),
-		("fn", KeywordType::Just(FN)),
-		("method", KeywordType::Just(METHOD)),
-		("loop", KeywordType::Just(LOOP)),
-		("static", KeywordType::Just(STATIC)),
-		("enum", KeywordType::Just(ENUM)),
-		("continue", KeywordType::Just(CONTINUE)),
-		("try", KeywordType::Just(TRY)),
-		("catch", KeywordType::Just(CATCH)),
-		("match", KeywordType::Just(MATCH)),
-		("default", KeywordType::Just(DEFAULT)),
-		(
-			"macro",
-			KeywordType::Error("'macro' is deprecated and was replaced with '@define'")
-		),
-		(
-			"constructor",
-			KeywordType::Error("'constructor' is reserved for Clue 4.0 and cannnot be used.")
-		),
-		(
-			"struct",
-			KeywordType::Error("'struct' is reserved for Clue 4.0 and cannot be used")
-		),
-		(
-			"extern",
-			KeywordType::Error("'extern' is reserved for Clue 4.0 and cannot be used")
-		),
-	]);
-}
+static KEYWORDS: phf::Map<&'static [u8], KeywordType> = phf_map! {
+	b"and" => KeywordType::Reserved("'and' operators in Clue are made with '&&'"),
+	b"not" => KeywordType::Reserved("'not' operators in Clue are made with '!'"),
+	b"or" => KeywordType::Reserved("'or' operators in Clue are made with '||'"),
+	b"do" => KeywordType::Reserved("'do ... end' blocks in Clue are made like this: '{ ... }'"),
+	b"end" => KeywordType::Reserved("code blocks in Clue are closed with '}'"),
+	b"function" => KeywordType::Reserved("functions in Clue are defined with the 'fn' keyword"),
+	b"repeat" => KeywordType::Reserved(
+		"'repeat ... until x' loops in Clue are made like this: 'loop { ... } until x'"
+	),
+	b"then" => KeywordType::Reserved("code blocks in Clue are opened with '{'"),
+	b"if" => KeywordType::Lua(IF),
+	b"elseif" => KeywordType::Lua(ELSEIF),
+	b"else" => KeywordType::Lua(ELSE),
+	b"for" => KeywordType::Lua(FOR),
+	b"in" => KeywordType::Lua(IN),
+	b"while" => KeywordType::Lua(WHILE),
+	b"until" => KeywordType::Lua(UNTIL),
+	b"local" => KeywordType::Lua(LOCAL),
+	b"return" => KeywordType::Lua(RETURN),
+	b"true" => KeywordType::Lua(TRUE),
+	b"false" => KeywordType::Lua(FALSE),
+	b"nil" => KeywordType::Lua(NIL),
+	b"break" => KeywordType::Lua(BREAK),
+	b"of" => KeywordType::Just(OF),
+	b"with" => KeywordType::Just(WITH),
+	b"meta" => KeywordType::Just(META),
+	b"global" => KeywordType::Just(GLOBAL),
+	b"fn" => KeywordType::Just(FN),
+	b"method" => KeywordType::Just(METHOD),
+	b"loop" => KeywordType::Just(LOOP),
+	b"static" => KeywordType::Just(STATIC),
+	b"enum" => KeywordType::Just(ENUM),
+	b"continue" => KeywordType::Just(CONTINUE),
+	b"try" => KeywordType::Just(TRY),
+	b"catch" => KeywordType::Just(CATCH),
+	b"match" => KeywordType::Just(MATCH),
+	b"default" => KeywordType::Just(DEFAULT),
+	b"constructor" => KeywordType::Error("'constructor' is reserved for Clue 4.0 and cannnot be used."),
+	b"struct" => KeywordType::Error("'struct' is reserved for Clue 4.0 and cannot be used"),
+	b"extern" =>KeywordType::Error("'extern' is reserved for Clue 4.0 and cannot be used"),
+};
 
 /// Scans the code and returns a [`Vec`] of [`Token`]s
 /// It takes a preprocessed code and a filename as arguments
@@ -738,7 +698,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 				}
 			} else if c.is_ascii_alphabetic() || c == '_' {
 				let ident = i.read_identifier();
-				let kind = if let Some(keyword) = KEYWORDS.get(ident.as_str()) {
+				let kind = if let Some(keyword) = KEYWORDS.get(ident.as_bytes()) {
 					match keyword {
 						KeywordType::Lua(kind) => *kind,
 						KeywordType::Reserved(e) => i.reserved(&ident, e),

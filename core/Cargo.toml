@@ -12,7 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-lazy_static = "1.4.0"
+phf = { version = "0.11", features = ["macros"] }
 utf8-decode = "1.0.1"
 ahash.workspace = true
 clap.workspace = true
