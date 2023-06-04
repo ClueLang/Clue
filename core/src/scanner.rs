@@ -520,16 +520,6 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 		'?',
 		SymbolType::Symbols(
 			generate_map(&[
-				(
-					'=',
-					SymbolType::Function(|i| {
-						i.warning("'?=' is deprecated and was replaced with '&&='")
-					}),
-				),
-				(
-					'>',
-					SymbolType::Function(|i| i.warning("'?>' is deprecated")),
-				),
 				('.', SymbolType::Just(SAFE_DOT)),
 				(
 					':',
@@ -569,12 +559,6 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 		SymbolType::Symbols(
 			generate_map(&[
 				(':', SymbolType::Just(DOUBLE_COLON)),
-				(
-					'=',
-					SymbolType::Function(|i| {
-						i.warning("':=' is deprecated and was replaced with '||='")
-					}),
-				),
 			]),
 			COLON,
 		),
