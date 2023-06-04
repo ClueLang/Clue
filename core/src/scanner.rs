@@ -18,15 +18,15 @@ use std::fmt;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-type SymbolsMap<'a> = [Option<&'a SymbolType<'a>>; 127];
+type SymbolsMap = [Option<&'static SymbolType>; 94];
 
-const fn generate_map<'a>(elements: &'a [(char, SymbolType)]) -> SymbolsMap<'a> {
-	let mut map = [None; 127];
+const fn generate_map(elements: &'static [(char, SymbolType)]) -> SymbolsMap {
+	let mut map = [None; 94];
 	let mut i = 0;
 	while i < elements.len() {
 		let (key, value) = &elements[i];
 		let key = *key as usize;
-		map[key] = Some(value);
+		map[key - '!' as usize] = Some(value);
 		i += 1;
 	}
 	map
@@ -365,7 +365,10 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	fn scan_char(&mut self, symbols: &SymbolsMap, c: char) -> bool {
-		if let Some(Some(token)) = symbols.get(c as usize) {
+		let Some(c) = (c as usize).checked_sub('!' as usize) else {
+			return false;
+		};
+		if let Some(Some(token)) = symbols.get(c) {
 			match token {
 				SymbolType::Just(kind) => self.add_token(*kind),
 				SymbolType::Symbols(symbols, default) => {
@@ -389,13 +392,13 @@ impl<'a> CodeInfo<'a> {
 }
 
 #[derive(Clone)]
-enum SymbolType<'a> {
+enum SymbolType {
 	Just(TokenType),
 	Function(fn(&mut CodeInfo)),
-	Symbols(SymbolsMap<'a>, TokenType),
+	Symbols(SymbolsMap, TokenType),
 }
 
-impl<'a> fmt::Debug for SymbolType<'a> {
+impl fmt::Debug for SymbolType {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(
 			f,
