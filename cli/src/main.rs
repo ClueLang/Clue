@@ -151,6 +151,7 @@ struct Cli {
 	#[clap(short, long)]
 	execute: bool,
 
+	#[cfg(feature = "lsp")]
 	/// Print the symbol table of the compiled files
 	#[clap(long, hide(true))]
 	symbols: bool,

@@ -13,7 +13,7 @@ use std::thread::{self, JoinHandle};
 
 use crate::compile_code;
 
-type CodeQueue<'a> = SegQueue<(PPCode, String, String)>;
+type CodeQueue = SegQueue<(PPCode, String, String)>;
 
 struct PreprocessorAnalyzerData {
 	errored: bool,
