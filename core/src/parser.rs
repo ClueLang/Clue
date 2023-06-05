@@ -1781,15 +1781,7 @@ impl<'a> ParserInfo<'a> {
 				}
 			} else {
 				let ((expr, extra_if), internal_expr) = self.use_internal_stack(|i| {
-					let expr = if i.advance_if(CURLY_BRACKET_OPEN) {
-						unimplemented!();
-						let (names, key_names, internal_names) = i.build_destructure_table()?;
-						i.build_table_destructuring(internal_names, vec![vec_deque![
-							
-						]], line);
-					} else {
-						i.build_expression(None)?
-					};
+					let expr = i.build_expression(None)?;
 					let t = i.look_back(0);
 					let extra_if = match t.kind() {
 						ARROW => None,
