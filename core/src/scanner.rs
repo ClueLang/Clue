@@ -57,8 +57,7 @@ pub enum TokenType {
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, UNTIL,
 	LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP, STATIC, ENUM,
-	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT, ASYNC, YIELD,
-	STRUCT, EXTERN, CONSTRUCTOR,
+	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT, STRUCT, EXTERN, CONSTRUCTOR,
 
 	EOF,
 }
@@ -619,8 +618,6 @@ static KEYWORDS: phf::Map<&'static [u8], KeywordType> = phf_map! {
 	b"catch" => KeywordType::Just(CATCH),
 	b"match" => KeywordType::Just(MATCH),
 	b"default" => KeywordType::Just(DEFAULT),
-	b"async" => KeywordType::Just(ASYNC),
-	b"yield" => KeywordType::Just(YIELD),
 	b"constructor" => KeywordType::Error("'constructor' is reserved for Clue 4.0 and cannnot be used."),
 	b"struct" => KeywordType::Error("'struct' is reserved for Clue 4.0 and cannot be used"),
 	b"extern" =>KeywordType::Error("'extern' is reserved for Clue 4.0 and cannot be used"),

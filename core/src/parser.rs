@@ -1089,20 +1089,6 @@ impl<'a> ParserInfo<'a> {
 						break t;
 					}
 				}
-				ASYNC => {
-					let async_expr = self.build_expression(end)?;
-					expr.push_back(IDENT {
-						expr: vec_deque![
-							SYMBOL(String::from("coroutine.wrap")),
-							CALL(vec![async_expr])
-						],
-						line: t.line()
-					});
-					self.current -= 1;
-					if self.check_val() {
-						break t;
-					}
-				}
 				SEMICOLON => {
 					self.current += 1;
 					break t;
@@ -2176,24 +2162,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	fn parse_token_yield(&mut self, line: usize) -> Result<(), String> {
-		let exprs = if self.ended() || self.advance_if(SEMICOLON) {
-			Vec::new()
-		} else {
-			let exprs = self.find_expressions(None)?;
-			self.current -= 1;
-			exprs
-		};
-		self.expr.push_back(IDENT {
-			expr: vec_deque![
-				SYMBOL(String::from("coroutine.yield")),
-				CALL(exprs)
-			],
-			line
-		});
-		Ok(())
-	}
-
 	fn parse_token_try(&mut self) -> Result<(), String> {
 		let totry = self.build_code_block(/*self.locals.clone()*/)?;
 		let error: Option<String>;
@@ -2285,7 +2253,6 @@ pub fn parse_tokens(
 			CONTINUE => i.parse_token_continue()?,
 			BREAK => i.parse_token_break()?,
 			RETURN => i.parse_token_return()?,
-			YIELD => i.parse_token_yield(t.line())?,
 			TRY => i.parse_token_try()?,
 			FN | ENUM => i.parse_token_fn_enum(&t)?,
 			EOF => break,
