@@ -1089,6 +1089,20 @@ impl<'a> ParserInfo<'a> {
 						break t;
 					}
 				}
+				ASYNC => {
+					let async_expr = self.build_expression(end)?;
+					expr.push_back(IDENT {
+						expr: vec_deque![
+							SYMBOL(String::from("coroutine.wrap")),
+							CALL(vec![async_expr])
+						],
+						line: t.line()
+					});
+					self.current -= 1;
+					if self.check_val() {
+						break t;
+					}
+				}
 				SEMICOLON => {
 					self.current += 1;
 					break t;
@@ -2149,16 +2163,34 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_token_return(&mut self) -> Result<(), String> {
-		let expr = if self.ended() || self.advance_if(SEMICOLON) {
+		let exprs = if self.ended() || self.advance_if(SEMICOLON) {
 			None
 		} else {
 			Some(self.find_expressions(None)?)
 		};
-		self.expr.push_back(RETURN_EXPR(expr));
+		self.expr.push_back(RETURN_EXPR(exprs));
 		if !self.ended() {
 			let t = self.look_back(0);
 			return Err(self.expected("<end>", &t.lexeme(), t.line(), t.column()))
 		}
+		Ok(())
+	}
+
+	fn parse_token_yield(&mut self, line: usize) -> Result<(), String> {
+		let exprs = if self.ended() || self.advance_if(SEMICOLON) {
+			Vec::new()
+		} else {
+			let exprs = self.find_expressions(None)?;
+			self.current -= 1;
+			exprs
+		};
+		self.expr.push_back(IDENT {
+			expr: vec_deque![
+				SYMBOL(String::from("coroutine.yield")),
+				CALL(exprs)
+			],
+			line
+		});
 		Ok(())
 	}
 
@@ -2253,6 +2285,7 @@ pub fn parse_tokens(
 			CONTINUE => i.parse_token_continue()?,
 			BREAK => i.parse_token_break()?,
 			RETURN => i.parse_token_return()?,
+			YIELD => i.parse_token_yield(t.line())?,
 			TRY => i.parse_token_try()?,
 			FN | ENUM => i.parse_token_fn_enum(&t)?,
 			EOF => break,
