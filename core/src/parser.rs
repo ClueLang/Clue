@@ -12,7 +12,6 @@ use crate::env::{BitwiseMode, ContinueMode, LuaVersion, Options};
 use crate::scanner::{BorrowedToken, TokenType::*};
 use crate::scanner::{Token, TokenType};
 use crate::{check, format_clue};
-use ahash::AHashMap;
 use std::cell::Cell;
 use std::vec;
 use std::{cmp, collections::VecDeque};
@@ -299,7 +298,6 @@ struct ParserInfo<'a> {
 	internal_var_id: u8,
 	internal_stack: Vec<Cell<Expression>>,
 	statics: String,
-	macros: AHashMap<String, Expression>,
 	compiler: Compiler<'a>,
 	//locals: LocalsList,
 }
@@ -319,7 +317,6 @@ impl<'a> ParserInfo<'a> {
 			internal_var_id: 0,
 			internal_stack: Vec::new(),
 			statics: String::new(),
-			macros: AHashMap::default(),
 			compiler: Compiler::new(options, filename),
 			options,
 			// locals,
@@ -2189,14 +2186,6 @@ impl<'a> ParserInfo<'a> {
 		Ok(())
 	}
 
-	fn parse_token_macro(&mut self) -> Result<(), String> {
-		let name = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
-		let code = self.build_expression(None)?;
-		self.current -= 1;
-		self.macros.insert(name, code);
-		Ok(())
-	}
-
 	fn parse_token_fn_enum(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		Err(self.error(
 			format!(
@@ -2265,7 +2254,6 @@ pub fn parse_tokens(
 			BREAK => i.parse_token_break()?,
 			RETURN => i.parse_token_return()?,
 			TRY => i.parse_token_try()?,
-			MACRO => i.parse_token_macro()?,
 			FN | ENUM => i.parse_token_fn_enum(&t)?,
 			EOF => break,
 			_ => return Err(i.expected("<end>", &t.lexeme(), t.line(), t.column())),
