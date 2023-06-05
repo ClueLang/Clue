@@ -27,4 +27,4 @@ mlua = { version = "0.8.3", features = ["luajit", "vendored"], optional = true }
 default = ["interpreter", "rpmalloc", "lsp"]
 interpreter = ["mlua"]
 rpmalloc = ["clue_core/rpmalloc"]
-lsp = ["clue_core/serde"]
+lsp = ["clue_core/lsp"]

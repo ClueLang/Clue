@@ -12,7 +12,7 @@ use crate::{
 use ahash::AHashMap;
 use std::{
 	cmp,
-	collections::VecDeque,
+	collections::{VecDeque, HashMap},
 	env,
 	fs,
 	iter::{Peekable, Rev},
@@ -21,6 +21,9 @@ use std::{
 	u8::{self, MAX},
 };
 use utf8_decode::decode;
+
+#[cfg(feature = "lsp")]
+use serde_json::json;
 
 macro_rules! pp_if {
 	($code:ident, $ifname:ident, $prev:ident) => {{
@@ -1019,14 +1022,26 @@ pub fn preprocess_code(
 	}
 	if bitwise && options.env_jitbit.is_some() {
 		let bit = options.env_jitbit.as_ref().unwrap();
-		let mut loader = Code::from((
-			format_clue!("local ", bit, " = require(\"", bit, "\");"),
-			1,
-			1,
-		));
+		let mut loader = Code::from((format_clue!("local ", bit, " = require(\"", bit, "\");"), 1, 1));
 		let first = finalcode.pop_front().unwrap();
 		loader.append(first.0);
 		finalcode.push_front((loader, first.1));
+	}
+	#[cfg(feature = "lsp")]
+	if options.env_symbols {
+		use PPVar::*;
+		let mut str_variables = HashMap::new();
+		for (name, variable) in &variables {
+			let (name, value) = match variable {
+				Simple(value) | ToProcess(value) => (format_clue!('$', name), value.to_string()),
+				_ => unimplemented!()
+			};
+			str_variables.insert(name, value);
+		}
+		println!("{}", json!({
+			"type": "PPVars",
+			"value": str_variables
+		}));
 	}
 	Ok(((finalcode, size), variables, code.line, code.read))
 }

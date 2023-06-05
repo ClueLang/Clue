@@ -18,6 +18,7 @@ ahash.workspace = true
 clap.workspace = true
 rpmalloc = { version = "0.2.2", optional = true }
 serde = { version = "1.0.159", optional = true }
+serde_json = { version = "1.0.96", optional = true }
 
 [dev-dependencies]
 criterion = "0.4.0"
@@ -32,3 +33,4 @@ harness = false
 [features]
 default = ["rpmalloc"]
 serde = ["serde/derive"]
+lsp = ["serde_json", "serde"]
