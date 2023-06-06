@@ -169,6 +169,7 @@ pub fn compile_code(
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{name}\":\n{tokens:#?}");
 	}
+	unimplemented!();
 	let (ctokens, statics) = parse_tokens(
 		tokens,
 		/*if flag!(env_types) != TypesMode::NONE {
@@ -324,6 +325,7 @@ fn main() -> Result<(), String> {
 	}*/
 	let mut path = cli.path.unwrap();
 	if cli.pathiscode {
+		unimplemented!();
 		let filename = String::from("(command line)");
 		let mut code = path.to_string_lossy().into_owned();
 		let code = unsafe { code.as_bytes_mut() };
@@ -351,6 +353,7 @@ fn main() -> Result<(), String> {
 		};
 	}
 	let (output_path, code) = if path.is_dir() {
+		unimplemented!();
 		let time = Instant::now();
 		let (output, statics) = compile_folder(&path, String::new(), options)?;
 		println!(
