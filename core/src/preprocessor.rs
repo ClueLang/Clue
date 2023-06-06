@@ -116,14 +116,6 @@ impl ErrorMessaging for CodeFile<'_> {
 	fn get_filename(&self) -> &str {
 		self.filename
 	}
-	
-	fn get_line(&self) -> usize {
-		self.line
-	}
-
-	fn get_column(&self) -> usize {
-		self.column
-	}
 
 	fn is_first(&mut self) -> bool {
 		self.errors += 1;
@@ -164,7 +156,13 @@ impl<'a> CodeFile<'a> {
 				let c = decode(
 					&mut self.code[self.read - 1..cmp::min(self.read + 3, self.code.len())].iter().copied()
 				).unwrap().unwrap();
-				self.error(format!("Invalid character '{c}'"), self.read - 1..self.read, None);
+				self.error(
+					format!("Invalid character '{c}'"),
+					line,
+					column,
+					self.read - 1..self.read,
+					None
+				);
 				None
 			}
 		}
@@ -262,6 +260,8 @@ impl<'a> CodeFile<'a> {
 				self.expected_before(
 					&String::from_utf8_lossy(&[wanted_c]),
 					"<end>",
+					self.line,
+					self.column,
 					self.read - 1..self.read,
 					None
 				);
@@ -271,6 +271,8 @@ impl<'a> CodeFile<'a> {
 				self.expected(
 					&String::from_utf8_lossy(&[wanted_c]),
 					&String::from_utf8_lossy(&[c]),
+					line,
+					column,
 					self.read - 1..self.read,
 					None
 				);
@@ -327,7 +329,13 @@ impl<'a> CodeFile<'a> {
 			|code| {
 				let stringc = code.read_char_unchecked();
 				if stringc.is_none() {
-					code.error("Unterminated string", start..code.read, None)
+					code.error(
+						"Unterminated string",
+						c.1,
+						c.2,
+						start..code.read,
+						None
+					)
 				}
 				stringc
 			},
@@ -373,6 +381,8 @@ impl<'a> CodeFile<'a> {
 			self.expected_before(
 				&(end as char).to_string(),
 				"<end>",
+				self.line,
+				self.column,
 				start..self.read,
 				None
 			);
@@ -401,6 +411,8 @@ impl<'a> CodeFile<'a> {
 		self.expected_before(
 			")",
 			"<end>",
+			self.line,
+			self.column,
 			self.read - 1..self.read,
 			None
 		);
@@ -433,6 +445,8 @@ impl<'a> CodeFile<'a> {
 		self.expected_before(
 			"}",
 			"<end>",
+			self.line,
+			self.column,
 			start..self.read,
 			None
 		)
@@ -492,6 +506,8 @@ impl<'a> CodeFile<'a> {
 			self.expected(
 				"==' or '!=",
 				"<end>",
+				self.line,
+				self.column,
 				comp_pos..cmp::min(comp_pos + 2, size),
 				None
 			);
@@ -506,6 +522,8 @@ impl<'a> CodeFile<'a> {
 				self.expected(
 					"==' or '!=",
 					&String::from_utf8_lossy(&comparison),
+					self.line,
+					self.column,
 					comp_pos..comp_pos + 2,
 					None
 				);
@@ -538,7 +556,14 @@ impl<'a> CodeFile<'a> {
 				return false;
 			}
 			if function.is_empty() {
-				self.expected_before("<name>", "(", start..self.read, None);
+				self.expected_before(
+					"<name>",
+					"(",
+					self.line,
+					self.column,
+					start..self.read,
+					None
+				);
 				return false;
 			}
 			self.skip_whitespace();
@@ -556,7 +581,13 @@ impl<'a> CodeFile<'a> {
 					!result
 				}
 				_ => {
-					self.error(format!("Unknown function '{function}'"), start..self.read, None);
+					self.error(
+						format!("Unknown function '{function}'"),
+						self.line,
+						self.column,
+						start..self.read,
+						None
+					);
 					return false;
 				}
 			}
@@ -570,6 +601,8 @@ impl<'a> CodeFile<'a> {
 			None => {
 				self.error(
 					"Incomplete version",
+					self.line,
+					self.column,
 					start..self.read,
 					Some("Version must be 'X.Y.Z'")
 				);
@@ -583,6 +616,8 @@ impl<'a> CodeFile<'a> {
 			Err(_) => {
 				self.error(
 					"Invalid version",
+					self.line,
+					self.column,
 					start..self.read,
 					Some("Version must be 'X.Y.Z'")
 				);
@@ -706,6 +741,8 @@ pub fn preprocess_code(
 									Err(err) => {
 										code.error(
 											"Could not get the output directory!",
+											c.1,
+											c.2,
 											code.read - 1..code.read,
 											Some(&err.to_string())
 										);
@@ -721,7 +758,14 @@ pub fn preprocess_code(
 								code.read_string(str_start.expect("character should not be None"))
 							}
 							_ => {
-								code.expected_before("<path>", "<end>", code.read - 1..code.read, None);
+								code.expected_before(
+									"<path>",
+									"<end>",
+									c.1,
+									c.2,
+									code.read - 1..code.read,
+									None
+								);
 								continue
 							}
 						}.to_string();
@@ -810,6 +854,8 @@ pub fn preprocess_code(
 										"'"
 									)
 								},
+								c.1,
+								c.2,
 								start..code.read,
 								None
 							);
@@ -860,7 +906,14 @@ pub fn preprocess_code(
 										code.assert_char(b')');
 										break (true, args);
 									} else {
-										code.expected(",", ".", start..code.read - 1, None);
+										code.expected(
+											",",
+											".",
+											line,
+											column,
+											start..code.read - 1,
+											None
+										);
 									}
 								}
 								let arg = code.read_identifier();
@@ -876,7 +929,14 @@ pub fn preprocess_code(
 										}
 										None => (String::from("<end>"), code.line, code.column),
 									};
-									code.expected("<name>", &got, start..code.read, None);
+									code.expected(
+										"<name>",
+										&got,
+										line,
+										column,
+										start..code.read,
+										None
+									);
 									break 'main;
 								}
 								args.push(arg);
@@ -903,12 +963,14 @@ pub fn preprocess_code(
 					}
 					"error" => {
 						let err = code.read_line();
-						code.error(err, start..code.read, None)
+						code.error(err, c.1, c.2, start..code.read, None)
 					},
 					"print" => println!("{}", code.read_line()),
 					_ => {
 						code.error(
 							format!("Unknown directive '{directive_name}'"),
+							c.1,
+							c.2,
 							start..start + directive_name.len() + 1,
 							None
 						)
@@ -1057,6 +1119,8 @@ pub fn preprocess_code(
 		code.expected_before(
 			"}",
 			"<end>",
+			code.line,
+			code.column,
 			code.read - 1..code.read,
 			None
 		);
