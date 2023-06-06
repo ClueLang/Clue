@@ -167,7 +167,7 @@ impl Clue {
 	///
 	///     Ok(())
 	/// }
-	pub fn preprocess_code(&self, code: String) -> Code {
+	pub fn preprocess_code(&self, code: String) -> Result<Code, String> {
 		let mut code = code;
 		let filename = String::from("(library)");
 		let (codes, variables, ..) = preprocess_code(
@@ -177,8 +177,8 @@ impl Clue {
 			false,
 			&filename,
 			&self.options,
-		).unwrap();
-		preprocess_codes(0, codes, &variables, &filename).unwrap()
+		)?;
+		preprocess_codes(0, codes, &variables, &filename)
 	}
 
 	/// Preprocesses the given file
@@ -212,7 +212,7 @@ impl Clue {
 			.ok_or_else(|| format!("Invalid path: {}", path))?
 			.to_string_lossy()
 			.into_owned();
-		let (codes, variables) = read_file(filepath, &filename, &self.options).unwrap();
+		let (codes, variables) = read_file(filepath, &filename, &self.options)?;
 		preprocess_codes(0, codes, &variables, &filename)
 	}
 }
@@ -289,7 +289,7 @@ impl Clue {
 	///   Ok(())
 	/// }
 	pub fn scan_code(&self, code: String) -> Result<Vec<Token>, String> {
-		let code = self.preprocess_code(code);
+		let code = self.preprocess_code(code)?;
 		self.scan_preprocessed(code)
 	}
 
@@ -316,7 +316,7 @@ impl Clue {
 		&self,
 		filename: P,
 	) -> Result<Vec<Token>, String> {
-		let code = self.preprocess_file(&filename).unwrap();
+		let code = self.preprocess_file(&filename)?;
 		self.scan_preprocessed_file(code, &filename)
 	}
 }
@@ -556,7 +556,7 @@ impl Clue {
 		&self,
 		path: P,
 	) -> Result<String, String> {
-		let tokens = self.scan_file(&path).unwrap();
+		let tokens = self.scan_file(&path)?;
 		let result = self.compile_tokens(tokens)?;
 		if self.options.env_output {
 			fs::write(path, &result).map_err(|e| e.to_string())?;
