@@ -12,6 +12,7 @@ use lazy_static::lazy_static;
 use std::ops::Range;
 use std::fmt;
 use crate::{
+	finish,
 	code::{Code, CodeChars},
 	format_clue,
 	ErrorMessaging,
@@ -158,7 +159,7 @@ struct CodeInfo<'a> {
 	filename: &'a String,
 	tokens: Vec<Token>,
 	last: TokenType,
-	errored: bool,
+	errors: u8,
 }
 
 impl ErrorMessaging for CodeInfo<'_> {
@@ -185,9 +186,8 @@ impl ErrorMessaging for CodeInfo<'_> {
 	}
 
 	fn is_first(&mut self) -> bool {
-		let first = !self.errored;
-		self.errored = true;
-		first
+		self.errors += 1;
+		self.errors == 1
 	}
 }
 
@@ -207,7 +207,7 @@ impl<'a> CodeInfo<'a> {
 			filename,
 			tokens: Vec::new(),
 			last: EOF,
-			errored: false,
+			errors: 0,
 		}
 	}
 
@@ -802,13 +802,8 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 			}
 		}
 	}
-	if i.errored {
-		return Err(String::from(
-			"Cannot continue until the above errors are fixed",
-		));
-	}
 	i.add_literal_token(EOF, String::from("<end>"));
-	Ok(i.tokens)
+	finish(i.errors, i.tokens)
 }
 
 #[cfg(test)]

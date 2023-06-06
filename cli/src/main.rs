@@ -10,7 +10,7 @@ use clue_core::{
 	preprocessor::*,
 	scanner::*,
 };
-use std::{fs, path::PathBuf, time::Instant};
+use std::{env, fs, path::PathBuf, time::Instant};
 use threads::compile_folder;
 use colored::*;
 
@@ -268,21 +268,22 @@ fn save_result(
 	))
 }
 
-fn main() -> Result<(), String> {
-	std::env::set_var("CLUE_VERSION", crate_version!());
+fn main() {
+	env::set_var("CLUE_VERSION", crate_version!());
 	let cli = Cli::parse();
 	if cli.license {
 		print!(include_str!("../LICENSE"));
-		return Ok(());
-	} /*else if cli.types.is_some() {
-		//TEMPORARY PLACEHOLDER UNTIL 4.0
-		return Err(String::from("Type checking is not supported yet!"));
-	}*/
-
-	if cli.r#continue == ContinueMode::LuaJIT {
+		return;
+	}
+	if cli.r#continue == ContinueMode::LuaJIT { //TODO: REMOVE LUAJIT mode
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
 	}
+	if let Err(e) = start_compilation(cli) {
+		println!("{}: {}", "Error".red().bold(), e.to_string())
+	}
+}
 
+fn start_compilation(cli: Cli) -> Result<(), String> {
 	let mut options = Options {
 		env_outputname: cli.outputname.clone(),
 		env_tokens: cli.tokens,
@@ -311,7 +312,6 @@ fn main() -> Result<(), String> {
 		env_targetos: cli.targetos,
 	};
 	options.preset();
-
 	//let mut code = String::with_capacity(512);
 
 	/*if let Some(bit) = &options.env_jitbit {

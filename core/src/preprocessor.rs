@@ -5,6 +5,7 @@
 
 use crate::{
 	check,
+	finish,
 	code::{Code, CodeChar},
 	env::Options,
 	format_clue,
@@ -419,7 +420,7 @@ impl<'a> CodeFile<'a> {
 		Code::new()
 	}
 
-	fn read_macro_block(&mut self) -> Result<(PPCode, PPVars), ()> {
+	fn read_macro_block(&mut self) -> Result<(PPCode, PPVars), String> {
 		let line = self.line;
 		let len = self.code.len();
 		let block = &mut self.code[self.read..len];
@@ -652,7 +653,7 @@ pub fn read_file(
 	filename: &String,
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
-	let result = preprocess_code(&mut check!(fs::read(path.into())), 1, false, filename, options).unwrap();
+	let result = preprocess_code(&mut check!(fs::read(path.into())), 1, false, filename, options)?;
 	Ok((result.0, result.1))
 }
 
@@ -680,7 +681,7 @@ pub fn preprocess_code(
 	is_block: bool,
 	filename: &String,
 	options: &Options,
-) -> Result<(PPCode, PPVars, usize, usize), ()> {
+) -> Result<(PPCode, PPVars, usize, usize), String> {
 	let mut output_dir: Option<PathBuf> = None;
 	let mut finalcode = VecDeque::new();
 	let mut currentcode = Code::with_capacity(code.len());
@@ -1140,7 +1141,7 @@ pub fn preprocess_code(
 		loader.append(first.0);
 		finalcode.push_front((loader, first.1));
 	}
-	Ok(((finalcode, size), variables, code.line, code.read))
+	finish(code.errors, ((finalcode, size), variables, code.line, code.read))
 }
 
 fn skip_whitespace_backwards(code: &mut Peekable<Rev<std::slice::Iter<u8>>>) {

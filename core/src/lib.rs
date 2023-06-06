@@ -588,6 +588,20 @@ fn get_errored_edges<'a, T: Iterator<Item = &'a [char]>>(
         .map_or_else(String::new, |code| code.iter().collect())
 }
 
+pub fn finish<T>(errors: u8, to_return: T) -> Result<T, String> {
+	match errors {
+		0 => {
+			Ok(to_return)
+		},
+		1 => {
+			Err(String::from("Cannot continue compiling due to the previos error!"))
+		}
+		n => {
+			Err(format!("Cannot continue compiling due to {} previos errors!", n))
+		}
+	}
+}
+
 pub trait ErrorMessaging {
 	fn send(
 		&mut self,
