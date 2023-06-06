@@ -20,7 +20,7 @@ use std::{
 	iter::{Peekable, Rev},
 	path::PathBuf,
 	str::{self, Split},
-	u8::{self, MAX},
+	u8
 };
 use utf8_decode::decode;
 
@@ -62,26 +62,6 @@ pub enum PPVar {
 
 	/// Variadic arguments variable in a macro.
 	VarArgs(PPCode),
-}
-
-fn error(msg: impl Into<String>, line: usize, column: usize, filename: &String) -> String {
-	eprintln!("Error in {filename}:{line}:{column}!");
-	msg.into()
-}
-
-fn expected_before(
-	expected: &str,
-	before: &str,
-	line: usize,
-	column: usize,
-	filename: &String,
-) -> String {
-	error(
-		format_clue!("Expected '", expected, "' before '", before, "'"),
-		line,
-		column,
-		filename,
-	)
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -1242,6 +1222,38 @@ fn read_pseudos(
 	newpseudos
 }
 
+struct CodesInfo<'a> {
+	codes: &'a VecDeque<(Code, bool)>,
+	filename: &'a String,
+	errors: u8,
+}
+
+impl ErrorMessaging for CodesInfo<'_> {
+	fn get_code(&mut self) -> Vec<char> {
+		self.codes
+			.iter()
+			.map(|(codepart, _)|
+				codepart
+					.to_string()
+					.chars()
+					.collect::<Vec<char>>()
+			)
+			.flatten()
+			.collect()
+	}
+
+	fn get_filename(&self) -> &str {
+		self.filename
+	}
+
+	fn is_first(&mut self, error: bool) -> bool {
+		if error {
+			self.errors += 1;
+		}
+		self.errors == 1
+	}
+}
+
 /// Preprocesses the list code segments, expands the variables and returns the final code.
 /// Take a stacklevel, a list of code segments, the variables, and a filename.
 ///
@@ -1276,18 +1288,25 @@ pub fn preprocess_codes(
 	filename: &String,
 ) -> Result<Code, String> {
 	let (mut codes, size) = codes;
+	let mut i = CodesInfo {
+		codes: &codes,
+		filename,
+		errors: 0,
+	};
+	let mut offset = 0;
 	if codes.len() == 1 {
 		Ok(codes.pop_back().unwrap().0)
 	} else {
 		let mut code = Code::with_capacity(size);
-		for (codepart, uses_vars) in codes {
-			code.append(if uses_vars {
-				preprocess_variables(stacklevel, &codepart, codepart.len(), variables, filename)?
+		for (codepart, uses_vars) in &codes {
+			code.append(if *uses_vars {
+				preprocess_variables(stacklevel, codepart, codepart.len(), offset, variables, &mut i, filename)?
 			} else {
-				codepart
-			})
+				codepart.clone()
+			});
+			offset += codepart.len();
 		}
-		Ok(code)
+		finish(i.errors, code)
 	}
 }
 
@@ -1332,8 +1351,9 @@ pub fn preprocess_variables(
 	stacklevel: u8,
 	code: &Code,
 	size: usize,
-	//mut chars: Peekable<Iter<CodeChar>>,
+	offset: usize,
 	variables: &PPVars,
+	i: &mut impl ErrorMessaging,
 	filename: &String,
 ) -> Result<Code, String> {
 	let mut result = Code::with_capacity(size);
@@ -1358,13 +1378,15 @@ pub fn preprocess_variables(
 					}
 					result.push((b'"', c.1, c.2));
 				} else if let Some(value) = variables.get(&name) {
-					if stacklevel == MAX {
-						return Err(error(
+					if stacklevel == u8::MAX {
+						i.error(
 							"Too many variables called (likely recursive)",
 							c.1,
 							c.2,
-							filename,
-						));
+							offset..offset + size,
+							None,
+						);
+						break;
 					}
 					result.append(match value {
 						PPVar::Simple(value) => value.clone(),
@@ -1372,7 +1394,9 @@ pub fn preprocess_variables(
 							stacklevel + 1,
 							value,
 							value.len(),
+							offset,
 							variables,
+							i,
 							filename,
 						)?,
 						PPVar::Macro {
@@ -1389,29 +1413,40 @@ pub fn preprocess_variables(
 								let is_called = matches!(chars.next(), Some((b'!', ..)));
 								if !is_called || !matches!(chars.next(), Some((b'(', ..))) {
 									let name = name.to_string();
-									return Err(error(
-										format!(
-											"Macro not called (replace '${name}{}' with '${name}!()')",
+									i.error(
+										"Macro not called properly",
+										c.1,
+										c.2,
+										offset..offset + size,
+										Some(&format!(
+											"Replace '${name}{}' with '${name}!()'",
 											if is_called {
 												"!"
 											} else {
 												""
 											}
-										),
-										c.1,
-										c.2,
-										filename,
-									));
+										)),
+									);
+									break;
 								}
 								let mut args = args.iter();
 								let mut varargs = 0;
 								let len = macro_variables.len();
+								let mut arg_offset = offset + 3 + name.len();
 								loop {
 									let mut value = Code::new();
 									let mut cscope = 1u8;
 									let end = loop {
 										let Some(c) = chars.next() else {
-											return Err(expected_before(")", "<end>", c.1, c.2, filename))
+											i.expected_before(
+												")",
+												"<end>",
+												c.1,
+												c.2,
+												offset..offset + size,
+												None,
+											);
+											break b'\0';
 										};
 										match c.0 {
 											b'(' => cscope += 1,
@@ -1426,24 +1461,35 @@ pub fn preprocess_variables(
 										}
 										value.push(*c)
 									};
-									let value = value.trim();
+									let value_len = value.len();
+									let value = value.trim_start();
+									arg_offset += value_len - value.len();
+									let value = value.trim_end();
 									if value.is_empty() {
 										if len == macro_variables.len() && end == b')' {
 											break;
 										} else {
 											let end = (end as char).to_string();
-											return Err(expected_before(
-												"<name>", &end, c.1, c.2, filename,
-											));
+											i.expected_before(
+												"<value>",
+												&end,
+												c.1,
+												c.2,
+												offset..offset + size,
+												None,
+											);
 										}
 									}
 									let value = PPVar::Simple(preprocess_variables(
 										stacklevel + 1,
 										&value,
 										value.len(),
+										arg_offset,
 										variables,
+										i,
 										filename,
 									)?);
+									arg_offset += value_len;
 									if let Some(arg_name) = args.next() {
 										macro_variables.insert(arg_name.clone(), value);
 									} else if *vararg {
@@ -1455,27 +1501,30 @@ pub fn preprocess_variables(
 										}
 										macro_variables.insert(arg_name, value);
 									} else {
-										return Err(error(
+										i.error(
 											"Too many arguments passed to macro",
 											c.1,
 											c.2,
-											filename,
-										));
+											offset..offset + size,
+											None,
+										);
+										break;
 									}
 									if end == b')' {
 										break;
 									}
 								}
-								if let Some(missed) = args.next() {
-									return Err(error(
+								while let Some(missed) = args.next() {
+									i.error(
 										format!(
 											"Missing argument '{}' for macro",
 											missed.to_string()
 										),
 										c.1,
 										c.2,
-										filename,
-									));
+										offset..offset + size,
+										None,
+									);
 								}
 								macro_variables
 							},
@@ -1499,12 +1548,13 @@ pub fn preprocess_variables(
 						}
 					});
 				} else {
-					return Err(error(
+					i.error(
 						format_clue!("Value '", name.to_string(), "' not found"),
 						c.1,
 						c.2,
-						filename,
-					));
+						offset..offset + size,
+						None,
+					);
 				};
 			}
 			b'\'' | b'"' | b'`' => {
