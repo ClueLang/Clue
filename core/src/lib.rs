@@ -594,10 +594,10 @@ pub fn finish<T>(errors: u8, to_return: T) -> Result<T, String> {
 			Ok(to_return)
 		},
 		1 => {
-			Err(String::from("Cannot continue compiling due to the previos error!"))
+			Err(String::from("Cannot continue compiling due to the previous error!"))
 		}
 		n => {
-			Err(format!("Cannot continue compiling due to {} previos errors!", n))
+			Err(format!("Cannot continue compiling due to {} previous errors!", n))
 		}
 	}
 }
