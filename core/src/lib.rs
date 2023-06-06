@@ -610,6 +610,7 @@ pub trait ErrorMessaging {
 		line: usize,
 		column: usize,
 		range: Range<usize>,
+		is_first: bool,
 		help: Option<&str>
 	) {
 		let code = self.get_code();
@@ -620,7 +621,7 @@ pub trait ErrorMessaging {
 		let header = format!("{} in {}:{}:{}!", kind, filename, line, column);
 		eprintln!(
 			"{}\n\n{}{}{}\n\n{}: {}{}",
-			if self.is_first() {
+			if is_first {
 				header
 			} else {
 				format!("\n----------------------------------\n\n{}", header)
@@ -646,7 +647,8 @@ pub trait ErrorMessaging {
 		range: Range<usize>,
 		help: Option<&str>
 	) {
-		self.send("Error".red().bold(), message, line, column, range, help)
+		let is_first = self.is_first(true);
+		self.send("Error".red().bold(), message, line, column, range, is_first, help)
 	}
 
 	fn expected(
@@ -681,12 +683,13 @@ pub trait ErrorMessaging {
 		range: Range<usize>,
 		help: Option<&str>
 	) {
-		self.send("Warning".yellow().bold(), message, line, column, range, help)
+		let is_first = self.is_first(false);
+		self.send("Warning".yellow().bold(), message, line, column, range, is_first, help)
 	}
 
 	fn get_code(&mut self) -> Vec<char>;
 
 	fn get_filename(&self) -> &str;
 
-	fn is_first(&mut self) -> bool;
+	fn is_first(&mut self, error: bool) -> bool;
 }

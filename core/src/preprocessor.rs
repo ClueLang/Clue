@@ -118,8 +118,10 @@ impl ErrorMessaging for CodeFile<'_> {
 		self.filename
 	}
 
-	fn is_first(&mut self) -> bool {
-		self.errors += 1;
+	fn is_first(&mut self, error: bool) -> bool {
+		if error {
+			self.errors += 1;
+		}
 		self.errors == 1
 	}
 }
