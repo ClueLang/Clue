@@ -300,8 +300,8 @@ impl Code {
 		CodeChars { code: self.bytes() }
 	}
 
-	/// Trims whitespaces from the start and end of the [`Code`].
-	pub fn trim(mut self) -> Self {
+	/// Trims whitespaces from the start of the [`Code`].
+	pub fn trim_start(mut self) -> Self {
 		while let Some((c, ..)) = self.list.front() {
 			if c.is_ascii_whitespace() {
 				self.list.pop_front();
@@ -309,6 +309,11 @@ impl Code {
 				break;
 			}
 		}
+		self
+	}
+
+	/// Trims whitespaces from the end of the [`Code`].
+	pub fn trim_end(mut self) -> Self {
 		while let Some((c, ..)) = self.list.back() {
 			if c.is_ascii_whitespace() {
 				self.list.pop_back();
@@ -317,5 +322,10 @@ impl Code {
 			}
 		}
 		self
+	}
+
+	/// Trims whitespaces from the start and end of the [`Code`].
+	pub fn trim(self) -> Self {
+		self.trim_start().trim_end()
 	}
 }
