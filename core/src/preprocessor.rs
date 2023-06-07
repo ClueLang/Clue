@@ -43,7 +43,7 @@ pub enum PPVar {
 	Simple(Code),
 
 	/// A variable that has to be processed before expansion.
-	ToProcess(Code, usize),
+	ToProcess(Code),
 
 	/// A macro.
 	Macro {
@@ -846,7 +846,6 @@ pub fn preprocess_code(
 						}
 					}
 					"define" => {
-						let offset = code.read;
 						let name = code.read_identifier();
 						let mut has_values = false;
 						let value = code.read(
@@ -862,7 +861,7 @@ pub fn preprocess_code(
 						variables.insert(
 							name,
 							if has_values {
-								PPVar::ToProcess(value, offset)
+								PPVar::ToProcess(value)
 							} else {
 								PPVar::Simple(value)
 							},
@@ -1255,6 +1254,29 @@ impl ErrorMessaging for CodesInfo<'_> {
 	}
 }
 
+struct ToProcessInfo<'a> {
+	code: &'a Code,
+	filename: &'a String,
+	errors: u8,
+}
+
+impl ErrorMessaging for ToProcessInfo<'_> {
+	fn get_code(&mut self) -> Vec<char> {
+		self.code.clone().chars().collect()
+	}
+
+	fn get_filename(&self) -> &str {
+		self.filename
+	}
+
+	fn is_first(&mut self, error: bool) -> bool {
+		if error {
+			self.errors += 1;
+		}
+		self.errors == 1
+	}
+}
+
 /// Preprocesses the list code segments, expands the variables and returns the final code.
 /// Take a stacklevel, a list of code segments, the variables, and a filename.
 ///
@@ -1391,15 +1413,26 @@ pub fn preprocess_variables(
 					}
 					result.append(match value {
 						PPVar::Simple(value) => value.clone(),
-						PPVar::ToProcess(value, offset) => preprocess_variables(
-							stacklevel + 1,
-							value,
-							value.len(),
-							*offset,
-							variables,
-							i,
-							filename,
-						)?,
+						PPVar::ToProcess(value) => {
+							let mut value_i = ToProcessInfo {
+								code: &value,
+								filename,
+								errors: 0
+							};
+							let processed = preprocess_variables(
+								stacklevel + 1,
+								value,
+								value.len(),
+								0,
+								variables,
+								&mut value_i,
+								filename,
+							)?;
+							for _ in 0..value_i.errors {
+								i.is_first(true);
+							}
+							processed
+						},
 						PPVar::Macro {
 							code,
 							args,
