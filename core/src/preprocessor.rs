@@ -43,7 +43,7 @@ pub enum PPVar {
 	Simple(Code),
 
 	/// A variable that has to be processed before expansion.
-	ToProcess(Code),
+	ToProcess(Code, usize),
 
 	/// A macro.
 	Macro {
@@ -846,6 +846,7 @@ pub fn preprocess_code(
 						}
 					}
 					"define" => {
+						let offset = code.read;
 						let name = code.read_identifier();
 						let mut has_values = false;
 						let value = code.read(
@@ -861,7 +862,7 @@ pub fn preprocess_code(
 						variables.insert(
 							name,
 							if has_values {
-								PPVar::ToProcess(value)
+								PPVar::ToProcess(value, offset)
 							} else {
 								PPVar::Simple(value)
 							},
@@ -1390,11 +1391,11 @@ pub fn preprocess_variables(
 					}
 					result.append(match value {
 						PPVar::Simple(value) => value.clone(),
-						PPVar::ToProcess(value) => preprocess_variables(
+						PPVar::ToProcess(value, offset) => preprocess_variables(
 							stacklevel + 1,
 							value,
 							value.len(),
-							offset,
+							*offset,
 							variables,
 							i,
 							filename,
@@ -1464,6 +1465,7 @@ pub fn preprocess_variables(
 									let value_len = value.len();
 									let value = value.trim_start();
 									arg_offset += value_len - value.len();
+									let value_len = value.len();
 									let value = value.trim_end();
 									if value.is_empty() {
 										if len == macro_variables.len() && end == b')' {
@@ -1489,7 +1491,7 @@ pub fn preprocess_variables(
 										i,
 										filename,
 									)?);
-									arg_offset += value_len;
+									arg_offset += value_len + 1;
 									if let Some(arg_name) = args.next() {
 										macro_variables.insert(arg_name.clone(), value);
 									} else if *vararg {
