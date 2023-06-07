@@ -212,30 +212,30 @@ fn execute_lua_code(code: &str) {
 }
 
 fn finish(
-    debug: bool,
-    #[cfg(feature = "mlua")] execute: bool,
-    output_path: Option<PathBuf>,
-    code: String,
+	debug: bool,
+	#[cfg(feature = "mlua")] execute: bool,
+	output_path: Option<PathBuf>,
+	code: String,
 ) -> Result<(), String> {
-    if debug {
-        let new_output = format!(
-            include_str!("debug.lua"),
-            format_clue!("\t", code.replace('\n', "\n\t"))
-        );
-        if let Some(output_path) = output_path {
-            check!(fs::write(output_path, &new_output));
-        }
-        #[cfg(feature = "mlua")]
-        if execute {
-            execute_lua_code(&new_output)
-        }
-        return Ok(());
-    }
-    #[cfg(feature = "mlua")]
-    if execute {
-        execute_lua_code(&code)
-    }
-    Ok(())
+	if debug {
+		let new_output = format!(
+			include_str!("debug.lua"),
+			format_clue!("\t", code.replace('\n', "\n\t"))
+		);
+		if let Some(output_path) = output_path {
+			check!(fs::write(output_path, &new_output));
+		}
+		#[cfg(feature = "mlua")]
+		if execute {
+			execute_lua_code(&new_output)
+		}
+		return Ok(());
+	}
+	#[cfg(feature = "mlua")]
+	if execute {
+		execute_lua_code(&code)
+	}
+	Ok(())
 }
 
 fn save_result(
@@ -249,10 +249,8 @@ fn save_result(
 				Some(mut output_path) => {
 					match output_path.extension() {
 						Some(extension) if extension != "lua" => {
-							output_path.set_extension(format_clue!(
-								extension.to_string_lossy(),
-								".lua"
-							));
+							output_path
+								.set_extension(format_clue!(extension.to_string_lossy(), ".lua"));
 						}
 						None => {
 							output_path.set_extension("lua");
@@ -279,9 +277,9 @@ fn main() -> Result<(), String> {
 		print!(include_str!("../LICENSE"));
 		return Ok(());
 	} /*else if cli.types.is_some() {
-		//TEMPORARY PLACEHOLDER UNTIL 4.0
-		return Err(String::from("Type checking is not supported yet!"));
-	}*/
+	  //TEMPORARY PLACEHOLDER UNTIL 4.0
+	  return Err(String::from("Type checking is not supported yet!"));
+  }*/
 
 	if cli.r#continue == ContinueMode::LuaJIT {
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
@@ -313,7 +311,10 @@ fn main() -> Result<(), String> {
 		},
 		env_target: cli.target,
 		env_targetos: cli.targetos,
+		#[cfg(feature = "lsp")]
 		env_symbols: cli.symbols,
+        #[cfg(not(feature = "lsp"))]
+        env_symbols: false,
 	};
 	options.preset();
 
@@ -378,10 +379,7 @@ fn main() -> Result<(), String> {
 	} else if {
 		match path.extension() {
 			Some(extension) if extension != "clue" => {
-				path.set_extension(format_clue!(
-					extension.to_string_lossy(),
-					".clue"
-				));
+				path.set_extension(format_clue!(extension.to_string_lossy(), ".clue"));
 			}
 			None => {
 				path.set_extension("clue");
@@ -396,7 +394,10 @@ fn main() -> Result<(), String> {
 		let code = statics + &output;
 		save_result(cli.dontsave, cli.outputname, code)?
 	} else {
-		return Err(format!("{} was not found!", path.to_string_lossy().into_owned()));
+		return Err(format!(
+			"{} was not found!",
+			path.to_string_lossy().into_owned()
+		));
 	};
 
 	#[cfg(feature = "mlua")]
