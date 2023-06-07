@@ -1495,11 +1495,11 @@ pub fn preprocess_variables(
 										}
 										value.push(*c)
 									};
-									let value_len = value.len();
-									let value = value.trim_start();
+									let mut value_len = value.len();
+									value = value.trim_start();
 									arg_offset += value_len - value.len();
-									let value_len = value.len();
-									let value = value.trim_end();
+									value_len = value.len();
+									value = value.trim_end();
 									if value.is_empty() {
 										if len == macro_variables.len() && end == b')' {
 											break;
@@ -1515,7 +1515,7 @@ pub fn preprocess_variables(
 											);
 										}
 									}
-									let value = PPVar::Simple(preprocess_variables(
+									let ppvalue = PPVar::Simple(preprocess_variables(
 										stacklevel + 1,
 										&value,
 										value.len(),
@@ -1526,7 +1526,7 @@ pub fn preprocess_variables(
 									)?);
 									arg_offset += value_len + 1;
 									if let Some(arg_name) = args.next() {
-										macro_variables.insert(arg_name.clone(), value);
+										macro_variables.insert(arg_name.clone(), ppvalue);
 									} else if *vararg {
 										varargs += 1;
 										let mut arg_name = Code::with_capacity(varargs + 1);
@@ -1534,7 +1534,7 @@ pub fn preprocess_variables(
 										for _ in 0..varargs {
 											arg_name.push((b'v', c.1, c.2));
 										}
-										macro_variables.insert(arg_name, value);
+										macro_variables.insert(arg_name, ppvalue);
 									} else {
 										i.error(
 											"Too many arguments passed to macro",
