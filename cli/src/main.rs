@@ -169,7 +169,6 @@ pub fn compile_code(
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{name}\":\n{tokens:#?}");
 	}
-	unimplemented!();
 	let (ctokens, statics) = parse_tokens(
 		tokens,
 		/*if flag!(env_types) != TypesMode::NONE {
@@ -179,7 +178,7 @@ pub fn compile_code(
 		},*/
 		name, options,
 	)?;
-
+	unimplemented!();
 	if options.env_struct {
 		println!("Parsed structure of file \"{name}\":\n{ctokens:#?}");
 	}

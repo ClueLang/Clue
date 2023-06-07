@@ -150,7 +150,7 @@ impl BorrowedToken {
 	}
 }
 
-struct CodeInfo<'a> {
+struct ScannerInfo<'a> {
 	start: TokenPosition,
 	current: TokenPosition,
 	size: usize,
@@ -162,7 +162,7 @@ struct CodeInfo<'a> {
 	errors: u8,
 }
 
-impl ErrorMessaging for CodeInfo<'_> {
+impl ErrorMessaging for ScannerInfo<'_> {
 	fn get_code(&mut self) -> Vec<char> {
 		let mut code = String::with_capacity(self.size);
 		for (c, _, _) in &self.read {
@@ -193,7 +193,7 @@ impl ErrorMessaging for CodeInfo<'_> {
 	}
 }
 
-impl<'a> CodeInfo<'a> {
+impl<'a> ScannerInfo<'a> {
 	fn new(code: Code, filename: &'a String) -> Self {
 		let size = code.len() + 2;
 		let mut code = code.chars();
@@ -432,7 +432,7 @@ impl<'a> CodeInfo<'a> {
 #[derive(Clone)]
 enum SymbolType<'a> {
 	Just(TokenType),
-	Function(fn(&mut CodeInfo)),
+	Function(fn(&mut ScannerInfo)),
 	Symbols(SymbolsMap<'a>, TokenType),
 }
 
@@ -746,7 +746,7 @@ lazy_static! {
 /// }
 /// ```
 pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
-	let mut i: CodeInfo = CodeInfo::new(code, filename);
+	let mut i: ScannerInfo = ScannerInfo::new(code, filename);
 	while !i.ended() && i.peek(0) != '\0' {
 		i.start = i.current;
 		i.update_column();
