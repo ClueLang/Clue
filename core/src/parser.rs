@@ -7,15 +7,17 @@
 #![allow(non_camel_case_types)]
 
 use self::ComplexToken::*;
-use crate::compiler::Compiler;
-use crate::env::{BitwiseMode, ContinueMode, LuaVersion, Options};
-use crate::scanner::{BorrowedToken, TokenType::*};
-use crate::scanner::{Token, TokenType};
-use crate::{check, format_clue};
 use ahash::AHashMap;
-use std::cell::Cell;
-use std::vec;
-use std::{cmp, collections::VecDeque};
+use crate::{
+	compiler::Compiler,
+	env::{BitwiseMode, ContinueMode, LuaVersion, Options},
+	scanner::{BorrowedToken, Token, TokenType, TokenType::*},
+	ErrorMessaging,
+	Code,
+	format_clue,
+	check,
+};
+use std::{cell::Cell, vec, cmp, collections::VecDeque};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -296,17 +298,37 @@ struct ParserInfo<'a> {
 	filename: &'a String,
 	expr: Expression,
 	tokens: Vec<Token>,
+	code: Code,
 	internal_var_id: u8,
 	internal_stack: Vec<Cell<Expression>>,
 	statics: String,
 	macros: AHashMap<String, Expression>,
 	compiler: Compiler<'a>,
+	errors: u8,
 	//locals: LocalsList,
+}
+
+impl ErrorMessaging for ParserInfo<'_> {
+	fn get_code(&mut self) -> Vec<char> {
+		self.chars().collect()
+	}
+
+	fn get_filename(&self) -> &str {
+		self.filename
+	}
+
+	fn is_first(&mut self, error: bool) -> bool {
+		if error {
+			self.errors += 1;
+		}
+		self.errors == 1
+	}
 }
 
 impl<'a> ParserInfo<'a> {
 	fn new(
 		tokens: Vec<Token>, /* , locals: LocalsList */
+		code: Code,
 		filename: &'a String,
 		options: &'a Options,
 	) -> ParserInfo<'a> {
@@ -316,12 +338,14 @@ impl<'a> ParserInfo<'a> {
 			filename,
 			expr: Expression::with_capacity(tokens.len()),
 			tokens,
+			code,
 			internal_var_id: 0,
 			internal_stack: Vec::new(),
 			statics: String::new(),
 			macros: AHashMap::default(),
 			compiler: Compiler::new(options, filename),
 			options,
+			errors: 0,
 			// locals,
 		}
 	}
@@ -2142,11 +2166,12 @@ impl<'a> ParserInfo<'a> {
 /// ```
 pub fn parse_tokens(
 	tokens: Vec<Token>,
+	code: Code,
 	//locals: Option<AHashMap<String, LuaType>>,
 	filename: &String,
 	options: &Options,
 ) -> Result<(Expression, String), String> {
-	let mut i = ParserInfo::new(tokens /* , locals */, filename, options);
+	let mut i = ParserInfo::new(tokens, code /* , locals */, filename, options);
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {

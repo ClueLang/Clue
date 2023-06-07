@@ -165,18 +165,20 @@ pub fn compile_code(
 	if options.env_expand {
 		println!("Preprocessed file \"{name}\":\n{}", code.to_string());
 	}
-	let tokens: Vec<Token> = scan_code(code, name)?;
+	let tokens: Vec<Token> = scan_code(code.clone(), name)?;
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{name}\":\n{tokens:#?}");
 	}
 	let (ctokens, statics) = parse_tokens(
 		tokens,
+		code,
 		/*if flag!(env_types) != TypesMode::NONE {
 			Some(AHashMap::default())
 		} else {
 			None
 		},*/
-		name, options,
+		name,
+		options,
 	)?;
 	unimplemented!();
 	if options.env_struct {
