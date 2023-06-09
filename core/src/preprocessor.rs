@@ -715,15 +715,22 @@ pub fn preprocess_code(
 						} else {
 							"import"
 						};
-						let name = match name.strip_prefix("=>") {
-							Some(name) => name.trim_start(),
-							None => match module.rsplit_once('.') {
+						let (name, is_local) = match name.strip_prefix("=>") {
+							Some(name) => (
+								name.trim_start(),
+								if name.contains(|c| matches!(c, '.' | '[]')) {
+									""
+								} else {
+									"local "
+								}
+							),
+							None => (match module.rsplit_once('.') {
 								Some((_, name)) => name,
 								None => &module,
-							},
+							}, "local "),
 						};
 						currentcode.append(Code::from((
-							format_clue!("local ", name, " = ", function, "(\"", module, "\")"),
+							format_clue!(is_local, name, " = ", function, "(\"", module, "\")"),
 							c.1,
 							c.2,
 						)));
