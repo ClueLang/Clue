@@ -718,7 +718,7 @@ pub fn preprocess_code(
 						let (name, is_local) = match name.strip_prefix("=>") {
 							Some(name) => (
 								name.trim_start(),
-								if name.contains(|c| matches!(c, '.' | '[]')) {
+								if name.contains(|c| matches!(c, '.' | '[')) {
 									""
 								} else {
 									"local "
