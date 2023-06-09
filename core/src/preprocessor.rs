@@ -715,22 +715,59 @@ pub fn preprocess_code(
 						} else {
 							"import"
 						};
-						let (name, is_local) = match name.strip_prefix("=>") {
-							Some(name) => (
-								name.trim_start(),
-								if name.contains(|c| matches!(c, '.' | '[')) {
+						let (name, start) = match name.strip_prefix("=>") {
+							Some(name) =>{
+								let mut trimmed_name = name.trim_start().to_owned();
+								if trimmed_name.is_empty() {
+									return Err(expected(
+										"<name>",
+										"<empty>",
+										code.line,
+										code.column,
+										filename
+									))
+								}
+								if trimmed_name.contains(|c| matches!(c, '$' | '@')) {
+									let (codes, new_variables, ..) = preprocess_code(
+										unsafe { trimmed_name.as_bytes_mut() },
+										code.line,
+										false,
+										filename,
+										options
+									)?;
+									for (key, value) in new_variables {
+										variables.insert(key, value);
+									}
+									trimmed_name = preprocess_codes(
+										0,
+										codes,
+										&variables,
+										filename
+									)?.to_string();
+								}
+								let start = if trimmed_name.contains(|c| matches!(c, '.' | '[')) {
 									""
 								} else {
 									"local "
-								}
-							),
+								};
+								(trimmed_name, start)
+							},
 							None => (match module.rsplit_once('.') {
 								Some((_, name)) => name,
 								None => &module,
-							}, "local "),
+							}.trim().to_string(), "local ")
 						};
+						if name.is_empty() {
+							return Err(expected(
+								"<file name>",
+								"<empty>",
+								c.1,
+								c.2,
+								filename
+							))
+						}
 						currentcode.append(Code::from((
-							format_clue!(is_local, name, " = ", function, "(\"", module, "\")"),
+							format_clue!(start, name, " = ", function, "(\"", module, "\")"),
 							c.1,
 							c.2,
 						)));
