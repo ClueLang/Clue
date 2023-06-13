@@ -1610,6 +1610,7 @@ impl<'a> ParserInfo<'a> {
 		//}
 	}*/
 
+	#[allow(clippy::type_complexity)]
 	fn build_destructure_table(&mut self) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
 		let mut names = Vec::new();
 		let mut key_names = Vec::new();

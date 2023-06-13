@@ -1422,13 +1422,12 @@ pub fn preprocess_variables(
 								}
 								macro_variables
 							};
-							let result = preprocess_codes(
+							preprocess_codes(
 								stacklevel + 1,
 								code.clone(),
 								&macro_variables,
 								filename,
-							)?;
-							result
+							)?
 						}
 						PPVar::VarArgs((codes, size)) => {
 							let mut result = Code::with_capacity(size * 3);
