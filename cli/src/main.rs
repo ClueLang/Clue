@@ -151,6 +151,11 @@ struct Cli {
 	/// Execute the output Lua code once it's compiled
 	#[clap(short, long)]
 	execute: bool,
+
+	#[cfg(feature = "lsp")]
+	/// Print the symbol table of the compiled files
+	#[clap(long, hide(true))]
+	symbols: bool,
 }
 
 pub fn compile_code(
@@ -171,7 +176,7 @@ pub fn compile_code(
 	}
 	let (ctokens, statics) = parse_tokens(
 		tokens,
-		code,
+		//code,
 		/*if flag!(env_types) != TypesMode::NONE {
 			Some(AHashMap::default())
 		} else {
@@ -209,30 +214,30 @@ fn execute_lua_code(code: &str) {
 }
 
 fn finish(
-    debug: bool,
-    #[cfg(feature = "mlua")] execute: bool,
-    output_path: Option<PathBuf>,
-    code: String,
+	debug: bool,
+	#[cfg(feature = "mlua")] execute: bool,
+	output_path: Option<PathBuf>,
+	code: String,
 ) -> Result<(), String> {
-    if debug {
-        let new_output = format!(
-            include_str!("debug.lua"),
-            format_clue!("\t", code.replace('\n', "\n\t"))
-        );
-        if let Some(output_path) = output_path {
-            check!(fs::write(output_path, &new_output));
-        }
-        #[cfg(feature = "mlua")]
-        if execute {
-            execute_lua_code(&new_output)
-        }
-        return Ok(());
-    }
-    #[cfg(feature = "mlua")]
-    if execute {
-        execute_lua_code(&code)
-    }
-    Ok(())
+	if debug {
+		let new_output = format!(
+			include_str!("debug.lua"),
+			format_clue!("\t", code.replace('\n', "\n\t"))
+		);
+		if let Some(output_path) = output_path {
+			check!(fs::write(output_path, &new_output));
+		}
+		#[cfg(feature = "mlua")]
+		if execute {
+			execute_lua_code(&new_output)
+		}
+		return Ok(());
+	}
+	#[cfg(feature = "mlua")]
+	if execute {
+		execute_lua_code(&code)
+	}
+	Ok(())
 }
 
 fn save_result(
@@ -246,10 +251,8 @@ fn save_result(
 				Some(mut output_path) => {
 					match output_path.extension() {
 						Some(extension) if extension != "lua" => {
-							output_path.set_extension(format_clue!(
-								extension.to_string_lossy(),
-								".lua"
-							));
+							output_path
+								.set_extension(format_clue!(extension.to_string_lossy(), ".lua"));
 						}
 						None => {
 							output_path.set_extension("lua");
@@ -311,6 +314,10 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		},
 		env_target: cli.target,
 		env_targetos: cli.targetos,
+		#[cfg(feature = "lsp")]
+		env_symbols: cli.symbols,
+        #[cfg(not(feature = "lsp"))]
+        env_symbols: false,
 	};
 	options.preset();
 	//let mut code = String::with_capacity(512);
@@ -383,10 +390,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 	} else if {
 		match path.extension() {
 			Some(extension) if extension != "clue" => {
-				path.set_extension(format_clue!(
-					extension.to_string_lossy(),
-					".clue"
-				));
+				path.set_extension(format_clue!(extension.to_string_lossy(), ".clue"));
 			}
 			None => {
 				path.set_extension("clue");
@@ -401,7 +405,10 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		let code = statics + &output;
 		save_result(cli.dontsave, cli.outputname, code)?
 	} else {
-		return Err(format!("{} was not found!", path.to_string_lossy().into_owned()));
+		return Err(format!(
+			"{} was not found!",
+			path.to_string_lossy().into_owned()
+		));
 	};
 
 	#[cfg(feature = "mlua")]

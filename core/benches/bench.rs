@@ -1,9 +1,11 @@
 use ahash::AHashMap;
+use clue::{finish, ErrorMessaging};
 use clue::{code::*, compiler::*, env::Options, parser::*, preprocessor::*, scanner::*};
 use clue_core as clue;
 use criterion::{criterion_group, criterion_main, Criterion};
 use crossbeam_queue::SegQueue;
 use flume::Sender;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::thread::JoinHandle;
 use std::{cmp::min, fs, sync::Arc, thread};
@@ -25,6 +27,38 @@ fn wait_threads(threads: Vec<JoinHandle<()>>) {
 	}
 }
 
+struct CodesInfo<'a> {
+	codes: &'a VecDeque<(Code, bool)>,
+	filename: &'a String,
+	errors: u8,
+}
+
+impl ErrorMessaging for CodesInfo<'_> {
+	fn get_code(&mut self) -> Vec<char> {
+		self.codes
+			.iter()
+			.map(|(codepart, _)|
+				codepart
+					.to_string()
+					.chars()
+					.collect::<Vec<char>>()
+			)
+			.flatten()
+			.collect()
+	}
+
+	fn get_filename(&self) -> &str {
+		self.filename
+	}
+
+	fn is_first(&mut self, error: bool) -> bool {
+		if error {
+			self.errors += 1;
+		}
+		self.errors == 1
+	}
+}
+
 fn compile_code(
 	codes: PPCode,
 	variables: &PPVars,
@@ -33,19 +67,26 @@ fn compile_code(
 	options: &Options,
 ) -> Result<(String, String), String> {
 	let (mut codes, size) = codes;
+	let mut i = CodesInfo {
+		codes: &codes,
+		filename: name,
+		errors: 0,
+	};
+	let mut offset = 0;
 	let code = if codes.len() == 1 {
-		codes.pop_back().unwrap().0
+		Ok(codes.pop_back().unwrap().0)
 	} else {
 		let mut code = Code::with_capacity(size);
-		for (codepart, uses_vars) in codes {
-			code.append(if uses_vars {
-				preprocess_variables(0, &codepart, codepart.len(), variables, name)?
+		for (codepart, uses_vars) in &codes {
+			code.append(if *uses_vars {
+				preprocess_variables(0, codepart, codepart.len(), offset, variables, &mut i, name)?
 			} else {
-				codepart
-			})
+				codepart.clone()
+			});
+			offset += codepart.len();
 		}
-		code
-	};
+		finish(i.errors, code)
+	}?;
 	let tokens: Vec<Token> = scan_code(code, name)?;
 	let (ctokens, statics) = parse_tokens(tokens, name, options)?;
 	let code = Compiler::new(options, name).compile_tokens(scope, ctokens)?;

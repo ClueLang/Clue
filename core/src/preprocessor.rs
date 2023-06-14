@@ -752,6 +752,7 @@ pub fn preprocess_code(
 								continue
 							}
 						}.to_string();
+						let mod_end = code.read - 1;
 						let name = code.read_line();
 						let name = name.trim();
 						let mut dirs = module.split('.');
@@ -765,15 +766,62 @@ pub fn preprocess_code(
 						} else {
 							"import"
 						};
-						let name = match name.strip_prefix("=>") {
-							Some(name) => name.trim_start(),
-							None => match module.rsplit_once('.') {
+						let (name, start) = match name.strip_prefix("=>") {
+							Some(name) =>{
+								let mut trimmed_name = name.trim_start().to_owned();
+								if trimmed_name.is_empty() {
+									code.expected(
+										"<name>",
+										"<empty>",
+										code.line,
+										code.column,
+										code.read - 1..code.read,
+										None
+									);
+									continue
+								}
+								if trimmed_name.contains(|c| matches!(c, '$' | '@')) {
+									let (codes, new_variables, ..) = preprocess_code(
+										unsafe { trimmed_name.as_bytes_mut() },
+										code.line,
+										false,
+										filename,
+										options
+									)?;
+									for (key, value) in new_variables {
+										variables.insert(key, value);
+									}
+									trimmed_name = preprocess_codes(
+										0,
+										codes,
+										&variables,
+										filename
+									)?.to_string();
+								}
+								let start = if trimmed_name.contains(|c| matches!(c, '.' | '[')) {
+									""
+								} else {
+									"local "
+								};
+								(trimmed_name, start)
+							},
+							None => (match module.rsplit_once('.') {
 								Some((_, name)) => name,
 								None => &module,
-							},
+							}.trim().to_string(), "local ")
 						};
+						if name.is_empty() {
+							code.expected(
+								"<file name>",
+								"<empty>",
+								c.1,
+								c.2,
+								mod_end - module.len()..mod_end,
+								None
+							)
+						}
 						currentcode.append(Code::from((
-							format_clue!("local ", name, " = ", function, "(\"", module, "\")"),
+							format_clue!(start, name, " = ", function, "(\"", module, "\")"),
 							c.1,
 							c.2,
 						)));
@@ -1114,11 +1162,7 @@ pub fn preprocess_code(
 	}
 	if bitwise && options.env_jitbit.is_some() {
 		let bit = options.env_jitbit.as_ref().unwrap();
-		let mut loader = Code::from((
-			format_clue!("local ", bit, " = require(\"", bit, "\");"),
-			1,
-			1,
-		));
+		let mut loader = Code::from((format_clue!("local ", bit, " = require(\"", bit, "\");"), 1, 1));
 		let first = finalcode.pop_front().unwrap();
 		loader.append(first.0);
 		finalcode.push_front((loader, first.1));
@@ -1438,10 +1482,9 @@ pub fn preprocess_variables(
 							args,
 							ppvars,
 							vararg,
-						} => preprocess_codes(
-							stacklevel + 1,
-							code.clone(),
-							&{
+						} => {
+							// TODO: See issue #87
+							let macro_variables = {
 								let mut macro_variables = variables.clone();
 								macro_variables.extend(ppvars.clone());
 								let is_called = matches!(chars.next(), Some((b'!', ..)));
@@ -1562,9 +1605,14 @@ pub fn preprocess_variables(
 									);
 								}
 								macro_variables
-							},
-							filename,
-						)?,
+							};
+							preprocess_codes(
+								stacklevel + 1,
+								code.clone(),
+								&macro_variables,
+								filename,
+							)?
+						}
 						PPVar::VarArgs((codes, size)) => {
 							let mut result = Code::with_capacity(size * 3);
 							let mut variables = variables.clone();

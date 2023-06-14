@@ -6,9 +6,8 @@
 use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
 
-use crate::env::Options;
 use crate::{
-	env::ContinueMode,
+	env::{ContinueMode, Options},
 	format_clue,
 	parser::{CodeBlock, ComplexToken, ComplexToken::*, Expression, FunctionArgs},
 	scanner::TokenType::*,
@@ -479,18 +478,18 @@ impl<'a> Compiler<'a> {
 					let line = self.compile_debug_comment(line);
 					let branches = {
 						let mut result = self.indentate(scope);
-						let mut branches = branches.into_iter().peekable();
-						while let Some((conditions, extraif, code)) = branches.next() {
+						let last = branches.len() - 1;
+						let branches = branches.into_iter().enumerate();
+						for (i, (conditions, internal_expr, extraif, code)) in branches {
 							let empty = conditions.is_empty();
 							let default = empty && extraif.is_none();
-							let pre = if default { "else" } else { "if" };
 							let condition = {
 								let mut condition =
 									self.compile_list(conditions, "or ", &mut |expr| {
 										let expr = self.compile_expression(scope, expr)?;
 										Ok(format_clue!("(", name, " == ", expr, ") "))
 									})?;
-								if let Some(extraif) = extraif {
+								format_clue!("if ", if let Some(extraif) = extraif {
 									condition.pop();
 									let extraif = self.compile_expression(scope, extraif)?;
 									if empty {
@@ -500,30 +499,80 @@ impl<'a> Compiler<'a> {
 									}
 								} else {
 									condition
-								}
+								}, "then")
 							};
-							let code = self.compile_code_block(
-								scope,
-								if default { "" } else { "then" },
-								code,
-							)?;
-							let end = match branches.peek() {
-								Some((conditions, extraif, _))
-									if conditions.is_empty() && matches!(extraif, None) =>
-								{
-									""
-								}
-								Some(_) => "else",
-								_ => "end",
+							let end = if i >= last {
+								"end"
+							} else {
+								"else"
 							};
-							write!(result, "{pre} {condition}{code}{end}")
-								.map_err(|e| e.to_string())?
+							let pre = self.indentate(scope + i);
+							let internal_code = if internal_expr.is_empty() {
+								None
+							} else {
+								Some(self.compile_tokens(scope + i, internal_expr)?)
+							};
+							let code = if i == 0 {
+								let code = self.compile_code_block(
+									scope,
+									&condition,
+									code,
+								)? + end;
+								if let Some(internal_code) = internal_code {
+									format_clue!(
+										internal_code,
+										'\n',
+										pre,
+										code
+									)
+								} else {
+									code
+								}
+							} else if default {
+								self.compile_code_block(
+									scope + i - 1,
+									"",
+									code,
+								)? + end
+							} else {
+								let code = self.compile_code_block(
+									scope + i,
+									&condition,
+									code,
+								)?;
+								let mut code = format_clue!(
+									'\n',
+									pre,
+									code,
+									end
+								);
+								if let Some(internal_code) = internal_code {
+									code = format_clue!(
+										'\n',
+										internal_code,
+										code
+									)
+								}
+								if i >= last {
+									code += &format_clue!('\n', self.indentate(scope + i - 1), "end");
+								}
+								code
+							};
+							result += &code;
 						}
-						result
+						if last > 1 {
+							result.push('\n');
+							for i in (1..last - 1).rev() {
+								result += &(self.indentate(scope + i) + "end\n");
+							}
+							format_clue!(result, self.indentate(scope), "end")
+						} else {
+							result
+						}
 					};
 					let end = self.indentate_if(ctokens, scope);
 					format_clue!(
-						debug, "local ", name, " = ", value, ";", line, "\n", branches, end
+						debug, "local ", name, " = ", value, ';', line, '\n', branches, end
 					)
 				}
 				WHILE_LOOP { condition, code, line } => {

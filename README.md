@@ -108,9 +108,8 @@ makepkg -si
 ## More coming soon!
 There are still features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
-- types (coming in 4.0)
-- better errors (comming in 4.0)
-- `async` and `yield` (coming in 3.4)
+- type system (coming in 4.0)
+- better error messages (comming in 4.0)
 
 For any suggestion or bug you can make a github issue.
 If you need help with the language itself, you can check out the [Discord server](https://discord.gg/EQsnWpqN3C).
