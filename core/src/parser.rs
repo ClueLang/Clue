@@ -1727,7 +1727,7 @@ impl<'a> ParserInfo<'a> {
 			self.build_table_destructuring(internal_names, values, line);
 			values = Vec::new();
 			for key_name in key_names {
-				values.push(vec_deque!(SYMBOL(key_name)))
+				values.push(vec_deque![SYMBOL(key_name)])
 			}
 		}
 		Ok(VARIABLE {
