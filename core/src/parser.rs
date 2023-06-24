@@ -37,6 +37,14 @@ macro_rules! vec_deque {
     };
 }
 
+macro_rules! bitwise {
+	($self:expr, $t:expr, $expr:expr, $fname:literal, $end:expr, $notable:expr) => {{
+		if $self.build_bitwise_op(&$t, &mut $expr, $fname, $end, $notable)? {
+			break $t;
+		}
+	}};
+}
+
 /// A list of [`ComplexToken`]s, which is the AST.
 pub type Expression = VecDeque<ComplexToken>;
 
@@ -764,14 +772,15 @@ impl<'a> ParserInfo<'a> {
 		fname: &str,
 		end: OptionalEnd,
 		notable: &mut bool,
-	) -> Result<(), String> {
+	) -> Result<bool, String> {
 		self.check_operator(t, notable, Some(expr))?;
-		if let Some(bit) = &self.options.env_jitbit {
-			self.build_function_op(t, expr, format!("{bit}.{fname}"), end, notable)?
+		Ok(if let Some(bit) = &self.options.env_jitbit {
+			self.build_function_op(t, expr, format!("{bit}.{fname}"), end, notable)?;
+			self.check_val()
 		} else {
-			expr.push_back(SYMBOL(t.lexeme()))
-		}
-		Ok(())
+			expr.push_back(SYMBOL(t.lexeme()));
+			false
+		})
 	}
 
 	fn check_index(
@@ -871,16 +880,18 @@ impl<'a> ParserInfo<'a> {
 					expr.push_back(CALL(vec![division]));
 					self.current -= 1;
 				}
-				BIT_AND => self.build_bitwise_op(&t, &mut expr, "band", end, notable)?,
-				BIT_OR => self.build_bitwise_op(&t, &mut expr, "bor", end, notable)?,
+				BIT_AND => bitwise!(self, t, expr, "band", end, notable),
+				BIT_OR => bitwise!(self, t, expr, "bor", end, notable),
 				BIT_XOR => {
 					//SAFETY: the token goes out of scope after BorrowedToken is used, so it stays valid
-					let t = if self.options.env_bitwise == BitwiseMode::Vanilla {
+					let t2 = if self.options.env_bitwise == BitwiseMode::Vanilla {
 						Token::new(t.kind(), '~', t.line(), t.column())
 					} else {
 						t.into_owned()
 					};
-					self.build_bitwise_op(&BorrowedToken::new(&t), &mut expr, "bxor", end, notable)?
+					if self.build_bitwise_op(&BorrowedToken::new(&t2), &mut expr, "bxor", end, notable)? {
+						break t;
+					}
 				}
 				BIT_NOT => {
 					self.check_operator(&t, notable, None)?;
@@ -889,12 +900,15 @@ impl<'a> ParserInfo<'a> {
 						expr.push_back(SYMBOL(bit.clone() + ".bnot"));
 						expr.push_back(CALL(vec![arg]));
 						self.current -= 1;
+						if self.check_val() {
+							break t;
+						}
 					} else {
 						expr.push_back(SYMBOL(t.lexeme()))
 					}
 				}
-				LEFT_SHIFT => self.build_bitwise_op(&t, &mut expr, "lshift", end, notable)?,
-				RIGHT_SHIFT => self.build_bitwise_op(&t, &mut expr, "rshift", end, notable)?,
+				LEFT_SHIFT => bitwise!(self, t, expr, "lshift", end, notable),
+				RIGHT_SHIFT => bitwise!(self, t, expr, "rshift", end, notable),
 				NOT_EQUAL => {
 					self.check_operator(&t, notable, Some(&expr))?;
 					expr.push_back(SYMBOL(String::from("~=")))
