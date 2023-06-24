@@ -19,22 +19,10 @@ use std::{cmp, collections::VecDeque};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-macro_rules! count {
-    () => { 0 };
-    ($x:expr) => { 1 };
-    ($x:expr, $($xs:expr),*) => { 1 + count!($($xs),*) };
-}
-
 macro_rules! vec_deque {
-    ($($e:expr),*) => {
-        {
-            let mut temp_vec_deque = VecDeque::with_capacity(count!($($e),*));
-            $(
-                temp_vec_deque.push_back($e);
-            )*
-			temp_vec_deque
-        }
-    };
+	($($elem:expr),*) => {
+		VecDeque::from([$(($elem)),*])
+	};
 }
 
 macro_rules! bitwise {
