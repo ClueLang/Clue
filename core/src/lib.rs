@@ -4,6 +4,7 @@
 //! It is recommended to use [`Clue`] instead of the lower level APIs unless you need to
 
 use std::{ffi::OsStr, fmt::Display, fs, path::{Path, PathBuf}, ops::Range};
+use ahash::AHashMap;
 use code::Code;
 use compiler::Compiler;
 use env::{BitwiseMode, ContinueMode, LuaVersion, Options};
@@ -61,6 +62,7 @@ macro_rules! format_clue {
     }};
 }
 
+/* TO BE REDONE
 /// The main Clue library API
 /// This is the API that you will use to interact with Clue for most use cases
 /// It's recommended to use this API instead of the lower level APIs unless you need to
@@ -578,7 +580,7 @@ impl Default for Clue {
 	fn default() -> Self {
 		Clue::new()
 	}
-}
+}*/
 
 fn get_errored_edges<'a, T: Iterator<Item = &'a [char]>>(
     code: &'a [char],
