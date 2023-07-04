@@ -23,6 +23,7 @@ pub mod env;
 pub mod parser;
 pub mod preprocessor;
 pub mod scanner;
+pub mod lsp;
 
 #[macro_export]
 /// Check whether `tocheck` is `Ok` or `Err`
