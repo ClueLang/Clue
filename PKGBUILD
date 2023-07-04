@@ -1,6 +1,6 @@
 # Maintainer: Felice D'Angelo <felice.dangelo2013@gmail.com>
 pkgname=clue
-pkgver=4.0.0-indev+01b027ee
+pkgver=4.0.0-indev+c2fa7c6f
 pkgrel=1
 pkgdesc="Clue is a programming language that compiles blazingly fast into Lua code with a syntax similar to languages like C or Rust."
 arch=('x86_64' 'i686' 'aarch64' 'armv7h' 'arm')
