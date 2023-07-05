@@ -10,7 +10,7 @@ use crate::{
 	env::Options,
 	format_clue,
 	ErrorMessaging,
-	SYMBOLS,
+	FILES,
 };
 use ahash::AHashMap;
 use std::{
@@ -21,7 +21,8 @@ use std::{
 	iter::{Peekable, Rev},
 	path::PathBuf,
 	str::{self, Split},
-	u8
+	u8,
+	ops::Range,
 };
 use utf8_decode::decode;
 
@@ -634,7 +635,7 @@ pub fn read_file(
 ) -> Result<(PPCode, PPVars), String> {
 	let mut code = check!(fs::read_to_string(path.into()));
 	let result = unsafe {
-		SYMBOLS.get_mut().unwrap().insert(filename.clone(), code.clone());
+		FILES.get_mut().unwrap().insert(filename.clone(), code.clone());
 		preprocess_code(code.as_bytes_mut(), 1, false, filename, options)?
 	};
 	Ok((result.0, result.1))
@@ -1267,8 +1268,7 @@ fn read_pseudos(
 	newpseudos
 }
 
-struct CodesInfo<'a> {
-	codes: &'a VecDeque<(Code, bool)>,
+pub struct CodesInfo<'a> {
 	filename: &'a String,
 	errors: u8,
 }
@@ -1286,23 +1286,43 @@ impl ErrorMessaging for CodesInfo<'_> {
 	}
 }
 
-struct ToProcessInfo<'a> {
-	code: &'a Code,
-	filename: &'a String,
-	errors: u8,
-}
-
-impl ErrorMessaging for ToProcessInfo<'_> {
-	fn get_filename(&self) -> &str {
-		self.filename
-	}
-
-	fn is_first(&mut self, error: bool) -> bool {
-		if error {
-			self.errors += 1;
+impl CodesInfo<'_> {
+	fn get_index(&self, line: usize, column: usize, len: usize) -> Range<usize> {
+		let mut code = unsafe {
+			FILES.get().unwrap().get(self.filename).unwrap().split('\n')
+		};
+		let mut start = column - 1;
+		for _ in 1..line {
+			start += code.next().unwrap().len() + 1;
 		}
-		self.errors == 1
+		start..start + len
 	}
+
+	fn error(
+		&mut self,
+		message: impl Into<String>,
+		line: usize,
+		column: usize,
+		len: usize,
+		help: Option<&str>
+	) {
+		let range = self.get_index(line, column, len);
+		ErrorMessaging::error(self, message, line, column, range, help);
+	}
+
+	fn expected_before(
+		&mut self,
+		expected: &str,
+		before: &str,
+		line: usize,
+		column: usize,
+		len: usize,
+		help: Option<&str>
+	) {
+		let range = self.get_index(line, column, len);
+		ErrorMessaging::expected_before(self, expected, before, line, column, range, help);
+	}
+
 }
 
 /// Preprocesses the list code segments, expands the variables and returns the final code.
@@ -1340,22 +1360,19 @@ pub fn preprocess_codes(
 ) -> Result<Code, String> {
 	let (mut codes, size) = codes;
 	let mut i = CodesInfo {
-		codes: &codes,
 		filename,
 		errors: 0,
 	};
-	let mut offset = 0;
 	if codes.len() == 1 {
 		Ok(codes.pop_back().unwrap().0)
 	} else {
 		let mut code = Code::with_capacity(size);
-		for (codepart, uses_vars) in &codes {
-			code.append(if *uses_vars {
-				preprocess_variables(stacklevel, codepart, codepart.len(), offset, variables, &mut i, filename)?
+		for (codepart, uses_vars) in codes {
+			code.append(if uses_vars {
+				preprocess_variables(stacklevel, &codepart, codepart.len(), variables, &mut i, filename)?
 			} else {
-				codepart.clone()
+				codepart
 			});
-			offset += codepart.len();
 		}
 		finish(i.errors, code)
 	}
@@ -1402,9 +1419,8 @@ pub fn preprocess_variables(
 	stacklevel: u8,
 	code: &Code,
 	size: usize,
-	offset: usize,
 	variables: &PPVars,
-	i: &mut impl ErrorMessaging,
+	i: &mut CodesInfo,
 	filename: &String,
 ) -> Result<Code, String> {
 	let mut result = Code::with_capacity(size);
@@ -1431,36 +1447,24 @@ pub fn preprocess_variables(
 				} else if let Some(value) = variables.get(&name) {
 					if stacklevel == u8::MAX {
 						i.error(
-							"Too many variables called (likely recursive)",
+							"Too many variables called",
 							c.1,
 							c.2,
-							offset..offset + size,
-							None,
+							name.len() + 1,
+							Some("Likely caused by recursion"),
 						);
 						break;
 					}
 					result.append(match value {
 						PPVar::Simple(value) => value.clone(),
-						PPVar::ToProcess(value) => {
-							let mut value_i = ToProcessInfo {
-								code: &value,
-								filename,
-								errors: 0
-							};
-							let processed = preprocess_variables(
-								stacklevel + 1,
-								value,
-								value.len(),
-								0,
-								variables,
-								&mut value_i,
-								filename,
-							)?;
-							for _ in 0..value_i.errors {
-								i.is_first(true);
-							}
-							processed
-						},
+						PPVar::ToProcess(value) => preprocess_variables(
+							stacklevel + 1,
+							value,
+							value.len(),
+							variables,
+							i,
+							filename,
+						)?,
 						PPVar::Macro {
 							code,
 							args,
@@ -1478,7 +1482,7 @@ pub fn preprocess_variables(
 										"Macro not called properly",
 										c.1,
 										c.2,
-										offset..offset + size,
+										name.len() + 1 + is_called as usize,
 										Some(&format!(
 											"Replace '${name}{}' with '${name}!()'",
 											if is_called {
@@ -1493,7 +1497,6 @@ pub fn preprocess_variables(
 								let mut args = args.iter();
 								let mut varargs = 0;
 								let len = macro_variables.len();
-								let mut arg_offset = offset + 3 + name.len();
 								loop {
 									let mut value = Code::new();
 									let mut cscope = 1u8;
@@ -1504,7 +1507,7 @@ pub fn preprocess_variables(
 												"<end>",
 												c.1,
 												c.2,
-												offset..offset + size,
+												size,
 												None,
 											);
 											break b'\0';
@@ -1522,11 +1525,7 @@ pub fn preprocess_variables(
 										}
 										value.push(*c)
 									};
-									let mut value_len = value.len();
-									value = value.trim_start();
-									arg_offset += value_len - value.len();
-									value_len = value.len();
-									value = value.trim_end();
+									value = value.trim();
 									if value.is_empty() {
 										if len == macro_variables.len() && end == b')' {
 											break;
@@ -1537,7 +1536,7 @@ pub fn preprocess_variables(
 												&end,
 												c.1,
 												c.2,
-												offset..offset + size,
+												size,
 												None,
 											);
 										}
@@ -1546,12 +1545,10 @@ pub fn preprocess_variables(
 										stacklevel + 1,
 										&value,
 										value.len(),
-										arg_offset,
 										variables,
 										i,
 										filename,
 									)?);
-									arg_offset += value_len + 1;
 									if let Some(arg_name) = args.next() {
 										macro_variables.insert(arg_name.clone(), ppvalue);
 									} else if *vararg {
@@ -1563,11 +1560,12 @@ pub fn preprocess_variables(
 										}
 										macro_variables.insert(arg_name, ppvalue);
 									} else {
+										let first = value.get(0).unwrap_or(c);
 										i.error(
 											"Too many arguments passed to macro",
-											c.1,
-											c.2,
-											offset..offset + size,
+											first.1,
+											first.2,
+											value.len(),
 											None,
 										);
 										break;
@@ -1584,7 +1582,7 @@ pub fn preprocess_variables(
 										),
 										c.1,
 										c.2,
-										offset..offset + size,
+										size,
 										None,
 									);
 								}
@@ -1619,7 +1617,7 @@ pub fn preprocess_variables(
 						format_clue!("Value '", name.to_string(), "' not found"),
 						c.1,
 						c.2,
-						offset..offset + size,
+						1 + name.len(),
 						None,
 					);
 				};

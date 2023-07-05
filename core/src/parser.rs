@@ -302,10 +302,6 @@ struct ParserInfo<'a> {
 }
 
 impl ErrorMessaging for ParserInfo<'_> {
-	fn get_code(&mut self) -> Vec<char> {
-		Vec::new()//self.chars().collect()
-	}
-
 	fn get_filename(&self) -> &str {
 		self.filename
 	}

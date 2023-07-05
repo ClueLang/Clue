@@ -10,7 +10,7 @@ use clue_core::{
 	parser::*,
 	preprocessor::*,
 	scanner::*,
-	SYMBOLS,
+	FILES,
 };
 use std::{env, fs, path::PathBuf, time::Instant};
 use threads::compile_folder;
@@ -285,7 +285,7 @@ fn main() {
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
 	}
 	unsafe {
-		SYMBOLS.set(AHashMap::new()).unwrap();
+		FILES.set(AHashMap::new()).unwrap();
 	}
 	if let Err(e) = start_compilation(cli) {
 		println!("{}: {}", "Error".red().bold(), e.to_string())

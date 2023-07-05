@@ -28,25 +28,11 @@ fn wait_threads(threads: Vec<JoinHandle<()>>) {
 }
 
 struct CodesInfo<'a> {
-	codes: &'a VecDeque<(Code, bool)>,
 	filename: &'a String,
 	errors: u8,
 }
 
 impl ErrorMessaging for CodesInfo<'_> {
-	fn get_code(&mut self) -> Vec<char> {
-		self.codes
-			.iter()
-			.map(|(codepart, _)|
-				codepart
-					.to_string()
-					.chars()
-					.collect::<Vec<char>>()
-			)
-			.flatten()
-			.collect()
-	}
-
 	fn get_filename(&self) -> &str {
 		self.filename
 	}
@@ -68,7 +54,6 @@ fn compile_code(
 ) -> Result<(String, String), String> {
 	let (mut codes, size) = codes;
 	let mut i = CodesInfo {
-		codes: &codes,
 		filename: name,
 		errors: 0,
 	};

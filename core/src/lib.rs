@@ -18,7 +18,7 @@ use colored::*;
 /// The best memory allocator available for Clue
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
-pub static mut SYMBOLS: OnceLock<AHashMap<String, String>> = OnceLock::new();
+pub static mut FILES: OnceLock<AHashMap<String, String>> = OnceLock::new();
 
 pub mod code;
 pub mod compiler;
@@ -57,7 +57,7 @@ macro_rules! check {
 macro_rules! format_clue {
     ($($strings:expr),+) => {{
         let vc = [
-          $($strings.to_string(),)+
+			$($strings.to_string(),)+
         ];
 
         vc.join("")
@@ -620,7 +620,7 @@ pub trait ErrorMessaging {
 	) {
 		let filename = self.get_filename();
 		let code = unsafe {
-			SYMBOLS.get().unwrap().get(filename).unwrap()
+			FILES.get().unwrap().get(filename).unwrap()
 		};
 		let before_err = get_errored_edges(&code[..range.start], str::rsplit);
 		let after_err = get_errored_edges(&code[range.end..], str::split);
