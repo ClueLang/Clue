@@ -328,4 +328,9 @@ impl Code {
 	pub fn trim(self) -> Self {
 		self.trim_start().trim_end()
 	}
+
+	/// Provides a reference to the character at the given index.
+	pub fn get(&self, index: usize) -> Option<&CodeChar> {
+		self.list.get(index)
+	}
 }
