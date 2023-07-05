@@ -10,6 +10,7 @@ use crate::{
 	env::Options,
 	format_clue,
 	ErrorMessaging,
+	SYMBOLS,
 };
 use ahash::AHashMap;
 use std::{
@@ -90,10 +91,6 @@ struct CodeFile<'a> {
 }
 
 impl ErrorMessaging for CodeFile<'_> {
-	fn get_code(&mut self) -> Vec<char> {
-		String::from_utf8_lossy(self.code).into_owned().chars().collect()
-	}
-
 	fn get_filename(&self) -> &str {
 		self.filename
 	}
@@ -485,7 +482,7 @@ impl<'a> CodeFile<'a> {
 			self.read_char_unchecked()
 		];
 		if comparison.contains(&None) {
-			let size = self.get_code().len();
+			let size = String::from_utf8_lossy(self.code).len();
 			self.expected(
 				"==' or '!=",
 				"<end>",
@@ -635,7 +632,11 @@ pub fn read_file(
 	filename: &String,
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
-	let result = preprocess_code(&mut check!(fs::read(path.into())), 1, false, filename, options)?;
+	let mut code = check!(fs::read_to_string(path.into()));
+	let result = unsafe {
+		SYMBOLS.get_mut().unwrap().insert(filename.clone(), code.clone());
+		preprocess_code(code.as_bytes_mut(), 1, false, filename, options)?
+	};
 	Ok((result.0, result.1))
 }
 
@@ -1273,19 +1274,6 @@ struct CodesInfo<'a> {
 }
 
 impl ErrorMessaging for CodesInfo<'_> {
-	fn get_code(&mut self) -> Vec<char> {
-		self.codes
-			.iter()
-			.map(|(codepart, _)|
-				codepart
-					.to_string()
-					.chars()
-					.collect::<Vec<char>>()
-			)
-			.flatten()
-			.collect()
-	}
-
 	fn get_filename(&self) -> &str {
 		self.filename
 	}
@@ -1305,10 +1293,6 @@ struct ToProcessInfo<'a> {
 }
 
 impl ErrorMessaging for ToProcessInfo<'_> {
-	fn get_code(&mut self) -> Vec<char> {
-		self.code.clone().chars().collect()
-	}
-
 	fn get_filename(&self) -> &str {
 		self.filename
 	}

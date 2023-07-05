@@ -1,5 +1,6 @@
 #![allow(clippy::blocks_in_if_conditions)]
 
+use ahash::AHashMap;
 use clap::{crate_version, Parser};
 use clue_core::{
 	check,
@@ -9,6 +10,7 @@ use clue_core::{
 	parser::*,
 	preprocessor::*,
 	scanner::*,
+	SYMBOLS,
 };
 use std::{env, fs, path::PathBuf, time::Instant};
 use threads::compile_folder;
@@ -174,6 +176,7 @@ pub fn compile_code(
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{name}\":\n{tokens:#?}");
 	}
+	unimplemented!();
 	let (ctokens, statics) = parse_tokens(
 		tokens,
 		//code,
@@ -185,7 +188,6 @@ pub fn compile_code(
 		name,
 		options,
 	)?;
-	unimplemented!();
 	if options.env_struct {
 		println!("Parsed structure of file \"{name}\":\n{ctokens:#?}");
 	}
@@ -281,6 +283,9 @@ fn main() {
 	}
 	if cli.r#continue == ContinueMode::LuaJIT { //TODO: REMOVE LUAJIT mode
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
+	}
+	unsafe {
+		SYMBOLS.set(AHashMap::new()).unwrap();
 	}
 	if let Err(e) = start_compilation(cli) {
 		println!("{}: {}", "Error".red().bold(), e.to_string())

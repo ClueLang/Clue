@@ -161,24 +161,6 @@ struct ScannerInfo<'a> {
 }
 
 impl ErrorMessaging for ScannerInfo<'_> {
-	fn get_code(&mut self) -> Vec<char> {
-		let mut code = String::with_capacity(self.size);
-		for (c, _, _) in &self.read {
-			code.push(*c);
-		}
-		while {
-			let c = self.code.next_unwrapped();
-			self.read.push((c, self.code.line(), self.code.column()));
-			let read = self.code.bytes_read();
-			if read > 0 {
-				self.size -= read - 1
-			}
-			code.push(c);
-			!matches!(c, '\n' | '\0')
-		} {}
-		code.chars().collect()
-	}
-
 	fn get_filename(&self) -> &str {
 		self.filename
 	}

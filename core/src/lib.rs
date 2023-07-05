@@ -3,7 +3,7 @@
 //! This is used by the cli but can also be used by other projects
 //! It is recommended to use [`Clue`] instead of the lower level APIs unless you need to
 
-use std::{ffi::OsStr, fmt::Display, fs, path::{Path, PathBuf}, ops::Range};
+use std::{ffi::OsStr, fmt::Display, fs, path::{Path, PathBuf}, ops::Range, sync::OnceLock};
 use ahash::AHashMap;
 use code::Code;
 use compiler::Compiler;
@@ -17,6 +17,8 @@ use colored::*;
 #[global_allocator]
 /// The best memory allocator available for Clue
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
+
+pub static mut SYMBOLS: OnceLock<AHashMap<String, String>> = OnceLock::new();
 
 pub mod code;
 pub mod compiler;
@@ -582,13 +584,13 @@ impl Default for Clue {
 	}
 }*/
 
-fn get_errored_edges<'a, T: Iterator<Item = &'a [char]>>(
-    code: &'a [char],
-    splitter: impl FnOnce(&'a [char], &'a dyn Fn(&char) -> bool) -> T,
-) -> String {
-    splitter(code, &|c: &char| *c == '\n')
+fn get_errored_edges<'a, T: Iterator<Item = &'a str>>(
+    code: &'a str,
+    splitter: impl FnOnce(&'a str, char) -> T,
+) -> &str {
+    splitter(code, '\n')
         .next()
-        .map_or_else(String::new, |code| code.iter().collect())
+        .unwrap_or_default()
 }
 
 pub fn finish<T>(errors: u8, to_return: T) -> Result<T, String> {
@@ -616,11 +618,13 @@ pub trait ErrorMessaging {
 		is_first: bool,
 		help: Option<&str>
 	) {
-		let code = self.get_code();
 		let filename = self.get_filename();
-		let before_err = get_errored_edges(&code[..range.start], <[char]>::rsplit);
-		let after_err = get_errored_edges(&code[range.end..], <[char]>::split);
-		let errored: String = code[range].into_iter().collect();
+		let code = unsafe {
+			SYMBOLS.get().unwrap().get(filename).unwrap()
+		};
+		let before_err = get_errored_edges(&code[..range.start], str::rsplit);
+		let after_err = get_errored_edges(&code[range.end..], str::split);
+		let errored = &code[range];
 		let header = format!("{} in {}:{}:{}!", kind, filename, line, column);
 		eprintln!(
 			"{}\n\n{}{}{}\n\n{}: {}{}",
@@ -689,8 +693,6 @@ pub trait ErrorMessaging {
 		let is_first = self.is_first(false);
 		self.send("Warning".yellow().bold(), message, line, column, range, is_first, help)
 	}
-
-	fn get_code(&mut self) -> Vec<char>;
 
 	fn get_filename(&self) -> &str;
 
