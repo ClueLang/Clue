@@ -3,7 +3,7 @@
 //! This is used by the cli but can also be used by other projects
 //! It is recommended to use [`Clue`] instead of the lower level APIs unless you need to
 
-use std::{ffi::OsStr, fmt::Display, fs, path::{Path, PathBuf}, ops::Range, sync::OnceLock};
+use std::{ffi::OsStr, fmt::{Display, format}, fs, path::{Path, PathBuf}, ops::Range, sync::OnceLock};
 use ahash::AHashMap;
 use code::Code;
 use compiler::Compiler;
@@ -619,23 +619,20 @@ pub trait ErrorMessaging {
 		help: Option<&str>
 	) {
 		let filename = self.get_filename();
-		let code = unsafe {
-			FILES.get().unwrap().get(filename).unwrap()
-		};
-		let before_err = get_errored_edges(&code[..range.start], str::rsplit);
-		let after_err = get_errored_edges(&code[range.end..], str::split);
-		let errored = &code[range];
-		let header = format!("{} in {}:{}:{}!", kind, filename, line, column);
-		eprintln!(
-			"{}\n\n{}{}{}\n\n{}: {}{}",
+		let header = format!(
+			"{}{} in {}:{}:{}!",
 			if is_first {
-				header
+				""
 			} else {
-				format!("\n----------------------------------\n\n{}", header)
+				"\n----------------------------------\n\n"
 			},
-			before_err.trim_start(),
-			errored.red().underline(),
-			after_err.trim_end(),
+			kind,
+			filename,
+			line,
+			column
+		);
+		let full_message = format!(
+			"{}: {}{}",
 			kind,
 			message.into().replace('\n', "<new line>").replace('\t', "<tab>"),
 			if let Some(help) = help {
@@ -644,6 +641,21 @@ pub trait ErrorMessaging {
 				String::from("")
 			}
 		);
+		if let Some(code) = unsafe { FILES.get().unwrap().get(filename) } {
+			let before_err = get_errored_edges(&code[..range.start], str::rsplit);
+			let after_err = get_errored_edges(&code[range.end..], str::split);
+			let errored = &code[range];
+			eprintln!(
+				"{}\n\n{}{}{}\n\n{}",
+				header,
+				before_err.trim_start(),
+				errored.red().underline(),
+				after_err.trim_end(),
+				full_message
+			)
+		} else {
+			eprintln!("{}\n{}", header, full_message)
+		}
 	}
 
 	fn error(
