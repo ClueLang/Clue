@@ -13,7 +13,7 @@ use crate::{
 	scanner::{BorrowedToken, Token, TokenType, TokenType::*},
 	ErrorMessaging,
 	format_clue,
-	check,
+	check, impl_errormessaging,
 };
 use std::{cell::Cell, vec, cmp, collections::VecDeque};
 
@@ -301,18 +301,7 @@ struct ParserInfo<'a> {
 	//locals: LocalsList,
 }
 
-impl ErrorMessaging for ParserInfo<'_> {
-	fn get_filename(&self) -> &str {
-		self.filename
-	}
-
-	fn is_first(&mut self, error: bool) -> bool {
-		if error {
-			self.errors += 1;
-		}
-		self.errors == 1
-	}
-}
+impl_errormessaging!(ParserInfo<'_>);
 
 impl<'a> ParserInfo<'a> {
 	fn new(

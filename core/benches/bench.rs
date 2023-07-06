@@ -1,5 +1,5 @@
 use ahash::AHashMap;
-use clue::{finish, ErrorMessaging};
+use clue::{finish, ErrorMessaging, impl_errormessaging};
 use clue::{code::*, compiler::*, env::Options, parser::*, preprocessor::*, scanner::*};
 use clue_core as clue;
 use criterion::{criterion_group, criterion_main, Criterion};
@@ -32,18 +32,7 @@ struct CodesInfo<'a> {
 	errors: u8,
 }
 
-impl ErrorMessaging for CodesInfo<'_> {
-	fn get_filename(&self) -> &str {
-		self.filename
-	}
-
-	fn is_first(&mut self, error: bool) -> bool {
-		if error {
-			self.errors += 1;
-		}
-		self.errors == 1
-	}
-}
+impl_errormessaging!(CodesInfo<'_>);
 
 fn compile_code(
 	codes: PPCode,

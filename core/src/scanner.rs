@@ -14,7 +14,7 @@ use crate::{
 	finish,
 	code::{Code, CodeChars},
 	format_clue,
-	ErrorMessaging,
+	ErrorMessaging, impl_errormessaging,
 };
 
 #[cfg(feature = "serde")]
@@ -160,18 +160,7 @@ struct ScannerInfo<'a> {
 	errors: u8,
 }
 
-impl ErrorMessaging for ScannerInfo<'_> {
-	fn get_filename(&self) -> &str {
-		self.filename
-	}
-
-	fn is_first(&mut self, error: bool) -> bool {
-		if error {
-			self.errors += 1;
-		}
-		self.errors == 1
-	}
-}
+impl_errormessaging!(ScannerInfo<'_>);
 
 impl<'a> ScannerInfo<'a> {
 	fn new(code: Code, filename: &'a String) -> Self {

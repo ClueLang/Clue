@@ -9,7 +9,7 @@ use crate::{
 	code::{Code, CodeChar},
 	env::Options,
 	format_clue,
-	ErrorMessaging,
+	ErrorMessaging, impl_errormessaging,
 };
 use ahash::AHashMap;
 use std::{
@@ -90,18 +90,7 @@ struct CodeFile<'a> {
 	errors: u8,
 }
 
-impl ErrorMessaging for CodeFile<'_> {
-	fn get_filename(&self) -> &str {
-		self.filename
-	}
-
-	fn is_first(&mut self, error: bool) -> bool {
-		if error {
-			self.errors += 1;
-		}
-		self.errors == 1
-	}
-}
+impl_errormessaging!(CodeFile<'_>);
 
 impl<'a> CodeFile<'a> {
 	fn new(
@@ -1268,18 +1257,7 @@ pub struct CodesInfo<'a> {
 	errors: u8,
 }
 
-impl ErrorMessaging for CodesInfo<'_> {
-	fn get_filename(&self) -> &str {
-		self.filename
-	}
-
-	fn is_first(&mut self, error: bool) -> bool {
-		if error {
-			self.errors += 1;
-		}
-		self.errors == 1
-	}
-}
+impl_errormessaging!(CodesInfo<'_>);
 
 impl CodesInfo<'_> {
 	fn get_index(&self, line: usize, column: usize, len: usize) -> Range<usize> {
