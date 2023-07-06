@@ -111,7 +111,7 @@ impl BorrowedToken {
 		Self { token }
 	}
 
-	/// Returns the token
+	/// Returns the token.
 	pub const fn token(&self) -> &Token {
 		// SAFETY: This is safe because the pointer is guaranteed to be valid.
 		unsafe { &(*self.token) }
@@ -127,12 +127,18 @@ impl BorrowedToken {
 		self.token().lexeme.clone()
 	}
 
-	/// Returns a clone of the [`Range<TokenPosition>`]
+	/// Returns a clone of the [`Range<TokenPosition>`].
 	pub fn position(&self) -> Range<TokenPosition> {
 		self.token().position.clone()
 	}
 
-	/// Returns the line where the token is located
+	/// Returns the range of indexes where the token is located.
+	pub const fn range(&self) -> Range<usize> {
+		let t = self.token();
+		t.position.start.index..t.position.end.index
+	}
+
+	/// Returns the line where the token is located.
 	pub const fn line(&self) -> usize {
 		self.token().position.end.line
 	}
