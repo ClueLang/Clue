@@ -1,6 +1,5 @@
 #![allow(clippy::blocks_in_if_conditions)]
 
-use ahash::AHashMap;
 use clap::{crate_version, Parser};
 use clue_core::{
 	check,
@@ -11,7 +10,8 @@ use clue_core::{
 	preprocessor::*,
 	scanner::*,
 };
-use std::{env, fs, path::PathBuf, time::Instant};
+use tempfile::Builder;
+use std::{env, fs::{self, File}, path::PathBuf, time::Instant, process, io::Write};
 use threads::compile_folder;
 use colored::*;
 
@@ -334,18 +334,16 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 	}*/
 	let mut path = cli.path.unwrap();
 	if cli.pathiscode {
-		let filename = String::from("(command line)");
-		let mut code = path.to_string_lossy().into_owned();
-		let code = unsafe { code.as_bytes_mut() };
-		let preprocessed_code = preprocess_code(code, 1, false, &filename, &options)?;
-		let (code, statics) = compile_code(
-			preprocessed_code.0,
-			&preprocessed_code.1,
-			&filename,
-			0,
-			&options,
-		)?;
-		let code = code + &statics;
+		let mut file = check!(Builder::new()
+			.prefix("clue_pathiscode_")
+			.suffix(".clue")
+			.tempfile());
+		check!(file.write_all(path.to_string_lossy().as_bytes()));
+		let filepath = file.path();
+		let filename = filepath.to_string_lossy().into_owned();
+		let (rawcode, variables) = read_file(filepath, &filename, &options)?;
+		let (output, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
+		let code = statics + &output;
 		#[cfg(feature = "mlua")]
 		if cli.execute {
 			execute_lua_code(&code)
@@ -399,9 +397,9 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		}
 		path.is_file()
 	} {
-		let name = path.file_name().unwrap().to_string_lossy().into_owned();
-		let (rawcode, variables) = read_file(path, &name, &options)?;
-		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
+		let filename = path.file_name().unwrap().to_string_lossy().into_owned();
+		let (rawcode, variables) = read_file(path, &filename, &options)?;
+		let (output, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
 		let code = statics + &output;
 		save_result(cli.dontsave, cli.outputname, code)?
 	} else {
