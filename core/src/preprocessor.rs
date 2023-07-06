@@ -10,7 +10,6 @@ use crate::{
 	env::Options,
 	format_clue,
 	ErrorMessaging,
-	FILES,
 };
 use ahash::AHashMap;
 use std::{
@@ -633,11 +632,7 @@ pub fn read_file(
 	filename: &String,
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
-	let mut code = check!(fs::read_to_string(path.into()));
-	let result = unsafe {
-		FILES.get_mut().unwrap().insert(filename.clone(), code.clone());
-		preprocess_code(code.as_bytes_mut(), 1, false, filename, options)?
-	};
+	let result = preprocess_code(&mut check!(fs::read(path.into())), 1, false, filename, options)?;
 	Ok((result.0, result.1))
 }
 
@@ -1288,12 +1283,13 @@ impl ErrorMessaging for CodesInfo<'_> {
 
 impl CodesInfo<'_> {
 	fn get_index(&self, line: usize, column: usize, len: usize) -> Range<usize> {
-		let mut code = unsafe {
-			FILES.get().unwrap().get(self.filename).unwrap().split('\n')
+		let Ok(code) = fs::read_to_string(self.filename) else {
+			return 0..0
 		};
+		let mut lines = code.split('\n');
 		let mut start = column - 1;
 		for _ in 1..line {
-			start += code.next().unwrap().len() + 1;
+			start += lines.next().unwrap().len() + 1;
 		}
 		start..start + len
 	}

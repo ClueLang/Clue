@@ -10,7 +10,6 @@ use clue_core::{
 	parser::*,
 	preprocessor::*,
 	scanner::*,
-	FILES,
 };
 use std::{env, fs, path::PathBuf, time::Instant};
 use threads::compile_folder;
@@ -284,9 +283,6 @@ fn main() {
 	if cli.r#continue == ContinueMode::LuaJIT { //TODO: REMOVE LUAJIT mode
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
 	}
-	unsafe {
-		FILES.set(AHashMap::new()).unwrap();
-	}
 	if let Err(e) = start_compilation(cli) {
 		println!("{}: {}", "Error".red().bold(), e.to_string())
 	}
@@ -338,11 +334,10 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 	}*/
 	let mut path = cli.path.unwrap();
 	if cli.pathiscode {
-		unimplemented!();
 		let filename = String::from("(command line)");
 		let mut code = path.to_string_lossy().into_owned();
 		let code = unsafe { code.as_bytes_mut() };
-		let preprocessed_code = preprocess_code(code, 1, false, &filename, &options).unwrap();
+		let preprocessed_code = preprocess_code(code, 1, false, &filename, &options)?;
 		let (code, statics) = compile_code(
 			preprocessed_code.0,
 			&preprocessed_code.1,

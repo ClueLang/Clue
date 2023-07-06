@@ -18,8 +18,6 @@ use colored::*;
 /// The best memory allocator available for Clue
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
-pub static mut FILES: OnceLock<AHashMap<String, String>> = OnceLock::new();
-
 pub mod code;
 pub mod compiler;
 pub mod env;
@@ -641,7 +639,7 @@ pub trait ErrorMessaging {
 				String::from("")
 			}
 		);
-		if let Some(code) = unsafe { FILES.get().unwrap().get(filename) } {
+		if let Ok(code) = fs::read_to_string(filename) {
 			let before_err = get_errored_edges(&code[..range.start], str::rsplit);
 			let after_err = get_errored_edges(&code[range.end..], str::split);
 			let errored = &code[range];
