@@ -5,11 +5,11 @@
 
 use crate::{
 	check,
-	finish,
 	code::{Code, CodeChar},
 	env::Options,
 	format_clue,
-	ErrorMessaging, impl_errormessaging,
+	errors::{finish, ErrorMessaging},
+	impl_errormessaging,
 };
 use ahash::AHashMap;
 use std::{

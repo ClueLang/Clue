@@ -11,10 +11,10 @@ use std::ops::Range;
 use phf::phf_map;
 use std::fmt;
 use crate::{
-	finish,
 	code::{Code, CodeChars},
 	format_clue,
-	ErrorMessaging, impl_errormessaging,
+	errors::{finish, ErrorMessaging},
+	impl_errormessaging,
 };
 
 #[cfg(feature = "serde")]
