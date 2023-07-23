@@ -188,7 +188,6 @@ pub fn compile_code(
 	if options.env_struct {
 		println!("Parsed structure of file \"{name}\":\n{ctokens:#?}");
 	}
-	unimplemented!();
 	let code = Compiler::new(options, name).compile_tokens(scope, ctokens)?;
 
 	if options.env_output {
