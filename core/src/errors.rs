@@ -1,16 +1,21 @@
-use std::{ops::Range, cell::OnceCell};
+use std::{ops::Range, sync::OnceLock};
 use ahash::AHashMap;
 use colored::*;
 
-static mut FILES: OnceCell<AHashMap<String, String>> = OnceCell::new();
+static mut FILES: OnceLock<AHashMap<String, String>> = OnceLock::new();
 
 pub fn add_source_file(filename: &str, code: impl Into<String>) {
 	unsafe {
 		let files = match FILES.get_mut() {
 			Some(files) => files,
 			None => {
-				FILES.set(AHashMap::new()).unwrap();
-				FILES.get_mut().unwrap()
+				if let Err(other_files) = FILES.set(AHashMap::new()) {
+					let files = FILES.get_mut().unwrap();
+					files.extend(other_files.into_iter());
+					files
+				} else {
+					FILES.get_mut().unwrap()
+				}
 			}
 		};
 		files.insert(filename.into(), code.into());

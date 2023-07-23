@@ -282,6 +282,7 @@ fn main() {
 	if let Err(e) = start_compilation(cli) {
 		println!("{}: {}", "Error".red().bold(), e.to_string())
 	}
+	println!("THE END");
 }
 
 fn start_compilation(cli: Cli) -> Result<(), String> {
@@ -362,7 +363,6 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		};
 	}
 	let (output_path, code) = if path.is_dir() {
-		unimplemented!();
 		let time = Instant::now();
 		let (output, statics) = compile_folder(&path, String::new(), options)?;
 		println!(
