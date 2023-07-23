@@ -23,7 +23,6 @@ clue_core = { path = "../core", version = "4.0.0-better-errors", default-feature
 clap.workspace = true
 mlua = { version = "0.8.3", features = ["luajit", "vendored"], optional = true }
 colored.workspace = true
-tempfile = "3.6.0"
 
 [features]
 default = ["interpreter", "rpmalloc", "lsp"]

@@ -10,8 +10,7 @@ use clue_core::{
 	preprocessor::*,
 	scanner::*,
 };
-use tempfile::Builder;
-use std::{env, fs::{self, File}, path::PathBuf, time::Instant, process, io::Write};
+use std::{env, fs, path::PathBuf, time::Instant};
 use threads::compile_folder;
 use colored::*;
 
@@ -171,11 +170,10 @@ pub fn compile_code(
 	if options.env_expand {
 		println!("Preprocessed file \"{name}\":\n{}", code.to_string());
 	}
-	let tokens: Vec<Token> = scan_code(code.clone(), name)?;
+	let tokens = scan_code(code.clone(), name)?;
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{name}\":\n{tokens:#?}");
 	}
-	unimplemented!();
 	let (ctokens, statics) = parse_tokens(
 		tokens,
 		//code,
@@ -190,7 +188,7 @@ pub fn compile_code(
 	if options.env_struct {
 		println!("Parsed structure of file \"{name}\":\n{ctokens:#?}");
 	}
-
+	unimplemented!();
 	let code = Compiler::new(options, name).compile_tokens(scope, ctokens)?;
 
 	if options.env_output {
@@ -252,8 +250,7 @@ fn save_result(
 				Some(mut output_path) => {
 					match output_path.extension() {
 						Some(extension) if extension != "lua" => {
-							output_path
-								.set_extension(format_clue!(extension.to_string_lossy(), ".lua"));
+							output_path.set_extension(format_clue!(extension.to_string_lossy(), ".lua"));
 						}
 						None => {
 							output_path.set_extension("lua");
@@ -334,15 +331,22 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 	}*/
 	let mut path = cli.path.unwrap();
 	if cli.pathiscode {
-		let mut file = check!(Builder::new()
-			.prefix("clue_pathiscode_")
-			.suffix(".clue")
-			.tempfile());
-		check!(file.write_all(path.to_string_lossy().as_bytes()));
-		let filepath = file.path();
-		let filename = filepath.to_string_lossy().into_owned();
-		let (rawcode, variables) = read_file(filepath, &filename, &options)?;
-		let (output, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
+		let filename = String::from("(command line)");
+		let mut source_code = path.to_string_lossy().into_owned();
+		let preprocessed_code = preprocess_code(
+			unsafe { source_code.as_bytes_mut() },
+			1,
+			false,
+			&filename,
+			&options
+		)?;
+		let (output, statics) = compile_code(
+			preprocessed_code.0,
+			&preprocessed_code.1,
+			&filename,
+			0,
+			&options,
+		)?;
 		let code = statics + &output;
 		#[cfg(feature = "mlua")]
 		if cli.execute {

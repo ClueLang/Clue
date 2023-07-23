@@ -1,5 +1,21 @@
-use std::{ops::Range, fs};
+use std::{ops::Range, cell::OnceCell};
+use ahash::AHashMap;
 use colored::*;
+
+static mut FILES: OnceCell<AHashMap<String, String>> = OnceCell::new();
+
+pub fn add_source_file(filename: &str, code: impl Into<String>) {
+	unsafe {
+		let files = match FILES.get_mut() {
+			Some(files) => files,
+			None => {
+				FILES.set(AHashMap::new()).unwrap();
+				FILES.get_mut().unwrap()
+			}
+		};
+		files.insert(filename.into(), code.into());
+	}
+}
 
 #[macro_export]
 macro_rules! impl_errormessaging {
@@ -76,7 +92,7 @@ pub trait ErrorMessaging {
 				String::from("")
 			}
 		);
-		if let Ok(code) = fs::read_to_string(filename) {
+		if let Some(code) = unsafe { FILES.get_or_init(|| AHashMap::new()).get(filename) } {
 			let before_err = get_errored_edges(&code[..range.start], str::rsplit);
 			let after_err = get_errored_edges(&code[range.end..], str::split);
 			let errored = &code[range];

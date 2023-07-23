@@ -8,7 +8,7 @@ use crate::{
 	code::{Code, CodeChar},
 	env::Options,
 	format_clue,
-	errors::{finish, ErrorMessaging},
+	errors::{finish, ErrorMessaging, add_source_file},
 	impl_errormessaging,
 };
 use ahash::AHashMap;
@@ -621,7 +621,9 @@ pub fn read_file(
 	filename: &String,
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
-	let result = preprocess_code(&mut check!(fs::read(path.into())), 1, false, filename, options)?;
+	let mut code = check!(fs::read_to_string(path.into()));
+	add_source_file(filename, &code);
+	let result = preprocess_code(unsafe { code.as_bytes_mut() }, 1, false, filename, options)?;
 	Ok((result.0, result.1))
 }
 
