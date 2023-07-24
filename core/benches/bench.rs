@@ -1,11 +1,10 @@
 use ahash::AHashMap;
-use clue::{finish, ErrorMessaging, impl_errormessaging};
+use clue::errors::finish;
 use clue::{code::*, compiler::*, env::Options, parser::*, preprocessor::*, scanner::*};
 use clue_core as clue;
 use criterion::{criterion_group, criterion_main, Criterion};
 use crossbeam_queue::SegQueue;
 use flume::Sender;
-use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::thread::JoinHandle;
 use std::{cmp::min, fs, sync::Arc, thread};
@@ -27,13 +26,6 @@ fn wait_threads(threads: Vec<JoinHandle<()>>) {
 	}
 }
 
-struct CodesInfo<'a> {
-	filename: &'a String,
-	errors: u8,
-}
-
-impl_errormessaging!(CodesInfo<'_>);
-
 fn compile_code(
 	codes: PPCode,
 	variables: &PPVars,
@@ -46,18 +38,16 @@ fn compile_code(
 		filename: name,
 		errors: 0,
 	};
-	let mut offset = 0;
 	let code = if codes.len() == 1 {
 		Ok(codes.pop_back().unwrap().0)
 	} else {
 		let mut code = Code::with_capacity(size);
-		for (codepart, uses_vars) in &codes {
-			code.append(if *uses_vars {
-				preprocess_variables(0, codepart, codepart.len(), offset, variables, &mut i, name)?
+		for (codepart, uses_vars) in codes {
+			code.append(if uses_vars {
+				preprocess_variables(0, &codepart, codepart.len(), variables, &mut i, name)?
 			} else {
-				codepart.clone()
+				codepart
 			});
-			offset += codepart.len();
 		}
 		finish(i.errors, code)
 	}?;

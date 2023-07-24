@@ -1255,8 +1255,8 @@ fn read_pseudos(
 }
 
 pub struct CodesInfo<'a> {
-	filename: &'a String,
-	errors: u8,
+	pub filename: &'a String,
+	pub errors: u8,
 }
 
 impl_errormessaging!(CodesInfo<'_>);
