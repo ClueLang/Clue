@@ -33,8 +33,7 @@ fn check_for_files(
 ) -> Result<SegQueue<(PathBuf, String)>, std::io::Error> {
 	let files = SegQueue::new();
 	for entry in fs::read_dir(&path)? {
-		let entry = entry?;
-		let name = entry
+		let name = entry?
 			.path()
 			.file_name()
 			.unwrap()

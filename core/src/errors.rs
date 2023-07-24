@@ -1,25 +1,23 @@
-use std::{ops::Range, sync::OnceLock};
+use std::{ops::Range, sync::{OnceLock, RwLock, Arc}};
 use ahash::AHashMap;
 use colored::*;
 
-static mut FILES: OnceLock<AHashMap<String, String>> = OnceLock::new();
+type FileMap = Arc<RwLock<AHashMap<String, String>>>;
+static FILES: OnceLock<FileMap> = OnceLock::new();
+
+#[inline]
+fn get_files() -> FileMap {
+    FILES.get_or_init(|| Arc::new(RwLock::new(AHashMap::new()))).clone()
+}
 
 pub fn add_source_file(filename: &str, code: impl Into<String>) {
-	unsafe {
-		let files = match FILES.get_mut() {
-			Some(files) => files,
-			None => {
-				if let Err(other_files) = FILES.set(AHashMap::new()) {
-					let files = FILES.get_mut().unwrap();
-					files.extend(other_files.into_iter());
-					files
-				} else {
-					FILES.get_mut().unwrap()
-				}
-			}
-		};
-		files.insert(filename.into(), code.into());
-	}
+	let files = get_files();
+    let mut files = files.write().unwrap();
+    if let Some(file) = files.get_mut(filename) {
+        *file = code.into();
+    } else {
+        files.insert(filename.to_owned(), code.into());
+    }
 }
 
 #[macro_export]
@@ -97,7 +95,7 @@ pub trait ErrorMessaging {
 				String::from("")
 			}
 		);
-		if let Some(code) = unsafe { FILES.get_or_init(|| AHashMap::new()).get(filename) } {
+		if let Some(code) = get_files().read().expect("Couldn't read file map").get(filename) {
 			let before_err = get_errored_edges(&code[..range.start], str::rsplit);
 			let after_err = get_errored_edges(&code[range.end..], str::split);
 			let errored = &code[range];

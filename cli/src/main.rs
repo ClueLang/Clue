@@ -10,7 +10,7 @@ use clue_core::{
 	preprocessor::*,
 	scanner::*,
 };
-use std::{env, fs, path::PathBuf, time::Instant};
+use std::{env, fs, path::PathBuf, time::Instant, process::exit};
 use threads::compile_folder;
 use colored::*;
 
@@ -280,9 +280,8 @@ fn main() {
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
 	}
 	if let Err(e) = start_compilation(cli) {
-		println!("{}: {}", "Error".red().bold(), e.to_string())
+		println!("{}: {e}", "Error".red().bold())
 	}
-	println!("THE END");
 }
 
 fn start_compilation(cli: Cli) -> Result<(), String> {
