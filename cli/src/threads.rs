@@ -10,6 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
+use colored::*;
 
 use crate::compile_code;
 
@@ -171,9 +172,8 @@ fn preprocess_file_dir(
 					errored: true,
 					codes: Default::default(),
 					variables: Default::default(),
-				})
-				.unwrap();
-				eprintln!("Error: {e}");
+				}).unwrap();
+				eprintln!("{}: {e}", "Error".red().bold());
 				continue;
 			}
 		};
@@ -206,9 +206,8 @@ fn compile_file_dir(
 					errored: true,
 					output: "".to_owned(),
 					static_vars: "".to_owned(),
-				})
-				.unwrap();
-				eprintln!("Error: {e}");
+				}).unwrap();
+				eprintln!("{}: {e}", "Error".red().bold());
 				continue;
 			}
 		};
