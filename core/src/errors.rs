@@ -4,22 +4,6 @@ use colored::*;
 
 type FileMap = Arc<RwLock<AHashMap<String, String>>>;
 
-#[inline]
-fn get_files() -> FileMap {
-	static FILES: OnceLock<FileMap> = OnceLock::new();
-    FILES.get_or_init(|| Arc::new(RwLock::new(AHashMap::new()))).clone()
-}
-
-pub fn add_source_file(filename: &str, code: impl Into<String>) {
-	let files = get_files();
-    let mut files = files.write().unwrap();
-    if let Some(file) = files.get_mut(filename) {
-        *file = code.into();
-    } else {
-        files.insert(filename.to_owned(), code.into());
-    }
-}
-
 #[macro_export]
 macro_rules! impl_errormessaging {
 	($struct:ty) => {
@@ -38,13 +22,27 @@ macro_rules! impl_errormessaging {
 	};
 }
 
+#[inline]
+fn get_files() -> FileMap {
+	static FILES: OnceLock<FileMap> = OnceLock::new();
+    FILES.get_or_init(|| Arc::new(RwLock::new(AHashMap::new()))).clone()
+}
+
+pub fn add_source_file(filename: &str, code: impl Into<String>) {
+	let files = get_files();
+    let mut files = files.write().unwrap();
+    if let Some(file) = files.get_mut(filename) {
+        *file = code.into();
+    } else {
+        files.insert(filename.to_owned(), code.into());
+    }
+}
+
 fn get_errored_edges<'a, T: Iterator<Item = &'a str>>(
     code: &'a str,
     splitter: impl FnOnce(&'a str, char) -> T,
 ) -> &str {
-    splitter(code, '\n')
-        .next()
-        .unwrap_or_default()
+    splitter(code, '\n').next().unwrap_or_default()
 }
 
 pub fn finish<T>(errors: u8, to_return: T) -> Result<T, String> {
