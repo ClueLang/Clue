@@ -8,7 +8,7 @@ use crate::{
 	code::{Code, CodeChar},
 	env::Options,
 	format_clue,
-	errors::{finish, ErrorMessaging, add_source_file},
+	errors::{finish_step, ErrorMessaging, add_source_file},
 	impl_errormessaging,
 };
 use ahash::AHashMap;
@@ -1155,7 +1155,7 @@ pub fn preprocess_code(
 		loader.append(first.0);
 		finalcode.push_front((loader, first.1));
 	}
-	finish(code.errors, ((finalcode, size), variables, code.line, code.read))
+	finish_step(filename, code.errors, ((finalcode, size), variables, code.line, code.read))
 }
 
 fn skip_whitespace_backwards(code: &mut Peekable<Rev<std::slice::Iter<u8>>>) {
@@ -1350,7 +1350,7 @@ pub fn preprocess_codes(
 				codepart
 			});
 		}
-		finish(i.errors, code)
+		finish_step(filename, i.errors, code)
 	}
 }
 

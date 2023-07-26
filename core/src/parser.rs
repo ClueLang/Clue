@@ -11,7 +11,7 @@ use crate::{
 	compiler::Compiler,
 	env::{BitwiseMode, ContinueMode, LuaVersion, Options},
 	scanner::{BorrowedToken, Token, TokenType, TokenType::*},
-	errors::{finish, ErrorMessaging},
+	errors::{finish_step, ErrorMessaging},
 	format_clue,
 	impl_errormessaging,
 };
@@ -2349,13 +2349,14 @@ pub fn parse_tokens(
 ) -> Result<(Expression, String), String> {
 	let i = parse_tokens_internal(tokens, filename, options);
 	//println!("LOCALS = {:#?}", i.locals);
-	finish(
+	finish_step(
+		filename,
 		i.errors,
 		(i.expr,
 		if !i.statics.is_empty() && options.env_debug {
 			format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
 		} else {
 			i.statics
-		})
+		}),
 	)
 }

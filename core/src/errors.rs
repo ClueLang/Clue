@@ -45,16 +45,16 @@ fn get_errored_edges<'a, T: Iterator<Item = &'a str>>(
     splitter(code, '\n').next().unwrap_or_default()
 }
 
-pub fn finish<T>(errors: u8, to_return: T) -> Result<T, String> {
+pub fn finish_step<T>(filename: &String, errors: u8, to_return: T) -> Result<T, String> {
 	match errors {
 		0 => {
 			Ok(to_return)
 		},
 		1 => {
-			Err(String::from("Cannot continue compiling due to the previous error!"))
+			Err(format!("Cannot continue compiling \"{filename}\" due to the previous error!"))
 		}
 		n => {
-			Err(format!("Cannot continue compiling due to {} previous errors!", n))
+			Err(format!("Cannot continue compiling \"{filename}\" due to {n} previous errors!"))
 		}
 	}
 }

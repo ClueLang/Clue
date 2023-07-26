@@ -1,5 +1,5 @@
 use ahash::AHashMap;
-use clue::errors::finish;
+use clue::errors::finish_step;
 use clue::{code::*, compiler::*, env::Options, parser::*, preprocessor::*, scanner::*};
 use clue_core as clue;
 use criterion::{criterion_group, criterion_main, Criterion};
@@ -49,7 +49,7 @@ fn compile_code(
 				codepart
 			});
 		}
-		finish(i.errors, code)
+		finish_step(name, i.errors, code)
 	}?;
 	let tokens: Vec<Token> = scan_code(code, name)?;
 	let (ctokens, statics) = parse_tokens(tokens, name, options)?;

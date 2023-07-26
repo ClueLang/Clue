@@ -13,7 +13,7 @@ use std::fmt;
 use crate::{
 	code::{Code, CodeChars},
 	format_clue,
-	errors::{finish, ErrorMessaging},
+	errors::{finish_step, ErrorMessaging},
 	impl_errormessaging,
 };
 
@@ -728,7 +728,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 		}
 	}
 	i.add_literal_token(EOF, String::from("<end>"));
-	finish(i.errors, i.tokens)
+	finish_step(filename, i.errors, i.tokens)
 }
 
 #[cfg(test)]
