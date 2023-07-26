@@ -280,7 +280,7 @@ fn main() {
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
 	}
 	if let Err(e) = start_compilation(cli) {
-		println!("{}: {e}", "Error".red().bold())
+		eprintln!("{}: {e}", "Error".red().bold())
 	}
 }
 
