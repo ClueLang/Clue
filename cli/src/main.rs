@@ -10,7 +10,7 @@ use clue_core::{
 	preprocessor::*,
 	scanner::*,
 };
-use std::{env, fs, path::PathBuf, time::Instant, process::exit};
+use std::{env, fs, path::PathBuf, time::Instant};
 use threads::compile_folder;
 use colored::*;
 
