@@ -3,10 +3,10 @@ use ahash::AHashMap;
 use colored::*;
 
 type FileMap = Arc<RwLock<AHashMap<String, String>>>;
-static FILES: OnceLock<FileMap> = OnceLock::new();
 
 #[inline]
 fn get_files() -> FileMap {
+	static FILES: OnceLock<FileMap> = OnceLock::new();
     FILES.get_or_init(|| Arc::new(RwLock::new(AHashMap::new()))).clone()
 }
 
