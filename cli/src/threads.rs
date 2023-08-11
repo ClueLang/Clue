@@ -104,12 +104,6 @@ pub fn compile_folder(
 		codes.push(data.codes);
 	}
 
-	match errored {
-		0 => {}
-		1 => return Err(String::from("1 file failed to compile!")),
-		n => return Err(format!("{n} files failed to compile!")),
-	}
-
 	let variables = Arc::new(
 		variables
 			.into_iter()
