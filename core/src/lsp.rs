@@ -65,3 +65,20 @@ pub fn send_symbol(
 		})
 	)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::lsp::hash_string;
+
+	#[test]
+	fn check_hash() {
+		assert!(
+			hash_string("test_string") == hash_string("test_string"),
+			"hasing the same string twice gave different results!"
+		);
+		assert!(
+			hash_string("test_string") != hash_string("test_strinh"),
+			"somehow hashing 2 different strings gave the same result!"
+		);
+	}
+}
