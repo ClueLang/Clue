@@ -250,6 +250,12 @@ impl Code {
 		self.list.len()
 	}
 
+	/// Returns the first character in the [`Code`].
+	/// This is equivalent to [`VecDeque::front`].
+	pub fn first(&self) -> Option<&CodeChar> {
+		self.list.front()
+	}
+
 	/// Returns the last character in the [`Code`].
 	/// This is equivalent to [`VecDeque::back`].
 	pub fn last(&self) -> Option<&CodeChar> {
