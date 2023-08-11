@@ -8,12 +8,7 @@ use std::{
 	ops::Range,
 };
 
-//BACKPORTED FROM BETTER_ERRORS
-pub struct TokenPosition {
-	pub line: usize,
-	pub column: usize,
-	//pub index: usize,
-}
+use crate::scanner::TokenPosition;
 
 #[derive(Serialize)]
 pub enum SymbolKind {
