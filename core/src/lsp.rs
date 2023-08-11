@@ -8,8 +8,6 @@ use std::{
 	ops::Range,
 };
 
-use crate::scanner::TokenPosition;
-
 #[derive(Serialize)]
 pub enum SymbolKind {
 	VARIABLE,
@@ -32,13 +30,15 @@ fn hash_string(string: &str) -> u64 {
 	hasher.finish()
 }
 
-pub fn send_symbol(
+pub fn send_definition(
 	token: &str,
 	value: String,
-	location: Range<TokenPosition>,
+	location: Range<impl Into<(usize, usize)>>,
 	kind: SymbolKind,
 	modifiers: &[SymbolModifier],
 ) {
+	let start = location.start.into();
+	let end = location.end.into();
 	println!(
 		"DEFINITION {}",
 		json!({
@@ -47,12 +47,12 @@ pub fn send_symbol(
 			"value": value,
 			"location": {
 				"start": {
-					"line": location.start.line,
-					"column": location.start.column,
+					"line": start.0,
+					"column": start.1,
 				},
 				"end": {
-					"line": location.end.line,
-					"column": location.end.column,
+					"line": end.0,
+					"column": end.1,
 				}
 			},
 			"kind": kind,

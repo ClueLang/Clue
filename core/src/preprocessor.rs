@@ -894,6 +894,23 @@ pub fn preprocess_code(
 							},
 						);
 						let value = value.trim();
+						#[cfg(feature = "lsp")]
+						if options.env_symbols {
+							use crate::lsp::*;
+
+							//TODO make CodeChar a struct to implent Into?
+							let c = name.first().unwrap();
+							let start = (c.1, c.2);
+							let mut end = start.clone();
+							end.1 += name.len();
+							send_definition(
+								&name.to_string(),
+								value.to_string(),
+								start..end,
+								SymbolKind::CONSTANT,
+								&[]
+							);
+						}
 						variables.insert(
 							name,
 							if has_values {
