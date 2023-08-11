@@ -8,7 +8,7 @@ use clue_core::{
 	format_clue,
 	parser::*,
 	preprocessor::*,
-	scanner::*,
+	scanner::*, errors::print_errors,
 };
 use std::{env, fs, path::PathBuf, time::Instant};
 use threads::compile_folder;
@@ -280,7 +280,8 @@ fn main() {
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
 	}
 	if let Err(e) = start_compilation(cli) {
-		eprintln!("{}: {e}", "Error".red().bold())
+		print_errors();
+		eprintln!("{}: {e}", "Error".red().bold());
 	}
 }
 

@@ -1,6 +1,7 @@
 use ahash::AHashMap;
 use clue_core::code::Code;
 use clue_core::env::Options;
+use clue_core::errors::print_errors;
 use clue_core::preprocessor::{read_file, PPCode, PPVar, PPVars};
 use clue_core::{check, format_clue};
 use crossbeam_queue::SegQueue;
@@ -173,6 +174,7 @@ fn preprocess_file_dir(
 					codes: Default::default(),
 					variables: Default::default(),
 				}).unwrap();
+				print_errors();
 				eprintln!("{}: {e}", "Error".red().bold());
 				continue;
 			}
@@ -207,6 +209,7 @@ fn compile_file_dir(
 					output: "".to_owned(),
 					static_vars: "".to_owned(),
 				}).unwrap();
+				print_errors();
 				eprintln!("{}: {e}", "Error".red().bold());
 				continue;
 			}

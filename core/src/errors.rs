@@ -3,20 +3,15 @@ use ahash::AHashMap;
 use colored::*;
 
 type FileMap = Arc<RwLock<AHashMap<String, String>>>;
+type ErrorsVec = Arc<RwLock<Vec<String>>>;
 
 #[macro_export]
 macro_rules! impl_errormessaging {
 	($struct:ty) => {
 		impl ErrorMessaging for $struct {
-			fn get_filename(&self) -> &str {
+			fn get_filename(&mut self, is_error: bool) -> &str {
+				self.errors += is_error as u8;
 				self.filename
-			}
-		
-			fn is_first(&mut self, error: bool) -> bool {
-				if error {
-					self.errors += 1;
-				}
-				self.errors == 1
 			}
 		}
 	};
@@ -38,6 +33,21 @@ pub fn add_source_file(filename: &str, code: impl Into<String>) {
     }
 }
 
+#[inline]
+fn get_errors() -> ErrorsVec {
+	static ERRORS: OnceLock<ErrorsVec> = OnceLock::new();
+	ERRORS.get_or_init(|| Arc::new(RwLock::new(Vec::new()))).clone()
+}
+
+pub fn print_errors() {
+	let errors = get_errors();
+	let mut errors = errors.write().unwrap();
+	for error in errors.iter() {
+		eprintln!("{error}");
+	}
+	errors.clear();
+}
+
 fn get_errored_edges<'a, T: Iterator<Item = &'a str>>(
     code: &'a str,
     splitter: impl FnOnce(&'a str, char) -> T,
@@ -51,10 +61,10 @@ pub fn finish_step<T>(filename: &String, errors: u8, to_return: T) -> Result<T, 
 			Ok(to_return)
 		},
 		1 => {
-			Err(format!("Cannot continue compiling \"{filename}\" due to the previous error!"))
+			Err(format!("Cannot continue compiling \"{filename}\" due to an error!"))
 		}
 		n => {
-			Err(format!("Cannot continue compiling \"{filename}\" due to {n} previous errors!"))
+			Err(format!("Cannot continue compiling \"{filename}\" due to {n} errors!"))
 		}
 	}
 }
@@ -62,22 +72,21 @@ pub fn finish_step<T>(filename: &String, errors: u8, to_return: T) -> Result<T, 
 pub trait ErrorMessaging {
 	fn send(
 		&mut self,
-		kind: ColoredString,
+		is_error: bool,
 		message: impl Into<String>,
 		line: usize,
 		column: usize,
 		range: Range<usize>,
-		is_first: bool,
 		help: Option<&str>
 	) {
-		let filename = self.get_filename();
+		let filename = self.get_filename(is_error);
+		let kind = if is_error {
+			"Error".red()
+		} else {
+			"Warning".yellow()
+		}.bold();
 		let header = format!(
-			"{}{} in {}:{}:{}!",
-			if is_first {
-				""
-			} else {
-				"\n----------------------------------\n\n"
-			},
+			"{} in {}:{}:{}",
 			kind,
 			filename,
 			line,
@@ -93,11 +102,11 @@ pub trait ErrorMessaging {
 				String::from("")
 			}
 		);
-		if let Some(code) = get_files().read().expect("Couldn't read file map").get(filename) {
+		let error = if let Some(code) = get_files().read().expect("Couldn't read file map").get(filename) {
 			let before_err = get_errored_edges(&code[..range.start], str::rsplit);
 			let after_err = get_errored_edges(&code[range.end..], str::split);
 			let errored = &code[range];
-			eprintln!(
+			format!(
 				"{}\n\n{}{}{}\n\n{}",
 				header,
 				before_err.trim_start(),
@@ -106,8 +115,9 @@ pub trait ErrorMessaging {
 				full_message
 			)
 		} else {
-			eprintln!("{}\n{}", header, full_message)
-		}
+			format!("{}\n{}", header, full_message)
+		};
+		get_errors().write().unwrap().push(error);
 	}
 
 	fn error(
@@ -118,8 +128,7 @@ pub trait ErrorMessaging {
 		range: Range<usize>,
 		help: Option<&str>
 	) {
-		let is_first = self.is_first(true);
-		self.send("Error".red().bold(), message, line, column, range, is_first, help)
+		self.send(true, message, line, column, range, help)
 	}
 
 	fn expected(
@@ -154,11 +163,8 @@ pub trait ErrorMessaging {
 		range: Range<usize>,
 		help: Option<&str>
 	) {
-		let is_first = self.is_first(false);
-		self.send("Warning".yellow().bold(), message, line, column, range, is_first, help)
+		self.send(false, message, line, column, range, help)
 	}
 
-	fn get_filename(&self) -> &str;
-
-	fn is_first(&mut self, error: bool) -> bool;
+	fn get_filename(&mut self, is_error: bool) -> &str;
 }
