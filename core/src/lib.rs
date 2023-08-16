@@ -3,15 +3,18 @@
 //! This is used by the cli but can also be used by other projects
 //! It is recommended to use [`Clue`] instead of the lower level APIs unless you need to
 
-use std::{ffi::OsStr, fmt::{Display, format}, fs, path::{Path, PathBuf}, ops::Range, sync::OnceLock};
-use ahash::AHashMap;
 use code::Code;
 use compiler::Compiler;
 use env::{BitwiseMode, ContinueMode, LuaVersion, Options};
 use parser::{parse_tokens, Expression};
 use preprocessor::{preprocess_code, preprocess_codes, read_file};
 use scanner::{scan_code, Token};
-use colored::*;
+use std::{
+	ffi::OsStr,
+	fmt::Display,
+	fs,
+	path::{Path, PathBuf},
+};
 
 #[cfg(feature = "rpmalloc")]
 #[global_allocator]
@@ -21,11 +24,11 @@ static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 pub mod code;
 pub mod compiler;
 pub mod env;
+pub mod errors;
+pub mod lsp;
 pub mod parser;
 pub mod preprocessor;
 pub mod scanner;
-pub mod lsp;
-pub mod errors;
 
 #[macro_export]
 /// Check whether `tocheck` is `Ok` or `Err`
@@ -63,7 +66,6 @@ macro_rules! format_clue {
     }};
 }
 
-/* TO BE REDONE
 /// The main Clue library API
 /// This is the API that you will use to interact with Clue for most use cases
 /// It's recommended to use this API instead of the lower level APIs unless you need to
@@ -77,6 +79,15 @@ impl Clue {
 		Clue {
 			options: Options::default(),
 		}
+	}
+
+	/// Gets the errors that have occurred
+	/// Returns a [`Vec`] containing the errors
+	pub fn get_errors(&self) -> Vec<String> {
+		let lock = errors::get_errors();
+		let errors = { lock.read().unwrap().clone() };
+		lock.write().unwrap().clear();
+		errors
 	}
 
 	/// Sets the `tokens` option
@@ -172,6 +183,13 @@ impl Clue {
 	///     Ok(())
 	/// }
 	pub fn preprocess_code(&self, code: String) -> Result<Code, String> {
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		self.preprocess_code_internal(code)
+	}
+
+	fn preprocess_code_internal(&self, code: String) -> Result<Code, String> {
 		let mut code = code;
 		let filename = String::from("(library)");
 		let (codes, variables, ..) = preprocess_code(
@@ -210,6 +228,16 @@ impl Clue {
 		&self,
 		path: P,
 	) -> Result<Code, String> {
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		self.preprocess_file_internal(path)
+	}
+
+	fn preprocess_file_internal<P: AsRef<Path> + AsRef<OsStr> + Display>(
+		&self,
+		path: P,
+	) -> Result<Code, String> {
 		let filepath = PathBuf::from(path.to_string());
 		let filename = filepath
 			.file_name()
@@ -233,8 +261,18 @@ impl Clue {
 	///
 	/// # Errors
 	/// If an error occurs while scanning the code, an [`Err`] containing a [`String`] with the error message will be returned
-	///
 	pub fn scan_preprocessed_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
+		&self,
+		code: Code,
+		path: P,
+	) -> Result<Vec<Token>, String> {
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		self.scan_preprocessed_file_internal(code, path)
+	}
+
+	fn scan_preprocessed_file_internal<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
 		code: Code,
 		path: P,
@@ -270,6 +308,13 @@ impl Clue {
 	///   Ok(())
 	/// }
 	pub fn scan_preprocessed(&self, code: Code) -> Result<Vec<Token>, String> {
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		self.scan_preprocessed_internal(code)
+	}
+
+	fn scan_preprocessed_internal(&self, code: Code) -> Result<Vec<Token>, String> {
 		scan_code(code, &String::from("(library)"))
 	}
 
@@ -293,8 +338,16 @@ impl Clue {
 	///   Ok(())
 	/// }
 	pub fn scan_code(&self, code: String) -> Result<Vec<Token>, String> {
-		let code = self.preprocess_code(code)?;
-		self.scan_preprocessed(code)
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		let code = self.preprocess_code_internal(code)?;
+		self.scan_preprocessed_internal(code)
+	}
+
+	fn scan_code_internal(&self, code: String) -> Result<Vec<Token>, String> {
+		let code = self.preprocess_code_internal(code)?;
+		self.scan_preprocessed_internal(code)
 	}
 
 	/// Scans the given file for tokens
@@ -318,10 +371,20 @@ impl Clue {
 	/// }
 	pub fn scan_file<P: AsRef<Path> + AsRef<OsStr> + Display>(
 		&self,
+		path: P,
+	) -> Result<Vec<Token>, String> {
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		self.scan_file_internal(path)
+	}
+
+	fn scan_file_internal<P: AsRef<Path> + AsRef<OsStr> + Display>(
+		&self,
 		filename: P,
 	) -> Result<Vec<Token>, String> {
-		let code = self.preprocess_file(&filename)?;
-		self.scan_preprocessed_file(code, &filename)
+		let code = self.preprocess_file_internal(&filename)?;
+		self.scan_preprocessed_file_internal(code, &filename)
 	}
 }
 
@@ -347,8 +410,11 @@ impl Clue {
 	///  Ok(())
 	/// }
 	pub fn parse_preprocessed(&self, code: Code) -> Result<(Expression, String), String> {
-		let tokens = self.scan_preprocessed(code)?;
-		self.parse_tokens(tokens)
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		let tokens = self.scan_preprocessed_internal(code)?;
+		self.parse_tokens_internal(tokens)
 	}
 
 	/// Parses the given [`Vec`] of [`Token`]
@@ -372,6 +438,13 @@ impl Clue {
 	///    Ok(())
 	/// }
 	pub fn parse_tokens(&self, tokens: Vec<Token>) -> Result<(Expression, String), String> {
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		self.parse_tokens_internal(tokens)
+	}
+
+	fn parse_tokens_internal(&self, tokens: Vec<Token>) -> Result<(Expression, String), String> {
 		parse_tokens(tokens, &String::from("(library)"), &self.options)
 	}
 
@@ -395,8 +468,11 @@ impl Clue {
 	///   Ok(())
 	/// }
 	pub fn parse_code(&self, code: String) -> Result<(Expression, String), String> {
-		let tokens = self.scan_code(code)?;
-		self.parse_tokens(tokens)
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		let tokens = self.scan_code_internal(code)?;
+		self.parse_tokens_internal(tokens)
 	}
 
 	/// Parses the given file
@@ -422,13 +498,16 @@ impl Clue {
 		&self,
 		path: P,
 	) -> Result<(Expression, String), String> {
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
 		let filepath: &Path = path.as_ref();
 		let filename = filepath
 			.file_name()
 			.ok_or_else(|| format!("Invalid path: {}", path))?
 			.to_string_lossy()
 			.into_owned();
-		let tokens = self.scan_file(&path).unwrap();
+		let tokens = self.scan_file_internal(&path).unwrap();
 
 		parse_tokens(tokens, &filename, &self.options)
 	}
@@ -456,7 +535,14 @@ impl Clue {
 	///    Ok(())
 	/// }
 	pub fn compile_tokens(&self, tokens: Vec<Token>) -> Result<String, String> {
-		let (ctokens, statics) = self.parse_tokens(tokens)?;
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		self.compile_tokens_internal(tokens)
+	}
+
+	fn compile_tokens_internal(&self, tokens: Vec<Token>) -> Result<String, String> {
+		let (ctokens, statics) = self.parse_tokens_internal(tokens)?;
 		let filename = String::from("(library)");
 		let compiler = Compiler::new(&self.options, &filename);
 		Ok(statics + &compiler.compile_tokens(0, ctokens)?)
@@ -483,8 +569,11 @@ impl Clue {
 	///     Ok(())
 	/// }
 	pub fn compile_preprocessed(&self, code: Code) -> Result<String, String> {
-		let tokens = self.scan_preprocessed(code)?;
-		self.compile_tokens(tokens)
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		let tokens = self.scan_preprocessed_internal(code)?;
+		self.compile_tokens_internal(tokens)
 	}
 
 	/// Compiles the given AST
@@ -508,6 +597,9 @@ impl Clue {
 	///    Ok(())
 	/// }
 	pub fn compile_ast(&self, (ctokens, statics): (Expression, String)) -> Result<String, String> {
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
 		let filename = String::from("(library)");
 		let compiler = Compiler::new(&self.options, &filename);
 		Ok(statics + &compiler.compile_tokens(0, ctokens)?)
@@ -533,8 +625,11 @@ impl Clue {
 	///    Ok(())
 	/// }
 	pub fn compile_code(&self, code: String) -> Result<String, String> {
-		let tokens = self.scan_code(code)?;
-		self.compile_tokens(tokens)
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		let tokens = self.scan_code_internal(code)?;
+		self.compile_tokens_internal(tokens)
 	}
 
 	/// Compiles the given file
@@ -560,8 +655,11 @@ impl Clue {
 		&self,
 		path: P,
 	) -> Result<String, String> {
-		let tokens = self.scan_file(&path)?;
-		let result = self.compile_tokens(tokens)?;
+		{
+			errors::get_errors().write().unwrap().clear();
+		}
+		let tokens = self.scan_file_internal(&path)?;
+		let result = self.compile_tokens_internal(tokens)?;
 		if self.options.env_output {
 			fs::write(path, &result).map_err(|e| e.to_string())?;
 		}
@@ -581,4 +679,4 @@ impl Default for Clue {
 	fn default() -> Self {
 		Clue::new()
 	}
-}*/
+}

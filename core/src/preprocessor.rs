@@ -7,21 +7,19 @@ use crate::{
 	check,
 	code::{Code, CodeChar},
 	env::Options,
-	format_clue,
-	errors::{finish_step, ErrorMessaging, add_source_file},
-	impl_errormessaging,
+	errors::{add_source_file, finish_step, ErrorMessaging},
+	format_clue, impl_errormessaging,
 };
 use ahash::AHashMap;
 use std::{
 	cmp,
 	collections::VecDeque,
-	env,
-	fs,
+	env, fs,
 	iter::{Peekable, Rev},
+	ops::Range,
 	path::PathBuf,
 	str::{self, Split},
 	u8,
-	ops::Range,
 };
 use utf8_decode::decode;
 
@@ -123,14 +121,18 @@ impl<'a> CodeFile<'a> {
 			Some(c) if c.0.is_ascii() => Some(c),
 			Some((_, line, column)) => {
 				let c = decode(
-					&mut self.code[self.read - 1..cmp::min(self.read + 3, self.code.len())].iter().copied()
-				).unwrap().unwrap();
+					&mut self.code[self.read - 1..cmp::min(self.read + 3, self.code.len())]
+						.iter()
+						.copied(),
+				)
+				.unwrap()
+				.unwrap();
 				self.error(
 					format!("Invalid character '{c}'"),
 					line,
 					column,
 					self.read - 1..self.read,
-					None
+					None,
 				);
 				None
 			}
@@ -232,7 +234,7 @@ impl<'a> CodeFile<'a> {
 					self.line,
 					self.column,
 					self.read - 1..self.read,
-					None
+					None,
 				);
 				false
 			}
@@ -243,11 +245,11 @@ impl<'a> CodeFile<'a> {
 					line,
 					column,
 					self.read - 1..self.read,
-					None
+					None,
 				);
 				false
 			}
-			_ => true
+			_ => true,
 		}
 	}
 
@@ -272,11 +274,8 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn read_line(&mut self) -> String {
-		self.read(
-			Self::read_char_unchecked,
-			|_, (c, ..)| c == b'\n',
-		)
-		.to_string()
+		self.read(Self::read_char_unchecked, |_, (c, ..)| c == b'\n')
+			.to_string()
 	}
 
 	fn read_identifier(&mut self) -> Code {
@@ -298,13 +297,7 @@ impl<'a> CodeFile<'a> {
 			|code| {
 				let stringc = code.read_char_unchecked();
 				if stringc.is_none() {
-					code.error(
-						"Unterminated string",
-						c.1,
-						c.2,
-						start..code.read,
-						None
-					)
+					code.error("Unterminated string", c.1, c.2, start..code.read, None)
 				}
 				stringc
 			},
@@ -346,17 +339,18 @@ impl<'a> CodeFile<'a> {
 
 	fn read_until(&mut self, end: u8) -> Code {
 		let start = self.read - 1;
-		self.read_until_with(end, Self::read_char).unwrap_or_else(|| {
-			self.expected_before(
-				&(end as char).to_string(),
-				"<end>",
-				self.line,
-				self.column,
-				start..self.read,
-				None
-			);
-			Code::new()
-		})
+		self.read_until_with(end, Self::read_char)
+			.unwrap_or_else(|| {
+				self.expected_before(
+					&(end as char).to_string(),
+					"<end>",
+					self.line,
+					self.column,
+					start..self.read,
+					None,
+				);
+				Code::new()
+			})
 	}
 
 	fn read_macro_args(&mut self) -> Code {
@@ -383,7 +377,7 @@ impl<'a> CodeFile<'a> {
 			self.line,
 			self.column,
 			self.read - 1..self.read,
-			None
+			None,
 		);
 		Code::new()
 	}
@@ -411,14 +405,7 @@ impl<'a> CodeFile<'a> {
 				_ => {}
 			}
 		}
-		self.expected_before(
-			"}",
-			"<end>",
-			self.line,
-			self.column,
-			start..self.read,
-			None
-		)
+		self.expected_before("}", "<end>", self.line, self.column, start..self.read, None)
 	}
 
 	fn keep_block(&mut self, to_keep: bool) {
@@ -466,10 +453,7 @@ impl<'a> CodeFile<'a> {
 		};
 		self.skip_whitespace();
 		let comp_pos = self.read - 1;
-		let comparison = [
-			self.read_char_unchecked(),
-			self.read_char_unchecked()
-		];
+		let comparison = [self.read_char_unchecked(), self.read_char_unchecked()];
 		if comparison.contains(&None) {
 			let size = String::from_utf8_lossy(self.code).len();
 			self.expected(
@@ -478,7 +462,7 @@ impl<'a> CodeFile<'a> {
 				self.line,
 				self.column,
 				comp_pos..cmp::min(comp_pos + 2, size),
-				None
+				None,
 			);
 			return false;
 		}
@@ -494,7 +478,7 @@ impl<'a> CodeFile<'a> {
 					self.line,
 					self.column,
 					comp_pos..comp_pos + 2,
-					None
+					None,
 				);
 				false
 			}
@@ -531,7 +515,7 @@ impl<'a> CodeFile<'a> {
 					self.line,
 					self.column,
 					start..self.read,
-					None
+					None,
 				);
 				return false;
 			}
@@ -555,7 +539,7 @@ impl<'a> CodeFile<'a> {
 						self.line,
 						self.column,
 						start..self.read,
-						None
+						None,
 					);
 					return false;
 				}
@@ -565,7 +549,7 @@ impl<'a> CodeFile<'a> {
 		check
 	}
 
-	fn get_version_number(&mut self, start: usize, version: &mut Split<char>, default : &str) -> u8 {
+	fn get_version_number(&mut self, start: usize, version: &mut Split<char>, default: &str) -> u8 {
 		let num = match version.next() {
 			None => {
 				self.error(
@@ -573,7 +557,7 @@ impl<'a> CodeFile<'a> {
 					self.line,
 					self.column,
 					start..self.read,
-					Some("Version must be 'X.Y.Z'")
+					Some("Version must be 'X.Y.Z'"),
 				);
 				return u8::MAX;
 			}
@@ -588,10 +572,10 @@ impl<'a> CodeFile<'a> {
 					self.line,
 					self.column,
 					start..self.read,
-					Some("Version must be 'X.Y.Z'")
+					Some("Version must be 'X.Y.Z'"),
 				);
 				u8::MAX
-			},
+			}
 		}
 	}
 }
@@ -701,12 +685,10 @@ pub fn preprocess_code(
 					"import" => {
 						if output_dir.is_none() {
 							output_dir = Some(match options.env_outputname.as_ref() {
-								Some(output_dir) => output_dir
-									.parent()
-									.map_or_else(
-										|| output_dir.to_path_buf(),
-										|output_dir| output_dir.to_path_buf()
-									),
+								Some(output_dir) => output_dir.parent().map_or_else(
+									|| output_dir.to_path_buf(),
+									|output_dir| output_dir.to_path_buf(),
+								),
 								None => match env::current_dir() {
 									Ok(current_dir) => current_dir,
 									Err(err) => {
@@ -715,11 +697,11 @@ pub fn preprocess_code(
 											c.1,
 											c.2,
 											code.read - 1..code.read,
-											Some(&err.to_string())
+											Some(&err.to_string()),
 										);
-										break
+										break;
 									}
-								}
+								},
 							})
 						}
 						let output_dir = output_dir.as_ref().unwrap();
@@ -735,11 +717,12 @@ pub fn preprocess_code(
 									c.1,
 									c.2,
 									code.read - 1..code.read,
-									None
+									None,
 								);
-								continue
+								continue;
 							}
-						}.to_string();
+						}
+						.to_string();
 						let mod_end = code.read - 1;
 						let name = code.read_line();
 						let name = name.trim();
@@ -755,7 +738,7 @@ pub fn preprocess_code(
 							"import"
 						};
 						let (name, start) = match name.strip_prefix("=>") {
-							Some(name) =>{
+							Some(name) => {
 								let mut trimmed_name = name.trim_start().to_owned();
 								if trimmed_name.is_empty() {
 									code.expected(
@@ -764,9 +747,9 @@ pub fn preprocess_code(
 										code.line,
 										code.column,
 										code.read - 1..code.read,
-										None
+										None,
 									);
-									continue
+									continue;
 								}
 								if trimmed_name.contains(|c| matches!(c, '$' | '@')) {
 									let (codes, new_variables, ..) = preprocess_code(
@@ -774,17 +757,14 @@ pub fn preprocess_code(
 										code.line,
 										false,
 										filename,
-										options
+										options,
 									)?;
 									for (key, value) in new_variables {
 										variables.insert(key, value);
 									}
-									trimmed_name = preprocess_codes(
-										0,
-										codes,
-										&variables,
-										filename
-									)?.to_string();
+									trimmed_name =
+										preprocess_codes(0, codes, &variables, filename)?
+											.to_string();
 								}
 								let start = if trimmed_name.contains(|c| matches!(c, '.' | '[')) {
 									""
@@ -792,11 +772,16 @@ pub fn preprocess_code(
 									"local "
 								};
 								(trimmed_name, start)
-							},
-							None => (match module.rsplit_once('.') {
-								Some((_, name)) => name,
-								None => &module,
-							}.trim().to_string(), "local ")
+							}
+							None => (
+								match module.rsplit_once('.') {
+									Some((_, name)) => name,
+									None => &module,
+								}
+								.trim()
+								.to_string(),
+								"local ",
+							),
 						};
 						if name.is_empty() {
 							code.expected(
@@ -805,7 +790,7 @@ pub fn preprocess_code(
 								c.1,
 								c.2,
 								mod_end - module.len()..mod_end,
-								None
+								None,
 							)
 						}
 						currentcode.append(Code::from((
@@ -835,30 +820,28 @@ pub fn preprocess_code(
 						const CURRENT_MINOR: &str = env!("CARGO_PKG_VERSION_MINOR");
 						const CURRENT_PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
 						let errors = code.errors;
-						let wanted_major = code.get_version_number(
-							start,
-							wanted_version_iter,
-							CURRENT_MAJOR
-						);
-						if errors < code.errors {continue}
-						let wanted_minor = code.get_version_number(
-							start,
-							wanted_version_iter,
-							CURRENT_MINOR
-						);
-						if errors < code.errors {continue}
-						let wanted_patch = code.get_version_number(
-							start,
-							wanted_version_iter,
-							CURRENT_PATCH
-						);
-						if errors < code.errors {continue}
+						let wanted_major =
+							code.get_version_number(start, wanted_version_iter, CURRENT_MAJOR);
+						if errors < code.errors {
+							continue;
+						}
+						let wanted_minor =
+							code.get_version_number(start, wanted_version_iter, CURRENT_MINOR);
+						if errors < code.errors {
+							continue;
+						}
+						let wanted_patch =
+							code.get_version_number(start, wanted_version_iter, CURRENT_PATCH);
+						if errors < code.errors {
+							continue;
+						}
 						let current_major: u8 = CURRENT_MAJOR.parse().unwrap();
 						let current_minor: u8 = CURRENT_MINOR.parse().unwrap();
 						let current_patch: u8 = CURRENT_PATCH.parse().unwrap();
 						if check(&current_major, &wanted_major)
-						|| check(&current_minor, &wanted_minor)
-						|| check(&current_patch, &wanted_patch) {
+							|| check(&current_minor, &wanted_minor)
+							|| check(&current_patch, &wanted_patch)
+						{
 							code.error(
 								if full_wanted_version.starts_with('=') {
 									format_clue!(
@@ -876,7 +859,7 @@ pub fn preprocess_code(
 								c.1,
 								c.2,
 								start..code.read,
-								None
+								None,
 							);
 							break;
 						}
@@ -884,15 +867,12 @@ pub fn preprocess_code(
 					"define" => {
 						let name = code.read_identifier();
 						let mut has_values = false;
-						let value = code.read(
-							CodeFile::read_char_unchecked,
-							|_, (c, ..)| {
-								if c == b'$' {
-									has_values = true;
-								}
-								c == b'\n'
-							},
-						);
+						let value = code.read(CodeFile::read_char_unchecked, |_, (c, ..)| {
+							if c == b'$' {
+								has_values = true;
+							}
+							c == b'\n'
+						});
 						let value = value.trim();
 						variables.insert(
 							name,
@@ -931,7 +911,7 @@ pub fn preprocess_code(
 											line,
 											column,
 											start..code.read - 1,
-											None
+											None,
 										);
 									}
 								}
@@ -954,7 +934,7 @@ pub fn preprocess_code(
 										line,
 										column,
 										start..code.read,
-										None
+										None,
 									);
 									break 'main;
 								}
@@ -983,17 +963,15 @@ pub fn preprocess_code(
 					"error" => {
 						let err = code.read_line();
 						code.error(err, c.1, c.2, start..code.read, None)
-					},
-					"print" => println!("{}", code.read_line()),
-					_ => {
-						code.error(
-							format!("Unknown directive '{directive_name}'"),
-							c.1,
-							c.2,
-							start..start + directive_name.len() + 1,
-							None
-						)
 					}
+					"print" => println!("{}", code.read_line()),
+					_ => code.error(
+						format!("Unknown directive '{directive_name}'"),
+						c.1,
+						c.2,
+						start..start + directive_name.len() + 1,
+						None,
+					),
 				}
 				if skip {
 					code.last_if = true;
@@ -1141,7 +1119,7 @@ pub fn preprocess_code(
 			code.line,
 			code.column,
 			code.read - 1..code.read,
-			None
+			None,
 		);
 	}
 	if !currentcode.is_empty() {
@@ -1150,12 +1128,20 @@ pub fn preprocess_code(
 	}
 	if bitwise && options.env_jitbit.is_some() {
 		let bit = options.env_jitbit.as_ref().unwrap();
-		let mut loader = Code::from((format_clue!("local ", bit, " = require(\"", bit, "\");"), 1, 1));
+		let mut loader = Code::from((
+			format_clue!("local ", bit, " = require(\"", bit, "\");"),
+			1,
+			1,
+		));
 		let first = finalcode.pop_front().unwrap();
 		loader.append(first.0);
 		finalcode.push_front((loader, first.1));
 	}
-	finish_step(filename, code.errors, ((finalcode, size), variables, code.line, code.read))
+	finish_step(
+		filename,
+		code.errors,
+		((finalcode, size), variables, code.line, code.read),
+	)
 }
 
 fn skip_whitespace_backwards(code: &mut Peekable<Rev<std::slice::Iter<u8>>>) {
@@ -1280,7 +1266,7 @@ impl CodesInfo<'_> {
 		line: usize,
 		column: usize,
 		len: usize,
-		help: Option<&str>
+		help: Option<&str>,
 	) {
 		let range = self.get_index(line, column, len);
 		ErrorMessaging::error(self, message, line, column, range, help);
@@ -1293,12 +1279,11 @@ impl CodesInfo<'_> {
 		line: usize,
 		column: usize,
 		len: usize,
-		help: Option<&str>
+		help: Option<&str>,
 	) {
 		let range = self.get_index(line, column, len);
 		ErrorMessaging::expected_before(self, expected, before, line, column, range, help);
 	}
-
 }
 
 /// Preprocesses the list code segments, expands the variables and returns the final code.
@@ -1345,7 +1330,14 @@ pub fn preprocess_codes(
 		let mut code = Code::with_capacity(size);
 		for (codepart, uses_vars) in codes {
 			code.append(if uses_vars {
-				preprocess_variables(stacklevel, &codepart, codepart.len(), variables, &mut i, filename)?
+				preprocess_variables(
+					stacklevel,
+					&codepart,
+					codepart.len(),
+					variables,
+					&mut i,
+					filename,
+				)?
 			} else {
 				codepart
 			});
@@ -1461,11 +1453,7 @@ pub fn preprocess_variables(
 										name.len() + 1 + is_called as usize,
 										Some(&format!(
 											"Replace '${name}{}' with '${name}!()'",
-											if is_called {
-												"!"
-											} else {
-												""
-											}
+											if is_called { "!" } else { "" }
 										)),
 									);
 									break;
@@ -1508,12 +1496,7 @@ pub fn preprocess_variables(
 										} else {
 											let end = (end as char).to_string();
 											i.expected_before(
-												"<value>",
-												&end,
-												c.1,
-												c.2,
-												size,
-												None,
+												"<value>", &end, c.1, c.2, size, None,
 											);
 										}
 									}
@@ -1550,7 +1533,7 @@ pub fn preprocess_variables(
 										break;
 									}
 								}
-								while let Some(missed) = args.next() {
+								for missed in args {
 									i.error(
 										format!(
 											"Missing argument '{}' for macro",
