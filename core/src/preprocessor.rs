@@ -1363,7 +1363,10 @@ pub fn preprocess_codes(
 ///     let options = Options::default();
 ///     let filename = String::from("macro.clue");
 ///     let mut code = include_str!("../../examples/macro.clue").to_owned();
-///
+///     let mut i = CodesInfo {
+///         filename: &filename,
+///         errors: 0,
+///     };
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
 ///         1,
@@ -1374,7 +1377,7 @@ pub fn preprocess_codes(
 ///     let codes: Code = codes
 ///         .0
 ///         .iter()
-///         .flat_map(|code| preprocess_variables(0, &code.0, codes.1, &variables, &filename))
+///         .flat_map(|code| preprocess_variables(0, &code.0, codes.1, &variables, &mut i, &filename))
 ///         .fold(Code::new(), |mut acc, code| {
 ///             acc.append(code);
 ///             acc
