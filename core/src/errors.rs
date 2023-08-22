@@ -46,13 +46,15 @@ pub fn get_errors() -> ErrorsVec {
 		.clone()
 }
 
-pub fn print_errors() {
+pub fn print_errors() -> usize {
 	let errors = get_errors();
 	let mut errors = errors.write().unwrap();
 	for error in errors.iter() {
 		eprintln!("{error}");
 	}
+	let len = errors.len();
 	errors.clear();
+	return len;
 }
 
 fn get_errored_edges<'a, T: Iterator<Item = &'a str>>(
