@@ -28,6 +28,7 @@ fn get_files() -> FileMap {
 		.clone()
 }
 
+/// Adds the source code of a file to the FILES map used to print error messages.
 pub fn add_source_file(filename: &str, code: impl Into<String>) {
 	let files = get_files();
 	let mut files = files.write().unwrap();
@@ -46,6 +47,7 @@ pub fn get_errors() -> ErrorsVec {
 		.clone()
 }
 
+/// Prints all previous error messages stored, then clears the vector.
 pub fn print_errors() {
 	let errors = get_errors();
 	let mut errors = errors.write().unwrap();
