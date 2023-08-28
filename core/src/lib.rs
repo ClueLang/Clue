@@ -162,6 +162,11 @@ impl Clue {
 	}
 }
 
+#[inline]
+fn clear_errors() {
+	errors::get_errors().write().unwrap().clear();
+}
+
 impl Clue {
 	/// Preprocesses the given code
 	/// Takes a [`String`] containing the code to preprocess
@@ -183,9 +188,7 @@ impl Clue {
 	///     Ok(())
 	/// }
 	pub fn preprocess_code(&self, code: String) -> Result<Code, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		self.preprocess_code_internal(code)
 	}
 
@@ -228,9 +231,7 @@ impl Clue {
 		&self,
 		path: P,
 	) -> Result<Code, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		self.preprocess_file_internal(path)
 	}
 
@@ -266,9 +267,7 @@ impl Clue {
 		code: Code,
 		path: P,
 	) -> Result<Vec<Token>, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		self.scan_preprocessed_file_internal(code, path)
 	}
 
@@ -308,9 +307,7 @@ impl Clue {
 	///   Ok(())
 	/// }
 	pub fn scan_preprocessed(&self, code: Code) -> Result<Vec<Token>, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		self.scan_preprocessed_internal(code)
 	}
 
@@ -338,9 +335,7 @@ impl Clue {
 	///   Ok(())
 	/// }
 	pub fn scan_code(&self, code: String) -> Result<Vec<Token>, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		let code = self.preprocess_code_internal(code)?;
 		self.scan_preprocessed_internal(code)
 	}
@@ -373,9 +368,7 @@ impl Clue {
 		&self,
 		path: P,
 	) -> Result<Vec<Token>, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		self.scan_file_internal(path)
 	}
 
@@ -410,9 +403,7 @@ impl Clue {
 	///  Ok(())
 	/// }
 	pub fn parse_preprocessed(&self, code: Code) -> Result<(Expression, String), String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		let tokens = self.scan_preprocessed_internal(code)?;
 		self.parse_tokens_internal(tokens)
 	}
@@ -438,9 +429,7 @@ impl Clue {
 	///    Ok(())
 	/// }
 	pub fn parse_tokens(&self, tokens: Vec<Token>) -> Result<(Expression, String), String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		self.parse_tokens_internal(tokens)
 	}
 
@@ -468,9 +457,7 @@ impl Clue {
 	///   Ok(())
 	/// }
 	pub fn parse_code(&self, code: String) -> Result<(Expression, String), String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		let tokens = self.scan_code_internal(code)?;
 		self.parse_tokens_internal(tokens)
 	}
@@ -498,9 +485,7 @@ impl Clue {
 		&self,
 		path: P,
 	) -> Result<(Expression, String), String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		let filepath: &Path = path.as_ref();
 		let filename = filepath
 			.file_name()
@@ -535,9 +520,7 @@ impl Clue {
 	///    Ok(())
 	/// }
 	pub fn compile_tokens(&self, tokens: Vec<Token>) -> Result<String, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		self.compile_tokens_internal(tokens)
 	}
 
@@ -569,9 +552,7 @@ impl Clue {
 	///     Ok(())
 	/// }
 	pub fn compile_preprocessed(&self, code: Code) -> Result<String, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		let tokens = self.scan_preprocessed_internal(code)?;
 		self.compile_tokens_internal(tokens)
 	}
@@ -597,9 +578,7 @@ impl Clue {
 	///    Ok(())
 	/// }
 	pub fn compile_ast(&self, (ctokens, statics): (Expression, String)) -> Result<String, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		let filename = String::from("(library)");
 		let compiler = Compiler::new(&self.options, &filename);
 		Ok(statics + &compiler.compile_tokens(0, ctokens)?)
@@ -625,9 +604,7 @@ impl Clue {
 	///    Ok(())
 	/// }
 	pub fn compile_code(&self, code: String) -> Result<String, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		let tokens = self.scan_code_internal(code)?;
 		self.compile_tokens_internal(tokens)
 	}
@@ -655,9 +632,7 @@ impl Clue {
 		&self,
 		path: P,
 	) -> Result<String, String> {
-		{
-			errors::get_errors().write().unwrap().clear();
-		}
+		clear_errors();
 		let tokens = self.scan_file_internal(&path)?;
 		let result = self.compile_tokens_internal(tokens)?;
 		if self.options.env_output {
