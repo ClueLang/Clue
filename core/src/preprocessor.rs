@@ -1480,6 +1480,18 @@ pub fn preprocess_variables(
 											break b'\0';
 										};
 										match c.0 {
+											b'\'' | b'"' | b'`' => {
+												value.push(*c);
+												while let Some(stringc) = chars.next() {
+													value.push(*stringc);
+													match stringc.0 {
+														b'\\' => value.push(*chars.next().unwrap()),
+														stringc if stringc == c.0 => break,
+														_ => {}
+													}
+												}
+												continue
+											}
 											b'(' => cscope += 1,
 											b',' if cscope == 1 => break b',',
 											b')' => {
