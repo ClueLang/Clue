@@ -1357,6 +1357,18 @@ pub fn preprocess_variables(
 											return Err(expected_before(")", "<end>", c.1, c.2, filename))
 										};
 										match c.0 {
+											b'\'' | b'"' | b'`' => {
+												value.push(*c);
+												while let Some(stringc) = chars.next() {
+													value.push(*stringc);
+													match stringc.0 {
+														b'\\' => value.push(*chars.next().unwrap()),
+														stringc if stringc == c.0 => break,
+														_ => {}
+													}
+												}
+												continue
+											}
 											b'(' => cscope += 1,
 											b',' if cscope == 1 => break b',',
 											b')' => {
@@ -1370,6 +1382,7 @@ pub fn preprocess_variables(
 										value.push(*c)
 									};
 									let value = value.trim();
+									println!("{}", value.to_string());
 									if value.is_empty() {
 										if len == macro_variables.len() && end == b')' {
 											break;
