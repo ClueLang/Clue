@@ -1382,7 +1382,6 @@ pub fn preprocess_variables(
 										value.push(*c)
 									};
 									let value = value.trim();
-									println!("{}", value.to_string());
 									if value.is_empty() {
 										if len == macro_variables.len() && end == b')' {
 											break;
