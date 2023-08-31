@@ -6,14 +6,16 @@
 #![allow(non_camel_case_types)]
 #![allow(clippy::upper_case_acronyms)]
 
+use self::TokenType::*;
+use std::ops::Range;
+use phf::phf_map;
+use std::fmt;
 use crate::{
 	code::{Code, CodeChars},
 	format_clue,
+	errors::{finish_step, ErrorMessaging},
+	impl_errormessaging,
 };
-
-use self::TokenType::*;
-use phf::phf_map;
-use std::fmt;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -62,6 +64,15 @@ pub enum TokenType {
 	EOF,
 }
 
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+/// The position (as line, column and index) of the start or end of the token
+pub struct TokenPosition {
+	pub line: usize,
+	pub column: usize,
+	pub index: usize,
+}
+
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// Represents a token with its type, its literal string and the location in the file.
@@ -73,22 +84,18 @@ pub struct Token {
 	/// The literal token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`.
 	pub lexeme: String,
 
-	/// The line where the token is located.
-	pub line: usize,
-
-	/// The column where the token is located.
-	pub column: usize,
+	/// The position (as lines, columns and indexes) of the token in the code
+	pub position: Range<TokenPosition>,
 }
 
 impl Token {
-	/// Creates a new [`Token`] given its [`TokenType`], its literal token, the line and column where it is located.
-	/// The literal token is the literal value of the token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`.
-	pub fn new(kind: TokenType, lexeme: impl Into<String>, line: usize, column: usize) -> Self {
+	/// Creates a new [`Token`] given its [`TokenType`], its literal token, the line and column where it is located
+	/// The literal token is the literal value of the token, e.g. for `1` it's `"1"`, for `local` it's `"local"` and for `+` it's `"+"`
+	pub fn new(kind: TokenType, lexeme: impl Into<String>, position: Range<TokenPosition>) -> Self {
 		Self {
 			kind,
 			lexeme: lexeme.into(),
-			line,
-			column,
+			position,
 		}
 	}
 }
@@ -104,7 +111,7 @@ impl BorrowedToken {
 		Self { token }
 	}
 
-	/// Returns the token
+	/// Returns the token.
 	pub const fn token(&self) -> &Token {
 		// SAFETY: This is safe because the pointer is guaranteed to be valid.
 		unsafe { &(*self.token) }
@@ -120,14 +127,25 @@ impl BorrowedToken {
 		self.token().lexeme.clone()
 	}
 
+	/// Returns a clone of the [`Range<TokenPosition>`].
+	pub fn position(&self) -> Range<TokenPosition> {
+		self.token().position.clone()
+	}
+
+	/// Returns the range of indexes where the token is located.
+	pub const fn range(&self) -> Range<usize> {
+		let t = self.token();
+		t.position.start.index..t.position.end.index
+	}
+
 	/// Returns the line where the token is located.
 	pub const fn line(&self) -> usize {
-		self.token().line
+		self.token().position.end.line
 	}
 
 	/// Returns the column where the token is located.
 	pub const fn column(&self) -> usize {
-		self.token().column
+		self.token().position.end.column
 	}
 
 	/// Clones the inner [`Token`] and returns it.
@@ -136,21 +154,21 @@ impl BorrowedToken {
 	}
 }
 
-struct CodeInfo<'a> {
-	line: usize,
-	column: usize,
-	start: usize,
-	current: usize,
+struct ScannerInfo<'a> {
+	start: TokenPosition,
+	current: TokenPosition,
 	size: usize,
 	code: CodeChars,
 	read: Vec<(char, usize, usize)>,
 	filename: &'a String,
 	tokens: Vec<Token>,
 	last: TokenType,
-	errored: bool,
+	errors: u8,
 }
 
-impl<'a> CodeInfo<'a> {
+impl_errormessaging!(ScannerInfo<'_>);
+
+impl<'a> ScannerInfo<'a> {
 	fn new(code: Code, filename: &'a String) -> Self {
 		let size = code.len() + 2;
 		let mut code = code.chars();
@@ -158,22 +176,39 @@ impl<'a> CodeInfo<'a> {
 		read.push((code.next_unwrapped(), code.line(), code.column()));
 		read.push((code.next_unwrapped(), code.line(), code.column()));
 		Self {
-			line: 1,
-			column: 1,
-			start: 0,
-			current: 0,
+			start: TokenPosition { line: 1, column: 1, index: 0 },
+			current: TokenPosition { line: 1, column: 1, index: 0 },
 			size,
 			code,
 			read,
 			filename,
 			tokens: Vec::new(),
 			last: EOF,
-			errored: false,
+			errors: 0,
 		}
 	}
 
+	fn error(&mut self, message: impl Into<String>, help: Option<&str>) {
+		ErrorMessaging::error(
+			self,
+			message,
+			self.current.line,
+			self.current.column,
+			self.start.index..self.current.index,
+			help
+		)
+	}
+
+	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
+		self.error(
+			format!("'{keyword}' is a reserved keyword in Lua and it cannot be used as a variable"),
+			Some(msg),
+		);
+		IDENTIFIER
+	}
+
 	const fn ended(&self) -> bool {
-		self.current >= self.size
+		self.current.index >= self.size
 	}
 
 	fn at(&self, pos: usize) -> char {
@@ -186,13 +221,13 @@ impl<'a> CodeInfo<'a> {
 			self.code.line(),
 			self.code.column(),
 		));
-		let (prev, line, ..) = self.read[self.current];
-		self.line = line;
+		let (prev, line, ..) = self.read[self.current.index];
+		self.current.line = line;
 		let read = self.code.bytes_read();
 		if read > 0 {
 			self.size -= read - 1
 		}
-		self.current += 1;
+		self.current.index += 1;
 		prev
 	}
 
@@ -200,7 +235,7 @@ impl<'a> CodeInfo<'a> {
 		if self.ended() {
 			return false;
 		}
-		if self.at(self.current) != expected {
+		if self.at(self.current.index) != expected {
 			return false;
 		}
 		self.advance();
@@ -208,12 +243,12 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	fn peek(&self, pos: usize) -> char {
-		let pos: usize = self.current + pos;
+		let pos: usize = self.current.index + pos;
 		self.at(pos)
 	}
 
 	fn look_back(&self) -> char {
-		self.at(self.current - 1)
+		self.at(self.current.index - 1)
 	}
 
 	//isNumber: c.is_ascii_digit()
@@ -233,36 +268,18 @@ impl<'a> CodeInfo<'a> {
 
 	fn add_literal_token(&mut self, kind: TokenType, literal: String) {
 		self.tokens
-			.push(Token::new(kind, literal, self.line, self.column));
+			.push(Token::new(kind, literal, self.start..self.current));
 	}
 
 	fn add_token(&mut self, kind: TokenType) {
-		let lexeme: String = self.substr(self.start, self.current);
+		let lexeme: String = self.substr(self.start.index, self.current.index);
 		self.last = kind;
 		self.tokens
-			.push(Token::new(kind, lexeme, self.line, self.column));
-	}
-
-	fn warning(&mut self, message: impl Into<String>) {
-		eprintln!(
-			"Error in {}:{}:{}!\nError: \"{}\"\n",
-			self.filename,
-			self.line,
-			self.column,
-			message.into()
-		);
-		self.errored = true;
-	}
-
-	fn reserved(&mut self, keyword: &str, msg: &str) -> TokenType {
-		self.warning(format!(
-			"'{keyword}' is a reserved keyword in Lua and it cannot be used as a variable, {msg}",
-		));
-		IDENTIFIER
+			.push(Token::new(kind, lexeme, self.start..self.current));
 	}
 
 	fn read_number(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
-		let start = self.current;
+		let start = self.current.index;
 		while check(&self.peek(0)) {
 			self.advance();
 		}
@@ -280,7 +297,7 @@ impl<'a> CodeInfo<'a> {
 					if c == '-' && self.peek(2).is_ascii_digit() {
 						self.advance();
 					} else {
-						self.warning("Malformed number");
+						self.error("Malformed number", None);
 					}
 				}
 				self.advance();
@@ -288,17 +305,17 @@ impl<'a> CodeInfo<'a> {
 					self.advance();
 				}
 			}
-		} else if self.current == start {
-			self.warning("Malformed number");
+		} else if self.current.index == start {
+			self.error("Malformed number", None);
 		}
-		let llcheck = self.substr(self.current, self.current + 2);
+		let llcheck = self.substr(self.current.index, self.current.index + 2);
 		if llcheck == "LL" {
-			self.current += 2;
+			self.current.index += 2;
 		} else if llcheck == "UL" {
 			if self.peek(2) == 'L' {
-				self.current += 3;
+				self.current.index += 3;
 			} else {
-				self.warning("Malformed number");
+				self.error("Malformed number", None);
 			}
 		}
 		self.add_token(NUMBER);
@@ -312,7 +329,7 @@ impl<'a> CodeInfo<'a> {
 			}
 		}
 		if self.ended() {
-			self.warning("Unterminated string");
+			self.error("Unterminated string", None);
 			false
 		} else {
 			true
@@ -322,7 +339,7 @@ impl<'a> CodeInfo<'a> {
 	fn read_string(&mut self, strend: char) {
 		if self.read_string_contents(strend) {
 			self.advance();
-			let mut literal = self.substr(self.start, self.current);
+			let mut literal = self.substr(self.start.index, self.current.index);
 			literal.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
 			self.add_literal_token(STRING, literal);
 		}
@@ -331,7 +348,7 @@ impl<'a> CodeInfo<'a> {
 	fn read_raw_string(&mut self) {
 		if self.read_string_contents('`') {
 			self.advance();
-			let literal = self.substr(self.start + 1, self.current - 1);
+			let literal = self.substr(self.start.index + 1, self.current.index - 1);
 			let mut brackets = String::new();
 			let mut must = literal.ends_with(']');
 			while must || literal.contains(&format_clue!("]", brackets, "]")) {
@@ -360,7 +377,7 @@ impl<'a> CodeInfo<'a> {
 		} {
 			self.advance();
 		}
-		self.substr(self.start, self.current)
+		self.substr(self.start.index, self.current.index)
 	}
 
 	fn scan_char(&mut self, symbols: &SymbolsMap, c: char) -> bool {
@@ -373,7 +390,7 @@ impl<'a> CodeInfo<'a> {
 				SymbolType::Symbols(symbols, default) => {
 					let nextc = self.advance();
 					if !self.scan_char(symbols, nextc) {
-						self.current -= 1;
+						self.current.index -= 1;
 						self.add_token(*default);
 					}
 				}
@@ -386,14 +403,14 @@ impl<'a> CodeInfo<'a> {
 	}
 
 	fn update_column(&mut self) {
-		self.column = self.read[self.current].2
+		self.current.column = self.read[self.current.index].2
 	}
 }
 
 #[derive(Clone)]
 enum SymbolType {
 	Just(TokenType),
-	Function(fn(&mut CodeInfo)),
+	Function(fn(&mut ScannerInfo)),
 	Symbols(SymbolsMap, TokenType),
 }
 
@@ -529,7 +546,7 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 						if i.compare(':') {
 							i.add_token(SAFE_DOUBLE_COLON);
 						} else {
-							i.current -= 1;
+							i.current.index -= 1;
 						}
 					}),
 				),
@@ -652,7 +669,7 @@ static KEYWORDS: phf::Map<&'static [u8], KeywordType> = phf_map! {
 /// }
 /// ```
 pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
-	let mut i: CodeInfo = CodeInfo::new(code, filename);
+	let mut i: ScannerInfo = ScannerInfo::new(code, filename);
 	while !i.ended() && i.peek(0) != '\0' {
 		i.start = i.current;
 		i.update_column();
@@ -664,7 +681,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 				if c == '0' {
 					match i.peek(0) {
 						'x' | 'X' => {
-							i.current += 1;
+							i.current.index += 1;
 							i.read_number(
 								|c| {
 									c.is_ascii_digit()
@@ -674,7 +691,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 							);
 						}
 						'b' | 'B' => {
-							i.current += 1;
+							i.current.index += 1;
 							i.read_number(|&c| c == '0' || c == '1', false);
 						}
 						_ => i.read_number(char::is_ascii_digit, true),
@@ -697,7 +714,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 						}
 						KeywordType::Just(kind) => *kind,
 						KeywordType::Error(e) => {
-							i.warning(*e);
+							i.error(*e, None);
 							IDENTIFIER
 						}
 					}
@@ -706,17 +723,12 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 				};
 				i.add_token(kind);
 			} else {
-				i.warning(format!("Unexpected character '{c}'").as_str());
+				i.error(format!("Unexpected character '{c}'"), None);
 			}
 		}
 	}
-	if i.errored {
-		return Err(String::from(
-			"Cannot continue until the above errors are fixed",
-		));
-	}
 	i.add_literal_token(EOF, String::from("<end>"));
-	Ok(i.tokens)
+	finish_step(filename, i.errors, i.tokens)
 }
 
 #[cfg(test)]

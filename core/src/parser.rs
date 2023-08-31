@@ -7,14 +7,15 @@
 #![allow(non_camel_case_types)]
 
 use self::ComplexToken::*;
-use crate::compiler::Compiler;
-use crate::env::{BitwiseMode, ContinueMode, LuaVersion, Options};
-use crate::scanner::{BorrowedToken, TokenType::*};
-use crate::scanner::{Token, TokenType};
-use crate::{check, format_clue};
-use std::cell::Cell;
-use std::vec;
-use std::{cmp, collections::VecDeque};
+use crate::{
+	compiler::Compiler,
+	env::{BitwiseMode, ContinueMode, LuaVersion, Options},
+	scanner::{BorrowedToken, Token, TokenType, TokenType::*},
+	errors::{finish_step, ErrorMessaging},
+	format_clue,
+	impl_errormessaging,
+};
+use std::{cell::Cell, vec, cmp, collections::VecDeque, ops::Range};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -26,8 +27,8 @@ macro_rules! vec_deque {
 }
 
 macro_rules! bitwise {
-	($self:expr, $t:expr, $expr:expr, $fname:literal, $end:expr, $notable:expr) => {{
-		if $self.build_bitwise_op(&$t, &mut $expr, $fname, $end, $notable)? {
+	($self:expr, $t:expr, $expr:expr, $fname:literal, $end:expr, $notable:expr, $help:expr) => {{
+		if $self.build_bitwise_op(&$t, &mut $expr, $fname, $end, $notable, $help) {
 			break $t;
 		}
 	}};
@@ -291,16 +292,21 @@ struct ParserInfo<'a> {
 	filename: &'a String,
 	expr: Expression,
 	tokens: Vec<Token>,
+	//code: Code,
 	internal_var_id: u8,
 	internal_stack: Vec<Cell<Expression>>,
 	statics: String,
 	compiler: Compiler<'a>,
+	errors: u8,
 	//locals: LocalsList,
 }
+
+impl_errormessaging!(ParserInfo<'_>);
 
 impl<'a> ParserInfo<'a> {
 	fn new(
 		tokens: Vec<Token>, /* , locals: LocalsList */
+		//code: Code,
 		filename: &'a String,
 		options: &'a Options,
 	) -> ParserInfo<'a> {
@@ -310,55 +316,26 @@ impl<'a> ParserInfo<'a> {
 			filename,
 			expr: Expression::with_capacity(tokens.len()),
 			tokens,
+			//code,
 			internal_var_id: 0,
 			internal_stack: Vec::new(),
 			statics: String::new(),
 			compiler: Compiler::new(options, filename),
 			options,
+			errors: 0,
 			// locals,
 		}
 	}
 
-	/*
-		fn warning(&self, msg: impl Into<String>, line: usize) {
-			println!(
-				"Warning in \"{}\" at line {}!\nWarning: \"{}\"",
-				self.filename,
-				line,
-				msg.into()
-			);
-		}
-	*/
-
-	fn error(&mut self, msg: impl Into<String>, line: usize, column: usize) -> String {
-		eprintln!("Error in {}:{line}:{column}!", self.filename);
-		msg.into()
-	}
-
-	fn expected(&mut self, expected: &str, got: &str, line: usize, column: usize) -> String {
-		self.error(
-			format_clue!("Expected '", expected, "', got '", got, "'"),
-			line,
-			column,
-		)
-	}
-
-	fn expected_before(
+	fn unexpected(
 		&mut self,
-		expected: &str,
-		before: &str,
+		lexeme: &str,
 		line: usize,
 		column: usize,
-	) -> String {
-		self.error(
-			format_clue!("Expected '", expected, "' before '", before, "'"),
-			line,
-			column,
-		)
-	}
-
-	fn unexpected(&mut self, str: &str, line: usize, column: usize) -> String {
-		self.error(format_clue!("Unexpected token '", str, "'"), line, column)
+		range: Range<usize>,
+		help: Option<&str>
+	) {
+		self.error(format_clue!("Unexpected token '", lexeme, "'"), line, column, range, help)
 	}
 
 	const fn ended(&self) -> bool {
@@ -409,20 +386,20 @@ impl<'a> ParserInfo<'a> {
 		&mut self,
 		expected: TokenType,
 		error: &str,
-	) -> Result<BorrowedToken, String> {
+		help: Option<&str>
+	) -> BorrowedToken {
 		let t = self.advance();
 		if t.kind() != expected {
-			return Err(self.expected(error, &t.lexeme(), t.line(), t.column()));
+			self.expected(error, &t.lexeme(), t.line(), t.column(), t.range(), help);
 		}
-		Ok(t)
+		t
 	}
 
-	fn assert_compare(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
+	fn assert_compare(&mut self, expected: TokenType, error: &str, help: Option<&str>) {
 		if !self.compare(expected) {
 			let t = self.peek(0);
-			return Err(self.expected(error, &t.lexeme(), t.line(), t.column()));
+			self.expected(error, &t.lexeme(), t.line(), t.column(), t.range(), help);
 		}
-		Ok(())
 	}
 
 	fn assert_end<T>(
@@ -430,26 +407,27 @@ impl<'a> ParserInfo<'a> {
 		tocheck: &BorrowedToken,
 		end: OptionalEnd,
 		iftrue: T,
-	) -> Result<T, String> {
+	) -> T {
 		if let Some((kind, lexeme)) = end {
 			if tocheck.kind() != kind {
-				return Err(self.expected(
+				self.expected(
 					lexeme,
 					&tocheck.lexeme(),
 					tocheck.line(),
 					tocheck.column(),
-				));
+					tocheck.range(),
+					None
+				);
 			}
 		}
-		Ok(iftrue)
+		iftrue
 	}
 
-	fn assert(&mut self, expected: TokenType, error: &str) -> Result<(), String> {
+	fn assert(&mut self, expected: TokenType, error: &str, help: Option<&str>) {
 		if !self.advance_if(expected) {
 			let t = self.peek(0);
-			return Err(self.expected(error, &t.lexeme(), t.line(), t.column()));
+			self.expected(error, &t.lexeme(), t.line(), t.column(), t.range(), help);
 		}
-		Ok(())
 	}
 	/*
 		fn assert_variable(&mut self, mut variable: Iter<ComplexToken>) -> Result<LuaType, String> {
@@ -472,19 +450,18 @@ impl<'a> ParserInfo<'a> {
 		var
 	}
 
-	fn build_call(&mut self) -> Result<Vec<Expression>, String> {
-		let args: Vec<Expression> = if self.advance_if(ROUND_BRACKET_CLOSED) {
+	fn build_call(&mut self) -> Vec<Expression> {
+		if self.advance_if(ROUND_BRACKET_CLOSED) {
 			Vec::new()
 		} else {
-			self.find_expressions(Some((ROUND_BRACKET_CLOSED, ")")))?
-		};
-		Ok(args)
+			self.find_expressions(Some((ROUND_BRACKET_CLOSED, ")")), Some("Missing function argument"))
+		}
 	}
 
-	fn find_expressions(&mut self, end: OptionalEnd) -> Result<Vec<Expression>, String> {
+	fn find_expressions(&mut self, end: OptionalEnd, help: Option<&str>) -> Vec<Expression> {
 		let mut exprs: Vec<Expression> = Vec::new();
 		loop {
-			let expr = self.build_expression(None)?;
+			let expr = self.build_expression(None, help);
 			let t = self.look_back(0);
 			exprs.push(expr);
 			if t.kind() != COMMA {
@@ -493,7 +470,7 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
-	fn build_table(&mut self) -> Result<ComplexToken, String> {
+	fn build_table(&mut self) -> ComplexToken {
 		let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
 		let mut metas: Vec<(String, Expression, usize)> = Vec::new();
 		let mut metatable: Option<String> = None;
@@ -520,12 +497,16 @@ impl<'a> ParserInfo<'a> {
 					true
 				}
 				EOF => {
-					return Err(self.expected_before(
+					let t = self.peek(0);
+					self.expected_before(
 						"}",
 						"<end>",
-						self.peek(0).line(),
-						self.peek(0).column(),
-					))
+						t.line(),
+						t.column(),
+						t.range(),
+						None
+					);
+					false
 				}
 				_ => true,
 			} {
@@ -533,7 +514,11 @@ impl<'a> ParserInfo<'a> {
 			}
 			self.current = start;
 			if !iskey {
-				values.push((None, self.build_expression(None)?, self.at(start).line()));
+				values.push((
+					None,
+					self.build_expression(None, Some("Missing table element")),
+					self.at(start).line()
+				));
 				self.current -= 1;
 				self.advance_if(COMMA);
 				continue;
@@ -557,57 +542,66 @@ impl<'a> ParserInfo<'a> {
 							!matches!(qscope, 0)
 						}
 						EOF => {
-							return Err(self.expected_before(
+							let t = self.peek(0);
+							self.expected_before(
 								"]",
 								"<end>",
-								self.peek(0).line(),
-								self.peek(0).column(),
-							))
+								t.line(),
+								t.column(),
+								t.range(),
+								None
+							);
+							false
 						}
 						_ => true,
 					} {}
 					self.current = start;
 					name = Ok(vec_deque![
 						SYMBOL(String::from("[")),
-						EXPR(self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?),
+						EXPR(self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")), Some("Missing key"))),
 						SYMBOL(String::from("]"))
 					]);
 				}
 				META => {
 					if self.advance_if(WITH) {
 						if !metas.is_empty() {
-							return Err(self.error(
+							self.error(
 								"An external metatable cannot be used if the table already set its own metamethods",
 								pn.line(),
-								pn.column()
-							));
+								pn.column(),
+								pn.range(),
+								None
+							);
 						}
-						metatable = Some(self.assert_advance(IDENTIFIER, "<name>")?.lexeme());
+						metatable = Some(self.assert_advance(IDENTIFIER, "<name>", None).lexeme());
 						self.advance_if(COMMA);
 						continue;
 					}
 
 					if metatable.is_some() {
-						return Err(self.error(
-								"Metamethods cannot be set if the table already uses an external metatable",
-								pn.line(),
-								pn.column()
-							));
+						self.error(
+							"Metamethods cannot be set if the table already uses an external metatable",
+							pn.line(),
+							pn.column(),
+							pn.range(),
+							None
+						);
 					}
 					let name_token = self.advance();
 					name = Err(String::from(match name_token.lexeme().as_ref() {
 						"index" => "__index",
 						"newindex" => "__newindex",
 						"usedindex" => {
-							if matches!(self.options.env_target, Some(LuaVersion::BLUA)) {
-								"__usedindex"
-							} else {
-								return Err(self.error(
-								"The 'usedindex' metamethod can only be used with --target=blua",
-								name_token.line(),
-								name_token.column()
-							));
+							if !matches!(self.options.env_target, Some(LuaVersion::BLUA)) {
+								self.error(
+									"The 'usedindex' metamethod can only be used with --target=blua",
+									name_token.line(),
+									name_token.column(),
+									name_token.range(),
+									None
+								);
 							}
+							"__usedindex"
 						}
 						"mode" => "__mode",
 						"call" => "__call",
@@ -631,20 +625,26 @@ impl<'a> ParserInfo<'a> {
 						"lt" | "less_than" | "<" => "__lt",
 						"le" | "less_than_equal" | "<=" => "__le",
 						_ => {
-							return Err(self.expected(
+							self.expected(
 								"<meta name>",
 								&name_token.lexeme(),
 								name_token.line(),
 								name_token.column(),
-							));
+								name_token.range(),
+								None
+							);
+							""
 						}
 					}))
 				}
-				_ => return Err(self.expected("<name>", &pn.lexeme(), pn.line(), pn.column())),
+				_ => {
+					self.expected("<name>", &pn.lexeme(), pn.line(), pn.column(), pn.range(), None);
+					name = Ok(Expression::new());
+				},
 			}
 			if !self.advance_if(DEFINE) {
 				let t = self.peek(0);
-				return Err(self.expected("=", &t.lexeme(), t.line(), t.column()));
+				self.expected("=", &t.lexeme(), t.line(), t.column(), t.range(), None);
 			}
 			let start = self.current;
 			let mut cscope = 0u8;
@@ -657,36 +657,41 @@ impl<'a> ParserInfo<'a> {
 				ROUND_BRACKET_CLOSED => {
 					if cscope == 0 {
 						let t = self.peek(0);
-						return Err(self.expected_before("(", ")", t.line(), t.column()));
+						self.expected_before("(", ")", t.line(), t.column(), t.range(), None);
 					}
 					cscope -= 1;
 					true
 				}
 				EOF => {
-					return Err(self.expected_before(
+					let t = self.peek(0);
+					self.expected_before(
 						"}",
 						"<end>",
-						self.peek(0).line(),
-						self.peek(0).column(),
-					))
+						t.line(),
+						t.column(),
+						t.range(),
+						None
+					);
+					false
 				}
 				_ => true,
 			} {
 				self.current += 1;
 			}
 			self.current = start;
+			let element = self.build_expression(None, Some("Missing table element"));
 			match name {
-				Ok(n) => values.push((Some(n), self.build_expression(None)?, pn.line())),
-				Err(n) => metas.push((n, self.build_expression(None)?, pn.line())),
+				Ok(n) => values.push((Some(n), element, pn.line())),
+				Err(n) => metas.push((n, element, pn.line())),
 			}
 			self.current -= 1;
 			self.advance_if(COMMA);
 		}
-		Ok(TABLE {
+		TABLE {
 			values,
 			metas,
 			metatable,
-		})
+		}
 	}
 
 	fn check_operator(
@@ -694,7 +699,7 @@ impl<'a> ParserInfo<'a> {
 		t: &BorrowedToken,
 		notable: &mut bool,
 		checkback: Option<&Expression>,
-	) -> Result<(), String> {
+	) {
 		if match self.peek(0).kind() {
 			NUMBER | IDENTIFIER | STRING | TRUE | FALSE | MINUS | BIT_NOT | NIL | NOT | HASHTAG
 			| ROUND_BRACKET_OPEN | THREEDOTS | MATCH => false,
@@ -704,19 +709,23 @@ impl<'a> ParserInfo<'a> {
 			}
 			_ => true,
 		} {
-			return Err(self.error(
+			self.error(
 				format!("Operator '{}' has invalid right hand token", t.lexeme()),
 				t.line(),
 				t.column(),
-			));
+				t.range().start..self.peek(0).range().end,
+				None
+			);
 		}
 		if let Some(expr) = checkback {
 			if expr.is_empty() {
-				return Err(self.error(
+				self.error(
 					format!("Operator '{}' lacks a left hand token", t.lexeme()),
 					t.line(),
 					t.column(),
-				));
+					t.range(),
+					None
+				);
 			} else if !matches!(
 				self.look_back(1).kind(),
 				NUMBER
@@ -725,14 +734,15 @@ impl<'a> ParserInfo<'a> {
 					| SQUARE_BRACKET_CLOSED
 					| THREEDOTS | CURLY_BRACKET_CLOSED
 			) {
-				return Err(self.error(
+				self.error(
 					format!("Operator '{}' has invalid left hand token", t.lexeme()),
 					t.line(),
 					t.column(),
-				));
+					self.look_back(1).range().start..t.range().end,
+					None
+				);
 			}
 		}
-		Ok(())
 	}
 
 	fn build_function_op(
@@ -742,15 +752,15 @@ impl<'a> ParserInfo<'a> {
 		fname: impl Into<String>,
 		end: OptionalEnd,
 		notable: &mut bool,
-	) -> Result<(), String> {
-		self.check_operator(t, notable, Some(expr))?;
+		help: Option<&str>,
+	) {
+		self.check_operator(t, notable, Some(expr));
 		let mut arg1 = Expression::with_capacity(expr.len());
 		arg1.append(expr);
-		let arg2 = self.build_expression(end)?;
+		let arg2 = self.build_expression(end, help);
 		expr.push_back(SYMBOL(fname.into()));
 		expr.push_back(CALL(vec![arg1, arg2]));
 		self.current -= 1;
-		Ok(())
 	}
 
 	fn build_bitwise_op(
@@ -760,15 +770,16 @@ impl<'a> ParserInfo<'a> {
 		fname: &str,
 		end: OptionalEnd,
 		notable: &mut bool,
-	) -> Result<bool, String> {
-		self.check_operator(t, notable, Some(expr))?;
-		Ok(if let Some(bit) = &self.options.env_jitbit {
-			self.build_function_op(t, expr, format!("{bit}.{fname}"), end, notable)?;
+		help: Option<&str>
+	) -> bool {
+		self.check_operator(t, notable, Some(expr));
+		if let Some(bit) = &self.options.env_jitbit {
+			self.build_function_op(t, expr, format!("{bit}.{fname}"), end, notable, help);
 			self.check_val()
 		} else {
 			expr.push_back(SYMBOL(t.lexeme()));
 			false
-		})
+		}
 	}
 
 	fn check_index(
@@ -776,18 +787,20 @@ impl<'a> ParserInfo<'a> {
 		t: &BorrowedToken,
 		expr: &mut Expression,
 		lexeme: &str,
-	) -> Result<(), String> {
+	) {
 		if !self.compare(IDENTIFIER)
 			|| matches!(self.look_back(0).kind(), IDENTIFIER | SQUARE_BRACKET_CLOSED)
 		{
-			return Err(self.error(
+			let t2 = self.peek(0);
+			self.error(
 				format!("'{}' should be used only when indexing", t.lexeme()),
-				self.peek(0).line(),
-				self.peek(0).column(),
-			));
+				t2.line(),
+				t2.column(),
+				t2.range(),
+				None
+			);
 		}
 		expr.push_back(SYMBOL(lexeme.to_owned()));
-		Ok(())
 	}
 
 	fn check_val(&mut self) -> bool {
@@ -810,15 +823,15 @@ impl<'a> ParserInfo<'a> {
 
 	fn use_internal_stack<T>(
 		&mut self,
-		f: impl FnOnce(&mut Self) -> Result<T, String>
-	) -> Result<(T, Expression), String> {
+		f: impl FnOnce(&mut Self) -> T
+	) -> (T, Expression) {
 		self.internal_stack.push(Cell::new(Expression::new()));
-		let result = f(self)?;
+		let result = f(self);
 		let code = self.internal_stack.pop().unwrap().into_inner();
-		Ok((result, code))
+		(result, code)
 	}
 
-	fn build_expression(&mut self, end: OptionalEnd) -> Result<Expression, String> {
+	fn build_expression(&mut self, end: OptionalEnd, help: Option<&str>) -> Expression {
 		let mut expr = Expression::with_capacity(16);
 		let notable = &mut true;
 		let start = self.current;
@@ -826,7 +839,7 @@ impl<'a> ParserInfo<'a> {
 			let t = self.advance();
 			match t.kind() {
 				IDENTIFIER => {
-					let fname = self.build_identifier()?;
+					let fname = self.build_identifier();
 					self.current -= 1;
 					expr.push_back(fname);
 					if self.check_val() {
@@ -839,7 +852,7 @@ impl<'a> ParserInfo<'a> {
 							break t;
 						}
 					}
-					expr.push_back(self.build_table()?);
+					expr.push_back(self.build_table());
 					*notable = true;
 					if self.check_val() {
 						break t;
@@ -847,11 +860,11 @@ impl<'a> ParserInfo<'a> {
 				}
 				PLUS | STAR | SLASH | PERCENTUAL | CARET | TWODOTS | EQUAL | BIGGER
 				| BIGGER_EQUAL | SMALLER | SMALLER_EQUAL => {
-					self.check_operator(&t, notable, Some(&expr))?;
+					self.check_operator(&t, notable, Some(&expr));
 					expr.push_back(SYMBOL(t.lexeme()))
 				}
 				MINUS => {
-					self.check_operator(&t, notable, None)?;
+					self.check_operator(&t, notable, None);
 					expr.push_back(SYMBOL(if self.look_back(1).kind() == MINUS {
 						format!(" {}", t.lexeme())
 					} else {
@@ -859,32 +872,32 @@ impl<'a> ParserInfo<'a> {
 					}))
 				}
 				FLOOR_DIVISION => {
-					self.check_operator(&t, notable, Some(&expr))?;
+					self.check_operator(&t, notable, Some(&expr));
 					let mut division = Expression::with_capacity(expr.len());
 					division.append(&mut expr);
 					division.push_back(SYMBOL(String::from('/')));
-					division.append(&mut self.build_expression(end)?);
+					division.append(&mut self.build_expression(end, help));
 					expr.push_back(SYMBOL(String::from("math.floor")));
 					expr.push_back(CALL(vec![division]));
 					self.current -= 1;
 				}
-				BIT_AND => bitwise!(self, t, expr, "band", end, notable),
-				BIT_OR => bitwise!(self, t, expr, "bor", end, notable),
+				BIT_AND => bitwise!(self, t, expr, "band", end, notable, help),
+				BIT_OR => bitwise!(self, t, expr, "bor", end, notable, help),
 				BIT_XOR => {
 					//SAFETY: the token goes out of scope after BorrowedToken is used, so it stays valid
 					let t2 = if self.options.env_bitwise == BitwiseMode::Vanilla {
-						Token::new(t.kind(), '~', t.line(), t.column())
+						Token::new(t.kind(), '~', t.position())
 					} else {
 						t.into_owned()
 					};
-					if self.build_bitwise_op(&BorrowedToken::new(&t2), &mut expr, "bxor", end, notable)? {
+					if self.build_bitwise_op(&BorrowedToken::new(&t2), &mut expr, "bxor", end, notable, help) {
 						break t;
 					}
 				}
 				BIT_NOT => {
-					self.check_operator(&t, notable, None)?;
+					self.check_operator(&t, notable, None);
 					if let Some(bit) = self.options.env_jitbit.clone() {
-						let arg = self.build_expression(end)?;
+						let arg = self.build_expression(end, help);
 						expr.push_back(SYMBOL(bit.clone() + ".bnot"));
 						expr.push_back(CALL(vec![arg]));
 						self.current -= 1;
@@ -895,10 +908,10 @@ impl<'a> ParserInfo<'a> {
 						expr.push_back(SYMBOL(t.lexeme()))
 					}
 				}
-				LEFT_SHIFT => bitwise!(self, t, expr, "lshift", end, notable),
-				RIGHT_SHIFT => bitwise!(self, t, expr, "rshift", end, notable),
+				LEFT_SHIFT => bitwise!(self, t, expr, "lshift", end, notable, help),
+				RIGHT_SHIFT => bitwise!(self, t, expr, "rshift", end, notable, help),
 				NOT_EQUAL => {
-					self.check_operator(&t, notable, Some(&expr))?;
+					self.check_operator(&t, notable, Some(&expr));
 					expr.push_back(SYMBOL(String::from("~=")))
 				}
 				HASHTAG => {
@@ -907,7 +920,13 @@ impl<'a> ParserInfo<'a> {
 						IDENTIFIER | CURLY_BRACKET_OPEN | ROUND_BRACKET_OPEN
 					) {
 						let t = self.peek(0);
-						return Err(self.expected("<table>", &t.lexeme(), t.line(), t.column()));
+						self.expected("<table>",
+							&t.lexeme(),
+							t.line(),
+							t.column(),
+							t.range(),
+							None
+						);
 					}
 					expr.push_back(SYMBOL(String::from("#")))
 				}
@@ -917,15 +936,15 @@ impl<'a> ParserInfo<'a> {
 					expr.push_back(PGET(self.build_identifier(true)?));
 				}*/
 				AND => {
-					self.check_operator(&t, notable, Some(&expr))?;
+					self.check_operator(&t, notable, Some(&expr));
 					expr.push_back(SYMBOL(String::from(" and ")))
 				}
 				OR => {
-					self.check_operator(&t, notable, Some(&expr))?;
+					self.check_operator(&t, notable, Some(&expr));
 					expr.push_back(SYMBOL(String::from(" or ")))
 				}
 				NOT => {
-					self.check_operator(&t, notable, None)?;
+					self.check_operator(&t, notable, None);
 					expr.push_back(SYMBOL(String::from("not ")))
 				}
 				MATCH => {
@@ -933,7 +952,7 @@ impl<'a> ParserInfo<'a> {
 					let ident = SYMBOL(name.clone());
 					let mut ctoken = self.build_match_block(name, &|i /* , _ */| {
 						let start = i.peek(0).line();
-						let (expr, mut code) = i.use_internal_stack(|i| i.build_expression(None))?;
+						let (expr, mut code) = i.use_internal_stack(|i| i.build_expression(None, help));
 						let end = i.look_back(1).line();
 						if matches!(i.look_back(0).kind(), CURLY_BRACKET_CLOSED | DEFAULT) {
 							i.current -= 1
@@ -944,8 +963,8 @@ impl<'a> ParserInfo<'a> {
 							values: vec![expr],
 							line: end
 						});
-						Ok(CodeBlock { start, code, end })
-					})?;
+						CodeBlock { start, code, end }
+					});
 					let MATCH_BLOCK {branches, line, ..} = &mut ctoken else {
 						unreachable!()
 					};
@@ -971,7 +990,7 @@ impl<'a> ParserInfo<'a> {
 				COALESCE => {
 					let mut leftexpr = Expression::with_capacity(expr.len());
 					leftexpr.append(&mut expr);
-					let (rightexpr, mut code) = self.use_internal_stack(|i| i.build_expression(end))?;
+					let (rightexpr, mut code) = self.use_internal_stack(|i| i.build_expression(end, help));
 					self.current -= 1;
 					let name = self.get_next_internal_var();
 					let start = self.at(start).line();
@@ -1008,12 +1027,12 @@ impl<'a> ParserInfo<'a> {
 					let mut condition = Expression::with_capacity(expr.len());
 					condition.append(&mut expr);
 					let (exprtrue, mut codetrue) = self.use_internal_stack(
-						|i| i.build_expression(Some((COLON, ":")))
-					)?;
+						|i| i.build_expression(Some((COLON, ":")), help)
+					);
 					let t2 = self.look_back(0);
 					let (exprfalse, mut codefalse) = self.use_internal_stack(
-						|i| i.build_expression(end)
-					)?;
+						|i| i.build_expression(end, help)
+					);
 					self.current -= 1;
 					let name = self.get_next_internal_var();
 					let start = self.at(start).line();
@@ -1064,13 +1083,13 @@ impl<'a> ParserInfo<'a> {
 				}
 				ROUND_BRACKET_OPEN => {
 					expr.push_back(EXPR(
-						self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?,
+						self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")), help),
 					));
 					if self.check_val() {
 						break t;
 					}
 					self.current += 1;
-					let fname = self.build_identifier()?;
+					let fname = self.build_identifier();
 					expr.push_back(fname);
 					self.current -= 1;
 					if self.check_val() {
@@ -1081,11 +1100,11 @@ impl<'a> ParserInfo<'a> {
 					let /*(*/args/*, types)*/ = if self.advance_if(ROUND_BRACKET_OPEN)
 						&& !self.advance_if(ROUND_BRACKET_CLOSED)
 					{
-						self.build_function_args()?
+						self.build_function_args()
 					} else {
 						/*(*/FunctionArgs::new()//, None)
 					};
-					let code = self.build_function_block(/*types*/)?;
+					let code = self.build_function_block(/*types*/);
 					expr.push_back(LAMBDA { args, code });
 					if self.check_val() {
 						break t;
@@ -1099,23 +1118,30 @@ impl<'a> ParserInfo<'a> {
 			}
 		};
 		if expr.is_empty() {
-			return Err(self.expected("<expr>", &last.lexeme(), last.line(), last.column()));
+			self.expected(
+				"<expr>",
+				&last.lexeme(),
+				last.line(),
+				last.column(),
+				last.range(),
+				help
+			);
 		}
 		self.assert_end(&self.look_back(0), end, expr)
 	}
 
-	fn build_name(&mut self) -> Result<Expression, String> {
-		Ok(vec_deque![self.build_identifier()?])
+	fn build_name(&mut self) -> Expression {
+		vec_deque![self.build_identifier()]
 	}
 
-	fn build_identifier(&mut self) -> Result<ComplexToken, String> {
+	fn build_identifier(&mut self) -> ComplexToken {
 		let line = self.look_back(0).line();
-		let (mut expr, safe_indexing) = self.build_identifier_internal()?;
+		let (mut expr, safe_indexing) = self.build_identifier_internal();
 		if safe_indexing {
 			expr.push_front(SYMBOL(String::from("(")));
 			expr.push_back(SYMBOL(String::from(")")));
 		}
-		Ok(IDENT { expr, line })
+		IDENT { expr, line }
 	}
 
 	fn build_safe_index(
@@ -1142,7 +1168,7 @@ impl<'a> ParserInfo<'a> {
 		true
 	}
 
-	fn build_identifier_internal(&mut self) -> Result<(Expression, bool), String> {
+	fn build_identifier_internal(&mut self) -> (Expression, bool) {
 		let mut expr = Expression::with_capacity(8);
 		let mut safe_indexing = false;
 		self.current -= 1;
@@ -1157,16 +1183,16 @@ impl<'a> ParserInfo<'a> {
 				}
 				DOT | SAFE_DOT => {
 					safe_indexing |= self.build_safe_index(DOT, t.kind(), &mut expr);
-					self.check_index(&t, &mut expr, ".")?;
+					self.check_index(&t, &mut expr, ".");
 				}
 				DOUBLE_COLON | SAFE_DOUBLE_COLON => {
 					safe_indexing |= self.build_safe_index(DOUBLE_COLON, t.kind(), &mut expr);
-					self.check_index(&t, &mut expr, ":")?;
+					self.check_index(&t, &mut expr, ":");
 					match self.peek(1).kind() {
 						ROUND_BRACKET_OPEN => {}
 						SAFE_CALL => {
 							expr.pop_back();
-							let line = self.peek(0).line();
+							let position = self.peek(0).position();
 							let name = if t.kind() == DOUBLE_COLON {
 								let mut start = {
 									let mut start = Expression::with_capacity(2);
@@ -1185,7 +1211,7 @@ impl<'a> ParserInfo<'a> {
 									local: true,
 									names: vec![name.clone()],
 									values: vec![expr_self],
-									line,
+									line: position.start.line,
 								});
 								expr.append(&mut start);
 								expr.push_back(SYMBOL(name.clone()));
@@ -1198,11 +1224,11 @@ impl<'a> ParserInfo<'a> {
 							};
 							expr.push_back(SYMBOL(String::from(".")));
 							self.tokens
-								.insert(self.current + 2, Token::new(IDENTIFIER, name, line, 0));
+								.insert(self.current + 2, Token::new(IDENTIFIER, name, position.clone()));
 							if self.peek(3).kind() != ROUND_BRACKET_CLOSED {
 								self.tokens.insert(
 									self.current + 3,
-									Token::new(COMMA, String::from(","), line, 0),
+									Token::new(COMMA, String::from(","), position),
 								);
 								self.size += 2;
 							} else {
@@ -1211,14 +1237,14 @@ impl<'a> ParserInfo<'a> {
 						}
 						_ => {
 							let t = self.peek(1);
-							return Err(self.expected("(", &t.lexeme(), t.line(), t.column()));
+							self.expected("(", &t.lexeme(), t.line(), t.column(), t.range(), None);
 						}
 					}
 				}
 				SQUARE_BRACKET_OPEN | SAFE_SQUARE_BRACKET => {
 					safe_indexing |=
 						self.build_safe_index(SQUARE_BRACKET_OPEN, t.kind(), &mut expr);
-					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
+					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")), None);
 					expr.push_back(SYMBOL(String::from("[(")));
 					expr.push_back(EXPR(qexpr));
 					expr.push_back(SYMBOL(String::from(")]")));
@@ -1228,7 +1254,7 @@ impl<'a> ParserInfo<'a> {
 				}
 				ROUND_BRACKET_OPEN | SAFE_CALL => {
 					safe_indexing |= self.build_safe_index(ROUND_BRACKET_OPEN, t.kind(), &mut expr);
-					expr.push_back(CALL(self.build_call()?));
+					expr.push_back(CALL(self.build_call()));
 					if self.check_val() {
 						break;
 					}
@@ -1236,21 +1262,22 @@ impl<'a> ParserInfo<'a> {
 				_ => break,
 			}
 		}
-		Ok((expr, safe_indexing))
+		(expr, safe_indexing)
 	}
 
-	fn get_code_block_start(&mut self) -> Result<usize, String> {
+	fn get_code_block_start(&mut self) -> usize {
 		let t = self.advance();
 		if t.kind() != CURLY_BRACKET_OPEN {
 			self.current -= 2;
 			let t2 = self.advance();
 			if t2.kind() == CURLY_BRACKET_OPEN {
-				Ok(t2.line())
+				t2.line()
 			} else {
-				Err(self.expected("{", &t.lexeme(), t.line(), t.column()))
+				self.expected("{", &t.lexeme(), t.line(), t.column(), t.range(), None);
+				0
 			}
 		} else {
-			Ok(t.line())
+			t.line()
 		}
 	}
 
@@ -1258,19 +1285,21 @@ impl<'a> ParserInfo<'a> {
 		&mut self,
 		mut tokens: Vec<Token>,
 		//locals: LocalsList,
-	) -> Result<Expression, String> {
+	) -> Expression {
 		if tokens.is_empty() {
-			Ok(Expression::new())
+			Expression::new()
 		} else {
 			tokens.push(self.tokens.last().unwrap().clone());
-			let (ctokens, statics) = parse_tokens(tokens, self.filename, self.options)?;
-			self.statics += &statics;
-			Ok(ctokens)
+			let i = parse_tokens_internal(tokens, self.filename, self.options);
+			//let (ctokens, statics) = parse_tokens(tokens, self.filename, self.options);
+			self.statics += &i.statics;
+			self.errors += i.errors;
+			i.expr
 		}
 	}
 
-	fn build_code_block(&mut self /* , locals: LocalsList */) -> Result<CodeBlock, String> {
-		let start = self.get_code_block_start()?;
+	fn build_code_block(&mut self /* , locals: LocalsList */) -> CodeBlock {
+		let start = self.get_code_block_start();
 		let mut tokens: Vec<Token> = Vec::new();
 		let mut cscope = 1u8;
 		let end: usize;
@@ -1285,19 +1314,30 @@ impl<'a> ParserInfo<'a> {
 						break;
 					}
 				}
-				EOF => return Err(self.expected_before("}", "<end>", t.line(), t.column())),
+				EOF => {
+					self.expected_before(
+						"}",
+						"<end>",
+						t.line(),
+						t.column(),
+						t.range(),
+						None
+					);
+					end = t.line();
+					break
+				},
 				_ => {}
 			}
 			tokens.push(t.into_owned());
 		}
-		let code = self.parse_code_block(tokens /* , locals */)?;
-		Ok(CodeBlock { start, code, end })
+		let code = self.parse_code_block(tokens /* , locals */);
+		CodeBlock { start, code, end }
 	}
 
 	fn build_function_block(
 		&mut self,
 		//args: Option<Vec<(String, LuaType)>>,
-	) -> Result<CodeBlock, String> {
+	) -> CodeBlock {
 		/*
 		if let Some(args) = args {
 			self.build_code_block({
@@ -1312,10 +1352,10 @@ impl<'a> ParserInfo<'a> {
 		//}
 	}
 
-	fn build_loop_block(&mut self) -> Result<CodeBlock, String> {
+	fn build_loop_block(&mut self) -> CodeBlock {
 		let mut hascontinue: Option<String> = None;
 		let mut is_in_other_loop = false;
-		let start = self.get_code_block_start()?;
+		let start = self.get_code_block_start();
 		let mut tokens: Vec<Token> = Vec::new();
 		let mut cscope = 1u8;
 		let end: usize;
@@ -1335,21 +1375,32 @@ impl<'a> ParserInfo<'a> {
 				CONTINUE if !is_in_other_loop => {
 					let name = self.get_next_internal_var();
 					hascontinue = Some(name.clone());
-					let line = t.line();
+					let position = t.position();
 					if self.options.env_continue == ContinueMode::MoonScript {
-						tokens.push(Token::new(IDENTIFIER, name, line, 0));
-						tokens.push(Token::new(DEFINE, "=", line, 0));
-						tokens.push(Token::new(TRUE, "true", line, 0));
-						tokens.push(Token::new(BREAK, "break", line, 0));
+						tokens.push(Token::new(IDENTIFIER, name, position.clone()));
+						tokens.push(Token::new(DEFINE, "=", position.clone()));
+						tokens.push(Token::new(TRUE, "true", position.clone()));
+						tokens.push(Token::new(BREAK, "break", position));
 						continue;
 					}
 				}
-				EOF => return Err(self.expected_before("}", "<end>", t.line(), t.column())),
+				EOF => {
+					self.expected_before(
+						"}",
+						"<end>",
+						t.line(),
+						t.column(),
+						t.range(),
+						None
+					);
+					end = t.line();
+					break
+				},
 				_ => {}
 			}
 			tokens.push(t.into_owned());
 		}
-		let mut code = self.parse_code_block(tokens /* , self.locals.clone() */)?;
+		let mut code = self.parse_code_block(tokens /* , self.locals.clone() */);
 		if let Some(name) = hascontinue {
 			use ContinueMode::*;
 			match self.options.env_continue {
@@ -1387,21 +1438,21 @@ impl<'a> ParserInfo<'a> {
 				}
 			}
 		}
-		Ok(CodeBlock { start, code, end })
+		CodeBlock { start, code, end }
 	}
 
-	fn build_identifier_list(&mut self) -> Result<Vec<String>, String> {
+	fn build_identifier_list(&mut self) -> Vec<String> {
 		let mut idents: Vec<String> = Vec::new();
 		loop {
-			let t = self.assert_advance(IDENTIFIER, "<name>")?;
+			let t = self.assert_advance(IDENTIFIER, "<name>", None);
 			idents.push(t.lexeme());
 			if !self.advance_if(COMMA) {
-				break Ok(idents);
+				break idents;
 			}
 		}
 	}
 
-	fn build_function_args(&mut self) -> Result</* ArgsAndTypes */ FunctionArgs, String> {
+	fn build_function_args(&mut self) -> /* ArgsAndTypes */ FunctionArgs {
 		let mut args = FunctionArgs::new();
 		/*let mut types: Option<Vec<(String, LuaType)>> = if self.locals.is_some() {
 			Some(Vec::new())
@@ -1412,13 +1463,15 @@ impl<'a> ParserInfo<'a> {
 			let name = {
 				let t = self.advance();
 				match t.kind() {
-					IDENTIFIER => t,
-					THREEDOTS => {
-						self.assert_compare(ROUND_BRACKET_CLOSED, ")")?;
-						t
-					}
-					_ => return Err(self.expected("<name>", &t.lexeme(), t.line(), t.column())),
+					IDENTIFIER => {},
+					THREEDOTS => self.assert_compare(
+						ROUND_BRACKET_CLOSED,
+						")",
+						Some("A vararg should be the last argument")
+					),
+					_ => self.expected("<name>", &t.lexeme(), t.line(), t.column(), t.range(), None),
 				}
+				t
 			};
 			/*if let Some(types) = &mut types {
 				types.push((
@@ -1437,7 +1490,7 @@ impl<'a> ParserInfo<'a> {
 					true
 				}
 				DEFINE => {
-					let default = self.build_expression(None)?;
+					let default = self.build_expression(None, Some("Missing default value"));
 					args.push((name.lexeme(), Some((default, name.line()))));
 					let notended = self.peek(0).kind() != CURLY_BRACKET_OPEN;
 					if notended {
@@ -1446,7 +1499,7 @@ impl<'a> ParserInfo<'a> {
 							ROUND_BRACKET_CLOSED => self.current -= 1,
 							_ => {
 								let t = self.peek(0);
-								return Err(self.expected(")", &t.lexeme(), t.line(), t.column()));
+								self.expected(")", &t.lexeme(), t.line(), t.column(), t.range(), None);
 							}
 						}
 					}
@@ -1456,13 +1509,16 @@ impl<'a> ParserInfo<'a> {
 					args.push((name.lexeme(), None));
 					false
 				}
-				_ => return Err(self.expected(")", &t.lexeme(), t.line(), t.column())),
+				_ => {
+					self.expected(")", &t.lexeme(), t.line(), t.column(), t.range(), None);
+					false
+				},
 			}
 		} {}
-		Ok(/* (args, types) */ args)
+		/* (args, types) */ args
 	}
 
-	fn build_elseif_chain(&mut self, condition: Option<Expression>) -> Result<ComplexToken, String> {
+	fn build_elseif_chain(&mut self, condition: Option<Expression>) -> ComplexToken {
 		let condition = match condition {
 			Some(condition) => condition,
 			None => {
@@ -1471,7 +1527,7 @@ impl<'a> ParserInfo<'a> {
 					let destructure = self.advance_if(CURLY_BRACKET_OPEN);
 					let (vars, mut code) = self.use_internal_stack(
 						|i| i.build_variables(true, start, destructure)
-					)?;
+					);
 					let (condition, end) = {
 						let VARIABLE {names, line: end, ..} = &vars else {
 							unreachable!()
@@ -1486,22 +1542,22 @@ impl<'a> ParserInfo<'a> {
 						(condition, *end)
 					};
 					code.push_back(vars);
-					code.push_back(self.build_elseif_chain(Some(condition))?);
-					return Ok(DO_BLOCK(CodeBlock { start, code, end }))
+					code.push_back(self.build_elseif_chain(Some(condition)));
+					return DO_BLOCK(CodeBlock { start, code, end })
 				}
-				self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?
+				self.build_expression(Some((CURLY_BRACKET_OPEN, "{")), Some("Missing condition"))
 			}
 		};
-		let code = self.build_code_block(/*self.locals.clone()*/)?;
-		Ok(IF_STATEMENT {
+		let code = self.build_code_block(/*self.locals.clone()*/);
+		IF_STATEMENT {
 			condition,
 			code,
 			next: {
 				let t = self.advance();
 				match t.kind() {
-					ELSEIF => Some(Box::new(self.build_elseif_chain(None)?)),
+					ELSEIF => Some(Box::new(self.build_elseif_chain(None))),
 					ELSE => Some(Box::new(DO_BLOCK(
-						self.build_code_block(/*self.locals.clone()*/)?,
+						self.build_code_block(/*self.locals.clone()*/),
 					))),
 					_ => {
 						self.current -= 1;
@@ -1509,19 +1565,19 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 			},
-		})
+		}
 	}
 
-	fn build_enums(&mut self, local: bool) -> Result<Expression, String> {
+	fn build_enums(&mut self, local: bool) -> Expression {
 		self.current += 1;
-		self.assert(CURLY_BRACKET_OPEN, "{")?;
+		self.assert(CURLY_BRACKET_OPEN, "{", Some("Missing enum block start"));
 		let mut enums = Expression::new();
 		let mut n = 0i16;
 		loop {
 			if self.advance_if(CURLY_BRACKET_CLOSED) {
 				break;
 			}
-			let name = self.assert_advance(IDENTIFIER, "<name>")?;
+			let name = self.assert_advance(IDENTIFIER, "<name>", None);
 			let t = self.advance();
 			let value = match t.kind() {
 				CURLY_BRACKET_CLOSED => {
@@ -1534,19 +1590,37 @@ impl<'a> ParserInfo<'a> {
 					SYMBOL(n.to_string())
 				}
 				DEFINE => {
-					let t = self.advance();
+					/*let t = self.advance();
 					if t.kind() != NUMBER {
-						return Err(self.error(
+						self.error(
 							"Enums values should be a non-float number ranging from -32768 to 32767.",
 							t.line(),
-							t.column()
-						));
+							t.column(),
+							t.range(),
+							None
+						);
 					}
-					n = check!(t.lexeme().parse());
+					n = check!(t.lexeme().parse());*/
+					n = match self.advance().lexeme().parse() {
+						Ok(n) => n,
+						Err(msg) => {
+							self.error(
+								"Enums values should be a non-float number ranging from -32768 to 32767.",
+								t.line(),
+								t.column(),
+								t.range(),
+								Some(&msg.to_string())
+							);
+							0
+						}
+					};
 					self.advance_if(COMMA);
 					SYMBOL(n.to_string())
 				}
-				_ => return Err(self.expected("}", &t.lexeme(), t.line(), t.column())),
+				_ => {
+					self.expected("}", &t.lexeme(), t.line(), t.column(), t.range(), None);
+					SYMBOL(String::new())
+				},
 			};
 			enums.push_back(VARIABLE {
 				line: name.line(),
@@ -1562,29 +1636,29 @@ impl<'a> ParserInfo<'a> {
 				}
 			}
 		}*/
-		Ok(enums)
+		enums
 	}
 
-	fn build_function(&mut self, local: bool) -> Result<ComplexToken, String> {
+	fn build_function(&mut self, local: bool) -> ComplexToken {
 		self.current += 1;
-		let t = self.assert_advance(IDENTIFIER, "<name>")?;
+		let t = self.assert_advance(IDENTIFIER, "<name>", None);
 		let name = vec_deque![SYMBOL(t.lexeme())];
-		self.assert(ROUND_BRACKET_OPEN, "(")?;
+		self.assert(ROUND_BRACKET_OPEN, "(", Some("Missing argument list start"));
 		let /*(*/args/*, types)*/ = if !self.advance_if(ROUND_BRACKET_CLOSED) {
-			self.build_function_args()?
+			self.build_function_args()
 		} else {
 			/*(*/FunctionArgs::new()//, None)
 		};
-		let code = self.build_function_block(/*types*/)?;
+		let code = self.build_function_block(/*types*/);
 		/*if self.locals.is_some() {
 			self.add_variable(t.lexeme(), LuaType::NIL);
 		}*/
-		Ok(FUNCTION {
+		FUNCTION {
 			local,
 			name,
 			args,
 			code,
-		})
+		}
 	}
 	/*
 		fn add_variable(&mut self, name: String, luatype: LuaType) {
@@ -1613,7 +1687,7 @@ impl<'a> ParserInfo<'a> {
 	}*/
 
 	#[allow(clippy::type_complexity)]
-	fn build_destructure_table(&mut self) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
+	fn build_destructure_table(&mut self) -> (Vec<String>, Vec<String>, Vec<String>) {
 		let mut names = Vec::new();
 		let mut key_names = Vec::new();
 		let name = self.get_next_internal_var();
@@ -1623,8 +1697,8 @@ impl<'a> ParserInfo<'a> {
 			&mut key_names,
 			&mut internal_names,
 			name + ".",
-		)?;
-		Ok((names, key_names, internal_names))
+		);
+		(names, key_names, internal_names)
 	}
 
 	fn build_destructure_table_internal(
@@ -1633,9 +1707,9 @@ impl<'a> ParserInfo<'a> {
 		key_names: &mut Vec<String>,
 		internal_names: &mut Vec<String>,
 		key_start: String,
-	) -> Result<(), String> {
+	) {
 		loop {
-			let t = self.assert_advance(IDENTIFIER, "<name>")?;
+			let t = self.assert_advance(IDENTIFIER, "<name>", None);
 			names.push(if self.advance_if(ARROW) {
 				if self.advance_if(CURLY_BRACKET_OPEN) {
 					let name = self.get_next_internal_var();
@@ -1646,23 +1720,23 @@ impl<'a> ParserInfo<'a> {
 						key_names,
 						internal_names,
 						name + ".",
-					)?;
+					);
 					if self.advance_if(COMMA) {
 						continue;
 					} else {
-						self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
-						break Ok(());
+						self.assert_advance(CURLY_BRACKET_CLOSED, "}", Some("Missing destructued table end"));
+						break;
 					}
 				} else {
-					self.assert_advance(IDENTIFIER, "<name>")?.lexeme()
+					self.assert_advance(IDENTIFIER, "<name>", None).lexeme()
 				}
 			} else {
 				t.lexeme()
 			});
 			key_names.push(format_clue!(key_start, t.lexeme()));
 			if !self.advance_if(COMMA) {
-				self.assert_advance(CURLY_BRACKET_CLOSED, "}")?;
-				break Ok(());
+				self.assert_advance(CURLY_BRACKET_CLOSED, "}", Some("Missing destructued table end"));
+				break;
 			}
 		}
 	}
@@ -1696,15 +1770,15 @@ impl<'a> ParserInfo<'a> {
 		local: bool,
 		line: usize,
 		destructure: bool,
-	) -> Result<ComplexToken, String> {
+	) -> ComplexToken {
 		let (names, destructure) = if destructure {
-			let (names, key_names, internal_names) = self.build_destructure_table()?;
+			let (names, key_names, internal_names) = self.build_destructure_table();
 			(names, Some((key_names, internal_names)))
 		} else {
-			(self.build_identifier_list()?, None)
+			(self.build_identifier_list(), None)
 		};
 		let check = self.advance().kind();
-		let mut values: Vec<Expression> = if check != DEFINE {
+		let mut values = if check != DEFINE {
 			if check == SEMICOLON {
 				self.current += 1;
 			}
@@ -1717,10 +1791,10 @@ impl<'a> ParserInfo<'a> {
 					self.warning("Defining external globals will not do anything if you don't have type checking enabled!", line)
 				}*/
 				self.current -= 1;
-				return Ok(SYMBOL(String::new()));
+				return SYMBOL(String::new());
 			}
 		} else {
-			self.find_expressions(None)?
+			self.find_expressions(None, Some("Missing value"))
 		};
 		self.current -= 1;
 		if let Some((key_names, internal_names)) = destructure {
@@ -1730,27 +1804,26 @@ impl<'a> ParserInfo<'a> {
 				values.push(vec_deque![SYMBOL(key_name)])
 			}
 		}
-		Ok(VARIABLE {
+		VARIABLE {
 			local,
 			names,
 			values,
 			line,
-		})
+		}
 	}
 
-	fn compile_static(&mut self, expr: Expression) -> Result<(), String> {
-		let code = self.compiler.compile_tokens(0, expr)?;
+	fn compile_static(&mut self, expr: Expression) {
+		let code = self.compiler.compile_tokens(0, expr).unwrap(); //TEMPORARY, FIX THIS
 		self.statics += &(code + "\n");
-		Ok(())
 	}
 
 	fn build_match_block(
 		&mut self,
 		name: String,
-		func: &impl Fn(&mut ParserInfo<'a> /* , LocalsList */) -> Result<CodeBlock, String>,
-	) -> Result<ComplexToken, String> {
+		func: &impl Fn(&mut ParserInfo<'a> /* , LocalsList */) -> CodeBlock,
+	) -> ComplexToken {
 		let line = self.peek(0).line();
-		let value = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
+		let value = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")), Some("Missing matched value"));
 		let mut branches: Vec<MatchCase> = Vec::new();
 		while {
 			if self.advance_if(DEFAULT) {
@@ -1758,41 +1831,49 @@ impl<'a> ParserInfo<'a> {
 				match t.kind() {
 					ARROW => {
 						if branches.is_empty() {
-							return Err(self.error(
+							self.error(
 								"The default case (with no extra if) of a match block must be the last case, not the first",
 								t.line(),
-								t.column()
-							));
+								t.column(),
+								t.range(),
+								None
+							);
 						}
-						branches.push((Vec::new(), Expression::new(), None, func(self /* , self.locals.clone() */)?));
-						self.assert(CURLY_BRACKET_CLOSED, "}")?;
+						branches.push((Vec::new(), Expression::new(), None, func(self /* , self.locals.clone() */)));
+						self.assert(CURLY_BRACKET_CLOSED, "}", Some("Missing default case's end"));
 						false
 					}
 					IF => {
 						let (extra_if, internal_expr) = self.use_internal_stack(|i|
-							i.build_expression(Some((ARROW, "=>")))
-						)?;
+							i.build_expression(Some((ARROW, "=>")), None)
+						);
 						branches.push((
 							Vec::new(),
 							internal_expr,
 							Some(extra_if),
-							func(self /* , self.locals.clone() */)?,
+							func(self /* , self.locals.clone() */),
 						));
 						!self.advance_if(CURLY_BRACKET_CLOSED)
 					}
-					_ => return Err(self.expected("=>", &t.lexeme(), t.line(), t.column())),
+					_ => {
+						self.expected("=>", &t.lexeme(), t.line(), t.column(), t.range(), None);
+						false
+					},
 				}
 			} else {
 				let ((expr, extra_if), internal_expr) = self.use_internal_stack(|i| {
-					let expr = i.build_expression(None)?;
+					let expr = i.build_expression(None, Some("Missing match case's pattern"));
 					let t = i.look_back(0);
 					let extra_if = match t.kind() {
 						ARROW => None,
-						IF => Some(i.build_expression(Some((ARROW, "=>")))?),
-						_ => return Err(i.expected("=>", &t.lexeme(), t.line(), t.column()))
+						IF => Some(i.build_expression(Some((ARROW, "=>")), None)),
+						_ => {
+							i.expected("=>", &t.lexeme(), t.line(), t.column(), t.range(), None);
+							None
+						}
 					};
-					Ok((expr, extra_if))
-				})?;
+					(expr, extra_if)
+				});
 				let mut conditions: Vec<Expression> = Vec::new();
 				let mut current = Expression::with_capacity(3);
 				for ctoken in expr {
@@ -1811,58 +1892,56 @@ impl<'a> ParserInfo<'a> {
 					conditions,
 					internal_expr,
 					extra_if,
-					func(self /* , self.locals.clone() */)?
+					func(self /* , self.locals.clone() */)
 				));
 				!self.advance_if(CURLY_BRACKET_CLOSED)
 			}
 		} {}
-		Ok(MATCH_BLOCK {
+		MATCH_BLOCK {
 			name,
 			value,
 			branches,
 			line,
-		})
+		}
 	}
 
-	fn parse_token_local_global(&mut self, t: &BorrowedToken) -> Result<(), String> {
+	fn parse_token_local_global(&mut self, t: &BorrowedToken) {
 		let local = t.kind() == LOCAL;
 		match self.peek(0).kind() {
 			FN => {
-				let function = self.build_function(local)?;
+				let function = self.build_function(local);
 				self.expr.push_back(function);
 			}
 			ENUM => {
-				let enums = &mut self.build_enums(local)?;
+				let enums = &mut self.build_enums(local);
 				self.expr.append(enums);
 			}
 			_ => {
 				let destructure = self.advance_if(CURLY_BRACKET_OPEN);
-				let vars = self.build_variables(local, t.line(), destructure)?;
+				let vars = self.build_variables(local, t.line(), destructure);
 				self.expr.push_back(vars);
 			}
 		}
-		Ok(())
 	}
 
-	fn parse_token_static(&mut self, t: &BorrowedToken) -> Result<(), String> {
+	fn parse_token_static(&mut self, t: &BorrowedToken) {
 		match self.peek(0).kind() {
 			FN => {
-				let function = vec_deque![self.build_function(true)?];
-				self.compile_static(function)?;
+				let function = vec_deque![self.build_function(true)];
+				self.compile_static(function);
 			}
 			ENUM => {
-				let enums = self.build_enums(true)?;
-				self.compile_static(enums)?;
+				let enums = self.build_enums(true);
+				self.compile_static(enums);
 			}
 			_ => {
-				let vars = vec_deque![self.build_variables(true, t.line(), false)?];
-				self.compile_static(vars)?;
+				let vars = vec_deque![self.build_variables(true, t.line(), false)];
+				self.compile_static(vars);
 			}
 		}
-		Ok(())
 	}
 
-	fn parse_token_method(&mut self) -> Result<(), String> {
+	fn parse_token_method(&mut self) {
 		let name = {
 			let mut expr = Expression::with_capacity(4);
 			loop {
@@ -1871,30 +1950,30 @@ impl<'a> ParserInfo<'a> {
 					IDENTIFIER => {
 						let nt = self.peek(0);
 						if nt.kind() == IDENTIFIER {
-							return Err(self.unexpected(&nt.lexeme(), nt.line(), nt.column()));
+							self.unexpected(&nt.lexeme(), nt.line(), nt.column(), nt.range(), None);
 						}
 						expr.push_back(SYMBOL(t.lexeme()))
 					}
-					DOT => self.check_index(&t, &mut expr, ".")?,
+					DOT => self.check_index(&t, &mut expr, "."),
 					DOUBLE_COLON => {
-						self.check_index(&t, &mut expr, ":")?;
+						self.check_index(&t, &mut expr, ":");
 						let t = self.peek(1);
 						if t.kind() != ROUND_BRACKET_OPEN {
-							return Err(self.expected("(", &t.lexeme(), t.line(), t.column()));
+							self.expected("(", &t.lexeme(), t.line(), t.column(), t.range(), None);
 						}
 					}
 					ROUND_BRACKET_OPEN => break,
-					_ => return Err(self.expected("(", &t.lexeme(), t.line(), t.column())),
+					_ => self.expected("(", &t.lexeme(), t.line(), t.column(), t.range(), None),
 				}
 			}
 			expr
 		};
 		let /*(*/args/*, types)*/ = if !self.advance_if(ROUND_BRACKET_CLOSED) {
-			self.build_function_args()?
+			self.build_function_args()
 		} else {
 			/*(*/FunctionArgs::new()//, None)
 		};
-		let code = self.build_function_block(/*types*/)?;
+		let code = self.build_function_block(/*types*/);
 		//ADD FUNCTION FOR ADDING VALUES INSIDE TABLES MAYBE?
 		self.expr.push_back(FUNCTION {
 			local: false,
@@ -1902,12 +1981,11 @@ impl<'a> ParserInfo<'a> {
 			args,
 			code,
 		});
-		Ok(())
 	}
 
-	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
+	fn parse_token_identifier(&mut self, t: &BorrowedToken) {
 		let start = self.current - 1;
-		let (mut first_expr, safe_indexing) = self.build_identifier_internal()?;
+		let (mut first_expr, safe_indexing) = self.build_identifier_internal();
 		if let CALL(_) = first_expr.back().unwrap() {
 			let line = self.at(start).line();
 			if safe_indexing {
@@ -1941,28 +2019,30 @@ impl<'a> ParserInfo<'a> {
 				self.current -= 1;
 				self.advance_if(SEMICOLON);
 			}
-			return Ok(());
+			return;
 		} else if safe_indexing {
-			return Err(self.error(
+			self.error(
 				"Safe indexing cannot be used when altering variables",
 				t.line(),
 				t.column(),
-			));
+				t.range(),
+				None
+			);
 		}
 		let mut names = vec_deque![first_expr];
 		while {
 			self.current += 1;
 			self.look_back(1).kind() == COMMA
 		} {
-			names.push_back(self.build_name()?);
+			names.push_back(self.build_name());
 		}
 		self.current -= 1;
 		let checkt = self.look_back(0);
 		let check = checkt.kind();
 		if check < DEFINE || check > MODULATE {
-			return Err(self.expected("=", &checkt.lexeme(), checkt.line(), checkt.column()));
+			self.expected("=", &checkt.lexeme(), checkt.line(), checkt.column(), checkt.range(), None);
 		}
-		let values = self.find_expressions(None)?;
+		let values = self.find_expressions(None, Some("Missing value"));
 		if check == DEFINE_COALESCE {
 			for value in values {
 				if let Some(name) = names.pop_front() {
@@ -1995,66 +2075,59 @@ impl<'a> ParserInfo<'a> {
 			});
 		}
 		self.current -= 1;
-		Ok(())
 	}
 
-	fn parse_token_round_bracket_open(&mut self) -> Result<(), String> {
-		let expr = self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?;
+	fn parse_token_round_bracket_open(&mut self) {
+		let expr = self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")), None);
 		self.expr.push_back(EXPR(expr));
 		self.current += 1;
-		let call = self.build_identifier()?;
+		let call = self.build_identifier();
 		self.expr.push_back(call);
 		self.current += 1;
 		self.advance_if(SEMICOLON);
-		Ok(())
 	}
 
-	fn parse_token_curly_bracket_open(&mut self) -> Result<(), String> {
+	fn parse_token_curly_bracket_open(&mut self) {
 		self.current -= 1;
-		let block = self.build_code_block(/*self.locals.clone()*/)?;
+		let block = self.build_code_block(/*self.locals.clone()*/);
 		self.expr.push_back(DO_BLOCK(block));
-		Ok(())
 	}
 
-	fn parse_token_if(&mut self) -> Result<(), String> {
-		let ctoken = self.build_elseif_chain(None)?;
+	fn parse_token_if(&mut self) {
+		let ctoken = self.build_elseif_chain(None);
 		self.expr.push_back(ctoken);
-		Ok(())
 	}
 
-	fn parse_token_match(&mut self) -> Result<(), String> {
+	fn parse_token_match(&mut self) {
 		let name = self.get_next_internal_var();
-		let ctoken = self.build_match_block(name, &ParserInfo::build_code_block)?;
+		let ctoken = self.build_match_block(name, &ParserInfo::build_code_block);
 		self.expr.push_back(ctoken);
-		Ok(())
 	}
 
-	fn parse_token_while(&mut self, line: usize) -> Result<(), String> {
-		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
-		let code = self.build_loop_block()?;
+	fn parse_token_while(&mut self, line: usize) {
+		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")), Some("Missing condition"));
+		let code = self.build_loop_block();
 		self.expr.push_back(WHILE_LOOP { condition, code, line });
-		Ok(())
 	}
 
-	fn parse_token_until(&mut self, line: usize) -> Result<(), String> {
-		let mut condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
+	fn parse_token_until(&mut self, line: usize) {
+		let mut condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")), Some("Missing condition"));
 		condition.push_front(SYMBOL(String::from("not (")));
 		condition.push_back(SYMBOL(String::from(")")));
-		let code = self.build_loop_block()?;
+		let code = self.build_loop_block();
 		self.expr.push_back(WHILE_LOOP { condition, code, line });
-		Ok(())
 	}
 
-	fn parse_token_loop(&mut self, line: usize) -> Result<(), String> {
-		let code = self.build_loop_block()?;
+	fn parse_token_loop(&mut self, line: usize) {
+		let code = self.build_loop_block();
 		let t = self.advance();
 		match t.kind() {
 			UNTIL => {
-				let condition = self.build_expression(None)?;
+				let condition = self.build_expression(None, Some("Missing condition"));
 				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })
 			}
 			WHILE => {
-				let mut condition = self.build_expression(None)?;
+				let mut condition = self.build_expression(None, Some("Missing condition"));
 				condition.push_front(SYMBOL(String::from("not (")));
 				condition.push_back(SYMBOL(String::from(")")));
 				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })
@@ -2066,15 +2139,14 @@ impl<'a> ParserInfo<'a> {
 			}),
 		}
 		self.current -= 1;
-		Ok(())
 	}
 
-	fn parse_token_for(&mut self, line: usize) -> Result<(), String> {
+	fn parse_token_for(&mut self, line: usize) {
 		if self.peek(1).kind() == DEFINE {
-			let iterator = self.assert_advance(IDENTIFIER, "<name>")?.lexeme();
+			let iterator = self.assert_advance(IDENTIFIER, "<name>", None).lexeme();
 			self.current += 1;
-			let start = self.build_expression(Some((COMMA, ",")))?;
-			let end = self.build_expression(None)?;
+			let start = self.build_expression(Some((COMMA, ",")), Some("Missing for loop's start value"));
+			let end = self.build_expression(None, Some("Missing for loop's end value"));
 			self.current -= 1;
 			let t = self.advance();
 			let alter = match t.kind() {
@@ -2082,10 +2154,16 @@ impl<'a> ParserInfo<'a> {
 					self.current -= 1;
 					vec_deque![SYMBOL(String::from("1"))]
 				}
-				COMMA => self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?,
-				_ => return Err(self.expected(",", &t.lexeme(), t.line(), t.column())),
+				COMMA => self.build_expression(
+					Some((CURLY_BRACKET_OPEN, "{")),
+					Some("Missing for loop's step value")
+				),
+				_ => {
+					self.expected(",", &t.lexeme(), t.line(), t.column(), t.range(), None);
+					Expression::new()
+				},
 			};
-			let code = self.build_loop_block()?;
+			let code = self.build_loop_block();
 			self.expr.push_back(FOR_LOOP {
 				iterator,
 				start,
@@ -2095,32 +2173,41 @@ impl<'a> ParserInfo<'a> {
 				line,
 			})
 		} else {
-			let iterators = self.build_identifier_list()?;
+			let iterators = self.build_identifier_list();
 			let expr = match self.advance().kind() {
 				OF => {
 					let mut expr = vec_deque![SYMBOL(String::from("pairs("))];
-					expr.append(&mut self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?);
+					expr.append(&mut self.build_expression(
+						Some((CURLY_BRACKET_OPEN, "{")),
+						Some("Missing table to iterate")
+					));
 					expr.push_back(SYMBOL(String::from(")")));
 					expr
 				}
 				IN => {
 					let mut expr = vec_deque![SYMBOL(String::from("ipairs("))];
-					expr.append(&mut self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?);
+					expr.append(&mut self.build_expression(
+						Some((CURLY_BRACKET_OPEN, "{")),
+						Some("Missing array to iterate")
+					));
 					expr.push_back(SYMBOL(String::from(")")));
 					expr
 				}
-				WITH => self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?,
+				WITH => self.build_expression(Some((CURLY_BRACKET_OPEN, "{")), Some("Missing iterator")),
 				_ => {
 					let t = self.peek(0);
-					return Err(self.expected(
+					self.expected(
 						"of', 'in' or 'with",
 						&t.lexeme(),
 						t.line(),
 						t.column(),
-					));
+						t.range(),
+						None
+					);
+					Expression::new()
 				}
 			};
-			let code = self.build_loop_block()?;
+			let code = self.build_loop_block();
 			self.expr.push_back(FOR_FUNC_LOOP {
 				iterators,
 				expr,
@@ -2128,37 +2215,33 @@ impl<'a> ParserInfo<'a> {
 				line,
 			});
 		}
-		Ok(())
 	}
 
-	fn parse_token_continue(&mut self) -> Result<(), String> {
+	fn parse_token_continue(&mut self) {
 		self.expr.push_back(CONTINUE_LOOP);
 		self.advance_if(SEMICOLON);
-		Ok(())
 	}
 
-	fn parse_token_break(&mut self) -> Result<(), String> {
+	fn parse_token_break(&mut self) {
 		self.expr.push_back(BREAK_LOOP);
 		self.advance_if(SEMICOLON);
-		Ok(())
 	}
 
-	fn parse_token_return(&mut self) -> Result<(), String> {
+	fn parse_token_return(&mut self) {
 		let exprs = if self.ended() || self.advance_if(SEMICOLON) {
 			None
 		} else {
-			Some(self.find_expressions(None)?)
+			Some(self.find_expressions(None, Some("Missing return value")))
 		};
 		self.expr.push_back(RETURN_EXPR(exprs));
 		if !self.ended() {
 			let t = self.look_back(0);
-			return Err(self.expected("<end>", &t.lexeme(), t.line(), t.column()))
+			self.expected("<end>", &t.lexeme(), t.line(), t.column(), t.range(), None)
 		}
-		Ok(())
 	}
 
-	fn parse_token_try(&mut self) -> Result<(), String> {
-		let totry = self.build_code_block(/*self.locals.clone()*/)?;
+	fn parse_token_try(&mut self) {
+		let totry = self.build_code_block(/*self.locals.clone()*/);
 		let error: Option<String>;
 		let catch = if self.advance_if(CATCH) {
 			let t = self.advance();
@@ -2168,7 +2251,7 @@ impl<'a> ParserInfo<'a> {
 				error = None;
 				self.current -= 1;
 			}
-			Some(self.build_code_block(/*self.locals.clone()*/)?)
+			Some(self.build_code_block(/*self.locals.clone()*/))
 		} else {
 			error = None;
 			None
@@ -2178,19 +2261,54 @@ impl<'a> ParserInfo<'a> {
 			error,
 			catch,
 		});
-		Ok(())
 	}
 
-	fn parse_token_fn_enum(&mut self, t: &BorrowedToken) -> Result<(), String> {
-		Err(self.error(
+	fn parse_token_fn_enum(&mut self, t: &BorrowedToken) {
+		self.error(
 			format!(
 				"'{}' must have 'local', 'global' or 'static' beforehand",
 				t.lexeme()
 			),
 			t.line(),
 			t.column(),
-		))
+			t.range(),
+			None
+		)
 	}
+}
+
+fn parse_tokens_internal<'a>(
+	tokens: Vec<Token>,
+	//locals: Option<AHashMap<String, LuaType>>,
+	filename: &'a String,
+	options: &'a Options,
+) -> ParserInfo<'a> {
+	let mut i = ParserInfo::new(tokens/*, code*/ /* , locals */, filename, options);
+	while !i.ended() {
+		let t = i.advance();
+		match t.kind() {
+			LOCAL | GLOBAL => i.parse_token_local_global(&t),
+			STATIC => i.parse_token_static(&t),
+			METHOD => i.parse_token_method(),
+			IDENTIFIER => i.parse_token_identifier(&t),
+			ROUND_BRACKET_OPEN => i.parse_token_round_bracket_open(),
+			CURLY_BRACKET_OPEN => i.parse_token_curly_bracket_open(),
+			IF => i.parse_token_if(),
+			MATCH => i.parse_token_match(),
+			WHILE => i.parse_token_while(t.line()),
+			UNTIL => i.parse_token_until(t.line()),
+			LOOP => i.parse_token_loop(t.line()),
+			FOR => i.parse_token_for(t.line()),
+			CONTINUE => i.parse_token_continue(),
+			BREAK => i.parse_token_break(),
+			RETURN => i.parse_token_return(),
+			TRY => i.parse_token_try(),
+			FN | ENUM => i.parse_token_fn_enum(&t),
+			EOF => break,
+			_ => i.expected("<end>", &t.lexeme(), t.line(), t.column(), t.range(), None),
+		}
+	}
+	i
 }
 
 /// Parses a list of tokens into an expression
@@ -2229,40 +2347,16 @@ pub fn parse_tokens(
 	filename: &String,
 	options: &Options,
 ) -> Result<(Expression, String), String> {
-	let mut i = ParserInfo::new(tokens /* , locals */, filename, options);
-	while !i.ended() {
-		let t = i.advance();
-		match t.kind() {
-			LOCAL | GLOBAL => i.parse_token_local_global(&t)?,
-			STATIC => i.parse_token_static(&t)?,
-			METHOD => i.parse_token_method()?,
-			IDENTIFIER => i.parse_token_identifier(&t)?,
-			ROUND_BRACKET_OPEN => i.parse_token_round_bracket_open()?,
-			CURLY_BRACKET_OPEN => i.parse_token_curly_bracket_open()?,
-			IF => i.parse_token_if()?,
-			MATCH => i.parse_token_match()?,
-			WHILE => i.parse_token_while(t.line())?,
-			UNTIL => i.parse_token_until(t.line())?,
-			LOOP => i.parse_token_loop(t.line())?,
-			FOR => i.parse_token_for(t.line())?,
-			CONTINUE => i.parse_token_continue()?,
-			BREAK => i.parse_token_break()?,
-			RETURN => i.parse_token_return()?,
-			TRY => i.parse_token_try()?,
-			FN | ENUM => i.parse_token_fn_enum(&t)?,
-			EOF => break,
-			_ => return Err(i.expected("<end>", &t.lexeme(), t.line(), t.column())),
-		}
-	}
-
+	let i = parse_tokens_internal(tokens, filename, options);
 	//println!("LOCALS = {:#?}", i.locals);
-
-	Ok((
-		i.expr,
+	finish_step(
+		filename,
+		i.errors,
+		(i.expr,
 		if !i.statics.is_empty() && options.env_debug {
 			format!("--statics defined in \"{}\":\n{}\n", i.filename, i.statics)
 		} else {
 			i.statics
-		},
-	))
+		}),
+	)
 }

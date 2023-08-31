@@ -8,10 +8,11 @@ use clue_core::{
 	format_clue,
 	parser::*,
 	preprocessor::*,
-	scanner::*,
+	scanner::*, errors::print_errors,
 };
-use std::{fs, path::PathBuf, time::Instant};
+use std::{env, fs, path::PathBuf, time::Instant, process::exit};
 use threads::compile_folder;
+use colored::*;
 
 mod threads;
 
@@ -169,31 +170,32 @@ pub fn compile_code(
 	if options.env_expand {
 		println!("Preprocessed file \"{name}\":\n{}", code.to_string());
 	}
-	let tokens: Vec<Token> = scan_code(code, name)?;
+	let tokens = scan_code(code.clone(), name)?;
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{name}\":\n{tokens:#?}");
 	}
 	let (ctokens, statics) = parse_tokens(
 		tokens,
+		//code,
 		/*if flag!(env_types) != TypesMode::NONE {
 			Some(AHashMap::default())
 		} else {
 			None
 		},*/
-		name, options,
+		name,
+		options,
 	)?;
-
 	if options.env_struct {
 		println!("Parsed structure of file \"{name}\":\n{ctokens:#?}");
 	}
-
 	let code = Compiler::new(options, name).compile_tokens(scope, ctokens)?;
 
 	if options.env_output {
 		println!("Compiled Lua code of file \"{name}\":\n{code}");
 	}
 	println!(
-		"Compiled file \"{}\" in {} seconds!",
+		"{} \"{}\" in {} seconds!",
+		"Compiled".green().bold(),
 		name,
 		time.elapsed().as_secs_f32()
 	);
@@ -202,13 +204,11 @@ pub fn compile_code(
 
 #[cfg(feature = "mlua")]
 fn execute_lua_code(code: &str) {
-	println!("Running compiled code...");
+	println!(" {} compiled code...", "Running".blue().bold());
 	let lua = mlua::Lua::new();
-	let time = Instant::now();
 	if let Err(error) = lua.load(code).exec() {
 		println!("{error}");
 	}
-	println!("Code ran in {} seconds!", time.elapsed().as_secs_f32());
 }
 
 fn finish(
@@ -249,8 +249,7 @@ fn save_result(
 				Some(mut output_path) => {
 					match output_path.extension() {
 						Some(extension) if extension != "lua" => {
-							output_path
-								.set_extension(format_clue!(extension.to_string_lossy(), ".lua"));
+							output_path.set_extension(format_clue!(extension.to_string_lossy(), ".lua"));
 						}
 						None => {
 							output_path.set_extension("lua");
@@ -270,21 +269,24 @@ fn save_result(
 	))
 }
 
-fn main() -> Result<(), String> {
-	std::env::set_var("CLUE_VERSION", crate_version!());
+fn main() {
+	env::set_var("CLUE_VERSION", crate_version!());
 	let cli = Cli::parse();
 	if cli.license {
 		print!(include_str!("../LICENSE"));
-		return Ok(());
-	} /*else if cli.types.is_some() {
-	  //TEMPORARY PLACEHOLDER UNTIL 4.0
-	  return Err(String::from("Type checking is not supported yet!"));
-  }*/
-
-	if cli.r#continue == ContinueMode::LuaJIT {
+		return;
+	}
+	if cli.r#continue == ContinueMode::LuaJIT { //TODO: REMOVE LUAJIT mode
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
 	}
+	if let Err(e) = start_compilation(cli) {
+		print_errors();
+		eprintln!("{}: {e}", "Error".red().bold());
+		exit(-1);
+	}
+}
 
+fn start_compilation(cli: Cli) -> Result<(), String> {
 	let mut options = Options {
 		env_outputname: cli.outputname.clone(),
 		env_tokens: cli.tokens,
@@ -317,7 +319,6 @@ fn main() -> Result<(), String> {
         env_symbols: false,
 	};
 	options.preset();
-
 	//let mut code = String::with_capacity(512);
 
 	/*if let Some(bit) = &options.env_jitbit {
@@ -332,17 +333,22 @@ fn main() -> Result<(), String> {
 	let mut path = cli.path.unwrap();
 	if cli.pathiscode {
 		let filename = String::from("(command line)");
-		let mut code = path.to_string_lossy().into_owned();
-		let code = unsafe { code.as_bytes_mut() };
-		let preprocessed_code = preprocess_code(code, 1, false, &filename, &options)?;
-		let (code, statics) = compile_code(
+		let mut source_code = path.to_string_lossy().into_owned();
+		let preprocessed_code = preprocess_code(
+			unsafe { source_code.as_bytes_mut() },
+			1,
+			false,
+			&filename,
+			&options
+		)?;
+		let (output, statics) = compile_code(
 			preprocessed_code.0,
 			&preprocessed_code.1,
 			&filename,
 			0,
 			&options,
 		)?;
-		let code = code + &statics;
+		let code = statics + &output;
 		#[cfg(feature = "mlua")]
 		if cli.execute {
 			execute_lua_code(&code)
@@ -358,7 +364,14 @@ fn main() -> Result<(), String> {
 		};
 	}
 	let (output_path, code) = if path.is_dir() {
-		let (output, statics) = compile_folder(path, String::new(), options)?;
+		let time = Instant::now();
+		let (output, statics) = compile_folder(&path, String::new(), options)?;
+		println!(
+			"{} \"{}\" in {} seconds!",
+			"Finished".green().bold(),
+			path.display(),
+			time.elapsed().as_secs_f32()
+		);
 
 		let code = match cli.base {
 			Some(filename) => {
@@ -388,9 +401,9 @@ fn main() -> Result<(), String> {
 		}
 		path.is_file()
 	} {
-		let name = path.file_name().unwrap().to_string_lossy().into_owned();
-		let (rawcode, variables) = read_file(path, &name, &options)?;
-		let (output, statics) = compile_code(rawcode, &variables, &name, 0, &options)?;
+		let filename = path.file_name().unwrap().to_string_lossy().into_owned();
+		let (rawcode, variables) = read_file(path, &filename, &options)?;
+		let (output, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
 		let code = statics + &output;
 		save_result(cli.dontsave, cli.outputname, code)?
 	} else {

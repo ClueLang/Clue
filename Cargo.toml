@@ -3,7 +3,7 @@ members = ["cli", "core", "wasm"]
 default-members = ["cli", "core"]
 
 [workspace.package]
-version = "4.0.0-indev+c2fa7c6f"
+version = "4.0.0-better-errors"
 description = "C/Rust like programming language that compiles into Lua code"
 edition = "2021"
 rust-version = "1.65"
@@ -16,6 +16,7 @@ categories = ["compilers"]
 [workspace.dependencies]
 ahash = "0.8.2"
 clap = { version = "3.2.25", features = ["derive", "cargo"] }
+colored = "2.0.0"
 
 [profile.release]
 lto = true

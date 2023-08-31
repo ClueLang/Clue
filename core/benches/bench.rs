@@ -1,4 +1,5 @@
 use ahash::AHashMap;
+use clue::errors::finish_step;
 use clue::{code::*, compiler::*, env::Options, parser::*, preprocessor::*, scanner::*};
 use clue_core as clue;
 use criterion::{criterion_group, criterion_main, Criterion};
@@ -28,27 +29,31 @@ fn wait_threads(threads: Vec<JoinHandle<()>>) {
 fn compile_code(
 	codes: PPCode,
 	variables: &PPVars,
-	name: &String,
+	filename: &String,
 	scope: usize,
 	options: &Options,
 ) -> Result<(String, String), String> {
 	let (mut codes, size) = codes;
+	let mut i = CodesInfo {
+		filename,
+		errors: 0,
+	};
 	let code = if codes.len() == 1 {
-		codes.pop_back().unwrap().0
+		Ok(codes.pop_back().unwrap().0)
 	} else {
 		let mut code = Code::with_capacity(size);
 		for (codepart, uses_vars) in codes {
 			code.append(if uses_vars {
-				preprocess_variables(0, &codepart, codepart.len(), variables, name)?
+				preprocess_variables(0, &codepart, codepart.len(), variables, &mut i, filename)?
 			} else {
 				codepart
-			})
+			});
 		}
-		code
-	};
-	let tokens: Vec<Token> = scan_code(code, name)?;
-	let (ctokens, statics) = parse_tokens(tokens, name, options)?;
-	let code = Compiler::new(options, name).compile_tokens(scope, ctokens)?;
+		finish_step(filename, i.errors, code)
+	}?;
+	let tokens: Vec<Token> = scan_code(code, filename)?;
+	let (ctokens, statics) = parse_tokens(tokens, filename, options)?;
+	let code = Compiler::new(options, filename).compile_tokens(scope, ctokens)?;
 	Ok((code, statics))
 }
 
@@ -122,8 +127,7 @@ fn check_for_files(
 ) -> Result<SegQueue<(PathBuf, String)>, std::io::Error> {
 	let files = SegQueue::new();
 	for entry in fs::read_dir(&path)? {
-		let entry = entry?;
-		let name = entry
+		let name = entry?
 			.path()
 			.file_name()
 			.unwrap()

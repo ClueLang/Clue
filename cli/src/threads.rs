@@ -1,6 +1,7 @@
 use ahash::AHashMap;
 use clue_core::code::Code;
 use clue_core::env::Options;
+use clue_core::errors::print_errors;
 use clue_core::preprocessor::{read_file, PPCode, PPVar, PPVars};
 use clue_core::{check, format_clue};
 use crossbeam_queue::SegQueue;
@@ -10,6 +11,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
+use colored::*;
 
 use crate::compile_code;
 
@@ -33,8 +35,7 @@ fn check_for_files(
 ) -> Result<SegQueue<(PathBuf, String)>, std::io::Error> {
 	let files = SegQueue::new();
 	for entry in fs::read_dir(&path)? {
-		let entry = entry?;
-		let name = entry
+		let name = entry?
 			.path()
 			.file_name()
 			.unwrap()
@@ -103,12 +104,6 @@ pub fn compile_folder(
 		codes.push(data.codes);
 	}
 
-	match errored {
-		0 => {}
-		1 => return Err(String::from("1 file failed to compile!")),
-		n => return Err(format!("{n} files failed to compile!")),
-	}
-
 	let variables = Arc::new(
 		variables
 			.into_iter()
@@ -172,9 +167,9 @@ fn preprocess_file_dir(
 					errored: true,
 					codes: Default::default(),
 					variables: Default::default(),
-				})
-				.unwrap();
-				eprintln!("Error: {e}");
+				}).unwrap();
+				print_errors();
+				eprintln!("{}: {e}", "Error".red().bold());
 				continue;
 			}
 		};
@@ -207,9 +202,9 @@ fn compile_file_dir(
 					errored: true,
 					output: "".to_owned(),
 					static_vars: "".to_owned(),
-				})
-				.unwrap();
-				eprintln!("Error: {e}");
+				}).unwrap();
+				print_errors();
+				eprintln!("{}: {e}", "Error".red().bold());
 				continue;
 			}
 		};
