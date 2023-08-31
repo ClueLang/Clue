@@ -1,6 +1,9 @@
-use std::{ops::Range, sync::{OnceLock, RwLock, Arc}};
 use ahash::AHashMap;
 use colored::*;
+use std::{
+	ops::Range,
+	sync::{Arc, OnceLock, RwLock},
+};
 
 type FileMap = Arc<RwLock<AHashMap<String, String>>>;
 type ErrorsVec = Arc<RwLock<Vec<String>>>;
@@ -20,25 +23,31 @@ macro_rules! impl_errormessaging {
 #[inline]
 fn get_files() -> FileMap {
 	static FILES: OnceLock<FileMap> = OnceLock::new();
-    FILES.get_or_init(|| Arc::new(RwLock::new(AHashMap::new()))).clone()
+	FILES
+		.get_or_init(|| Arc::new(RwLock::new(AHashMap::new())))
+		.clone()
 }
 
+/// Adds the source code of a file to the FILES map used to print error messages.
 pub fn add_source_file(filename: &str, code: impl Into<String>) {
 	let files = get_files();
-    let mut files = files.write().unwrap();
-    if let Some(file) = files.get_mut(filename) {
-        *file = code.into();
-    } else {
-        files.insert(filename.to_owned(), code.into());
-    }
+	let mut files = files.write().unwrap();
+	if let Some(file) = files.get_mut(filename) {
+		*file = code.into();
+	} else {
+		files.insert(filename.to_owned(), code.into());
+	}
 }
 
 #[inline]
-fn get_errors() -> ErrorsVec {
+pub fn get_errors() -> ErrorsVec {
 	static ERRORS: OnceLock<ErrorsVec> = OnceLock::new();
-	ERRORS.get_or_init(|| Arc::new(RwLock::new(Vec::new()))).clone()
+	ERRORS
+		.get_or_init(|| Arc::new(RwLock::new(Vec::new())))
+		.clone()
 }
 
+/// Prints all previous error messages stored, then clears the vector.
 pub fn print_errors() {
 	let errors = get_errors();
 	let mut errors = errors.write().unwrap();
@@ -49,23 +58,21 @@ pub fn print_errors() {
 }
 
 fn get_errored_edges<'a, T: Iterator<Item = &'a str>>(
-    code: &'a str,
-    splitter: impl FnOnce(&'a str, char) -> T,
+	code: &'a str,
+	splitter: impl FnOnce(&'a str, char) -> T,
 ) -> &str {
-    splitter(code, '\n').next().unwrap_or_default()
+	splitter(code, '\n').next().unwrap_or_default()
 }
 
 pub fn finish_step<T>(filename: &String, errors: u8, to_return: T) -> Result<T, String> {
 	match errors {
-		0 => {
-			Ok(to_return)
-		},
-		1 => {
-			Err(format!("Cannot continue compiling \"{filename}\" due to an error!"))
-		}
-		n => {
-			Err(format!("Cannot continue compiling \"{filename}\" due to {n} errors!"))
-		}
+		0 => Ok(to_return),
+		1 => Err(format!(
+			"Cannot continue compiling \"{filename}\" due to an error!"
+		)),
+		n => Err(format!(
+			"Cannot continue compiling \"{filename}\" due to {n} errors!"
+		)),
 	}
 }
 
@@ -77,32 +84,34 @@ pub trait ErrorMessaging {
 		line: usize,
 		column: usize,
 		range: Range<usize>,
-		help: Option<&str>
+		help: Option<&str>,
 	) {
 		let filename = self.get_filename(is_error);
 		let kind = if is_error {
 			"Error".red()
 		} else {
 			"Warning".yellow()
-		}.bold();
-		let header = format!(
-			"{} in {}:{}:{}",
-			kind,
-			filename,
-			line,
-			column
-		);
+		}
+		.bold();
+		let header = format!("{} in {}:{}:{}", kind, filename, line, column);
 		let full_message = format!(
 			"{}: {}{}",
 			kind,
-			message.into().replace('\n', "<new line>").replace('\t', "<tab>"),
+			message
+				.into()
+				.replace('\n', "<new line>")
+				.replace('\t', "<tab>"),
 			if let Some(help) = help {
 				format!("\n{}: {}", "Help".cyan().bold(), help)
 			} else {
 				String::from("")
 			}
 		);
-		let error = if let Some(code) = get_files().read().expect("Couldn't read file map").get(filename) {
+		let error = if let Some(code) = get_files()
+			.read()
+			.expect("Couldn't read file map")
+			.get(filename)
+		{
 			let before_err = get_errored_edges(&code[..range.start], str::rsplit);
 			let after_err = get_errored_edges(&code[range.end..], str::split);
 			let errored = &code[range];
@@ -126,7 +135,7 @@ pub trait ErrorMessaging {
 		line: usize,
 		column: usize,
 		range: Range<usize>,
-		help: Option<&str>
+		help: Option<&str>,
 	) {
 		self.send(true, message, line, column, range, help)
 	}
@@ -138,9 +147,15 @@ pub trait ErrorMessaging {
 		line: usize,
 		column: usize,
 		range: Range<usize>,
-		help: Option<&str>)
-	{
-		self.error(format!("Expected '{expected}', got '{got}'"), line, column, range, help)
+		help: Option<&str>,
+	) {
+		self.error(
+			format!("Expected '{expected}', got '{got}'"),
+			line,
+			column,
+			range,
+			help,
+		)
 	}
 
 	fn expected_before(
@@ -150,9 +165,15 @@ pub trait ErrorMessaging {
 		line: usize,
 		column: usize,
 		range: Range<usize>,
-		help: Option<&str>
+		help: Option<&str>,
 	) {
-		self.error(format!("Expected '{expected}' before '{before}'"), line, column, range, help)
+		self.error(
+			format!("Expected '{expected}' before '{before}'"),
+			line,
+			column,
+			range,
+			help,
+		)
 	}
 
 	fn warning(
@@ -161,7 +182,7 @@ pub trait ErrorMessaging {
 		line: usize,
 		column: usize,
 		range: Range<usize>,
-		help: Option<&str>
+		help: Option<&str>,
 	) {
 		self.send(false, message, line, column, range, help)
 	}
