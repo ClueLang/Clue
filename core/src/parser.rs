@@ -1534,7 +1534,12 @@ impl<'a> ParserInfo<'a> {
 					SYMBOL(n.to_string())
 				}
 				DEFINE => {
-					let t = self.advance();
+					let mut lexeme = String::new();
+					let mut t = self.advance();
+					if t.kind() == MINUS {
+						lexeme.push('-');
+						t = self.advance();
+					}
 					if t.kind() != NUMBER {
 						return Err(self.error(
 							"Enums values should be a non-float number ranging from -32768 to 32767.",
@@ -1542,7 +1547,8 @@ impl<'a> ParserInfo<'a> {
 							t.column()
 						));
 					}
-					n = check!(t.lexeme().parse());
+					lexeme += &t.lexeme();
+					n = check!(lexeme.parse());
 					self.advance_if(COMMA);
 					SYMBOL(n.to_string())
 				}
