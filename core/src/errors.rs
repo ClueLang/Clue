@@ -10,12 +10,14 @@ type ErrorsVec = Arc<RwLock<Vec<String>>>;
 
 #[macro_export]
 macro_rules! impl_errormessaging {
-	($struct:ty) => {
+	($struct:ty $(, $fn:item)*) => {
 		impl ErrorMessaging for $struct {
 			fn get_filename(&mut self, is_error: bool) -> &str {
 				self.errors += is_error as u8;
 				self.filename
 			}
+
+			$($fn),*
 		}
 	};
 }
