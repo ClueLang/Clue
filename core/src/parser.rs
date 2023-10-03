@@ -1590,20 +1590,14 @@ impl<'a> ParserInfo<'a> {
 					SYMBOL(n.to_string())
 				}
 				DEFINE => {
-					/*let t = self.advance();
-					if t.kind() != NUMBER {
-						self.error(
-							"Enums values should be a non-float number ranging from -32768 to 32767.",
-							t.line(),
-							t.column(),
-							t.range(),
-							None
-						);
+					let mut lexeme = self.advance().lexeme();
+					if lexeme.as_bytes()[0] == b'-' {
+						lexeme += &self.advance().lexeme();
 					}
-					n = check!(t.lexeme().parse());*/
-					n = match self.advance().lexeme().parse() {
+					n = match lexeme.parse() {
 						Ok(n) => n,
 						Err(msg) => {
+							let t = self.look_back(0);
 							self.error(
 								"Enums values should be a non-float number ranging from -32768 to 32767.",
 								t.line(),
