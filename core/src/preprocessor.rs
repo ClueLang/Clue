@@ -88,7 +88,22 @@ struct CodeFile<'a> {
 	errors: u8,
 }
 
-impl_errormessaging!(CodeFile<'_>);
+impl_errormessaging!(
+	CodeFile<'_>,
+	fn error(
+		&mut self,
+		message: impl Into<String>,
+		line: usize,
+		column: usize,
+		range: Range<usize>,
+		help: Option<&str>,
+	) {
+		if self.errors == 0 {
+			add_source_file(self.filename, String::from_utf8_lossy(self.code))
+		}
+		self.send(true, message, line, column, range, help)
+	}
+);
 
 impl<'a> CodeFile<'a> {
 	fn new(
@@ -606,7 +621,6 @@ pub fn read_file(
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
 	let mut code = check!(fs::read_to_string(path.into()));
-	add_source_file(filename, &code);
 	let result = preprocess_code(unsafe { code.as_bytes_mut() }, 1, false, filename, options)?;
 	Ok((result.0, result.1))
 }
@@ -1154,6 +1168,9 @@ pub fn preprocess_code(
 		loader.append(first.0);
 		finalcode.push_front((loader, first.1));
 	}
+	if code.errors > 0 {
+		add_source_file(filename, String::from_utf8_lossy(code.code));
+	}
 	finish_step(
 		filename,
 		code.errors,
@@ -1262,7 +1279,25 @@ pub struct CodesInfo<'a> {
 	pub errors: u8,
 }
 
-impl_errormessaging!(CodesInfo<'_>);
+impl_errormessaging!(
+	CodesInfo<'_>,
+	fn error(
+		&mut self,
+		message: impl Into<String>,
+		line: usize,
+		column: usize,
+		range: Range<usize>,
+		help: Option<&str>,
+	) {
+		if self.errors == 0 {
+			//can sometimes fail...maybe we can find a better solution?
+			if let Ok(code) = fs::read_to_string(self.filename) {
+				add_source_file(self.filename, code)
+			}
+		}
+		self.send(true, message, line, column, range, help)
+	}
+);
 
 impl CodesInfo<'_> {
 	fn get_index(&self, line: usize, column: usize, len: usize) -> Range<usize> {
@@ -1337,13 +1372,13 @@ pub fn preprocess_codes(
 	filename: &String,
 ) -> Result<Code, String> {
 	let (mut codes, size) = codes;
-	let mut i = CodesInfo {
-		filename,
-		errors: 0,
-	};
 	if codes.len() == 1 {
 		Ok(codes.pop_back().unwrap().0)
 	} else {
+		let mut i = CodesInfo {
+			filename,
+			errors: 0,
+		};
 		let mut code = Code::with_capacity(size);
 		for (codepart, uses_vars) in codes {
 			code.append(if uses_vars {

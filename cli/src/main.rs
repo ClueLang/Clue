@@ -5,10 +5,11 @@ use clue_core::{
 	check,
 	compiler::*,
 	env::{BitwiseMode, ContinueMode, LuaVersion, Options},
+	errors::{print_errors, add_source_file},
 	format_clue,
 	parser::*,
 	preprocessor::*,
-	scanner::*, errors::print_errors,
+	scanner::*,
 };
 use std::{env, fs, path::PathBuf, time::Instant, process::exit};
 use threads::compile_folder;
@@ -161,18 +162,19 @@ struct Cli {
 pub fn compile_code(
 	codes: PPCode,
 	variables: &PPVars,
-	name: &String,
+	filename: &String,
 	scope: usize,
 	options: &Options,
 ) -> Result<(String, String), String> {
 	let time = Instant::now();
-	let code = preprocess_codes(0, codes, variables, name)?;
+	let code = preprocess_codes(0, codes, variables, filename)?;
+	add_source_file(filename, &code);
 	if options.env_expand {
-		println!("Preprocessed file \"{name}\":\n{}", code.to_string());
+		println!("Preprocessed file \"{filename}\":\n{}", code.to_string());
 	}
-	let tokens = scan_code(code.clone(), name)?;
+	let tokens = scan_code(code.clone(), filename)?;
 	if options.env_tokens {
-		println!("Scanned tokens of file \"{name}\":\n{tokens:#?}");
+		println!("Scanned tokens of file \"{filename}\":\n{tokens:#?}");
 	}
 	let (ctokens, statics) = parse_tokens(
 		tokens,
@@ -182,21 +184,21 @@ pub fn compile_code(
 		} else {
 			None
 		},*/
-		name,
+		filename,
 		options,
 	)?;
 	if options.env_struct {
-		println!("Parsed structure of file \"{name}\":\n{ctokens:#?}");
+		println!("Parsed structure of file \"{filename}\":\n{ctokens:#?}");
 	}
-	let code = Compiler::new(options, name).compile_tokens(scope, ctokens)?;
+	let code = Compiler::new(options, filename).compile_tokens(scope, ctokens)?;
 
 	if options.env_output {
-		println!("Compiled Lua code of file \"{name}\":\n{code}");
+		println!("Compiled Lua code of file \"{filename}\":\n{code}");
 	}
 	println!(
 		"{} \"{}\" in {} seconds!",
 		"Compiled".green().bold(),
-		name,
+		filename,
 		time.elapsed().as_secs_f32()
 	);
 	Ok((code, statics))

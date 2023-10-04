@@ -119,6 +119,18 @@ impl IntoIterator for Code {
 	}
 }
 
+impl Into<String> for Code {
+	fn into(self) -> String {
+		self.to_string()
+	}
+}
+
+impl Into<String> for &Code {
+	fn into(self) -> String {
+		self.to_string()
+	}
+}
+
 impl ToString for Code {
 	fn to_string(&self) -> String {
 		let mut result = String::with_capacity(self.len());
