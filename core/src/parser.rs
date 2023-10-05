@@ -1825,6 +1825,7 @@ impl<'a> ParserInfo<'a> {
 				match t.kind() {
 					ARROW => {
 						if branches.is_empty() {
+							let t = self.look_back(1);
 							self.error(
 								"The default case (with no extra if) of a match block must be the last case, not the first",
 								t.line(),
@@ -1855,8 +1856,12 @@ impl<'a> ParserInfo<'a> {
 					},
 				}
 			} else {
+				let errors = self.errors;
 				let ((expr, extra_if), internal_expr) = self.use_internal_stack(|i| {
 					let expr = i.build_expression(None, Some("Missing match case's pattern"));
+					if expr.is_empty() {
+						return (expr, None);
+					}
 					let t = i.look_back(0);
 					let extra_if = match t.kind() {
 						ARROW => None,
@@ -1888,7 +1893,7 @@ impl<'a> ParserInfo<'a> {
 					extra_if,
 					func(self /* , self.locals.clone() */)
 				));
-				!self.advance_if(CURLY_BRACKET_CLOSED)
+				!self.advance_if(CURLY_BRACKET_CLOSED) && self.errors == errors
 			}
 		} {}
 		MATCH_BLOCK {
