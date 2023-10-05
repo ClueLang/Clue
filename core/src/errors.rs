@@ -1,3 +1,4 @@
+use crate::code::Position;
 use ahash::AHashMap;
 use colored::*;
 use std::{
@@ -83,8 +84,7 @@ pub trait ErrorMessaging {
 		&mut self,
 		is_error: bool,
 		message: impl Into<String>,
-		line: usize,
-		column: usize,
+		position: Position,
 		range: Range<usize>,
 		help: Option<&str>,
 	) {
@@ -95,7 +95,7 @@ pub trait ErrorMessaging {
 			"Warning".yellow()
 		}
 		.bold();
-		let header = format!("{} in {}:{}:{}", kind, filename, line, column);
+		let header = format!("{} in {}:{}:{}", kind, filename, position.0, position.1);
 		let full_message = format!(
 			"{}: {}{}",
 			kind,
@@ -134,27 +134,24 @@ pub trait ErrorMessaging {
 	fn error(
 		&mut self,
 		message: impl Into<String>,
-		line: usize,
-		column: usize,
+		position: Position,
 		range: Range<usize>,
 		help: Option<&str>,
 	) {
-		self.send(true, message, line, column, range, help)
+		self.send(true, message, position, range, help)
 	}
 
 	fn expected(
 		&mut self,
 		expected: &str,
 		got: &str,
-		line: usize,
-		column: usize,
+		position: Position,
 		range: Range<usize>,
 		help: Option<&str>,
 	) {
 		self.error(
 			format!("Expected '{expected}', got '{got}'"),
-			line,
-			column,
+			position,
 			range,
 			help,
 		)
@@ -164,15 +161,13 @@ pub trait ErrorMessaging {
 		&mut self,
 		expected: &str,
 		before: &str,
-		line: usize,
-		column: usize,
+		position: Position,
 		range: Range<usize>,
 		help: Option<&str>,
 	) {
 		self.error(
 			format!("Expected '{expected}' before '{before}'"),
-			line,
-			column,
+			position,
 			range,
 			help,
 		)
@@ -181,12 +176,11 @@ pub trait ErrorMessaging {
 	fn warning(
 		&mut self,
 		message: impl Into<String>,
-		line: usize,
-		column: usize,
+		position: Position,
 		range: Range<usize>,
 		help: Option<&str>,
 	) {
-		self.send(false, message, line, column, range, help)
+		self.send(false, message, position, range, help)
 	}
 
 	fn get_filename(&mut self, is_error: bool) -> &str;

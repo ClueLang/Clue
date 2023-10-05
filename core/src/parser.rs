@@ -12,6 +12,7 @@ use crate::{
 	env::{BitwiseMode, ContinueMode, LuaVersion, Options},
 	scanner::{BorrowedToken, Token, TokenType, TokenType::*},
 	errors::{finish_step, ErrorMessaging},
+	code::Position,
 	format_clue,
 	impl_errormessaging,
 };
@@ -330,12 +331,11 @@ impl<'a> ParserInfo<'a> {
 	fn unexpected(
 		&mut self,
 		lexeme: &str,
-		line: usize,
-		column: usize,
+		position: Position,
 		range: Range<usize>,
 		help: Option<&str>
 	) {
-		self.error(format_clue!("Unexpected token '", lexeme, "'"), line, column, range, help)
+		self.error(format_clue!("Unexpected token '", lexeme, "'"), position, range, help)
 	}
 
 	const fn ended(&self) -> bool {
@@ -390,7 +390,7 @@ impl<'a> ParserInfo<'a> {
 	) -> BorrowedToken {
 		let t = self.advance();
 		if t.kind() != expected {
-			self.expected(error, &t.lexeme(), t.line(), t.column(), t.range(), help);
+			self.expected(error, &t.lexeme(), t.position(), t.range(), help);
 		}
 		t
 	}
@@ -398,7 +398,7 @@ impl<'a> ParserInfo<'a> {
 	fn assert_compare(&mut self, expected: TokenType, error: &str, help: Option<&str>) {
 		if !self.compare(expected) {
 			let t = self.peek(0);
-			self.expected(error, &t.lexeme(), t.line(), t.column(), t.range(), help);
+			self.expected(error, &t.lexeme(), t.position(), t.range(), help);
 		}
 	}
 
@@ -413,8 +413,7 @@ impl<'a> ParserInfo<'a> {
 				self.expected(
 					lexeme,
 					&tocheck.lexeme(),
-					tocheck.line(),
-					tocheck.column(),
+					tocheck.position(),
 					tocheck.range(),
 					None
 				);
@@ -426,7 +425,7 @@ impl<'a> ParserInfo<'a> {
 	fn assert(&mut self, expected: TokenType, error: &str, help: Option<&str>) {
 		if !self.advance_if(expected) {
 			let t = self.peek(0);
-			self.expected(error, &t.lexeme(), t.line(), t.column(), t.range(), help);
+			self.expected(error, &t.lexeme(), t.position(), t.range(), help);
 		}
 	}
 	/*
@@ -501,8 +500,7 @@ impl<'a> ParserInfo<'a> {
 					self.expected_before(
 						"}",
 						"<end>",
-						t.line(),
-						t.column(),
+						t.position(),
 						t.range(),
 						None
 					);
@@ -546,8 +544,7 @@ impl<'a> ParserInfo<'a> {
 							self.expected_before(
 								"]",
 								"<end>",
-								t.line(),
-								t.column(),
+								t.position(),
 								t.range(),
 								None
 							);
@@ -567,8 +564,7 @@ impl<'a> ParserInfo<'a> {
 						if !metas.is_empty() {
 							self.error(
 								"An external metatable cannot be used if the table already set its own metamethods",
-								pn.line(),
-								pn.column(),
+								pn.position(),
 								pn.range(),
 								None
 							);
@@ -581,8 +577,7 @@ impl<'a> ParserInfo<'a> {
 					if metatable.is_some() {
 						self.error(
 							"Metamethods cannot be set if the table already uses an external metatable",
-							pn.line(),
-							pn.column(),
+							pn.position(),
 							pn.range(),
 							None
 						);
@@ -595,8 +590,7 @@ impl<'a> ParserInfo<'a> {
 							if !matches!(self.options.env_target, Some(LuaVersion::BLUA)) {
 								self.error(
 									"The 'usedindex' metamethod can only be used with --target=blua",
-									name_token.line(),
-									name_token.column(),
+									name_token.position(),
 									name_token.range(),
 									None
 								);
@@ -628,8 +622,7 @@ impl<'a> ParserInfo<'a> {
 							self.expected(
 								"<meta name>",
 								&name_token.lexeme(),
-								name_token.line(),
-								name_token.column(),
+								name_token.position(),
 								name_token.range(),
 								None
 							);
@@ -638,13 +631,13 @@ impl<'a> ParserInfo<'a> {
 					}))
 				}
 				_ => {
-					self.expected("<name>", &pn.lexeme(), pn.line(), pn.column(), pn.range(), None);
+					self.expected("<name>", &pn.lexeme(), pn.position(), pn.range(), None);
 					name = Ok(Expression::new());
 				},
 			}
 			if !self.advance_if(DEFINE) {
 				let t = self.peek(0);
-				self.expected("=", &t.lexeme(), t.line(), t.column(), t.range(), None);
+				self.expected("=", &t.lexeme(), t.position(), t.range(), None);
 			}
 			let start = self.current;
 			let mut cscope = 0u8;
@@ -657,7 +650,7 @@ impl<'a> ParserInfo<'a> {
 				ROUND_BRACKET_CLOSED => {
 					if cscope == 0 {
 						let t = self.peek(0);
-						self.expected_before("(", ")", t.line(), t.column(), t.range(), None);
+						self.expected_before("(", ")", t.position(), t.range(), None);
 					}
 					cscope -= 1;
 					true
@@ -667,8 +660,7 @@ impl<'a> ParserInfo<'a> {
 					self.expected_before(
 						"}",
 						"<end>",
-						t.line(),
-						t.column(),
+						t.position(),
 						t.range(),
 						None
 					);
@@ -711,8 +703,7 @@ impl<'a> ParserInfo<'a> {
 		} {
 			self.error(
 				format!("Operator '{}' has invalid right hand token", t.lexeme()),
-				t.line(),
-				t.column(),
+				t.position(),
 				t.range().start..self.peek(0).range().end,
 				None
 			);
@@ -721,8 +712,7 @@ impl<'a> ParserInfo<'a> {
 			if expr.is_empty() {
 				self.error(
 					format!("Operator '{}' lacks a left hand token", t.lexeme()),
-					t.line(),
-					t.column(),
+					t.position(),
 					t.range(),
 					None
 				);
@@ -736,8 +726,7 @@ impl<'a> ParserInfo<'a> {
 			) {
 				self.error(
 					format!("Operator '{}' has invalid left hand token", t.lexeme()),
-					t.line(),
-					t.column(),
+					t.position(),
 					self.look_back(1).range().start..t.range().end,
 					None
 				);
@@ -794,8 +783,7 @@ impl<'a> ParserInfo<'a> {
 			let t2 = self.peek(0);
 			self.error(
 				format!("'{}' should be used only when indexing", t.lexeme()),
-				t2.line(),
-				t2.column(),
+				t2.position(),
 				t2.range(),
 				None
 			);
@@ -886,7 +874,7 @@ impl<'a> ParserInfo<'a> {
 				BIT_XOR => {
 					//SAFETY: the token goes out of scope after BorrowedToken is used, so it stays valid
 					let t2 = if self.options.env_bitwise == BitwiseMode::Vanilla {
-						Token::new(t.kind(), '~', t.position())
+						Token::new(t.kind(), '~', t.full_position())
 					} else {
 						t.into_owned()
 					};
@@ -922,8 +910,7 @@ impl<'a> ParserInfo<'a> {
 						let t = self.peek(0);
 						self.expected("<table>",
 							&t.lexeme(),
-							t.line(),
-							t.column(),
+							t.position(),
 							t.range(),
 							None
 						);
@@ -1121,8 +1108,7 @@ impl<'a> ParserInfo<'a> {
 			self.expected(
 				"<expr>",
 				&last.lexeme(),
-				last.line(),
-				last.column(),
+				last.position(),
 				last.range(),
 				help
 			);
@@ -1192,7 +1178,7 @@ impl<'a> ParserInfo<'a> {
 						ROUND_BRACKET_OPEN => {}
 						SAFE_CALL => {
 							expr.pop_back();
-							let position = self.peek(0).position();
+							let position = self.peek(0).full_position();
 							let name = if t.kind() == DOUBLE_COLON {
 								let mut start = {
 									let mut start = Expression::with_capacity(2);
@@ -1237,7 +1223,7 @@ impl<'a> ParserInfo<'a> {
 						}
 						_ => {
 							let t = self.peek(1);
-							self.expected("(", &t.lexeme(), t.line(), t.column(), t.range(), None);
+							self.expected("(", &t.lexeme(), t.position(), t.range(), None);
 						}
 					}
 				}
@@ -1273,7 +1259,7 @@ impl<'a> ParserInfo<'a> {
 			if t2.kind() == CURLY_BRACKET_OPEN {
 				t2.line()
 			} else {
-				self.expected("{", &t.lexeme(), t.line(), t.column(), t.range(), None);
+				self.expected("{", &t.lexeme(), t.position(), t.range(), None);
 				0
 			}
 		} else {
@@ -1318,8 +1304,7 @@ impl<'a> ParserInfo<'a> {
 					self.expected_before(
 						"}",
 						"<end>",
-						t.line(),
-						t.column(),
+						t.position(),
 						t.range(),
 						None
 					);
@@ -1375,7 +1360,7 @@ impl<'a> ParserInfo<'a> {
 				CONTINUE if !is_in_other_loop => {
 					let name = self.get_next_internal_var();
 					hascontinue = Some(name.clone());
-					let position = t.position();
+					let position = t.full_position();
 					if self.options.env_continue == ContinueMode::MoonScript {
 						tokens.push(Token::new(IDENTIFIER, name, position.clone()));
 						tokens.push(Token::new(DEFINE, "=", position.clone()));
@@ -1388,8 +1373,7 @@ impl<'a> ParserInfo<'a> {
 					self.expected_before(
 						"}",
 						"<end>",
-						t.line(),
-						t.column(),
+						t.position(),
 						t.range(),
 						None
 					);
@@ -1469,7 +1453,7 @@ impl<'a> ParserInfo<'a> {
 						")",
 						Some("A vararg should be the last argument")
 					),
-					_ => self.expected("<name>", &t.lexeme(), t.line(), t.column(), t.range(), None),
+					_ => self.expected("<name>", &t.lexeme(), t.position(), t.range(), None),
 				}
 				t
 			};
@@ -1499,7 +1483,7 @@ impl<'a> ParserInfo<'a> {
 							ROUND_BRACKET_CLOSED => self.current -= 1,
 							_ => {
 								let t = self.peek(0);
-								self.expected(")", &t.lexeme(), t.line(), t.column(), t.range(), None);
+								self.expected(")", &t.lexeme(), t.position(), t.range(), None);
 							}
 						}
 					}
@@ -1510,7 +1494,7 @@ impl<'a> ParserInfo<'a> {
 					false
 				}
 				_ => {
-					self.expected(")", &t.lexeme(), t.line(), t.column(), t.range(), None);
+					self.expected(")", &t.lexeme(), t.position(), t.range(), None);
 					false
 				},
 			}
@@ -1600,8 +1584,7 @@ impl<'a> ParserInfo<'a> {
 							let t = self.look_back(0);
 							self.error(
 								"Enums values should be a non-float number ranging from -32768 to 32767.",
-								t.line(),
-								t.column(),
+								t.position(),
 								t.range(),
 								Some(&msg.to_string())
 							);
@@ -1612,7 +1595,7 @@ impl<'a> ParserInfo<'a> {
 					SYMBOL(n.to_string())
 				}
 				_ => {
-					self.expected("}", &t.lexeme(), t.line(), t.column(), t.range(), None);
+					self.expected("}", &t.lexeme(), t.position(), t.range(), None);
 					SYMBOL(String::new())
 				},
 			};
@@ -1827,8 +1810,7 @@ impl<'a> ParserInfo<'a> {
 						if branches.is_empty() {
 							self.error(
 								"The default case (with no extra if) of a match block must be the last case, not the first",
-								t.line(),
-								t.column(),
+								t.position(),
 								t.range(),
 								None
 							);
@@ -1850,7 +1832,7 @@ impl<'a> ParserInfo<'a> {
 						!self.advance_if(CURLY_BRACKET_CLOSED)
 					}
 					_ => {
-						self.expected("=>", &t.lexeme(), t.line(), t.column(), t.range(), None);
+						self.expected("=>", &t.lexeme(), t.position(), t.range(), None);
 						false
 					},
 				}
@@ -1862,7 +1844,7 @@ impl<'a> ParserInfo<'a> {
 						ARROW => None,
 						IF => Some(i.build_expression(Some((ARROW, "=>")), None)),
 						_ => {
-							i.expected("=>", &t.lexeme(), t.line(), t.column(), t.range(), None);
+							i.expected("=>", &t.lexeme(), t.position(), t.range(), None);
 							None
 						}
 					};
@@ -1944,7 +1926,7 @@ impl<'a> ParserInfo<'a> {
 					IDENTIFIER => {
 						let nt = self.peek(0);
 						if nt.kind() == IDENTIFIER {
-							self.unexpected(&nt.lexeme(), nt.line(), nt.column(), nt.range(), None);
+							self.unexpected(&nt.lexeme(), nt.position(), nt.range(), None);
 						}
 						expr.push_back(SYMBOL(t.lexeme()))
 					}
@@ -1953,11 +1935,11 @@ impl<'a> ParserInfo<'a> {
 						self.check_index(&t, &mut expr, ":");
 						let t = self.peek(1);
 						if t.kind() != ROUND_BRACKET_OPEN {
-							self.expected("(", &t.lexeme(), t.line(), t.column(), t.range(), None);
+							self.expected("(", &t.lexeme(), t.position(), t.range(), None);
 						}
 					}
 					ROUND_BRACKET_OPEN => break,
-					_ => self.expected("(", &t.lexeme(), t.line(), t.column(), t.range(), None),
+					_ => self.expected("(", &t.lexeme(), t.position(), t.range(), None),
 				}
 			}
 			expr
@@ -2017,8 +1999,7 @@ impl<'a> ParserInfo<'a> {
 		} else if safe_indexing {
 			self.error(
 				"Safe indexing cannot be used when altering variables",
-				t.line(),
-				t.column(),
+				t.position(),
 				t.range(),
 				None
 			);
@@ -2034,7 +2015,7 @@ impl<'a> ParserInfo<'a> {
 		let checkt = self.look_back(0);
 		let check = checkt.kind();
 		if check < DEFINE || check > MODULATE {
-			self.expected("=", &checkt.lexeme(), checkt.line(), checkt.column(), checkt.range(), None);
+			self.expected("=", &checkt.lexeme(), checkt.position(), checkt.range(), None);
 		}
 		let values = self.find_expressions(None, Some("Missing value"));
 		if check == DEFINE_COALESCE {
@@ -2153,7 +2134,7 @@ impl<'a> ParserInfo<'a> {
 					Some("Missing for loop's step value")
 				),
 				_ => {
-					self.expected(",", &t.lexeme(), t.line(), t.column(), t.range(), None);
+					self.expected(",", &t.lexeme(), t.position(), t.range(), None);
 					Expression::new()
 				},
 			};
@@ -2193,8 +2174,7 @@ impl<'a> ParserInfo<'a> {
 					self.expected(
 						"of', 'in' or 'with",
 						&t.lexeme(),
-						t.line(),
-						t.column(),
+						t.position(),
 						t.range(),
 						None
 					);
@@ -2230,7 +2210,7 @@ impl<'a> ParserInfo<'a> {
 		self.expr.push_back(RETURN_EXPR(exprs));
 		if !self.ended() {
 			let t = self.look_back(0);
-			self.expected("<end>", &t.lexeme(), t.line(), t.column(), t.range(), None)
+			self.expected("<end>", &t.lexeme(), t.position(), t.range(), None)
 		}
 	}
 
@@ -2263,8 +2243,7 @@ impl<'a> ParserInfo<'a> {
 				"'{}' must have 'local', 'global' or 'static' beforehand",
 				t.lexeme()
 			),
-			t.line(),
-			t.column(),
+			t.position(),
 			t.range(),
 			None
 		)
@@ -2299,7 +2278,7 @@ fn parse_tokens_internal<'a>(
 			TRY => i.parse_token_try(),
 			FN | ENUM => i.parse_token_fn_enum(&t),
 			EOF => break,
-			_ => i.expected("<end>", &t.lexeme(), t.line(), t.column(), t.range(), None),
+			_ => i.expected("<end>", &t.lexeme(), t.position(), t.range(), None),
 		}
 	}
 	i

@@ -11,7 +11,7 @@ use std::ops::Range;
 use phf::phf_map;
 use std::fmt;
 use crate::{
-	code::{Code, CodeChars},
+	code::{Code, CodeChars, Position},
 	format_clue,
 	errors::{finish_step, ErrorMessaging},
 	impl_errormessaging,
@@ -73,6 +73,12 @@ pub struct TokenPosition {
 	pub index: usize,
 }
 
+impl Into<Position> for TokenPosition {
+	fn into(self) -> Position {
+		(self.line, self.column)
+	}
+}
+
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// Represents a token with its type, its literal string and the location in the file.
@@ -128,8 +134,13 @@ impl BorrowedToken {
 	}
 
 	/// Returns a clone of the [`Range<TokenPosition>`].
-	pub fn position(&self) -> Range<TokenPosition> {
+	pub fn full_position(&self) -> Range<TokenPosition> {
 		self.token().position.clone()
+	}
+
+	/// Returns a simplified position of the token.
+	pub fn position(&self) -> Position {
+		self.token().position.start.into()
 	}
 
 	/// Returns the range of indexes where the token is located.
@@ -192,8 +203,7 @@ impl<'a> ScannerInfo<'a> {
 		ErrorMessaging::error(
 			self,
 			message,
-			self.current.line,
-			self.current.column,
+			(self.current.line, self.current.column),
 			self.start.index..self.current.index,
 			help
 		)

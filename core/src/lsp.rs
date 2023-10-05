@@ -1,5 +1,6 @@
 #![cfg(feature = "lsp")]
 
+use crate::code::Position;
 use serde::Serialize;
 use serde_json::json;
 use std::{
@@ -33,7 +34,7 @@ fn hash_string(string: &str) -> u64 {
 pub fn send_definition(
 	token: &str,
 	value: String,
-	location: Range<impl Into<(usize, usize)>>,
+	location: Range<impl Into<Position>>,
 	kind: SymbolKind,
 	modifiers: &[SymbolModifier],
 ) {
