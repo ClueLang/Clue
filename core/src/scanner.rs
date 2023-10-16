@@ -174,7 +174,7 @@ struct ScannerInfo<'a> {
 	filename: &'a String,
 	tokens: Vec<Token>,
 	last: TokenType,
-	errors: u8,
+	errors: u16,
 }
 
 impl_errormessaging!(ScannerInfo<'_>);
