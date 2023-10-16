@@ -344,10 +344,8 @@ impl<'a> CodeFile<'a> {
 		let result = self.read(f, |_, (c, ..)| {
 			if c == end {
 				reached = true;
-				true
-			} else {
-				false
 			}
+			reached
 		});
 		reached.then_some(result)
 	}
@@ -366,6 +364,63 @@ impl<'a> CodeFile<'a> {
 				);
 				Code::new()
 			})
+	}
+
+	fn read_long_define(&mut self, has_values: &mut bool) -> Code {
+		let start = self.read - 1;
+		let mut internal_result: Code = Code::new();
+		self.read(|code| {
+			if !internal_result.is_empty() {
+				internal_result.pop_start()
+			} else {
+				code.peek_char_unchecked()
+			}
+		}, |code, (c, ..)| {
+			if c == b'$' {
+				*has_values = true;
+			}
+			internal_result.is_empty() || c == b'}'
+		})
+		/*let opening = self.peek_char_unchecked().unwrap();
+		let mut result = self.read_until_with(b'}', |code| {
+			match internal_result.as_mut() {
+				Some(internal_result) if !internal_result.is_empty() => {
+					//println!("{}", internal_result.().unwrap().0 as char);
+					code.peeked = internal_result.pop_start();
+					code.peeked
+				},
+				_ => {
+					code.peeked = None;
+					let c = code.peek_char_unchecked();
+					if c.is_some() {
+						match c.as_ref().unwrap() {
+							(b'{', ..) => {
+								let mut result = code.read_long_define(has_values);
+								result.pop_start();
+								println!("{:?}", result.to_string());
+								internal_result = Some(result);
+							},
+							(b'$', ..) => *has_values = true,
+							_ => {}
+						}
+					}
+					c
+				}
+			}
+		}).unwrap_or_else(|| {
+			self.expected_before(
+				"}",
+				"<end>",
+				self.line,
+				self.column,
+				start..self.read,
+				None,
+			);
+			Code::new()
+		});
+		result.push_start(opening);
+		result.push(self.read_char_unchecked().unwrap());
+		result*/
 	}
 
 	fn read_macro_args(&mut self) -> Code {
@@ -881,13 +936,18 @@ pub fn preprocess_code(
 					"define" => {
 						let name = code.read_identifier();
 						let mut has_values = false;
-						let value = code.read(CodeFile::read_char_unchecked, |_, (c, ..)| {
-							if c == b'$' {
-								has_values = true;
-							}
-							c == b'\n'
-						});
-						let value = value.trim();
+						code.skip_whitespace();
+						let value = match code.peek_char_unchecked() {
+							None => Code::new(),
+							Some((b'{', ..)) => code.read_long_define(&mut has_values),
+							Some(_) => code.read(CodeFile::read_char_unchecked, |_, (c, ..)| {
+								if c == b'$' {
+									has_values = true;
+								}
+								c == b'\n'
+							})
+						};
+						let value = value.trim_end();
 						variables.insert(
 							name,
 							if has_values {
