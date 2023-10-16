@@ -85,7 +85,7 @@ struct CodeFile<'a> {
 	last_if: bool,
 	cscope: u8,
 	ends: Vec<u8>,
-	errors: u8,
+	errors: u16,
 }
 
 impl_errormessaging!(
@@ -1259,7 +1259,7 @@ fn read_pseudos(
 
 pub struct CodesInfo<'a> {
 	pub filename: &'a String,
-	pub errors: u8,
+	pub errors: u16,
 }
 
 impl_errormessaging!(

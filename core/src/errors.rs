@@ -13,7 +13,13 @@ macro_rules! impl_errormessaging {
 	($struct:ty $(, $fn:item)*) => {
 		impl ErrorMessaging for $struct {
 			fn get_filename(&mut self, is_error: bool) -> &str {
-				self.errors += is_error as u8;
+				self.errors = match self.errors.checked_add(is_error as u16) {
+					Some(errors) => errors,
+					None => {
+						crate::errors::print_errors();
+						panic!("Too many errors, probably an error loop.");
+					}
+				};
 				self.filename
 			}
 
@@ -66,7 +72,7 @@ fn get_errored_edges<'a, T: Iterator<Item = &'a str>>(
 	splitter(code, '\n').next().unwrap_or_default()
 }
 
-pub fn finish_step<T>(filename: &String, errors: u8, to_return: T) -> Result<T, String> {
+pub fn finish_step<T>(filename: &String, errors: u16, to_return: T) -> Result<T, String> {
 	match errors {
 		0 => Ok(to_return),
 		1 => Err(format!(

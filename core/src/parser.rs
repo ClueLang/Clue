@@ -297,7 +297,7 @@ struct ParserInfo<'a> {
 	internal_stack: Vec<Cell<Expression>>,
 	statics: String,
 	compiler: Compiler<'a>,
-	errors: u8,
+	errors: u16,
 	//locals: LocalsList,
 }
 
