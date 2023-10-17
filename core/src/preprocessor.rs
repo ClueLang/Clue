@@ -146,10 +146,13 @@ impl<'a> CodeFile<'a> {
 					format!("Invalid character '{c}'"),
 					line,
 					column,
-					self.read - 1..self.read,
+					self.read - 1..self.read + c.len_utf8() - 1,
 					None,
 				);
-				None
+				for i in self.read - 1..self.read - 1 + c.len_utf8() {
+					self.code[i] = b' ';
+				}
+				Some((b' ', line, column))
 			}
 		}
 	}
