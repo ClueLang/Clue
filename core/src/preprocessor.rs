@@ -366,63 +366,6 @@ impl<'a> CodeFile<'a> {
 			})
 	}
 
-	fn read_long_define(&mut self, has_values: &mut bool) -> Code {
-		let start = self.read - 1;
-		let mut internal_result: Code = Code::new();
-		self.read(|code| {
-			if !internal_result.is_empty() {
-				internal_result.pop_start()
-			} else {
-				code.peek_char_unchecked()
-			}
-		}, |code, (c, ..)| {
-			if c == b'$' {
-				*has_values = true;
-			}
-			internal_result.is_empty() || c == b'}'
-		})
-		/*let opening = self.peek_char_unchecked().unwrap();
-		let mut result = self.read_until_with(b'}', |code| {
-			match internal_result.as_mut() {
-				Some(internal_result) if !internal_result.is_empty() => {
-					//println!("{}", internal_result.().unwrap().0 as char);
-					code.peeked = internal_result.pop_start();
-					code.peeked
-				},
-				_ => {
-					code.peeked = None;
-					let c = code.peek_char_unchecked();
-					if c.is_some() {
-						match c.as_ref().unwrap() {
-							(b'{', ..) => {
-								let mut result = code.read_long_define(has_values);
-								result.pop_start();
-								println!("{:?}", result.to_string());
-								internal_result = Some(result);
-							},
-							(b'$', ..) => *has_values = true,
-							_ => {}
-						}
-					}
-					c
-				}
-			}
-		}).unwrap_or_else(|| {
-			self.expected_before(
-				"}",
-				"<end>",
-				self.line,
-				self.column,
-				start..self.read,
-				None,
-			);
-			Code::new()
-		});
-		result.push_start(opening);
-		result.push(self.read_char_unchecked().unwrap());
-		result*/
-	}
-
 	fn read_macro_args(&mut self) -> Code {
 		let mut args = Code::new();
 		args.push(self.read_char_unchecked().unwrap());
@@ -939,7 +882,27 @@ pub fn preprocess_code(
 						code.skip_whitespace();
 						let value = match code.peek_char_unchecked() {
 							None => Code::new(),
-							Some((b'{', ..)) => code.read_long_define(&mut has_values),
+							Some((b'{', ..)) => {
+								let mut cscope = 0u8;
+								code.read(CodeFile::peek_char, |code, (c, ..)| {
+									match c {
+										b'$' => has_values = true,
+										b'{' => cscope += 1,
+										b'}' => {
+											cscope -= 1;
+											code.read_char_unchecked();
+											return false;
+										}
+										_ => {},
+									}
+									if cscope == 0 {
+										true
+									} else {
+										code.read_char_unchecked();
+										false
+									}
+								})
+							},
 							Some(_) => code.read(CodeFile::read_char_unchecked, |_, (c, ..)| {
 								if c == b'$' {
 									has_values = true;
