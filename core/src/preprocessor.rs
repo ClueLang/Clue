@@ -906,7 +906,7 @@ pub fn preprocess_code(
 									}
 								})
 							},
-							Some(_) => code.read(CodeFile::read_char_unchecked, |_, (c, ..)| {
+							Some(_) => code.read(CodeFile::read_char, |_, (c, ..)| {
 								if c == b'$' {
 									has_values = true;
 								}
