@@ -144,10 +144,16 @@ impl<'a> CodeFile<'a> {
 				self.error(
 					format!("Invalid character '{c}'"),
 					position,
-					self.read - 1..self.read,
+					self.read - 1..self.read + c.len_utf8() - 1,
 					None,
 				);
-				None
+				for i in self.read - 1..self.read - 1 + c.len_utf8() {
+					self.code[i] = b' ';
+				}
+				Some(CodeChar {
+					value: b' ',
+					position
+				})
 			}
 		}
 	}
@@ -340,10 +346,8 @@ impl<'a> CodeFile<'a> {
 		let result = self.read(f, |_, CodeChar { value, .. }| {
 			if value == end {
 				reached = true;
-				true
-			} else {
-				false
 			}
+			reached
 		});
 		reached.then_some(result)
 	}
@@ -863,13 +867,38 @@ pub fn preprocess_code(
 					"define" => {
 						let name = code.read_identifier();
 						let mut has_values = false;
-						let value = code.read(CodeFile::read_char_unchecked, |_, CodeChar { value, .. }| {
-							if value == b'$' {
-								has_values = true;
-							}
-							value == b'\n'
-						});
-						let value = value.trim();
+						code.skip_whitespace();
+						let value = match code.peek_char_unchecked() {
+							None => Code::new(),
+							Some(CodeChar { value: b'{', .. }) => {
+								let mut cscope = 0u8;
+								code.read(CodeFile::peek_char, |code, CodeChar { value, .. }| {
+									match value {
+										b'$' => has_values = true,
+										b'{' => cscope += 1,
+										b'}' => {
+											cscope -= 1;
+											code.read_char_unchecked();
+											return false;
+										}
+										_ => {},
+									}
+									if cscope == 0 {
+										true
+									} else {
+										code.read_char_unchecked();
+										false
+									}
+								})
+							},
+							Some(_) => code.read(CodeFile::read_char, |_, CodeChar { value, .. }| {
+								if value == b'$' {
+									has_values = true;
+								}
+								value == b'\n'
+							})
+						};
+						let value = value.trim_end();
 						#[cfg(feature = "lsp")]
 						if options.env_symbols {
 							use crate::lsp::*;
