@@ -819,17 +819,11 @@ pub fn preprocess_code(
 						let full_wanted_version = code.read_line();
 						let full_wanted_version = full_wanted_version.trim();
 						#[allow(clippy::type_complexity)]
-						let (mut wanted_version_str, check): (&str, &dyn Fn(&u32, &u32) -> bool) =
+						let (wanted_version_str, check): (&str, &dyn Fn(&u32, &u32) -> bool) =
 							match full_wanted_version.strip_prefix('=') {
 								Some(wanted_version) => (wanted_version, &u32::ne),
 								None => (full_wanted_version, &u32::lt),
 							};
-						if let Some(v) = full_wanted_version.strip_prefix(">=") {
-							wanted_version_str = v;
-							println!(
-								"Note: \"@version directives should no longer start with '>='\""
-							);
-						}
 						let wanted_version_iter = &mut wanted_version_str.split('.');
 						const CURRENT_MAJOR: &str = env!("CARGO_PKG_VERSION_MAJOR");
 						const CURRENT_MINOR: &str = env!("CARGO_PKG_VERSION_MINOR");
