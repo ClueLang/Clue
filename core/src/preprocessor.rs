@@ -558,7 +558,7 @@ impl<'a> CodeFile<'a> {
 		check
 	}
 
-	fn get_version_number(&mut self, start: usize, version: &mut Split<char>, default: &str) -> u8 {
+	fn get_version_number(&mut self, start: usize, version: &mut Split<char>, default: &str) -> u32 {
 		let num = match version.next() {
 			None => {
 				self.error(
@@ -567,12 +567,12 @@ impl<'a> CodeFile<'a> {
 					start..self.read,
 					Some("Version must be 'X.Y.Z'"),
 				);
-				return u8::MAX;
+				return u32::MAX;
 			}
 			Some(num) if num == "*" => default,
 			Some(num) => num,
 		};
-		match num.parse::<u8>() {
+		match num.parse::<u32>() {
 			Ok(num) => num,
 			Err(_) => {
 				self.error(
@@ -581,7 +581,7 @@ impl<'a> CodeFile<'a> {
 					start..self.read,
 					Some("Version must be 'X.Y.Z'"),
 				);
-				u8::MAX
+				u32::MAX
 			}
 		}
 	}
@@ -805,18 +805,12 @@ pub fn preprocess_code(
 						let full_wanted_version = code.read_line();
 						let full_wanted_version = full_wanted_version.trim();
 						#[allow(clippy::type_complexity)]
-						let (mut wanted_version, check): (&str, &dyn Fn(&u8, &u8) -> bool) =
+						let (wanted_version_str, check): (&str, &dyn Fn(&u32, &u32) -> bool) =
 							match full_wanted_version.strip_prefix('=') {
-								Some(wanted_version) => (wanted_version, &u8::ne),
-								None => (full_wanted_version, &u8::lt),
+								Some(wanted_version) => (wanted_version, &u32::ne),
+								None => (full_wanted_version, &u32::lt),
 							};
-						if let Some(v) = full_wanted_version.strip_prefix(">=") {
-							wanted_version = v;
-							println!(
-								"Note: \"@version directives should no longer start with '>='\""
-							);
-						}
-						let wanted_version_iter = &mut wanted_version.split('.');
+						let wanted_version_iter = &mut wanted_version_str.split('.');
 						const CURRENT_MAJOR: &str = env!("CARGO_PKG_VERSION_MAJOR");
 						const CURRENT_MINOR: &str = env!("CARGO_PKG_VERSION_MINOR");
 						const CURRENT_PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
@@ -836,24 +830,23 @@ pub fn preprocess_code(
 						if errors < code.errors {
 							continue;
 						}
-						let current_major: u8 = CURRENT_MAJOR.parse().unwrap();
-						let current_minor: u8 = CURRENT_MINOR.parse().unwrap();
-						let current_patch: u8 = CURRENT_PATCH.parse().unwrap();
-						if check(&current_major, &wanted_major)
-							|| check(&current_minor, &wanted_minor)
-							|| check(&current_patch, &wanted_patch)
-						{
+						let wanted_version = wanted_major << 16 | wanted_minor << 8 | wanted_patch;
+						let current_major: u32 = CURRENT_MAJOR.parse().unwrap();
+						let current_minor: u32 = CURRENT_MINOR.parse().unwrap();
+						let current_patch: u32 = CURRENT_PATCH.parse().unwrap();
+						let current_version = current_major << 16 | current_minor << 8 | current_patch;
+						if check(&current_version, &wanted_version) {
 							code.error(
 								if full_wanted_version.starts_with('=') {
 									format_clue!(
 										"This code is only compatible with version '",
-										wanted_version,
+										wanted_version_str,
 										"'"
 									)
 								} else {
 									format_clue!(
 										"This code is only compatible with versions not older than '",
-										wanted_version,
+										wanted_version_str,
 										"'"
 									)
 								},
@@ -861,7 +854,6 @@ pub fn preprocess_code(
 								start..code.read,
 								None,
 							);
-							break;
 						}
 					}
 					"define" => {
