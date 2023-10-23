@@ -823,15 +823,43 @@ pub fn preprocess_code(
 					"define" => {
 						let name = code.read_identifier()?;
 						let mut has_values = false;
+						let mut string_char = 0u8; //basically recreating read_string...
+						let mut skip_next = false; //refactor in 4.0?
 						let value = code.read(
 							|code| Ok(code.read_char_unchecked()),
-							|_, (c, ..)| {
-								if c == b'$' {
-									has_values = true;
+							|code, (c, ..)| {
+								match c {
+									b'$' => {
+										has_values = true;
+										false
+									}
+									_ if skip_next && code.comment == CommentState::String => {
+										skip_next = false;
+										false
+									}
+									b'\n' => code.comment != CommentState::String,
+									_ if c == string_char && code.comment == CommentState::String => {
+										code.comment = CommentState::None;
+										false
+									}
+									b'\'' | b'"' | b'`' if code.comment != CommentState::String => {
+										code.comment = CommentState::String;
+										string_char = c;
+										false
+									}
+									b'\\' if code.comment == CommentState::String => {
+										skip_next = true;
+										false
+									}
+									_ => false
 								}
-								c == b'\n'
 							},
 						)?;
+						if code.comment == CommentState::String {
+							return Err(
+								error("Unterminated string", code.line, code.column, code.filename)
+							);
+						}
 						let value = value.trim();
 						variables.insert(
 							name,
