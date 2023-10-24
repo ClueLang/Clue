@@ -888,6 +888,21 @@ pub fn preprocess_code(
 						code.skip_whitespace();
 						let value = code.read_constant(b'\n', &mut has_values);
 						let trimmed_value = value.trim_end();
+						#[cfg(feature = "lsp")]
+						if options.env_symbols {
+							use crate::lsp::*;
+
+							let start = c.position;
+							let mut end = start.clone();
+							end.1 += name.len();
+							send_definition(
+								&name.to_string(),
+								trimmed_value.to_string(),
+								start..end,
+								SymbolKind::CONSTANT,
+								&[]
+							);
+						}
 						variables.insert(
 							name,
 							if has_values {
