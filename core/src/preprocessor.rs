@@ -902,74 +902,13 @@ pub fn preprocess_code(
 						let mut has_values = false;
 						code.skip_whitespace();
 						let value = code.read_constant(b'\n', &mut has_values);
-						/*let value = match code.peek_char_unchecked() {
-							None => Code::new(),
-							Some((b'{', ..)) => {
-								let mut cscope = 0u8;
-								code.read(CodeFile::peek_char, |code, (c, ..), _| {
-									match c {
-										b'$' => has_values = true,
-										b'{' => cscope += 1,
-										b'}' => {
-											cscope -= 1;
-											code.read_char_unchecked();
-											return false;
-										}
-										_ => {},
-									}
-									if cscope == 0 {
-										true
-									} else {
-										code.read_char_unchecked();
-										false
-									}
-								})
-							},
-							Some(_) => code.read(CodeFile::read_char, |code, (c, ..), _| {
-								match c {
-									b'$' => {
-										has_values = true;
-										false
-									}
-									_ if skip_next && code.comment == CommentState::String => {
-										skip_next = false;
-										false
-									}
-									b'\n' => code.comment != CommentState::String,
-									_ if c == string_char && code.comment == CommentState::String => {
-										code.comment = CommentState::None;
-										false
-									}
-									b'\'' | b'"' | b'`' if code.comment != CommentState::String => {
-										code.comment = CommentState::String;
-										string_char = c;
-										false
-									}
-									b'\\' if code.comment == CommentState::String => {
-										skip_next = true;
-										false
-									}
-									_ => false
-								}
-							})
-						};*/
-						/*if code.comment == CommentState::String {
-							return Err(
-								code.error(
-									"Unterminated string",
-									code.line,
-									code.column,
-									code.filename
-								)
-							);
-						}*/
-						let value = value.trim_end();
+						let trimmed_value = value.trim_end();
 						variables.insert(
 							name,
 							if has_values {
-								PPVar::ToProcess(value)
+								PPVar::ToProcess(trimmed_value)
 							} else {
-								PPVar::Simple(value)
+								PPVar::Simple(trimmed_value)
 							},
 						);
 					}
