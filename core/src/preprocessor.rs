@@ -278,11 +278,11 @@ impl<'a> CodeFile<'a> {
 	fn read(
 		&mut self,
 		mut get: impl FnMut(&mut Self) -> Option<CodeChar>,
-		mut check: impl FnMut(&mut Self, CodeChar) -> bool,
+		mut check: impl FnMut(&mut Self, CodeChar, &mut Code) -> bool,
 	) -> Code {
 		let mut code = Code::new();
 		while let Some(c) = get(self) {
-			if check(self, c) {
+			if check(self, c, &mut code) {
 				break;
 			}
 			code.push(c)
@@ -291,12 +291,12 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn read_line(&mut self) -> String {
-		self.read(Self::read_char_unchecked, |_, CodeChar { value, .. }| value == b'\n')
+		self.read(Self::read_char_unchecked, |_, CodeChar { value, .. }, _| value == b'\n')
 			.to_string()
 	}
 
 	fn read_identifier(&mut self) -> Code {
-		self.read(Self::peek_char, |code, CodeChar { value, .. }| {
+		self.read(Self::peek_char, |code, CodeChar { value, .. }, _| {
 			if value.is_ascii_alphanumeric() || value == b'_' {
 				code.read_char_unchecked().unwrap();
 				false
@@ -308,7 +308,6 @@ impl<'a> CodeFile<'a> {
 
 	fn read_string(&mut self, c: CodeChar) -> Code {
 		self.comment = CommentState::String;
-		let mut skip_next = false;
 		let start = self.read - 1;
 		self.read(
 			|code| {
@@ -318,23 +317,50 @@ impl<'a> CodeFile<'a> {
 				}
 				stringc
 			},
-			|code, CodeChar { value, .. }| {
-				if value == b'\n' {
-					false
-				} else if skip_next {
-					skip_next = false;
-					false
-				} else if value == c.value {
+			|code, CodeChar { value, .. }, read_code| {
+				if value == c.value && !matches!(read_code.last(), Some(CodeChar { value: b'\\', .. })) {
 					code.comment = CommentState::None;
 					true
 				} else {
-					if value == b'\\' {
-						skip_next = true;
-					}
 					false
 				}
 			},
 		)
+	}
+
+	fn read_constant(&mut self, end: u8, has_values: &mut bool) -> Code {
+		let mut to_append: Option<Code> = None;
+		self.read(Self::peek_char, |code, c, read_code| {
+			if to_append.is_some() {
+				read_code.append(to_append.take().unwrap());
+			}
+			match c.value {
+				b'$' => {
+					code.read_char_unchecked();
+					*has_values = true;
+					false
+				}
+				b'\'' | b'"' | b'`' => {
+					read_code.push(code.read_char_unchecked().unwrap());
+					read_code.append(code.read_string(c));
+					false
+				}
+				b'{' => {
+					code.read_char_unchecked();
+					to_append = Some(code.read_constant(b'}', has_values));
+					false
+				}
+				value => {
+					if value == end {
+						read_code.push(code.read_char_unchecked().unwrap());
+						true
+					} else {
+						code.read_char_unchecked();
+						false
+					}
+				}
+			}
+		})
 	}
 
 	fn read_until_with(
@@ -343,7 +369,7 @@ impl<'a> CodeFile<'a> {
 		f: impl FnMut(&mut Self) -> Option<CodeChar>,
 	) -> Option<Code> {
 		let mut reached = false;
-		let result = self.read(f, |_, CodeChar { value, .. }| {
+		let result = self.read(f, |_, CodeChar { value, .. }, _| {
 			if value == end {
 				reached = true;
 			}
@@ -860,58 +886,14 @@ pub fn preprocess_code(
 						let name = code.read_identifier();
 						let mut has_values = false;
 						code.skip_whitespace();
-						let value = match code.peek_char_unchecked() {
-							None => Code::new(),
-							Some(CodeChar { value: b'{', .. }) => {
-								let mut cscope = 0u8;
-								code.read(CodeFile::peek_char, |code, CodeChar { value, .. }| {
-									match value {
-										b'$' => has_values = true,
-										b'{' => cscope += 1,
-										b'}' => {
-											cscope -= 1;
-											code.read_char_unchecked();
-											return false;
-										}
-										_ => {},
-									}
-									if cscope == 0 {
-										true
-									} else {
-										code.read_char_unchecked();
-										false
-									}
-								})
-							},
-							Some(_) => code.read(CodeFile::read_char, |_, CodeChar { value, .. }| {
-								if value == b'$' {
-									has_values = true;
-								}
-								value == b'\n'
-							})
-						};
-						let value = value.trim_end();
-						#[cfg(feature = "lsp")]
-						if options.env_symbols {
-							use crate::lsp::*;
-
-							let start = c.position;
-							let mut end = start.clone();
-							end.1 += name.len();
-							send_definition(
-								&name.to_string(),
-								value.to_string(),
-								start..end,
-								SymbolKind::CONSTANT,
-								&[]
-							);
-						}
+						let value = code.read_constant(b'\n', &mut has_values);
+						let trimmed_value = value.trim_end();
 						variables.insert(
 							name,
 							if has_values {
-								PPVar::ToProcess(value)
+								PPVar::ToProcess(trimmed_value)
 							} else {
-								PPVar::Simple(value)
+								PPVar::Simple(trimmed_value)
 							},
 						);
 					}
@@ -924,7 +906,7 @@ pub fn preprocess_code(
 								code.skip_whitespace();
 								let start = code.read - 1;
 								if let Some(CodeChar { value: b'.', position }) = code.peek_char_unchecked() {
-									if code.read(CodeFile::peek_char, |code, CodeChar { value, .. }| {
+									if code.read(CodeFile::peek_char, |code, CodeChar { value, .. }, _| {
 										if value == b'.' {
 											code.read_char_unchecked();
 											false

@@ -136,15 +136,15 @@ impl IntoIterator for Code {
 	}
 }
 
-impl Into<String> for Code {
-	fn into(self) -> String {
-		self.to_string()
+impl From<Code> for String {
+	fn from(val: Code) -> Self {
+		val.to_string()
 	}
 }
 
-impl Into<String> for &Code {
-	fn into(self) -> String {
-		self.to_string()
+impl From<&Code> for String {
+	fn from(val: &Code) -> Self {
+		val.to_string()
 	}
 }
 

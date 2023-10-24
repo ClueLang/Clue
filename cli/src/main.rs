@@ -172,7 +172,7 @@ pub fn compile_code(
 	if options.env_expand {
 		println!("Preprocessed file \"{filename}\":\n{}", code.to_string());
 	}
-	let tokens = scan_code(code.clone(), filename)?;
+	let tokens = scan_code(code, filename)?;
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{filename}\":\n{tokens:#?}");
 	}

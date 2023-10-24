@@ -17,7 +17,7 @@ macro_rules! impl_errormessaging {
 				self.errors = match self.errors.checked_add(is_error as u16) {
 					Some(errors) => errors,
 					None => {
-						crate::errors::print_errors();
+						$crate::errors::print_errors();
 						panic!("Too many errors, probably an error loop.");
 					}
 				};
