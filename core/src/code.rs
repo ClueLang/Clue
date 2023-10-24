@@ -10,6 +10,7 @@ use std::{
 	},
 	ffi::OsString,
 	hash::Hash,
+	ops::Range,
 };
 
 use utf8_decode::decode;
@@ -289,6 +290,17 @@ impl Code {
 	/// This is equivalent to [`VecDeque::back`].
 	pub fn last(&self) -> Option<&CodeChar> {
 		self.list.back()
+	}
+
+	/// Returns the position where the [`Code`] is located as a [`Range`].
+	pub fn range(&self) -> Option<Range<Position>> {
+		if let (Some(first), Some(last)) = (self.first(), self.last()) {
+			let mut range = first.position..last.position;
+			range.end.1 += 1;
+			Some(range)
+		} else {
+			None
+		}
 	}
 
 	/// Pushes the given character to the end of the [`Code`].

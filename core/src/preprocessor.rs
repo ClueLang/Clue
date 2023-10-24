@@ -897,7 +897,7 @@ pub fn preprocess_code(
 						let range = {
 							use crate::lsp::*;
 
-							let range = c.position..(c.position.0, c.position.1 + name.len());
+							let range = name.range().unwrap();
 							if options.env_symbols {
 								send_definition(
 									&name.to_string(),
