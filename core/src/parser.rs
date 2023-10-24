@@ -577,7 +577,6 @@ impl<'a> ParserInfo<'a> {
 						self.advance_if(COMMA);
 						continue;
 					}
-
 					if metatable.is_some() {
 						self.error(
 							"Metamethods cannot be set if the table already uses an external metatable",
@@ -672,7 +671,7 @@ impl<'a> ParserInfo<'a> {
 						t.range(),
 						None
 					);
-					false
+					break 'main;
 				}
 				_ => true,
 			} {
@@ -713,7 +712,7 @@ impl<'a> ParserInfo<'a> {
 				format!("Operator '{}' has invalid right hand token", t.lexeme()),
 				t.line(),
 				t.column(),
-				t.range().start..self.peek(0).range().end,
+				t.start()..self.peek(0).end(),
 				None
 			);
 		}
@@ -738,7 +737,7 @@ impl<'a> ParserInfo<'a> {
 					format!("Operator '{}' has invalid left hand token", t.lexeme()),
 					t.line(),
 					t.column(),
-					self.look_back(1).range().start..t.range().end,
+					self.look_back(1).start()..t.end(),
 					None
 				);
 			}

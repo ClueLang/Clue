@@ -132,6 +132,16 @@ impl BorrowedToken {
 		self.token().position.clone()
 	}
 
+	/// Returns the index where the token's characters start.
+	pub const fn start(&self) -> usize {
+		self.token().position.start.index
+	}
+
+	/// Returns the index where the token's characters end.
+	pub const fn end(&self) -> usize {
+		self.token().position.end.index
+	}
+
 	/// Returns the range of indexes where the token is located.
 	pub const fn range(&self) -> Range<usize> {
 		let t = self.token();
