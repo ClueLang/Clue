@@ -73,9 +73,9 @@ pub struct TokenPosition {
 	pub index: usize,
 }
 
-impl Into<Position> for TokenPosition {
-	fn into(self) -> Position {
-		(self.line, self.column)
+impl From<TokenPosition> for Position {
+	fn from(val: TokenPosition) -> Self {
+		(val.line, val.column)
 	}
 }
 
