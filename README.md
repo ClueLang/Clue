@@ -110,6 +110,7 @@ There are still features that I'm considering adding and others that will be add
 The most likely ones to be added in the future are:
 - type system (coming in 4.0)
 - better error messages (comming in 4.0)
+- proper language server support (coming in 4.0)
 
 For any suggestion or bug you can make a github issue.
 If you need help with the language itself, you can check out the [Discord server](https://discord.gg/EQsnWpqN3C).
