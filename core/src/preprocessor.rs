@@ -279,11 +279,11 @@ impl<'a> CodeFile<'a> {
 	fn read(
 		&mut self,
 		mut get: impl FnMut(&mut Self) -> Option<CodeChar>,
-		mut check: impl FnMut(&mut Self, CodeChar) -> bool,
+		mut check: impl FnMut(&mut Self, CodeChar, &mut Code) -> bool,
 	) -> Code {
 		let mut code = Code::new();
 		while let Some(c) = get(self) {
-			if check(self, c) {
+			if check(self, c, &mut code) {
 				break;
 			}
 			code.push(c)
@@ -292,12 +292,12 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn read_line(&mut self) -> String {
-		self.read(Self::read_char_unchecked, |_, (c, ..)| c == b'\n')
+		self.read(Self::read_char_unchecked, |_, (c, ..), _| c == b'\n')
 			.to_string()
 	}
 
 	fn read_identifier(&mut self) -> Code {
-		self.read(Self::peek_char, |code, (c, ..)| {
+		self.read(Self::peek_char, |code, (c, ..), _| {
 			if c.is_ascii_alphanumeric() || c == b'_' {
 				code.read_char_unchecked().unwrap();
 				false
@@ -319,7 +319,7 @@ impl<'a> CodeFile<'a> {
 				}
 				stringc
 			},
-			|code, (stringc, ..)| {
+			|code, (stringc, ..), _| { //refactor this?
 				if stringc == b'\n' {
 					false
 				} else if skip_next {
@@ -338,13 +338,48 @@ impl<'a> CodeFile<'a> {
 		)
 	}
 
+	fn read_constant(&mut self, end: u8, has_values: &mut bool) -> Code {
+		let mut to_append: Option<Code> = None;
+		self.read(Self::peek_char, |code, c, read_code| {
+			if to_append.is_some() {
+				read_code.append(to_append.take().unwrap());
+			}
+			match c.0 {
+				b'$' => {
+					code.read_char_unchecked();
+					*has_values = true;
+					false
+				}
+				b'\'' | b'"' | b'`' => {
+					read_code.push(code.read_char_unchecked().unwrap());
+					read_code.append(code.read_string(c));
+					false
+				}
+				b'{' => {
+					code.read_char_unchecked();
+					to_append = Some(code.read_constant(b'}', has_values));
+					false
+				}
+				ch => {
+					if ch == end {
+						read_code.push(code.read_char_unchecked().unwrap());
+						true
+					} else {
+						code.read_char_unchecked();
+						false
+					}
+				}
+			}
+		})
+	}
+
 	fn read_until_with(
 		&mut self,
 		end: u8,
 		f: impl FnMut(&mut Self) -> Option<CodeChar>,
 	) -> Option<Code> {
 		let mut reached = false;
-		let result = self.read(f, |_, (c, ..)| {
+		let result = self.read(f, |_, (c, ..), _| {
 			if c == end {
 				reached = true;
 			}
@@ -875,11 +910,12 @@ pub fn preprocess_code(
 						let name = code.read_identifier();
 						let mut has_values = false;
 						code.skip_whitespace();
-						let value = match code.peek_char_unchecked() {
+						let value = code.read_constant(b'\n', &mut has_values);
+						/*let value = match code.peek_char_unchecked() {
 							None => Code::new(),
 							Some((b'{', ..)) => {
 								let mut cscope = 0u8;
-								code.read(CodeFile::peek_char, |code, (c, ..)| {
+								code.read(CodeFile::peek_char, |code, (c, ..), _| {
 									match c {
 										b'$' => has_values = true,
 										b'{' => cscope += 1,
@@ -898,13 +934,44 @@ pub fn preprocess_code(
 									}
 								})
 							},
-							Some(_) => code.read(CodeFile::read_char, |_, (c, ..)| {
-								if c == b'$' {
-									has_values = true;
+							Some(_) => code.read(CodeFile::read_char, |code, (c, ..), _| {
+								match c {
+									b'$' => {
+										has_values = true;
+										false
+									}
+									_ if skip_next && code.comment == CommentState::String => {
+										skip_next = false;
+										false
+									}
+									b'\n' => code.comment != CommentState::String,
+									_ if c == string_char && code.comment == CommentState::String => {
+										code.comment = CommentState::None;
+										false
+									}
+									b'\'' | b'"' | b'`' if code.comment != CommentState::String => {
+										code.comment = CommentState::String;
+										string_char = c;
+										false
+									}
+									b'\\' if code.comment == CommentState::String => {
+										skip_next = true;
+										false
+									}
+									_ => false
 								}
-								c == b'\n'
 							})
-						};
+						};*/
+						/*if code.comment == CommentState::String {
+							return Err(
+								code.error(
+									"Unterminated string",
+									code.line,
+									code.column,
+									code.filename
+								)
+							);
+						}*/
 						let value = value.trim_end();
 						variables.insert(
 							name,
@@ -924,7 +991,7 @@ pub fn preprocess_code(
 								code.skip_whitespace();
 								let start = code.read - 1;
 								if let Some((b'.', line, column)) = code.peek_char_unchecked() {
-									if code.read(CodeFile::peek_char, |code, (c, ..)| {
+									if code.read(CodeFile::peek_char, |code, (c, ..), _| {
 										if c == b'.' {
 											code.read_char_unchecked();
 											false
