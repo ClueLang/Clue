@@ -474,7 +474,8 @@ impl<'a> ParserInfo<'a> {
 		let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
 		let mut metas: Vec<(String, Expression, usize)> = Vec::new();
 		let mut metatable: Option<String> = None;
-		while !self.advance_if(CURLY_BRACKET_CLOSED) {
+		let start_token = self.look_back(0);
+		'main: while !self.advance_if(CURLY_BRACKET_CLOSED) {
 			let start = self.current;
 			let mut qscope = 1u8;
 			let mut iskey = false;
@@ -503,10 +504,10 @@ impl<'a> ParserInfo<'a> {
 						"<end>",
 						t.line(),
 						t.column(),
-						t.range(),
+						start_token.start()..t.end(),
 						None
 					);
-					false
+					break 'main;
 				}
 				_ => true,
 			} {
@@ -548,10 +549,10 @@ impl<'a> ParserInfo<'a> {
 								"<end>",
 								t.line(),
 								t.column(),
-								t.range(),
+								start_token.start()..t.end(),
 								None
 							);
-							false
+							break 'main;
 						}
 						_ => true,
 					} {}
@@ -668,7 +669,7 @@ impl<'a> ParserInfo<'a> {
 						"<end>",
 						t.line(),
 						t.column(),
-						t.range(),
+						start_token.start()..t.end(),
 						None
 					);
 					break 'main;
