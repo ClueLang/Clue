@@ -20,14 +20,11 @@ pub enum SymbolKind {
 	ARGUMENT
 }
 
-#[derive(Serialize)]
-pub enum SymbolModifier {
-	LOCAL, GLOBAL, STATIC
-}
-
-fn hash_string(string: &str) -> u64 {
+fn hash_variable(string: &str, start: Position, end: Position) -> u64 {
 	let mut hasher = DefaultHasher::new();
 	string.hash(&mut hasher);
+	start.hash(&mut hasher);
+	end.hash(&mut hasher);
 	hasher.finish()
 }
 
@@ -35,15 +32,14 @@ pub fn send_definition(
 	token: &str,
 	value: String,
 	location: Range<impl Into<Position>>,
-	kind: SymbolKind,
-	modifiers: &[SymbolModifier],
+	kind: SymbolKind
 ) {
 	let start = location.start.into();
 	let end = location.end.into();
 	println!(
 		"DEFINITION {}",
 		json!({
-			"id": hash_string(token),
+			"id": hash_variable(token, start, end),
 			"token": token,
 			"value": value,
 			"location": {
@@ -56,25 +52,28 @@ pub fn send_definition(
 					"column": end.1,
 				}
 			},
-			"kind": kind,
-			"modifiers": modifiers
+			"kind": kind
 		})
 	)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::lsp::hash_string;
+    use crate::lsp::hash_variable;
 
 	#[test]
 	fn check_hash() {
 		assert!(
-			hash_string("test_string") == hash_string("test_string"),
-			"hasing the same string twice gave different results!"
+			hash_variable("test_string", (1, 1), (1, 1)) == hash_variable("test_string", (1, 1), (1, 1)),
+			"hasing the same variable twice gave different results!"
 		);
 		assert!(
-			hash_string("test_string") != hash_string("test_strinh"),
-			"somehow hashing 2 different strings gave the same result!"
+			hash_variable("test_string", (1, 1), (1, 1)) != hash_variable("test_string", (1, 1), (1, 3)),
+			"hasing the same string twice with different positions gave the same result!"
+		);
+		assert!(
+			hash_variable("test_string", (1, 1), (1, 1)) != hash_variable("test_strinh", (2, 2), (2, 2)),
+			"somehow hashing 2 different variables gave the same result!"
 		);
 	}
 }

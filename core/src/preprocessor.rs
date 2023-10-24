@@ -899,8 +899,7 @@ pub fn preprocess_code(
 								&name.to_string(),
 								trimmed_value.to_string(),
 								start..end,
-								SymbolKind::CONSTANT,
-								&[]
+								SymbolKind::CONSTANT
 							);
 						}
 						variables.insert(
