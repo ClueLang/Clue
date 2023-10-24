@@ -1,8 +1,6 @@
-use ahash::AHashMap;
-use clue_core::code::Code;
 use clue_core::env::Options;
 use clue_core::errors::print_errors;
-use clue_core::preprocessor::{read_file, PPCode, PPVar, PPVars};
+use clue_core::preprocessor::{read_file, PPCode, PPVars};
 use clue_core::{check, format_clue};
 use crossbeam_queue::SegQueue;
 use flume::Sender;
@@ -108,7 +106,7 @@ pub fn compile_folder(
 		variables
 			.into_iter()
 			.flatten()
-			.collect::<AHashMap<Code, PPVar>>(),
+			.collect::<PPVars>(),
 	);
 
 	let mut threads = Vec::with_capacity(threads_count);
@@ -187,7 +185,7 @@ fn compile_file_dir(
 	tx: Sender<ThreadData>,
 	options: &Options,
 	codes: Arc<CodeQueue>,
-	variables: Arc<AHashMap<Code, PPVar>>,
+	variables: Arc<PPVars>,
 ) {
 	loop {
 		let (codes, filename, realname) = match codes.pop() {

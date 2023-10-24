@@ -1,4 +1,3 @@
-use ahash::AHashMap;
 use clue::errors::finish_step;
 use clue::{code::*, compiler::*, env::Options, parser::*, preprocessor::*, scanner::*};
 use clue_core as clue;
@@ -61,7 +60,7 @@ fn compile_file_dir(
 	tx: Sender<ThreadData>,
 	options: &Options,
 	codes: Arc<CodeQueue>,
-	variables: Arc<AHashMap<Code, PPVar>>,
+	variables: Arc<PPVars>,
 ) {
 	loop {
 		let (codes, realname) = match codes.pop() {
@@ -179,7 +178,7 @@ fn compile_folder(files: Arc<SegQueue<(PathBuf, String)>>) {
 		variables
 			.into_iter()
 			.flatten()
-			.collect::<AHashMap<Code, PPVar>>(),
+			.collect::<PPVars>(),
 	);
 
 	let mut threads = Vec::with_capacity(threads_count);

@@ -30,8 +30,13 @@ macro_rules! pp_if {
 	}};
 }
 
+#[cfg(feature = "lsp")]
+/// A HashMap of preprocessor variables and their position.
+pub type PPVars = AHashMap<Code, (PPVar, Range<Position>)>;
+#[cfg(not(feature = "lsp"))]
 /// A HashMap of preprocessor variables.
 pub type PPVars = AHashMap<Code, PPVar>;
+
 /// A list of code segments and its size.
 pub type PPCode = (VecDeque<(Code, bool)>, usize);
 
@@ -889,27 +894,29 @@ pub fn preprocess_code(
 						let value = code.read_constant(b'\n', &mut has_values);
 						let trimmed_value = value.trim_end();
 						#[cfg(feature = "lsp")]
-						if options.env_symbols {
+						let range = {
 							use crate::lsp::*;
 
-							let start = c.position;
-							let mut end = start.clone();
-							end.1 += name.len();
-							send_definition(
-								&name.to_string(),
-								trimmed_value.to_string(),
-								start..end,
-								SymbolKind::CONSTANT
-							);
-						}
-						variables.insert(
-							name,
-							if has_values {
-								PPVar::ToProcess(trimmed_value)
-							} else {
-								PPVar::Simple(trimmed_value)
-							},
-						);
+							let range = c.position..(c.position.0, c.position.1 + name.len());
+							if options.env_symbols {
+								send_definition(
+									&name.to_string(),
+									trimmed_value.to_string(),
+									&range,
+									SymbolKind::CONSTANT
+								);
+							}
+							range
+						};
+						let ppvalue = if has_values {
+							PPVar::ToProcess(trimmed_value)
+						} else {
+							PPVar::Simple(trimmed_value)
+						};
+						#[cfg(feature = "lsp")]
+						variables.insert(name, (ppvalue, range));
+						#[cfg(not(feature = "lsp"))]
+						variables.insert(name, ppvalue);
 					}
 					"macro" => {
 						let name = code.read_identifier();
@@ -974,15 +981,19 @@ pub fn preprocess_code(
 						};
 						code.assert_reach(b'{');
 						let (code, ppvars) = code.read_macro_block()?;
-						variables.insert(
-							name,
-							PPVar::Macro {
-								code,
-								args,
-								ppvars,
-								vararg,
-							},
-						);
+						let ppvalue = PPVar::Macro {
+							code,
+							args,
+							ppvars,
+							vararg,
+						};
+						#[cfg(feature = "lsp")]
+						{
+							//TODO
+							variables.insert(name, (ppvalue, Range::default()));
+						}
+						#[cfg(not(feature = "lsp"))]
+						variables.insert(name, ppvalue);
 					}
 					"error" => {
 						let err = code.read_line();
@@ -1009,6 +1020,9 @@ pub fn preprocess_code(
 				code.read_char_unchecked();
 				let (vararg_code, ppvars) = code.read_macro_block().unwrap();
 				variables.extend(ppvars);
+				#[cfg(feature = "lsp")]
+				variables.insert(Code::from((name, c.position)), (PPVar::VarArgs(vararg_code), Range::default()));
+				#[cfg(not(feature = "lsp"))]
 				variables.insert(Code::from((name, c.position)), PPVar::VarArgs(vararg_code));
 				currentcode = Code::with_capacity(code.code.len() - code.read);
 				false
@@ -1463,6 +1477,8 @@ pub fn preprocess_variables(
 						);
 						break;
 					}
+					#[cfg(feature = "lsp")]
+					let value = &value.0;
 					result.append(match value {
 						PPVar::Simple(value) => value.clone(),
 						PPVar::ToProcess(value) => preprocess_variables(
@@ -1559,6 +1575,9 @@ pub fn preprocess_variables(
 										filename,
 									)?);
 									if let Some(arg_name) = args.next() {
+										#[cfg(feature = "lsp")]
+										macro_variables.insert(arg_name.clone(), (ppvalue, Range::default()));
+										#[cfg(not(feature = "lsp"))]
 										macro_variables.insert(arg_name.clone(), ppvalue);
 									} else if *vararg {
 										varargs += 1;
@@ -1567,6 +1586,9 @@ pub fn preprocess_variables(
 										for _ in 0..varargs {
 											arg_name.push((b'v', c.position).into());
 										}
+										#[cfg(feature = "lsp")]
+										macro_variables.insert(arg_name, (ppvalue, Range::default()));
+										#[cfg(not(feature = "lsp"))]
 										macro_variables.insert(arg_name, ppvalue);
 									} else {
 										let first = value.get(0).unwrap_or(c);

@@ -31,11 +31,11 @@ fn hash_variable(string: &str, start: Position, end: Position) -> u64 {
 pub fn send_definition(
 	token: &str,
 	value: String,
-	location: Range<impl Into<Position>>,
+	location: &Range<Position>,
 	kind: SymbolKind
 ) {
-	let start = location.start.into();
-	let end = location.end.into();
+	let start = location.start;
+	let end = location.end;
 	println!(
 		"DEFINITION {}",
 		json!({
