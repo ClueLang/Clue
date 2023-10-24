@@ -473,7 +473,8 @@ impl<'a> ParserInfo<'a> {
 		let mut values: Vec<(Option<Expression>, Expression, usize)> = Vec::new();
 		let mut metas: Vec<(String, Expression, usize)> = Vec::new();
 		let mut metatable: Option<String> = None;
-		while !self.advance_if(CURLY_BRACKET_CLOSED) {
+		let start_token = self.look_back(0);
+		'main: while !self.advance_if(CURLY_BRACKET_CLOSED) {
 			let start = self.current;
 			let mut qscope = 1u8;
 			let mut iskey = false;
@@ -501,10 +502,10 @@ impl<'a> ParserInfo<'a> {
 						"}",
 						"<end>",
 						t.position(),
-						t.range(),
+						start_token.start()..t.end(),
 						None
 					);
-					false
+					break 'main;
 				}
 				_ => true,
 			} {
@@ -545,10 +546,10 @@ impl<'a> ParserInfo<'a> {
 								"]",
 								"<end>",
 								t.position(),
-								t.range(),
+								start_token.start()..t.end(),
 								None
 							);
-							false
+							break 'main;
 						}
 						_ => true,
 					} {}
@@ -573,7 +574,6 @@ impl<'a> ParserInfo<'a> {
 						self.advance_if(COMMA);
 						continue;
 					}
-
 					if metatable.is_some() {
 						self.error(
 							"Metamethods cannot be set if the table already uses an external metatable",
@@ -661,10 +661,10 @@ impl<'a> ParserInfo<'a> {
 						"}",
 						"<end>",
 						t.position(),
-						t.range(),
+						start_token.start()..t.end(),
 						None
 					);
-					false
+					break 'main;
 				}
 				_ => true,
 			} {
@@ -704,7 +704,7 @@ impl<'a> ParserInfo<'a> {
 			self.error(
 				format!("Operator '{}' has invalid right hand token", t.lexeme()),
 				t.position(),
-				t.range().start..self.peek(0).range().end,
+				t.start()..self.peek(0).end(),
 				None
 			);
 		}
@@ -727,7 +727,7 @@ impl<'a> ParserInfo<'a> {
 				self.error(
 					format!("Operator '{}' has invalid left hand token", t.lexeme()),
 					t.position(),
-					self.look_back(1).range().start..t.range().end,
+					self.look_back(1).start()..t.end(),
 					None
 				);
 			}
