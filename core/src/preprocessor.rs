@@ -309,7 +309,6 @@ impl<'a> CodeFile<'a> {
 
 	fn read_string(&mut self, c: CodeChar) -> Code {
 		self.comment = CommentState::String;
-		let mut skip_next = false;
 		let start = self.read - 1;
 		self.read(
 			|code| {
@@ -319,19 +318,11 @@ impl<'a> CodeFile<'a> {
 				}
 				stringc
 			},
-			|code, (stringc, ..), _| { //refactor this?
-				if stringc == b'\n' {
-					false
-				} else if skip_next {
-					skip_next = false;
-					false
-				} else if stringc == c.0 {
+			|code, (stringc, ..), read_code| {
+				if stringc == c.0 && !matches!(read_code.last(), Some((b'\\', ..))) {
 					code.comment = CommentState::None;
 					true
 				} else {
-					if stringc == b'\\' {
-						skip_next = true;
-					}
 					false
 				}
 			},
