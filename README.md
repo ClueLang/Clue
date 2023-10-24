@@ -69,7 +69,7 @@ More examples can be found in:
 Clue supports extra features that can be toggled when installing:
 * `interpreter`: adds the `--execute` flag to let Clue run the generated output using [mlua](https://github.com/khvzak/mlua).
 * `rpmalloc`: uses [rpmalloc](https://github.com/EmbarkStudios/rpmalloc-rs) to improve performance, not available on all platforms.
-* `lsp`: adds the hidden `--symbols` flag to let Clue's language server gather the required data to function properly.
+* `lsp`: adds the hidden `--symbols` flag to let [Clue's language server](https://github.com/ClueLang/Clue-for-VSCode) gather the required data to function properly.
 
 By default Clue enables all features.
 
