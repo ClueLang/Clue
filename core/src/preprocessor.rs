@@ -889,6 +889,14 @@ pub fn preprocess_code(
 					}
 					"define" => {
 						let name = code.read_identifier();
+						if name.is_empty() {
+							let start = code.read - 1;
+							let got = code.read(
+								CodeFile::read_char,
+								|_, CodeChar { value, .. }, _| value.is_ascii_whitespace()
+							).to_string();
+							code.expected("<name>", &got, c.position, start..code.read - 1, None);
+						}
 						let mut has_values = false;
 						code.skip_whitespace();
 						let value = code.read_constant(b'\n', &mut has_values);
