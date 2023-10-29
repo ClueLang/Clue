@@ -165,8 +165,8 @@ impl BorrowedToken {
 }
 
 struct ScannerInfo<'a> {
-	start: TokenPosition,
-	current: TokenPosition,
+	start: usize,
+	current: usize,
 	size: usize,
 	code: CodeChars,
 	read: Vec<(char, usize, usize)>,
@@ -186,8 +186,8 @@ impl<'a> ScannerInfo<'a> {
 		read.push((code.next_unwrapped(), code.line(), code.column()));
 		read.push((code.next_unwrapped(), code.line(), code.column()));
 		Self {
-			start: TokenPosition { line: 1, column: 1, index: 0 },
-			current: TokenPosition { line: 1, column: 1, index: 0 },
+			start: 0,
+			current: 0,
 			size,
 			code,
 			read,
@@ -202,9 +202,9 @@ impl<'a> ScannerInfo<'a> {
 		ErrorMessaging::error(
 			self,
 			message,
-			self.current.line,
-			self.current.column,
-			self.start.index..self.current.index,
+			self.read[self.start].1,
+			self.read[self.start].2,
+			self.start..self.current,
 			help
 		)
 	}
@@ -218,11 +218,23 @@ impl<'a> ScannerInfo<'a> {
 	}
 
 	const fn ended(&self) -> bool {
-		self.current.index >= self.size
+		self.current >= self.size
 	}
 
 	fn at(&self, pos: usize) -> char {
 		self.read[pos].0
+	}
+
+	fn range(&self) -> Range<TokenPosition> {
+		TokenPosition {
+			line: self.read[self.start].1,
+			column: self.read[self.start].2,
+			index: self.start
+		}..TokenPosition {
+			line: self.read[self.current].1,
+			column: self.read[self.current].2,
+			index:self.current
+		}
 	}
 
 	fn advance(&mut self) -> char {
@@ -231,13 +243,12 @@ impl<'a> ScannerInfo<'a> {
 			self.code.line(),
 			self.code.column(),
 		));
-		let (prev, line, ..) = self.read[self.current.index];
-		self.current.line = line;
+		let (prev, ..) = self.read[self.current];
 		let read = self.code.bytes_read();
 		if read > 0 {
 			self.size -= read - 1
 		}
-		self.current.index += 1;
+		self.current += 1;
 		prev
 	}
 
@@ -245,7 +256,7 @@ impl<'a> ScannerInfo<'a> {
 		if self.ended() {
 			return false;
 		}
-		if self.at(self.current.index) != expected {
+		if self.at(self.current) != expected {
 			return false;
 		}
 		self.advance();
@@ -253,12 +264,11 @@ impl<'a> ScannerInfo<'a> {
 	}
 
 	fn peek(&self, pos: usize) -> char {
-		let pos: usize = self.current.index + pos;
-		self.at(pos)
+		self.at(self.current + pos)
 	}
 
 	fn look_back(&self) -> char {
-		self.at(self.current.index - 1)
+		self.at(self.current - 1)
 	}
 
 	//isNumber: c.is_ascii_digit()
@@ -277,19 +287,17 @@ impl<'a> ScannerInfo<'a> {
 	}
 
 	fn add_literal_token(&mut self, kind: TokenType, literal: String) {
-		self.tokens
-			.push(Token::new(kind, literal, self.start..self.current));
+		self.tokens.push(Token::new(kind, literal, self.range()));
 	}
 
 	fn add_token(&mut self, kind: TokenType) {
-		let lexeme: String = self.substr(self.start.index, self.current.index);
+		let lexeme: String = self.substr(self.start, self.current);
 		self.last = kind;
-		self.tokens
-			.push(Token::new(kind, lexeme, self.start..self.current));
+		self.tokens.push(Token::new(kind, lexeme, self.range()));
 	}
 
 	fn read_number(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
-		let start = self.current.index;
+		let start = self.current;
 		while check(&self.peek(0)) {
 			self.advance();
 		}
@@ -315,15 +323,15 @@ impl<'a> ScannerInfo<'a> {
 					self.advance();
 				}
 			}
-		} else if self.current.index == start {
+		} else if self.current == start {
 			self.error("Malformed number", None);
 		}
-		let llcheck = self.substr(self.current.index, self.current.index + 2);
+		let llcheck = self.substr(self.current, self.current + 2);
 		if llcheck == "LL" {
-			self.current.index += 2;
+			self.current += 2;
 		} else if llcheck == "UL" {
 			if self.peek(2) == 'L' {
-				self.current.index += 3;
+				self.current += 3;
 			} else {
 				self.error("Malformed number", None);
 			}
@@ -349,7 +357,7 @@ impl<'a> ScannerInfo<'a> {
 	fn read_string(&mut self, strend: char) {
 		if self.read_string_contents(strend) {
 			self.advance();
-			let mut literal = self.substr(self.start.index, self.current.index);
+			let mut literal = self.substr(self.start, self.current);
 			literal.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
 			self.add_literal_token(STRING, literal);
 		}
@@ -358,7 +366,7 @@ impl<'a> ScannerInfo<'a> {
 	fn read_raw_string(&mut self) {
 		if self.read_string_contents('`') {
 			self.advance();
-			let literal = self.substr(self.start.index + 1, self.current.index - 1);
+			let literal = self.substr(self.start + 1, self.current - 1);
 			let mut brackets = String::new();
 			let mut must = literal.ends_with(']');
 			while must || literal.contains(&format_clue!("]", brackets, "]")) {
@@ -387,7 +395,7 @@ impl<'a> ScannerInfo<'a> {
 		} {
 			self.advance();
 		}
-		self.substr(self.start.index, self.current.index)
+		self.substr(self.start, self.current)
 	}
 
 	fn scan_char(&mut self, symbols: &SymbolsMap, c: char) -> bool {
@@ -400,7 +408,7 @@ impl<'a> ScannerInfo<'a> {
 				SymbolType::Symbols(symbols, default) => {
 					let nextc = self.advance();
 					if !self.scan_char(symbols, nextc) {
-						self.current.index -= 1;
+						self.current -= 1;
 						self.add_token(*default);
 					}
 				}
@@ -413,7 +421,7 @@ impl<'a> ScannerInfo<'a> {
 	}
 
 	fn update_column(&mut self) {
-		self.current.column = self.read[self.current.index].2
+		//self.current.column = self.read[self.current.index].2
 	}
 }
 
@@ -556,7 +564,7 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 						if i.compare(':') {
 							i.add_token(SAFE_DOUBLE_COLON);
 						} else {
-							i.current.index -= 1;
+							i.current -= 1;
 						}
 					}),
 				),
@@ -691,7 +699,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 				if c == '0' {
 					match i.peek(0) {
 						'x' | 'X' => {
-							i.current.index += 1;
+							i.current += 1;
 							i.read_number(
 								|c| {
 									c.is_ascii_digit()
@@ -701,7 +709,7 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 							);
 						}
 						'b' | 'B' => {
-							i.current.index += 1;
+							i.current += 1;
 							i.read_number(|&c| c == '0' || c == '1', false);
 						}
 						_ => i.read_number(char::is_ascii_digit, true),
