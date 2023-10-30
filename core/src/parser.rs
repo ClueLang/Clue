@@ -513,12 +513,15 @@ impl<'a> ParserInfo<'a> {
 			}
 			self.current = start;
 			if !iskey {
+				let errors = self.errors;
 				values.push((
 					None,
 					self.build_expression(None, Some("Missing table element")),
 					self.at(start).line()
 				));
-				self.current -= 1;
+				if errors == self.errors {
+					self.current -= 1;
+				}
 				self.advance_if(COMMA);
 				continue;
 			}
