@@ -1145,11 +1145,12 @@ impl<'a> ParserInfo<'a> {
 		let mut safe_expr = Expression::with_capacity(expr.len());
 		safe_expr.append(expr);
 		let name = self.get_next_internal_var();
-		self.expr.push_back(VARIABLE {
+		let line = self.peek(0).line();
+		self.get_prev_expr().push_back(VARIABLE {
 			local: true,
 			names: vec![name.clone()],
 			values: vec![safe_expr],
-			line: self.peek(0).line(),
+			line,
 		});
 		expr.push_back(SYMBOL(name.clone()));
 		expr.push_back(SYMBOL(String::from(" and ")));

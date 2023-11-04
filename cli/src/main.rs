@@ -206,7 +206,7 @@ pub fn compile_code(
 
 #[cfg(feature = "mlua")]
 fn execute_lua_code(code: &str) {
-	println!(" {} compiled code...", "Running".blue().bold());
+	println!("{} the compiled code...", "Running".blue().bold());
 	let lua = mlua::Lua::new();
 	if let Err(error) = lua.load(code).exec() {
 		println!("{error}");
