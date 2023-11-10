@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 serde = "1.0.159"
 wasm-bindgen = "0.2.84"
-clue_core = { path = "../core", version = "4.0.0-554c5af2+lsp", default-features = false, features = [
+clue_core = { path = "../core", version = "4.0.0-554c5af2", default-features = false, features = [
     "serde",
 ] }
 serde-wasm-bindgen = "0.5.0"
