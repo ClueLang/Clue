@@ -20,11 +20,12 @@ pub enum SymbolKind {
 	ARGUMENT
 }
 
-fn hash_variable(string: &str, start: Position, end: Position) -> u64 {
+fn hash_variable(token: &str, start: Position, end: Position, filename: &str) -> u64 {
 	let mut hasher = DefaultHasher::new();
-	string.hash(&mut hasher);
+	token.hash(&mut hasher);
 	start.hash(&mut hasher);
 	end.hash(&mut hasher);
+	filename.hash(&mut hasher);
 	hasher.finish()
 }
 
@@ -32,6 +33,7 @@ pub fn send_definition(
 	token: &str,
 	value: String,
 	location: &Range<Position>,
+	filename: &String,
 	kind: SymbolKind
 ) {
 	let start = location.start;
@@ -39,10 +41,11 @@ pub fn send_definition(
 	println!(
 		"DEFINITION {}",
 		json!({
-			"id": hash_variable(token, start, end),
+			"id": hash_variable(token, start, end, filename),
 			"token": token,
 			"value": value,
 			"location": {
+				"file": filename,
 				"start": {
 					"line": start.0,
 					"column": start.1,
@@ -64,16 +67,24 @@ mod tests {
 	#[test]
 	fn check_hash() {
 		assert!(
-			hash_variable("test_string", (1, 1), (1, 1)) == hash_variable("test_string", (1, 1), (1, 1)),
+			hash_variable("test_string", (1, 1), (1, 1), "test.clue") ==
+			hash_variable("test_string", (1, 1), (1, 1), "test.clue"),
 			"hasing the same variable twice gave different results!"
 		);
 		assert!(
-			hash_variable("test_string", (1, 1), (1, 1)) != hash_variable("test_string", (1, 1), (1, 3)),
-			"hasing the same string twice with different positions gave the same result!"
+			hash_variable("test_string", (1, 1), (1, 1), "test.clue") !=
+			hash_variable("test_strinh", (1, 1), (1, 1), "test.clue"),
+			"hashing 2 similar variables with different tokens gave the same result!"
 		);
 		assert!(
-			hash_variable("test_string", (1, 1), (1, 1)) != hash_variable("test_strinh", (2, 2), (2, 2)),
-			"somehow hashing 2 different variables gave the same result!"
+			hash_variable("test_string", (1, 1), (1, 1), "test.clue") !=
+			hash_variable("test_string", (1, 1), (1, 2), "test.clue"),
+			"hashing 2 similar variables with different positions gave the same result!"
+		);
+		assert!(
+			hash_variable("test_string", (1, 1), (1, 1), "test.clue") !=
+			hash_variable("test_string", (1, 1), (1, 1), "tesu.clue"),
+			"hashing 2 similar variables with different filenames gave the same result!"
 		);
 	}
 }

@@ -911,6 +911,7 @@ pub fn preprocess_code(
 									&name.to_string(),
 									trimmed_value.to_string(),
 									&range,
+									filename,
 									SymbolKind::CONSTANT
 								);
 							}
