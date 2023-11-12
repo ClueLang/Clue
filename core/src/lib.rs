@@ -242,7 +242,7 @@ impl Clue {
 		let filepath = PathBuf::from(path.to_string());
 		let filename = filepath
 			.file_name()
-			.ok_or_else(|| format!("Invalid path: {}", path))?
+			.ok_or_else(|| format!("Invalid path: {path}"))?
 			.to_string_lossy()
 			.into_owned();
 		let (codes, variables) = read_file(filepath, &filename, &self.options)?;
@@ -279,7 +279,7 @@ impl Clue {
 		let filepath: &Path = path.as_ref();
 		let filename = filepath
 			.file_name()
-			.ok_or_else(|| format!("Invalid path: {}", path))?
+			.ok_or_else(|| format!("Invalid path: {path}"))?
 			.to_string_lossy()
 			.into_owned();
 		scan_code(code, &filename)
@@ -489,7 +489,7 @@ impl Clue {
 		let filepath: &Path = path.as_ref();
 		let filename = filepath
 			.file_name()
-			.ok_or_else(|| format!("Invalid path: {}", path))?
+			.ok_or_else(|| format!("Invalid path: {path}"))?
 			.to_string_lossy()
 			.into_owned();
 		let tokens = self.scan_file_internal(&path).unwrap();

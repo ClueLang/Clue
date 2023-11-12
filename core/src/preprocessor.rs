@@ -1609,10 +1609,7 @@ pub fn preprocess_variables(
 								}
 								for missed in args {
 									i.error(
-										format!(
-											"Missing argument '{}' for macro",
-											missed.to_string()
-										),
+										format!("Missing argument '{missed}' for macro",),
 										c.1,
 										c.2,
 										size,
