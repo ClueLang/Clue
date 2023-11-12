@@ -664,8 +664,7 @@ pub fn read_file(
 ///
 ///     let (code, vars, ..) = preprocess_code(
 ///         &mut code.into_bytes(),
-///         1,
-///         1,
+///         (1, 1),
 ///         false,
 ///         &String::from("macro.clue"),
 ///         &options
@@ -1375,8 +1374,7 @@ impl CodesInfo<'_> {
 ///
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
-///         1,
-///         1,
+///         (1, 1),
 ///         false,
 ///         &filename,
 ///         &options,
@@ -1442,8 +1440,7 @@ pub fn preprocess_codes(
 ///     };
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
-///         1,
-///         1,
+///         (1, 1),
 ///         false,
 ///         &filename,
 ///         &options,
