@@ -30,9 +30,9 @@ fn hash_variable(token: &str, location: &Range<Position>, filename: &str) -> u64
 	hasher.finish()
 }
 
-fn make_location(filename: &String, location: &Range<Position>) -> Value {
+fn make_location(filename: &str, location: &Range<Position>) -> Value {
 	json!({
-		"file": filename.as_str(),
+		"file": filename,
 		"start": {
 			"line": location.start.0,
 			"column": location.start.1,
@@ -48,7 +48,7 @@ pub fn send_definition(
 	token: &str,
 	value: String,
 	location: &Range<Position>,
-	filename: &String,
+	filename: &str,
 	kind: SymbolKind
 ) {
 	println!(
@@ -72,7 +72,7 @@ path: '',
 pub fn make_error_string(
 	kind: &ColoredString,
 	message: &String,
-	filename: &String,
+	filename: &str,
 	location: Range<Position>
 ) -> String {
 	format!(

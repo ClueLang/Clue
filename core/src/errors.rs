@@ -146,7 +146,7 @@ fn get_errored_edges<'a>(
 	code: &'a str,
 	splitter: impl FnOnce(&'a str, char) -> Option<(&'a str, &'a str)>,
 ) -> (&'a str, &'a str) {
-	splitter(code, '\n').unwrap_or_else(|| (code, code))
+	splitter(code, '\n').unwrap_or((code, code))
 }
 
 pub fn finish_step<T>(filename: &String, errors: u16, to_return: T) -> Result<T, String> {
