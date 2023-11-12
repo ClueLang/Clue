@@ -434,7 +434,7 @@ impl<'a> CodeFile<'a> {
 			self.column,
 			true,
 			self.filename,
-			&Options::default()
+			self.options
 		)?;
 		self.line = line;
 		self.column = column;
