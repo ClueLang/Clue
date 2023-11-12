@@ -63,6 +63,35 @@ impl Display for ClueError {
 	}
 }
 
+#[cfg(feature = "lsp")]
+impl ClueError {
+	pub fn to_lsp_string(&self) -> String {
+		crate::lsp::make_error_string(
+			&self.kind,
+			&self.message,
+			&self.filename,
+			self.position..{
+				if let Some(code) = &self.code {
+					let mut end_position = self.position;
+					for c in code.split_once("\u{1B}[4;31m").unwrap().1.chars() {
+						match c {
+							'\u{1b}' => break,
+							'\n' => {
+								end_position.0 += 1;
+								end_position.1 = 1;
+							},
+							_ => end_position.1 += 1,
+						}
+					}
+					end_position
+				} else {
+					(0, 0)
+				}
+			}
+		)
+	}
+}
+
 #[inline]
 fn get_files() -> FileMap {
 	static FILES: OnceLock<FileMap> = OnceLock::new();
@@ -148,20 +177,6 @@ pub trait ErrorMessaging {
 			kind: if is_error { "Error".red() } else { "Warning".yellow() }.bold(),
 			message: message.into().replace('\n', "<new line>").replace('\t', "<tab>"),
 			help: help.map(|help| help.to_string()),
-			/*header: format!("{} in {}:{}:{}", kind, filename, position.0, position.1),
-			message: format!(
-				"{}: {}{}",
-				kind,
-				message
-					.into()
-					.replace('\n', "<new line>")
-					.replace('\t', "<tab>"),
-				if let Some(help) = help {
-					format!("\n{}: {}", "Help".cyan().bold(), help)
-				} else {
-					String::from("")
-				}
-			),*/
 			code: get_files().read().expect("Couldn't read file map").get(filename).map(|code| {
 				let before_err = get_errored_edges(&code[..range.start], str::rsplit);
 				let after_err = get_errored_edges(&code[range.end..], str::split);

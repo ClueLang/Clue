@@ -1,8 +1,9 @@
 #![cfg(feature = "lsp")]
 
-use crate::{code::Position, errors::ClueError};
+use crate::code::Position;
+use colored::ColoredString;
 use serde::Serialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::{
 	collections::hash_map::DefaultHasher,
 	hash::{Hash, Hasher},
@@ -20,13 +21,27 @@ pub enum SymbolKind {
 	ARGUMENT
 }
 
-fn hash_variable(token: &str, start: Position, end: Position, filename: &str) -> u64 {
+fn hash_variable(token: &str, location: &Range<Position>, filename: &str) -> u64 {
 	let mut hasher = DefaultHasher::new();
 	token.hash(&mut hasher);
-	start.hash(&mut hasher);
-	end.hash(&mut hasher);
+	location.start.hash(&mut hasher);
+	location.end.hash(&mut hasher);
 	filename.hash(&mut hasher);
 	hasher.finish()
+}
+
+fn make_location(filename: &String, location: &Range<Position>) -> Value {
+	json!({
+		"file": filename.as_str(),
+		"start": {
+			"line": location.start.0,
+			"column": location.start.1,
+		},
+		"end": {
+			"line": location.end.0,
+			"column": location.end.1,
+		}
+	})
 }
 
 pub fn send_definition(
@@ -36,35 +51,38 @@ pub fn send_definition(
 	filename: &String,
 	kind: SymbolKind
 ) {
-	let start = location.start;
-	let end = location.end;
 	println!(
 		"DEFINITION {}",
 		json!({
-			"id": hash_variable(token, start, end, filename),
+			"id": hash_variable(token, location, filename),
 			"token": token,
 			"value": value,
-			"location": {
-				"file": filename,
-				"start": {
-					"line": start.0,
-					"column": start.1,
-				},
-				"end": {
-					"line": end.0,
-					"column": end.1,
-				}
-			},
+			"location": make_location(filename, location),
 			"kind": kind
 		})
 	)
 }
-
-impl ClueError {
-	pub fn to_lsp_string(&self) -> String {
-		//TODO: finish this
-		String::new()
-	}
+/*
+path: '',
+        line: 0,
+        character: 0,
+        message: '',
+*/
+#[inline]
+pub fn make_error_string(
+	kind: &ColoredString,
+	message: &String,
+	filename: &String,
+	location: Range<Position>
+) -> String {
+	format!(
+		"{} {}",
+		kind.to_uppercase(),
+		json!({
+			"message": message,
+			"location": make_location(filename, &location)
+		})
+	)
 }
 
 #[cfg(test)]
@@ -74,23 +92,23 @@ mod tests {
 	#[test]
 	fn check_hash() {
 		assert!(
-			hash_variable("test_string", (1, 1), (1, 1), "test.clue") ==
-			hash_variable("test_string", (1, 1), (1, 1), "test.clue"),
+			hash_variable("test_string", &((1, 1)..(1, 1)), "test.clue") ==
+			hash_variable("test_string", &((1, 1)..(1, 1)), "test.clue"),
 			"hasing the same variable twice gave different results!"
 		);
 		assert!(
-			hash_variable("test_string", (1, 1), (1, 1), "test.clue") !=
-			hash_variable("test_strinh", (1, 1), (1, 1), "test.clue"),
+			hash_variable("test_string", &((1, 1)..(1, 1)), "test.clue") !=
+			hash_variable("test_strinh", &((1, 1)..(1, 1)), "test.clue"),
 			"hashing 2 similar variables with different tokens gave the same result!"
 		);
 		assert!(
-			hash_variable("test_string", (1, 1), (1, 1), "test.clue") !=
-			hash_variable("test_string", (1, 1), (1, 2), "test.clue"),
+			hash_variable("test_string", &((1, 1)..(1, 1)), "test.clue") !=
+			hash_variable("test_string", &((1, 1)..(1, 2)), "test.clue"),
 			"hashing 2 similar variables with different positions gave the same result!"
 		);
 		assert!(
-			hash_variable("test_string", (1, 1), (1, 1), "test.clue") !=
-			hash_variable("test_string", (1, 1), (1, 1), "tesu.clue"),
+			hash_variable("test_string", &((1, 1)..(1, 1)), "test.clue") !=
+			hash_variable("test_string", &((1, 1)..(1, 1)), "tesu.clue"),
 			"hashing 2 similar variables with different filenames gave the same result!"
 		);
 	}
