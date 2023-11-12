@@ -62,12 +62,7 @@ pub fn send_definition(
 		})
 	)
 }
-/*
-path: '',
-        line: 0,
-        character: 0,
-        message: '',
-*/
+
 #[inline]
 pub fn make_error_string(
 	kind: &ColoredString,
