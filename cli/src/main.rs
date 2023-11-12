@@ -343,8 +343,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		let mut source_code = path.to_string_lossy().into_owned();
 		let preprocessed_code = preprocess_code(
 			unsafe { source_code.as_bytes_mut() },
-			1,
-			1,
+			(1, 1),
 			false,
 			&filename,
 			&options

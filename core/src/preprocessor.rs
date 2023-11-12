@@ -84,8 +84,7 @@ struct CodeFile<'a> {
 	checked: usize,
 	read: usize,
 	peeked: Option<CodeChar>,
-	line: usize,
-	column: usize,
+	position: Position,
 	filename: &'a String,
 	last_if: bool,
 	cscope: u8,
@@ -112,8 +111,7 @@ impl_errormessaging!(
 impl<'a> CodeFile<'a> {
 	fn new(
 		code: &'a mut [u8],
-		line: usize,
-		column: usize,
+		position: Position,
 		filename: &'a String,
 		cscope: u8,
 		options: &'a Options,
@@ -125,8 +123,7 @@ impl<'a> CodeFile<'a> {
 			checked: 0,
 			read: 0,
 			peeked: None,
-			line,
-			column,
+			position,
 			filename,
 			last_if: true,
 			cscope,
@@ -185,16 +182,15 @@ impl<'a> CodeFile<'a> {
 			if let Some(current) = current {
 				let c = *current;
 				self.read += 1;
-				let line = self.line;
-				let column = self.column;
-				self.column += 1;
+				let (line, column) = self.position;
+				self.position.1 += 1;
 				if self.comment > CommentState::None && *current != b'\n' {
 					*current = b' ';
 				}
 				match c {
 					b'\n' => {
-						self.line += 1;
-						self.column = 1;
+						self.position.0 += 1;
+						self.position.1 = 1;
 						if self.comment == CommentState::Single {
 							self.comment = CommentState::None;
 						}
@@ -256,7 +252,7 @@ impl<'a> CodeFile<'a> {
 				self.expected_before(
 					&String::from_utf8_lossy(&[wanted_value]),
 					"<end>",
-					(self.line, self.column),
+					self.position,
 					self.read - 1..self.read,
 					None,
 				);
@@ -391,7 +387,7 @@ impl<'a> CodeFile<'a> {
 				self.expected_before(
 					&(end as char).to_string(),
 					"<end>",
-					(self.line, self.column),
+					self.position,
 					start..self.read,
 					None,
 				);
@@ -420,7 +416,7 @@ impl<'a> CodeFile<'a> {
 		self.expected_before(
 			")",
 			"<end>",
-			(self.line, self.column),
+			self.position,
 			self.read - 1..self.read,
 			None,
 		);
@@ -430,16 +426,14 @@ impl<'a> CodeFile<'a> {
 	fn read_macro_block(&mut self) -> Result<(PPCode, PPVars), String> {
 		let len = self.code.len();
 		let block = &mut self.code[self.read..len];
-		let (block, ppvars, line, column, read) = preprocess_code(
+		let (block, ppvars, position, read) = preprocess_code(
 			block,
-			self.line,
-			self.column,
+			self.position,
 			true,
 			self.filename,
 			&Options::default()
 		)?;
-		self.line = line;
-		self.column = column;
+		self.position = position;
 		self.read += read;
 		Ok((block, ppvars))
 	}
@@ -456,7 +450,7 @@ impl<'a> CodeFile<'a> {
 				_ => {}
 			}
 		}
-		self.expected_before("}", "<end>", (self.line, self.column), start..self.read, None)
+		self.expected_before("}", "<end>", self.position, start..self.read, None)
 	}
 
 	fn keep_block(&mut self, to_keep: bool) {
@@ -510,7 +504,7 @@ impl<'a> CodeFile<'a> {
 			self.expected(
 				"==' or '!=",
 				"<end>",
-				(self.line, self.column),
+				self.position,
 				comp_pos..cmp::min(comp_pos + 2, size),
 				None,
 			);
@@ -525,7 +519,7 @@ impl<'a> CodeFile<'a> {
 				self.expected(
 					"==' or '!=",
 					&String::from_utf8_lossy(&comparison),
-					(self.line, self.column),
+					self.position,
 					comp_pos..comp_pos + 2,
 					None,
 				);
@@ -561,7 +555,7 @@ impl<'a> CodeFile<'a> {
 				self.expected_before(
 					"<name>",
 					"(",
-					(self.line, self.column),
+					self.position,
 					start..self.read,
 					None,
 				);
@@ -584,7 +578,7 @@ impl<'a> CodeFile<'a> {
 				_ => {
 					self.error(
 						format!("Unknown function '{function}'"),
-						(self.line, self.column),
+						self.position,
 						start..self.read,
 						None,
 					);
@@ -601,7 +595,7 @@ impl<'a> CodeFile<'a> {
 			None => {
 				self.error(
 					"Incomplete version",
-					(self.line, self.column),
+					self.position,
 					start..self.read,
 					Some("Version must be 'X.Y.Z'"),
 				);
@@ -615,7 +609,7 @@ impl<'a> CodeFile<'a> {
 			Err(_) => {
 				self.error(
 					"Invalid version",
-					(self.line, self.column),
+					self.position,
 					start..self.read,
 					Some("Version must be 'X.Y.Z'"),
 				);
@@ -651,7 +645,7 @@ pub fn read_file(
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
 	let mut code = check!(fs::read_to_string(path.into()));
-	let result = preprocess_code(unsafe { code.as_bytes_mut() }, 1, 1, false, filename, options)?;
+	let result = preprocess_code(unsafe { code.as_bytes_mut() }, (1, 1), false, filename, options)?;
 	Ok((result.0, result.1))
 }
 
@@ -675,17 +669,16 @@ pub fn read_file(
 #[allow(clippy::blocks_in_if_conditions)]
 pub fn preprocess_code(
 	code: &mut [u8],
-	line: usize,
-	column: usize,
+	position: Position,
 	is_block: bool,
 	filename: &String,
 	options: &Options,
-) -> Result<(PPCode, PPVars, usize, usize, usize), String> {
+) -> Result<(PPCode, PPVars, Position, usize), String> {
 	let mut output_dir: Option<PathBuf> = None;
 	let mut finalcode = VecDeque::new();
 	let mut currentcode = Code::with_capacity(code.len());
 	let mut size = 0;
-	let mut code = CodeFile::new(code, line, column, filename, is_block as u8, options);
+	let mut code = CodeFile::new(code, position, filename, is_block as u8, options);
 	let mut variables = PPVars::new();
 	let mut pseudos: Option<VecDeque<Code>> = None;
 	let mut bitwise = false;
@@ -787,7 +780,7 @@ pub fn preprocess_code(
 									code.expected(
 										"<name>",
 										"<empty>",
-										(code.line, code.column),
+										code.position,
 										code.read - 1..code.read,
 										None,
 									);
@@ -796,8 +789,7 @@ pub fn preprocess_code(
 								if trimmed_name.contains(|c| matches!(c, '$' | '@')) {
 									let (codes, new_variables, ..) = preprocess_code(
 										unsafe { trimmed_name.as_bytes_mut() },
-										code.line,
-										code.column,
+										code.position,
 										false,
 										filename,
 										options,
@@ -975,8 +967,11 @@ pub fn preprocess_code(
 										break (false, args);
 									}
 									let (got, position) = match code.read_char_unchecked() {
-										Some(CodeChar { value, position }) => ((value as char).to_string(), position),
-										None => (String::from("<end>"), (code.line, code.column)),
+										Some(CodeChar { value, position }) => (
+											(value as char).to_string(),
+											position
+										),
+										None => (String::from("<end>"), code.position),
 									};
 									code.expected(
 										"<name>",
@@ -1171,7 +1166,7 @@ pub fn preprocess_code(
 		code.expected_before(
 			"}",
 			"<end>",
-			(code.line, code.column),
+			code.position,
 			code.read - 1..code.read,
 			None,
 		);
@@ -1196,7 +1191,7 @@ pub fn preprocess_code(
 	finish_step(
 		filename,
 		code.errors,
-		((finalcode, size), variables, code.line, code.column, code.read),
+		((finalcode, size), variables, code.position, code.read),
 	)
 }
 
