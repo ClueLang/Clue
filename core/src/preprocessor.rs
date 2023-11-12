@@ -669,12 +669,19 @@ pub fn read_file(
 /// use clue_core::{preprocessor::preprocess_code, env::Options};
 ///
 /// fn main() -> Result<(), String> {
-///   let options = Options::default();
-///   let mut code = include_str!("../../examples/macro.clue").to_owned();
+///     let options = Options::default();
+///     let mut code = include_str!("../../examples/macro.clue").to_owned();
 ///
-///   let (code, vars, ..) = preprocess_code(&mut code.into_bytes(), 1, false, &String::from("macro.clue"), &options)?;
+///     let (code, vars, ..) = preprocess_code(
+///         &mut code.into_bytes(),
+///         1,
+///         1,
+///         false,
+///         &String::from("macro.clue"),
+///         &options
+///     )?;
 ///
-///   Ok(())
+///     Ok(())
 /// }
 #[allow(clippy::blocks_in_if_conditions)]
 pub fn preprocess_code(
@@ -1371,6 +1378,7 @@ impl CodesInfo<'_> {
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
 ///         1,
+///         1,
 ///         false,
 ///         &filename,
 ///         &options,
@@ -1436,6 +1444,7 @@ pub fn preprocess_codes(
 ///     };
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
+///         1,
 ///         1,
 ///         false,
 ///         &filename,
