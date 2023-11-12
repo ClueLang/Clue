@@ -9,11 +9,12 @@ use std::{
 		VecDeque,
 	},
 	ffi::OsString,
-	hash::Hash,
 	ops::Range,
+	hash::Hash,
+	fmt::Display,
 };
 
-use utf8_decode::decode;
+use utf8_decode::{decode, Decoder};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -149,13 +150,12 @@ impl From<&Code> for String {
 	}
 }
 
-impl ToString for Code {
-	fn to_string(&self) -> String {
-		let mut result = String::with_capacity(self.len());
-		for c in self.clone().chars() {
-			result.push(c);
+impl Display for Code {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		for c in Decoder::new(self.iter().map(|c| c.value)) {
+			write!(f, "{}", c.unwrap_or('\u{FFFD}'))?
 		}
-		result
+		Ok(())
 	}
 }
 

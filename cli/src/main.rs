@@ -170,7 +170,7 @@ pub fn compile_code(
 	let code = preprocess_codes(0, codes, variables, filename)?;
 	add_source_file(filename, &code);
 	if options.env_expand {
-		println!("Preprocessed file \"{filename}\":\n{}", code.to_string());
+		println!("Preprocessed file \"{filename}\":\n{code}");
 	}
 	let tokens = scan_code(code, filename)?;
 	if options.env_tokens {
