@@ -344,6 +344,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		let preprocessed_code = preprocess_code(
 			unsafe { source_code.as_bytes_mut() },
 			1,
+			1,
 			false,
 			&filename,
 			&options
