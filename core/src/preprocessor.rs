@@ -109,6 +109,7 @@ impl<'a> CodeFile<'a> {
 	fn new(
 		code: &'a mut [u8],
 		line: usize,
+		column: usize,
 		filename: &'a String,
 		cscope: u8,
 		options: &'a Options,
@@ -121,7 +122,7 @@ impl<'a> CodeFile<'a> {
 			read: 0,
 			peeked: None,
 			line,
-			column: 1,
+			column,
 			filename,
 			last_if: true,
 			cscope,
@@ -425,12 +426,18 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn read_macro_block(&mut self) -> Result<(PPCode, PPVars), String> {
-		let line = self.line;
 		let len = self.code.len();
 		let block = &mut self.code[self.read..len];
-		let (block, ppvars, line, read) =
-			preprocess_code(block, line, true, self.filename, &Options::default())?;
+		let (block, ppvars, line, column, read) = preprocess_code(
+			block,
+			self.line,
+			self.column,
+			true,
+			self.filename,
+			&Options::default()
+		)?;
 		self.line = line;
+		self.column = column;
 		self.read += read;
 		Ok((block, ppvars))
 	}
@@ -648,7 +655,7 @@ pub fn read_file(
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
 	let mut code = check!(fs::read_to_string(path.into()));
-	let result = preprocess_code(unsafe { code.as_bytes_mut() }, 1, false, filename, options)?;
+	let result = preprocess_code(unsafe { code.as_bytes_mut() }, 1, 1, false, filename, options)?;
 	Ok((result.0, result.1))
 }
 
@@ -673,15 +680,16 @@ pub fn read_file(
 pub fn preprocess_code(
 	code: &mut [u8],
 	line: usize,
+	column: usize,
 	is_block: bool,
 	filename: &String,
 	options: &Options,
-) -> Result<(PPCode, PPVars, usize, usize), String> {
+) -> Result<(PPCode, PPVars, usize, usize, usize), String> {
 	let mut output_dir: Option<PathBuf> = None;
 	let mut finalcode = VecDeque::new();
 	let mut currentcode = Code::with_capacity(code.len());
 	let mut size = 0;
-	let mut code = CodeFile::new(code, line, filename, is_block as u8, options);
+	let mut code = CodeFile::new(code, line, column, filename, is_block as u8, options);
 	let mut variables = PPVars::new();
 	let mut pseudos: Option<VecDeque<Code>> = None;
 	let mut bitwise = false;
@@ -796,6 +804,7 @@ pub fn preprocess_code(
 									let (codes, new_variables, ..) = preprocess_code(
 										unsafe { trimmed_name.as_bytes_mut() },
 										code.line,
+										code.column,
 										false,
 										filename,
 										options,
@@ -1180,7 +1189,7 @@ pub fn preprocess_code(
 	finish_step(
 		filename,
 		code.errors,
-		((finalcode, size), variables, code.line, code.read),
+		((finalcode, size), variables, code.line, code.column, code.read),
 	)
 }
 

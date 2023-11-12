@@ -199,6 +199,7 @@ impl Clue {
 			// SAFETY: This is safe because the preprocessor will never output anything other than UTF-8
 			unsafe { code.as_bytes_mut() },
 			1,
+			1,
 			false,
 			&filename,
 			&self.options,
