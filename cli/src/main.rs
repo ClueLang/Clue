@@ -281,7 +281,12 @@ fn main() {
 	if cli.r#continue == ContinueMode::LuaJIT { //TODO: REMOVE LUAJIT mode
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
 	}
+	#[cfg(feature = "lsp")]
+	let symbols = cli.symbols;
 	if let Err(e) = start_compilation(cli) {
+		#[cfg(feature = "lsp")]
+		print_errors(symbols);
+		#[cfg(not(feature = "lsp"))]
 		print_errors();
 		eprintln!("{}: {e}", "Error".red().bold());
 		exit(-1);

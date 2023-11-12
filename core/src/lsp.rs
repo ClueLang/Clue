@@ -1,6 +1,6 @@
 #![cfg(feature = "lsp")]
 
-use crate::code::Position;
+use crate::{code::Position, errors::ClueError};
 use serde::Serialize;
 use serde_json::json;
 use std::{
@@ -58,6 +58,13 @@ pub fn send_definition(
 			"kind": kind
 		})
 	)
+}
+
+impl ClueError {
+	pub fn to_lsp_string(&self) -> String {
+		//TODO: finish this
+		String::new()
+	}
 }
 
 #[cfg(test)]

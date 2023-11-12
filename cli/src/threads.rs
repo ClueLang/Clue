@@ -85,7 +85,7 @@ pub fn compile_folder(
 		let tx = tx.clone();
 		let options = options.clone();
 
-		let thread = thread::spawn(move || preprocess_file_dir(files, tx, &options));
+		let thread = thread::spawn(move || preprocess_file_dir(tx, &options, files));
 
 		threads.push(thread);
 	}
@@ -144,9 +144,9 @@ pub fn compile_folder(
 }
 
 fn preprocess_file_dir(
-	files: Arc<SegQueue<(PathBuf, String)>>,
 	tx: Sender<PreprocessorAnalyzerData>,
 	options: &Options,
+	files: Arc<SegQueue<(PathBuf, String)>>,
 ) {
 	loop {
 		let (filename, filepath, realname) = match files.pop() {
@@ -166,6 +166,9 @@ fn preprocess_file_dir(
 					codes: Default::default(),
 					variables: Default::default(),
 				}).unwrap();
+				#[cfg(feature = "lsp")]
+				print_errors(options.env_symbols);
+				#[cfg(not(feature = "lsp"))]
 				print_errors();
 				eprintln!("{}: {e}", "Error".red().bold());
 				continue;
@@ -201,6 +204,9 @@ fn compile_file_dir(
 					output: "".to_owned(),
 					static_vars: "".to_owned(),
 				}).unwrap();
+				#[cfg(feature = "lsp")]
+				print_errors(options.env_symbols);
+				#[cfg(not(feature = "lsp"))]
 				print_errors();
 				eprintln!("{}: {e}", "Error".red().bold());
 				continue;
