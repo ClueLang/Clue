@@ -686,6 +686,7 @@ static KEYWORDS: phf::Map<&'static [u8], KeywordType> = phf_map! {
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
 ///         1,
+/// 		1,
 ///         false,
 ///         &filename,
 ///         &options,

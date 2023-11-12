@@ -2312,6 +2312,7 @@ fn parse_tokens_internal<'a>(
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
 ///         1,
+///         1,
 ///         false,
 ///         &filename,
 ///         &options,
