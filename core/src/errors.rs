@@ -142,11 +142,11 @@ pub fn print_errors() {
 	errors.clear();
 }
 
-fn get_errored_edges<'a, T: Iterator<Item = &'a str>>(
+fn get_errored_edges<'a>(
 	code: &'a str,
-	splitter: impl FnOnce(&'a str, char) -> T,
-) -> &str {
-	splitter(code, '\n').next().unwrap_or_default()
+	splitter: impl FnOnce(&'a str, char) -> Option<(&'a str, &'a str)>,
+) -> (&'a str, &'a str) {
+	splitter(code, '\n').unwrap_or_else(|| (code, code))
 }
 
 pub fn finish_step<T>(filename: &String, errors: u16, to_return: T) -> Result<T, String> {
@@ -178,8 +178,8 @@ pub trait ErrorMessaging {
 			message: message.into().replace('\n', "<new line>").replace('\t', "<tab>"),
 			help: help.map(|help| help.to_string()),
 			code: get_files().read().expect("Couldn't read file map").get(filename).map(|code| {
-				let before_err = get_errored_edges(&code[..range.start], str::rsplit);
-				let after_err = get_errored_edges(&code[range.end..], str::split);
+				let before_err = get_errored_edges(&code[..range.start], str::rsplit_once).1;
+				let after_err = get_errored_edges(&code[range.end..], str::split_once).0;
 				let errored = &code[range];
 				format_clue!(
 					before_err.trim_start(),
