@@ -2264,6 +2264,7 @@ pub fn parse_tokens(
 			RETURN => i.parse_token_return()?,
 			TRY => i.parse_token_try()?,
 			FN | ENUM => i.parse_token_fn_enum(&t)?,
+			SEMICOLON => {}
 			EOF => break,
 			_ => return Err(i.expected("<end>", &t.lexeme(), t.line(), t.column())),
 		}
