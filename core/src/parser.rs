@@ -1377,15 +1377,23 @@ impl<'a> ParserInfo<'a> {
 				}
 				FOR | WHILE | LOOP => is_in_other_loop = true,
 				CONTINUE if !is_in_other_loop => {
-					let name = self.get_next_internal_var();
-					hascontinue = Some(name.clone());
-					let position = t.position();
 					if self.options.env_continue == ContinueMode::MoonScript {
-						tokens.push(Token::new(IDENTIFIER, name, position.clone()));
+						let position = t.position();
+						tokens.push(Token::new(IDENTIFIER, {
+							if let Some(name) = hascontinue.as_ref() {
+								name.clone()
+							} else {
+								let name = self.get_next_internal_var();
+								hascontinue = Some(name.clone());
+								name
+							}
+						}, position.clone()));
 						tokens.push(Token::new(DEFINE, "=", position.clone()));
 						tokens.push(Token::new(TRUE, "true", position.clone()));
-						tokens.push(Token::new(BREAK, "break", position));
+						tokens.push(Token::new(BREAK, "break", position.clone()));
 						continue;
+					} else if hascontinue.is_none() {
+						hascontinue = Some(String::new())
 					}
 				}
 				EOF => {
@@ -2307,6 +2315,7 @@ fn parse_tokens_internal<'a>(
 			RETURN => i.parse_token_return(),
 			TRY => i.parse_token_try(),
 			FN | ENUM => i.parse_token_fn_enum(&t),
+			SEMICOLON => {}
 			EOF => break,
 			_ => i.expected("<end>", &t.lexeme(), t.line(), t.column(), t.range(), None),
 		}
