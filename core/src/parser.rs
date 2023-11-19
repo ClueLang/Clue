@@ -1333,15 +1333,23 @@ impl<'a> ParserInfo<'a> {
 				}
 				FOR | WHILE | LOOP => is_in_other_loop = true,
 				CONTINUE if !is_in_other_loop => {
-					let name = self.get_next_internal_var();
-					hascontinue = Some(name.clone());
-					let line = t.line();
 					if self.options.env_continue == ContinueMode::MoonScript {
-						tokens.push(Token::new(IDENTIFIER, name, line, 0));
+						let line = t.line();
+						tokens.push(Token::new(IDENTIFIER, {
+							if let Some(name) = hascontinue.as_ref() {
+								name.clone()
+							} else {
+								let name = self.get_next_internal_var();
+								hascontinue = Some(name.clone());
+								name
+							}
+						}, line, 0));
 						tokens.push(Token::new(DEFINE, "=", line, 0));
 						tokens.push(Token::new(TRUE, "true", line, 0));
 						tokens.push(Token::new(BREAK, "break", line, 0));
 						continue;
+					} else if hascontinue.is_none() {
+						hascontinue = Some(String::new())
 					}
 				}
 				EOF => return Err(self.expected_before("}", "<end>", t.line(), t.column())),
