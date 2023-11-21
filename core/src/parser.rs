@@ -2025,9 +2025,9 @@ impl<'a> ParserInfo<'a> {
 
 	fn parse_token_round_bracket_open(&mut self) -> Result<(), String> {
 		let expr = self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?;
-		self.expr.push_back(EXPR(expr));
 		self.current += 1;
 		let call = self.build_identifier()?;
+		self.expr.push_back(EXPR(expr));
 		self.expr.push_back(call);
 		self.current -= 1;
 		self.advance_if(SEMICOLON);
