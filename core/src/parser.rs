@@ -2018,7 +2018,7 @@ impl<'a> ParserInfo<'a> {
 		self.current += 1;
 		let call = self.build_identifier()?;
 		self.expr.push_back(call);
-		self.current += 1;
+		self.current -= 1;
 		self.advance_if(SEMICOLON);
 		Ok(())
 	}
