@@ -1130,11 +1130,12 @@ impl<'a> ParserInfo<'a> {
 		let mut safe_expr = Expression::with_capacity(expr.len());
 		safe_expr.append(expr);
 		let name = self.get_next_internal_var();
-		self.expr.push_back(VARIABLE {
+		let line = self.peek(0).line();
+		self.get_prev_expr().push_back(VARIABLE {
 			local: true,
 			names: vec![name.clone()],
 			values: vec![safe_expr],
-			line: self.peek(0).line(),
+			line,
 		});
 		expr.push_back(SYMBOL(name.clone()));
 		expr.push_back(SYMBOL(String::from(" and ")));
@@ -1838,6 +1839,16 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
+	fn build_loop(&mut self) -> Result<(Expression, CodeBlock), String> {
+		let (condition, mut internal_code) = self.use_internal_stack(
+			|i| i.build_expression(Some((CURLY_BRACKET_OPEN, "{")))
+		)?;
+		let mut code = self.build_loop_block()?;
+		//code.code.append(&mut (internal_code.clone()));
+		self.expr.append(&mut internal_code);
+		Ok((condition, code))
+	}
+
 	fn parse_token_local_global(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let local = t.kind() == LOCAL;
 		match self.peek(0).kind() {
@@ -2044,8 +2055,9 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_token_while(&mut self, line: usize) -> Result<(), String> {
-		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
-		let code = self.build_loop_block()?;
+		//let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
+		//let code = self.build_loop_block()?;
+		let (condition, code) = self.build_loop()?;
 		self.expr.push_back(WHILE_LOOP { condition, code, line });
 		Ok(())
 	}
