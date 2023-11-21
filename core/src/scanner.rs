@@ -293,10 +293,13 @@ impl<'a> CodeInfo<'a> {
 		}
 		let llcheck = self.substr(self.current, self.current + 2);
 		if llcheck == "LL" {
-			self.current += 2;
+			self.advance();
+			self.advance();
 		} else if llcheck == "UL" {
 			if self.peek(2) == 'L' {
-				self.current += 3;
+				self.advance();
+				self.advance();
+				self.advance();
 			} else {
 				self.warning("Malformed number");
 			}
