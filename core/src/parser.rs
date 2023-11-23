@@ -1839,14 +1839,31 @@ impl<'a> ParserInfo<'a> {
 		})
 	}
 
-	fn build_loop(&mut self) -> Result<(Expression, CodeBlock), String> {
-		let (condition, mut internal_code) = self.use_internal_stack(
-			|i| i.build_expression(Some((CURLY_BRACKET_OPEN, "{")))
-		)?;
-		let mut code = self.build_loop_block()?;
-		//code.code.append(&mut (internal_code.clone()));
-		self.expr.append(&mut internal_code);
-		Ok((condition, code))
+	fn build_loop(
+		&mut self,
+		code: Option<CodeBlock>,
+		end: OptionalEnd
+	) -> Result<(Expression, CodeBlock), String> {
+		let start = self.peek(0).line();
+		let (condition, mut internal_code) = self.use_internal_stack(|i| i.build_expression(end))?;
+		let end = self.look_back(1).line();
+		let code = match code {
+			Some(code) => code,
+			None => self.build_loop_block()?
+		};
+		if !internal_code.is_empty() {
+			internal_code.push_back(RETURN_EXPR(Some(vec![condition])));
+			let function_name = self.get_next_internal_var();
+			self.expr.push_back(FUNCTION {
+				local: true,
+				name: vec_deque![SYMBOL(function_name.clone())],
+				args: vec![],
+				code: CodeBlock { start, code: internal_code, end }
+			});
+			Ok((vec_deque![SYMBOL(format_clue!(function_name, "()"))], code))
+		} else {
+			Ok((condition, code))
+		}
 	}
 
 	fn parse_token_local_global(&mut self, t: &BorrowedToken) -> Result<(), String> {
@@ -2055,18 +2072,15 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_token_while(&mut self, line: usize) -> Result<(), String> {
-		//let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
-		//let code = self.build_loop_block()?;
-		let (condition, code) = self.build_loop()?;
+		let (condition, code) = self.build_loop(None, Some((CURLY_BRACKET_OPEN, "{")))?;
 		self.expr.push_back(WHILE_LOOP { condition, code, line });
 		Ok(())
 	}
 
 	fn parse_token_until(&mut self, line: usize) -> Result<(), String> {
-		let mut condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?;
+		let (mut condition, code) = self.build_loop(None, Some((CURLY_BRACKET_OPEN, "{")))?;
 		condition.push_front(SYMBOL(String::from("not (")));
 		condition.push_back(SYMBOL(String::from(")")));
-		let code = self.build_loop_block()?;
 		self.expr.push_back(WHILE_LOOP { condition, code, line });
 		Ok(())
 	}
@@ -2076,11 +2090,11 @@ impl<'a> ParserInfo<'a> {
 		let t = self.advance();
 		match t.kind() {
 			UNTIL => {
-				let condition = self.build_expression(None)?;
+				let (condition, code) = self.build_loop(Some(code), None)?;
 				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })
 			}
 			WHILE => {
-				let mut condition = self.build_expression(None)?;
+				let (mut condition, code) = self.build_loop(Some(code), None)?;
 				condition.push_front(SYMBOL(String::from("not (")));
 				condition.push_back(SYMBOL(String::from(")")));
 				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })
