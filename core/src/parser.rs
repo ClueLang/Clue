@@ -1063,16 +1063,12 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				ROUND_BRACKET_OPEN => {
-					expr.push_back(EXPR(
-						self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?,
-					));
+					let bracketed_expr = EXPR(self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?);
 					if self.check_val() {
+						expr.push_back(bracketed_expr);
 						break t;
 					}
-					self.current += 1;
-					let fname = self.build_identifier()?;
-					expr.push_back(fname);
-					self.current -= 1;
+					self.build_round_brackets(vec_deque![bracketed_expr], &mut expr, false)?;
 					if self.check_val() {
 						break t;
 					}
@@ -1866,6 +1862,40 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
+	fn build_round_brackets(
+		&mut self,
+		mut expr: Expression,
+		target_expr: &mut Expression,
+		strict: bool,
+	) -> Result<(), String> {
+		let line = self.peek(0).line();
+		self.current += 1;
+		let safe_indexing = self.build_identifier_internal(&mut expr)?;
+		if strict && !matches!(expr.back(), Some(CALL(..))) {
+			let t = self.look_back(0);
+			return Err(self.expected_before(
+				"<function call>",
+				&t.lexeme(),
+				t.line(),
+				t.column()
+			))
+		}
+		if safe_indexing {
+			let call = if strict { expr.pop_back() } else { None };
+			expr.push_front(SYMBOL(String::from("(")));
+			expr.push_back(SYMBOL(String::from(")")));
+			if let Some(call) = call {
+				expr.push_back(call);
+			}
+			target_expr.push_back(IDENT { expr, line });
+		} else {
+			target_expr.push_back(expr.pop_front().unwrap());
+			target_expr.push_back(IDENT { expr, line })
+		}
+		self.current -= 1;
+		Ok(())
+	}
+
 	fn parse_token_local_global(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let local = t.kind() == LOCAL;
 		match self.peek(0).kind() {
@@ -2042,28 +2072,10 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_token_round_bracket_open(&mut self) -> Result<(), String> {
-		let mut expr = vec_deque![EXPR(self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?)];
-		let line = self.peek(0).line();
-		self.current += 1;
-		let safe_indexing = self.build_identifier_internal(&mut expr)?;
-		if !matches!(expr.back(), Some(CALL(..))) {
-			let t = self.peek(0);
-			return Err(self.expected_before(
-				"<function call>",
-				&t.lexeme(),
-				t.line(),
-				t.column()
-			))
-		}
-		if safe_indexing {
-			self.expr.push_back(IDENT { expr, line });
-			//unimplemented!()
-		} else {
-			self.expr.push_back(expr.pop_front().unwrap());
-			self.expr.push_back(IDENT { expr, line })
-		}
-		//self.expr.push_back(call);
-		self.current -= 1;
+		let expr = vec_deque![EXPR(self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?)];
+		let mut target_expr = Expression::with_capacity(2);
+		self.build_round_brackets(expr, &mut target_expr, true)?;
+		self.expr.append(&mut target_expr);
 		self.advance_if(SEMICOLON);
 		Ok(())
 	}
