@@ -113,7 +113,13 @@ pub struct BorrowedToken {
 
 impl BorrowedToken {
 	/// Creates a new [`BorrowedToken`] from the raw pointer to a [`Token`].
-	pub const fn new(token: *const Token) -> Self {
+	/// 
+	/// # Safety
+	/// 
+	/// This function is unsafe because it doesn't check if the pointer is and will stay valid.
+	/// The caller has to make sure it will stay valid.
+	pub const unsafe fn new(token: *const Token) -> Self {
+		//SAFETY: The caller has to guarantee that the pointer will stay valid.
 		Self { token }
 	}
 
@@ -338,10 +344,13 @@ impl<'a> ScannerInfo<'a> {
 		}
 		let llcheck = self.substr(self.current, self.current + 2);
 		if llcheck == "LL" {
-			self.current += 2;
+			self.advance();
+			self.advance();
 		} else if llcheck == "UL" {
 			if self.peek(2) == 'L' {
-				self.current += 3;
+				self.advance();
+				self.advance();
+				self.advance();
 			} else {
 				self.error("Malformed number", None);
 			}
