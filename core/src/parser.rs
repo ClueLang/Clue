@@ -1085,16 +1085,14 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				ROUND_BRACKET_OPEN => {
-					expr.push_back(EXPR(
-						self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")), help),
-					));
+					let bracketed_expr = EXPR(
+						self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")), help)
+					);
 					if self.check_val() {
+						expr.push_back(bracketed_expr);
 						break t;
 					}
-					self.current += 1;
-					let fname = self.build_identifier();
-					expr.push_back(fname);
-					self.current -= 1;
+					self.build_round_brackets(&t, vec_deque![bracketed_expr], &mut expr, false);
 					if self.check_val() {
 						break t;
 					}
@@ -1139,7 +1137,8 @@ impl<'a> ParserInfo<'a> {
 
 	fn build_identifier(&mut self) -> ComplexToken {
 		let line = self.look_back(0).line();
-		let (mut expr, safe_indexing) = self.build_identifier_internal();
+		let mut expr = Expression::with_capacity(8);
+		let safe_indexing = self.build_identifier_internal(&mut expr);
 		if safe_indexing {
 			expr.push_front(SYMBOL(String::from("(")));
 			expr.push_back(SYMBOL(String::from(")")));
@@ -1172,8 +1171,7 @@ impl<'a> ParserInfo<'a> {
 		true
 	}
 
-	fn build_identifier_internal(&mut self) -> (Expression, bool) {
-		let mut expr = Expression::with_capacity(8);
+	fn build_identifier_internal(&mut self, expr: &mut Expression) -> bool {
 		let mut safe_indexing = false;
 		self.current -= 1;
 		loop {
@@ -1186,12 +1184,12 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				DOT | SAFE_DOT => {
-					safe_indexing |= self.build_safe_index(DOT, t.kind(), &mut expr);
-					self.check_index(&t, &mut expr, ".");
+					safe_indexing |= self.build_safe_index(DOT, t.kind(), expr);
+					self.check_index(&t, expr, ".");
 				}
 				DOUBLE_COLON | SAFE_DOUBLE_COLON => {
-					safe_indexing |= self.build_safe_index(DOUBLE_COLON, t.kind(), &mut expr);
-					self.check_index(&t, &mut expr, ":");
+					safe_indexing |= self.build_safe_index(DOUBLE_COLON, t.kind(), expr);
+					self.check_index(&t, expr, ":");
 					match self.peek(1).kind() {
 						ROUND_BRACKET_OPEN => {}
 						SAFE_CALL => {
@@ -1209,7 +1207,7 @@ impl<'a> ParserInfo<'a> {
 									start
 								};
 								let mut expr_self = Expression::with_capacity(expr.len());
-								expr_self.append(&mut expr);
+								expr_self.append(expr);
 								let name = self.get_next_internal_var();
 								self.expr.push_back(VARIABLE {
 									local: true,
@@ -1221,7 +1219,7 @@ impl<'a> ParserInfo<'a> {
 								expr.push_back(SYMBOL(name.clone()));
 								name
 							} else {
-								let SYMBOL(name) = &expr[0] else {
+								let SYMBOL(ref name) = expr[0] else {
 									unreachable!();
 								};
 								name.to_owned()
@@ -1246,8 +1244,7 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				SQUARE_BRACKET_OPEN | SAFE_SQUARE_BRACKET => {
-					safe_indexing |=
-						self.build_safe_index(SQUARE_BRACKET_OPEN, t.kind(), &mut expr);
+					safe_indexing |= self.build_safe_index(SQUARE_BRACKET_OPEN, t.kind(), expr);
 					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")), None);
 					expr.push_back(SYMBOL(String::from("[(")));
 					expr.push_back(EXPR(qexpr));
@@ -1257,7 +1254,7 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				ROUND_BRACKET_OPEN | SAFE_CALL => {
-					safe_indexing |= self.build_safe_index(ROUND_BRACKET_OPEN, t.kind(), &mut expr);
+					safe_indexing |= self.build_safe_index(ROUND_BRACKET_OPEN, t.kind(), expr);
 					expr.push_back(CALL(self.build_call()));
 					if self.check_val() {
 						break;
@@ -1266,7 +1263,7 @@ impl<'a> ParserInfo<'a> {
 				_ => break,
 			}
 		}
-		(expr, safe_indexing)
+		safe_indexing
 	}
 
 	fn get_code_block_start(&mut self) -> usize {
@@ -1916,6 +1913,72 @@ impl<'a> ParserInfo<'a> {
 		}
 	}
 
+	fn build_loop(
+		&mut self,
+		code: Option<CodeBlock>,
+		end: OptionalEnd
+	) -> (Expression, CodeBlock) {
+		let start = self.peek(0).line();
+		let (condition, mut internal_code) = self.use_internal_stack(
+			|i| i.build_expression(end, Some("Missing condition"))
+		);
+		let end = self.look_back(1).line();
+		let code = match code {
+			Some(code) => code,
+			None => self.build_loop_block()
+		};
+		if !internal_code.is_empty() {
+			internal_code.push_back(RETURN_EXPR(Some(vec![condition])));
+			let function_name = self.get_next_internal_var();
+			self.expr.push_back(FUNCTION {
+				local: true,
+				name: vec_deque![SYMBOL(function_name.clone())],
+				args: vec![],
+				code: CodeBlock { start, code: internal_code, end }
+			});
+			(vec_deque![SYMBOL(format_clue!(function_name, "()"))], code)
+		} else {
+			(condition, code)
+		}
+	}
+
+	fn build_round_brackets(
+		&mut self,
+		start_t: &BorrowedToken,
+		mut expr: Expression,
+		target_expr: &mut Expression,
+		mut strict: bool,
+	) {
+		let line = self.peek(0).line();
+		self.current += 1;
+		let safe_indexing = self.build_identifier_internal(&mut expr);
+		if strict && !matches!(expr.back(), Some(CALL(..))) {
+			let t = self.look_back(1);
+			self.expected_before(
+				"<function call>",
+				&t.lexeme(),
+				t.line(),
+				t.column(),
+				start_t.start()..t.end(),
+				None
+			);
+			strict = false;
+		}
+		if safe_indexing {
+			let call = if strict { expr.pop_back() } else { None };
+			expr.push_front(SYMBOL(String::from("(")));
+			expr.push_back(SYMBOL(String::from(")")));
+			if let Some(call) = call {
+				expr.push_back(call);
+			}
+			target_expr.push_back(IDENT { expr, line });
+		} else {
+			target_expr.push_back(expr.pop_front().unwrap());
+			target_expr.push_back(IDENT { expr, line })
+		}
+		self.current -= 1;
+	}
+
 	fn parse_token_local_global(&mut self, t: &BorrowedToken) {
 		let local = t.kind() == LOCAL;
 		match self.peek(0).kind() {
@@ -1996,7 +2059,8 @@ impl<'a> ParserInfo<'a> {
 
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) {
 		let start = self.current - 1;
-		let (mut first_expr, safe_indexing) = self.build_identifier_internal();
+		let mut first_expr = Expression::with_capacity(8);
+		let safe_indexing = self.build_identifier_internal(&mut first_expr);
 		if let CALL(_) = first_expr.back().unwrap() {
 			let line = self.at(start).line();
 			if safe_indexing {
@@ -2089,12 +2153,11 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_token_round_bracket_open(&mut self) {
-		let expr = self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")), None);
-		self.expr.push_back(EXPR(expr));
-		self.current += 1;
-		let call = self.build_identifier();
-		self.expr.push_back(call);
-		self.current += 1;
+		let start_t = self.look_back(0);
+		let expr = vec_deque![EXPR(self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")), None))];
+		let mut target_expr = Expression::with_capacity(2);
+		self.build_round_brackets(&start_t, expr, &mut target_expr, true);
+		self.expr.append(&mut target_expr);
 		self.advance_if(SEMICOLON);
 	}
 
@@ -2116,16 +2179,14 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_token_while(&mut self, line: usize) {
-		let condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")), Some("Missing condition"));
-		let code = self.build_loop_block();
+		let (condition, code) = self.build_loop(None, Some((CURLY_BRACKET_OPEN, "{")));
 		self.expr.push_back(WHILE_LOOP { condition, code, line });
 	}
 
 	fn parse_token_until(&mut self, line: usize) {
-		let mut condition = self.build_expression(Some((CURLY_BRACKET_OPEN, "{")), Some("Missing condition"));
+		let (mut condition, code) = self.build_loop(None, Some((CURLY_BRACKET_OPEN, "{")));
 		condition.push_front(SYMBOL(String::from("not (")));
 		condition.push_back(SYMBOL(String::from(")")));
-		let code = self.build_loop_block();
 		self.expr.push_back(WHILE_LOOP { condition, code, line });
 	}
 
@@ -2134,11 +2195,11 @@ impl<'a> ParserInfo<'a> {
 		let t = self.advance();
 		match t.kind() {
 			UNTIL => {
-				let condition = self.build_expression(None, Some("Missing condition"));
+				let (condition, code) = self.build_loop(Some(code), None);
 				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })
 			}
 			WHILE => {
-				let mut condition = self.build_expression(None, Some("Missing condition"));
+				let (mut condition, code) = self.build_loop(Some(code), None);
 				condition.push_front(SYMBOL(String::from("not (")));
 				condition.push_back(SYMBOL(String::from(")")));
 				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })

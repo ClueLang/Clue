@@ -3,7 +3,7 @@ members = ["cli", "core", "wasm"]
 default-members = ["cli", "core"]
 
 [workspace.package]
-version = "4.0.0-51a85aba"
+version = "4.0.0-c71fc5f4"
 description = "C/Rust like programming language that compiles into Lua code"
 edition = "2021"
 rust-version = "1.65"
