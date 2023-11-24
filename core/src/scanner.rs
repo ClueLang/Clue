@@ -107,7 +107,13 @@ pub struct BorrowedToken {
 
 impl BorrowedToken {
 	/// Creates a new [`BorrowedToken`] from the raw pointer to a [`Token`].
-	pub const fn new(token: *const Token) -> Self {
+	/// 
+	/// # Safety
+	/// 
+	/// This function is unsafe because it doesn't check if the pointer is and will stay valid.
+	/// The caller has to make sure it will stay valid.
+	pub const unsafe fn new(token: *const Token) -> Self {
+		//SAFETY: The caller has to guarantee that the pointer will stay valid.
 		Self { token }
 	}
 
@@ -679,7 +685,7 @@ static KEYWORDS: phf::Map<&'static [u8], KeywordType> = phf_map! {
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
 ///         1,
-/// 		1,
+///         1,
 ///         false,
 ///         &filename,
 ///         &options,

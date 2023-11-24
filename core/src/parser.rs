@@ -343,7 +343,8 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn at(&self, pos: usize) -> BorrowedToken {
-		BorrowedToken::new(&self.tokens[cmp::min(pos, self.size)])
+		//SAFETY: the pointer is guaranteed to stay valid for the entirety of the processing.
+		unsafe { BorrowedToken::new(&self.tokens[cmp::min(pos, self.size)]) }
 	}
 
 	fn advance(&mut self) -> BorrowedToken {
@@ -887,13 +888,19 @@ impl<'a> ParserInfo<'a> {
 				BIT_AND => bitwise!(self, t, expr, "band", end, notable, help),
 				BIT_OR => bitwise!(self, t, expr, "bor", end, notable, help),
 				BIT_XOR => {
-					//SAFETY: the token goes out of scope after BorrowedToken is used, so it stays valid
 					let t2 = if self.options.env_bitwise == BitwiseMode::Vanilla {
 						Token::new(t.kind(), '~', t.position())
 					} else {
 						t.into_owned()
 					};
-					if self.build_bitwise_op(&BorrowedToken::new(&t2), &mut expr, "bxor", end, notable, help) {
+					if self.build_bitwise_op(
+						//SAFETY: the token goes out of scope only after this call.
+						unsafe { &BorrowedToken::new(&t2) },
+						&mut expr, "bxor",
+						end,
+						notable,
+						help
+					) {
 						break t;
 					}
 				}
