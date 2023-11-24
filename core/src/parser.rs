@@ -2046,9 +2046,17 @@ impl<'a> ParserInfo<'a> {
 		let line = self.peek(0).line();
 		self.current += 1;
 		let safe_indexing = self.build_identifier_internal(&mut expr)?;
+		if !matches!(expr.back(), Some(CALL(..))) {
+			let t = self.peek(0);
+			return Err(self.expected_before(
+				"<function call>",
+				&t.lexeme(),
+				t.line(),
+				t.column()
+			))
+		}
 		if safe_indexing {
-			println!("{expr:?}");
-			self.expr.append(&mut expr);
+			self.expr.push_back(IDENT { expr, line });
 			//unimplemented!()
 		} else {
 			self.expr.push_back(expr.pop_front().unwrap());
