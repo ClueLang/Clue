@@ -1110,7 +1110,8 @@ impl<'a> ParserInfo<'a> {
 
 	fn build_identifier(&mut self) -> Result<ComplexToken, String> {
 		let line = self.look_back(0).line();
-		let (mut expr, safe_indexing) = self.build_identifier_internal()?;
+		let mut expr = Expression::with_capacity(8);
+		let safe_indexing = self.build_identifier_internal(&mut expr)?;
 		if safe_indexing {
 			expr.push_front(SYMBOL(String::from("(")));
 			expr.push_back(SYMBOL(String::from(")")));
@@ -1143,8 +1144,7 @@ impl<'a> ParserInfo<'a> {
 		true
 	}
 
-	fn build_identifier_internal(&mut self) -> Result<(Expression, bool), String> {
-		let mut expr = Expression::with_capacity(8);
+	fn build_identifier_internal(&mut self, expr: &mut Expression) -> Result<bool, String> {
 		let mut safe_indexing = false;
 		self.current -= 1;
 		loop {
@@ -1157,12 +1157,12 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				DOT | SAFE_DOT => {
-					safe_indexing |= self.build_safe_index(DOT, t.kind(), &mut expr);
-					self.check_index(&t, &mut expr, ".")?;
+					safe_indexing |= self.build_safe_index(DOT, t.kind(), expr);
+					self.check_index(&t, expr, ".")?;
 				}
 				DOUBLE_COLON | SAFE_DOUBLE_COLON => {
-					safe_indexing |= self.build_safe_index(DOUBLE_COLON, t.kind(), &mut expr);
-					self.check_index(&t, &mut expr, ":")?;
+					safe_indexing |= self.build_safe_index(DOUBLE_COLON, t.kind(), expr);
+					self.check_index(&t, expr, ":")?;
 					match self.peek(1).kind() {
 						ROUND_BRACKET_OPEN => {}
 						SAFE_CALL => {
@@ -1180,7 +1180,7 @@ impl<'a> ParserInfo<'a> {
 									start
 								};
 								let mut expr_self = Expression::with_capacity(expr.len());
-								expr_self.append(&mut expr);
+								expr_self.append(expr);
 								let name = self.get_next_internal_var();
 								self.expr.push_back(VARIABLE {
 									local: true,
@@ -1192,7 +1192,7 @@ impl<'a> ParserInfo<'a> {
 								expr.push_back(SYMBOL(name.clone()));
 								name
 							} else {
-								let SYMBOL(name) = &expr[0] else {
+								let SYMBOL(ref name) = expr[0] else {
 									unreachable!();
 								};
 								name.to_owned()
@@ -1218,7 +1218,7 @@ impl<'a> ParserInfo<'a> {
 				}
 				SQUARE_BRACKET_OPEN | SAFE_SQUARE_BRACKET => {
 					safe_indexing |=
-						self.build_safe_index(SQUARE_BRACKET_OPEN, t.kind(), &mut expr);
+						self.build_safe_index(SQUARE_BRACKET_OPEN, t.kind(), expr);
 					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
 					expr.push_back(SYMBOL(String::from("[(")));
 					expr.push_back(EXPR(qexpr));
@@ -1228,7 +1228,7 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				ROUND_BRACKET_OPEN | SAFE_CALL => {
-					safe_indexing |= self.build_safe_index(ROUND_BRACKET_OPEN, t.kind(), &mut expr);
+					safe_indexing |= self.build_safe_index(ROUND_BRACKET_OPEN, t.kind(), expr);
 					expr.push_back(CALL(self.build_call()?));
 					if self.check_val() {
 						break;
@@ -1237,7 +1237,7 @@ impl<'a> ParserInfo<'a> {
 				_ => break,
 			}
 		}
-		Ok((expr, safe_indexing))
+		Ok(safe_indexing)
 	}
 
 	fn get_code_block_start(&mut self) -> Result<usize, String> {
@@ -1949,7 +1949,8 @@ impl<'a> ParserInfo<'a> {
 
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let start = self.current - 1;
-		let (mut first_expr, safe_indexing) = self.build_identifier_internal()?;
+		let mut first_expr = Expression::with_capacity(8);
+		let safe_indexing = self.build_identifier_internal(&mut first_expr)?;
 		if let CALL(_) = first_expr.back().unwrap() {
 			let line = self.at(start).line();
 			if safe_indexing {
@@ -2041,11 +2042,19 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_token_round_bracket_open(&mut self) -> Result<(), String> {
-		let expr = self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?;
+		let mut expr = vec_deque![EXPR(self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?)];
+		let line = self.peek(0).line();
 		self.current += 1;
-		let call = self.build_identifier()?;
-		self.expr.push_back(EXPR(expr));
-		self.expr.push_back(call);
+		let safe_indexing = self.build_identifier_internal(&mut expr)?;
+		if safe_indexing {
+			println!("{expr:?}");
+			self.expr.append(&mut expr);
+			//unimplemented!()
+		} else {
+			self.expr.push_back(expr.pop_front().unwrap());
+			self.expr.push_back(IDENT { expr, line })
+		}
+		//self.expr.push_back(call);
 		self.current -= 1;
 		self.advance_if(SEMICOLON);
 		Ok(())
