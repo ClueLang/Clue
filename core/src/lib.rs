@@ -6,6 +6,7 @@
 use code::Code;
 use compiler::Compiler;
 use env::{BitwiseMode, ContinueMode, LuaVersion, Options};
+use errors::ClueError;
 use parser::{parse_tokens, Expression};
 use preprocessor::{preprocess_code, preprocess_codes, read_file};
 use scanner::{scan_code, Token};
@@ -83,7 +84,7 @@ impl Clue {
 
 	/// Gets the errors that have occurred
 	/// Returns a [`Vec`] containing the errors
-	pub fn get_errors(&self) -> Vec<String> {
+	pub fn get_errors(&self) -> Vec<ClueError> {
 		let lock = errors::get_errors();
 		let errors = { lock.read().unwrap().clone() };
 		lock.write().unwrap().clear();
@@ -198,8 +199,7 @@ impl Clue {
 		let (codes, variables, ..) = preprocess_code(
 			// SAFETY: This is safe because the preprocessor will never output anything other than UTF-8
 			unsafe { code.as_bytes_mut() },
-			1,
-			1,
+			(1, 1),
 			false,
 			&filename,
 			&self.options,

@@ -5,7 +5,7 @@
 
 use crate::{
 	check,
-	code::{Code, CodeChar},
+	code::{Code, CodeChar, Position},
 	env::Options,
 	errors::{add_source_file, finish_step, ErrorMessaging},
 	format_clue, impl_errormessaging,
@@ -30,8 +30,13 @@ macro_rules! pp_if {
 	}};
 }
 
+#[cfg(feature = "lsp")]
+/// A HashMap of preprocessor variables and their position.
+pub type PPVars = AHashMap<Code, (PPVar, Range<Position>)>;
+#[cfg(not(feature = "lsp"))]
 /// A HashMap of preprocessor variables.
 pub type PPVars = AHashMap<Code, PPVar>;
+
 /// A list of code segments and its size.
 pub type PPCode = (VecDeque<(Code, bool)>, usize);
 
@@ -79,8 +84,7 @@ struct CodeFile<'a> {
 	checked: usize,
 	read: usize,
 	peeked: Option<CodeChar>,
-	line: usize,
-	column: usize,
+	position: Position,
 	filename: &'a String,
 	last_if: bool,
 	cscope: u8,
@@ -93,23 +97,21 @@ impl_errormessaging!(
 	fn error(
 		&mut self,
 		message: impl Into<String>,
-		line: usize,
-		column: usize,
+		position: Position,
 		range: Range<usize>,
 		help: Option<&str>,
 	) {
 		if self.errors == 0 {
 			add_source_file(self.filename, String::from_utf8_lossy(self.code))
 		}
-		self.send(true, message, line, column, range, help)
+		self.send(true, message, position, range, help)
 	}
 );
 
 impl<'a> CodeFile<'a> {
 	fn new(
 		code: &'a mut [u8],
-		line: usize,
-		column: usize,
+		position: Position,
 		filename: &'a String,
 		cscope: u8,
 		options: &'a Options,
@@ -121,8 +123,7 @@ impl<'a> CodeFile<'a> {
 			checked: 0,
 			read: 0,
 			peeked: None,
-			line,
-			column,
+			position,
 			filename,
 			last_if: true,
 			cscope,
@@ -134,8 +135,8 @@ impl<'a> CodeFile<'a> {
 	fn is_ascii(&mut self, c: Option<CodeChar>) -> Option<CodeChar> {
 		match c {
 			None => None,
-			Some(c) if c.0.is_ascii() => Some(c),
-			Some((_, line, column)) => {
+			Some(c) if c.value.is_ascii() => Some(c),
+			Some(CodeChar { position, .. }) => {
 				let c = decode(
 					&mut self.code[self.read - 1..cmp::min(self.read + 3, self.code.len())]
 						.iter()
@@ -145,22 +146,24 @@ impl<'a> CodeFile<'a> {
 				.unwrap();
 				self.error(
 					format!("Invalid character '{c}'"),
-					line,
-					column,
+					position,
 					self.read - 1..self.read + c.len_utf8() - 1,
 					None,
 				);
 				for i in self.read - 1..self.read - 1 + c.len_utf8() {
 					self.code[i] = b' ';
 				}
-				Some((b' ', line, column))
+				Some(CodeChar {
+					value: b' ',
+					position
+				})
 			}
 		}
 	}
 
 	fn skip_whitespace(&mut self) {
-		while let Some((c, ..)) = self.peek_char_unchecked() {
-			if c.is_ascii_whitespace() {
+		while let Some(CodeChar { value, .. }) = self.peek_char_unchecked() {
+			if value.is_ascii_whitespace() {
 				self.read_char_unchecked();
 			} else {
 				break;
@@ -179,16 +182,15 @@ impl<'a> CodeFile<'a> {
 			if let Some(current) = current {
 				let c = *current;
 				self.read += 1;
-				let line = self.line;
-				let column = self.column;
-				self.column += 1;
+				let (line, column) = self.position;
+				self.position.1 += 1;
 				if self.comment > CommentState::None && *current != b'\n' {
 					*current = b' ';
 				}
 				match c {
 					b'\n' => {
-						self.line += 1;
-						self.column = 1;
+						self.position.0 += 1;
+						self.position.1 = 1;
 						if self.comment == CommentState::Single {
 							self.comment = CommentState::None;
 						}
@@ -220,7 +222,7 @@ impl<'a> CodeFile<'a> {
 					}
 					_ => {}
 				}
-				Some((*current, line, column))
+				Some((*current, (line, column)).into())
 			} else {
 				None
 			}
@@ -244,25 +246,23 @@ impl<'a> CodeFile<'a> {
 		self.is_ascii(c)
 	}
 
-	fn assert_char(&mut self, wanted_c: u8) -> bool {
+	fn assert_char(&mut self, wanted_value: u8) -> bool {
 		match self.read_char() {
 			None => {
 				self.expected_before(
-					&String::from_utf8_lossy(&[wanted_c]),
+					&String::from_utf8_lossy(&[wanted_value]),
 					"<end>",
-					self.line,
-					self.column,
+					self.position,
 					self.read - 1..self.read,
 					None,
 				);
 				false
 			}
-			Some((c, line, column)) if c != wanted_c => {
+			Some(CodeChar { value, position }) if value != wanted_value => {
 				self.expected(
-					&String::from_utf8_lossy(&[wanted_c]),
-					&String::from_utf8_lossy(&[c]),
-					line,
-					column,
+					&String::from_utf8_lossy(&[wanted_value]),
+					&String::from_utf8_lossy(&[value]),
+					position,
 					self.read - 1..self.read,
 					None,
 				);
@@ -272,9 +272,9 @@ impl<'a> CodeFile<'a> {
 		}
 	}
 
-	fn assert_reach(&mut self, wanted_c: u8) -> bool {
+	fn assert_reach(&mut self, wanted_value: u8) -> bool {
 		self.skip_whitespace();
-		self.assert_char(wanted_c)
+		self.assert_char(wanted_value)
 	}
 
 	fn read(
@@ -293,13 +293,13 @@ impl<'a> CodeFile<'a> {
 	}
 
 	fn read_line(&mut self) -> String {
-		self.read(Self::read_char_unchecked, |_, (c, ..), _| c == b'\n')
+		self.read(Self::read_char_unchecked, |_, CodeChar { value, .. }, _| value == b'\n')
 			.to_string()
 	}
 
 	fn read_identifier(&mut self) -> Code {
-		self.read(Self::peek_char, |code, (c, ..), _| {
-			if c.is_ascii_alphanumeric() || c == b'_' {
+		self.read(Self::peek_char, |code, CodeChar { value, .. }, _| {
+			if value.is_ascii_alphanumeric() || value == b'_' {
 				code.read_char_unchecked().unwrap();
 				false
 			} else {
@@ -315,12 +315,12 @@ impl<'a> CodeFile<'a> {
 			|code| {
 				let stringc = code.read_char_unchecked();
 				if stringc.is_none() {
-					code.error("Unterminated string", c.1, c.2, start..code.read, None)
+					code.error("Unterminated string", c.position, start..code.read, None)
 				}
 				stringc
 			},
-			|code, (stringc, ..), read_code| {
-				if stringc == c.0 && !matches!(read_code.last(), Some((b'\\', ..))) {
+			|code, CodeChar { value, .. }, read_code| {
+				if value == c.value && !matches!(read_code.last(), Some(CodeChar { value: b'\\', .. })) {
 					code.comment = CommentState::None;
 					true
 				} else {
@@ -336,7 +336,7 @@ impl<'a> CodeFile<'a> {
 			if to_append.is_some() {
 				read_code.append(to_append.take().unwrap());
 			}
-			match c.0 {
+			match c.value {
 				b'$' => {
 					code.read_char_unchecked();
 					*has_values = true;
@@ -352,8 +352,8 @@ impl<'a> CodeFile<'a> {
 					to_append = Some(code.read_constant(b'}', has_values));
 					false
 				}
-				ch => {
-					if ch == end {
+				value => {
+					if value == end {
 						read_code.push(code.read_char_unchecked().unwrap());
 						true
 					} else {
@@ -371,8 +371,8 @@ impl<'a> CodeFile<'a> {
 		f: impl FnMut(&mut Self) -> Option<CodeChar>,
 	) -> Option<Code> {
 		let mut reached = false;
-		let result = self.read(f, |_, (c, ..), _| {
-			if c == end {
+		let result = self.read(f, |_, CodeChar { value, .. }, _| {
+			if value == end {
 				reached = true;
 			}
 			reached
@@ -387,8 +387,7 @@ impl<'a> CodeFile<'a> {
 				self.expected_before(
 					&(end as char).to_string(),
 					"<end>",
-					self.line,
-					self.column,
+					self.position,
 					start..self.read,
 					None,
 				);
@@ -400,7 +399,7 @@ impl<'a> CodeFile<'a> {
 		let mut args = Code::new();
 		args.push(self.read_char_unchecked().unwrap());
 		while let Some(c) = self.peek_char() {
-			match c.0 {
+			match c.value {
 				b'(' => args.append(self.read_macro_args()),
 				b')' => {
 					args.push(self.read_char_unchecked().unwrap());
@@ -417,8 +416,7 @@ impl<'a> CodeFile<'a> {
 		self.expected_before(
 			")",
 			"<end>",
-			self.line,
-			self.column,
+			self.position,
 			self.read - 1..self.read,
 			None,
 		);
@@ -428,16 +426,14 @@ impl<'a> CodeFile<'a> {
 	fn read_macro_block(&mut self) -> Result<(PPCode, PPVars), String> {
 		let len = self.code.len();
 		let block = &mut self.code[self.read..len];
-		let (block, ppvars, line, column, read) = preprocess_code(
+		let (block, ppvars, position, read) = preprocess_code(
 			block,
-			self.line,
-			self.column,
+			self.position,
 			true,
 			self.filename,
 			self.options
 		)?;
-		self.line = line;
-		self.column = column;
+		self.position = position;
 		self.read += read;
 		Ok((block, ppvars))
 	}
@@ -445,7 +441,7 @@ impl<'a> CodeFile<'a> {
 	fn skip_block(&mut self) {
 		let start = self.read - 1;
 		while let Some(c) = self.read_char() {
-			match c.0 {
+			match c.value {
 				b'{' => self.skip_block(),
 				b'}' => return,
 				b'\'' | b'"' | b'`' => {
@@ -454,7 +450,7 @@ impl<'a> CodeFile<'a> {
 				_ => {}
 			}
 		}
-		self.expected_before("}", "<end>", self.line, self.column, start..self.read, None)
+		self.expected_before("}", "<end>", self.position, start..self.read, None)
 	}
 
 	fn keep_block(&mut self, to_keep: bool) {
@@ -508,15 +504,14 @@ impl<'a> CodeFile<'a> {
 			self.expected(
 				"==' or '!=",
 				"<end>",
-				self.line,
-				self.column,
+				self.position,
 				comp_pos..cmp::min(comp_pos + 2, size),
 				None,
 			);
 			return false;
 		}
 		let to_compare2 = self.read_until(end).trim();
-		let comparison = comparison.map(|c| c.unwrap().0);
+		let comparison = comparison.map(|c| c.unwrap().value);
 		match &comparison {
 			b"==" => to_compare2 == to_compare1,
 			b"!=" => to_compare2 != to_compare1,
@@ -524,8 +519,7 @@ impl<'a> CodeFile<'a> {
 				self.expected(
 					"==' or '!=",
 					&String::from_utf8_lossy(&comparison),
-					self.line,
-					self.column,
+					self.position,
 					comp_pos..comp_pos + 2,
 					None,
 				);
@@ -541,7 +535,7 @@ impl<'a> CodeFile<'a> {
 				result = b;
 			}
 			self.skip_whitespace();
-			if let Some((b')', ..)) = self.peek_char_unchecked() {
+			if let Some(CodeChar { value: b')', .. }) = self.peek_char_unchecked() {
 				self.read_char_unchecked();
 				break result;
 			}
@@ -561,8 +555,7 @@ impl<'a> CodeFile<'a> {
 				self.expected_before(
 					"<name>",
 					"(",
-					self.line,
-					self.column,
+					self.position,
 					start..self.read,
 					None,
 				);
@@ -585,8 +578,7 @@ impl<'a> CodeFile<'a> {
 				_ => {
 					self.error(
 						format!("Unknown function '{function}'"),
-						self.line,
-						self.column,
+						self.position,
 						start..self.read,
 						None,
 					);
@@ -603,8 +595,7 @@ impl<'a> CodeFile<'a> {
 			None => {
 				self.error(
 					"Incomplete version",
-					self.line,
-					self.column,
+					self.position,
 					start..self.read,
 					Some("Version must be 'X.Y.Z'"),
 				);
@@ -618,8 +609,7 @@ impl<'a> CodeFile<'a> {
 			Err(_) => {
 				self.error(
 					"Invalid version",
-					self.line,
-					self.column,
+					self.position,
 					start..self.read,
 					Some("Version must be 'X.Y.Z'"),
 				);
@@ -655,7 +645,7 @@ pub fn read_file(
 	options: &Options,
 ) -> Result<(PPCode, PPVars), String> {
 	let mut code = check!(fs::read_to_string(path.into()));
-	let result = preprocess_code(unsafe { code.as_bytes_mut() }, 1, 1, false, filename, options)?;
+	let result = preprocess_code(unsafe { code.as_bytes_mut() }, (1, 1), false, filename, options)?;
 	Ok((result.0, result.1))
 }
 
@@ -674,8 +664,7 @@ pub fn read_file(
 ///
 ///     let (code, vars, ..) = preprocess_code(
 ///         &mut code.into_bytes(),
-///         1,
-///         1,
+///         (1, 1),
 ///         false,
 ///         &String::from("macro.clue"),
 ///         &options
@@ -686,22 +675,21 @@ pub fn read_file(
 #[allow(clippy::blocks_in_if_conditions)]
 pub fn preprocess_code(
 	code: &mut [u8],
-	line: usize,
-	column: usize,
+	position: Position,
 	is_block: bool,
 	filename: &String,
 	options: &Options,
-) -> Result<(PPCode, PPVars, usize, usize, usize), String> {
+) -> Result<(PPCode, PPVars, Position, usize), String> {
 	let mut output_dir: Option<PathBuf> = None;
 	let mut finalcode = VecDeque::new();
 	let mut currentcode = Code::with_capacity(code.len());
 	let mut size = 0;
-	let mut code = CodeFile::new(code, line, column, filename, is_block as u8, options);
+	let mut code = CodeFile::new(code, position, filename, is_block as u8, options);
 	let mut variables = PPVars::new();
 	let mut pseudos: Option<VecDeque<Code>> = None;
 	let mut bitwise = false;
 	'main: while let Some(c) = code.read_char() {
-		if match c.0 {
+		if match c.value {
 			b'@' => {
 				let start = code.read - 1;
 				let directive_name = code.read_identifier().to_string();
@@ -750,8 +738,7 @@ pub fn preprocess_code(
 									Err(err) => {
 										code.error(
 											"Could not get the output directory!",
-											c.1,
-											c.2,
+											c.position,
 											code.read - 1..code.read,
 											Some(&err.to_string()),
 										);
@@ -763,15 +750,14 @@ pub fn preprocess_code(
 						let output_dir = output_dir.as_ref().unwrap();
 						let str_start = code.read_char_unchecked();
 						let module = match str_start {
-							Some((b'\'' | b'"' | b'`', ..)) => {
+							Some(CodeChar { value: b'\'' | b'"' | b'`', .. }) => {
 								code.read_string(str_start.expect("character should not be None"))
 							}
 							_ => {
 								code.expected_before(
 									"<path>",
 									"<end>",
-									c.1,
-									c.2,
+									c.position,
 									code.read - 1..code.read,
 									None,
 								);
@@ -800,8 +786,7 @@ pub fn preprocess_code(
 									code.expected(
 										"<name>",
 										"<empty>",
-										code.line,
-										code.column,
+										code.position,
 										code.read - 1..code.read,
 										None,
 									);
@@ -810,8 +795,7 @@ pub fn preprocess_code(
 								if trimmed_name.contains(|c| matches!(c, '$' | '@')) {
 									let (codes, new_variables, ..) = preprocess_code(
 										unsafe { trimmed_name.as_bytes_mut() },
-										code.line,
-										code.column,
+										code.position,
 										false,
 										filename,
 										options,
@@ -844,16 +828,14 @@ pub fn preprocess_code(
 							code.expected(
 								"<file name>",
 								"<empty>",
-								c.1,
-								c.2,
+								c.position,
 								mod_end - module.len()..mod_end,
 								None,
 							)
 						}
 						currentcode.append(Code::from((
 							format_clue!(start, name, " = ", function, "(\"", module, "\")"),
-							c.1,
-							c.2,
+							c.position
 						)));
 					}
 					"version" => {
@@ -906,8 +888,7 @@ pub fn preprocess_code(
 										"'"
 									)
 								},
-								c.1,
-								c.2,
+								c.position,
 								start..code.read,
 								None,
 							);
@@ -919,22 +900,39 @@ pub fn preprocess_code(
 							let start = code.read - 1;
 							let got = code.read(
 								CodeFile::read_char,
-								|_, (c, ..), _| c.is_ascii_whitespace()
+								|_, CodeChar { value, .. }, _| value.is_ascii_whitespace()
 							).to_string();
-							code.expected("<name>", &got, c.1, c.2, start..code.read - 1, None);
+							code.expected("<name>", &got, c.position, start..code.read - 1, None);
 						}
 						let mut has_values = false;
 						code.skip_whitespace();
 						let value = code.read_constant(b'\n', &mut has_values);
 						let trimmed_value = value.trim_end();
-						variables.insert(
-							name,
-							if has_values {
-								PPVar::ToProcess(trimmed_value)
-							} else {
-								PPVar::Simple(trimmed_value)
-							},
-						);
+						#[cfg(feature = "lsp")]
+						let range = {
+							use crate::lsp::*;
+
+							let range = name.range().unwrap_or_else(|| c.position..c.position);
+							if options.env_symbols {
+								send_definition(
+									&name.to_string(),
+									trimmed_value.to_string(),
+									&range,
+									filename,
+									SymbolKind::CONSTANT
+								);
+							}
+							range
+						};
+						let ppvalue = if has_values {
+							PPVar::ToProcess(trimmed_value)
+						} else {
+							PPVar::Simple(trimmed_value)
+						};
+						#[cfg(feature = "lsp")]
+						variables.insert(name, (ppvalue, range));
+						#[cfg(not(feature = "lsp"))]
+						variables.insert(name, ppvalue);
 					}
 					"macro" => {
 						let name = code.read_identifier();
@@ -944,9 +942,9 @@ pub fn preprocess_code(
 							loop {
 								code.skip_whitespace();
 								let start = code.read - 1;
-								if let Some((b'.', line, column)) = code.peek_char_unchecked() {
-									if code.read(CodeFile::peek_char, |code, (c, ..), _| {
-										if c == b'.' {
+								if let Some(CodeChar { value: b'.', position }) = code.peek_char_unchecked() {
+									if code.read(CodeFile::peek_char, |code, CodeChar { value, .. }, _| {
+										if value == b'.' {
 											code.read_char_unchecked();
 											false
 										} else {
@@ -961,8 +959,7 @@ pub fn preprocess_code(
 										code.expected(
 											",",
 											".",
-											line,
-											column,
+											position,
 											start..code.read - 1,
 											None,
 										);
@@ -975,24 +972,24 @@ pub fn preprocess_code(
 										code.assert_char(b')');
 										break (false, args);
 									}
-									let (got, line, column) = match code.read_char_unchecked() {
-										Some((c, line, column)) => {
-											((c as char).to_string(), line, column)
-										}
-										None => (String::from("<end>"), code.line, code.column),
+									let (got, position) = match code.read_char_unchecked() {
+										Some(CodeChar { value, position }) => (
+											(value as char).to_string(),
+											position
+										),
+										None => (String::from("<end>"), code.position),
 									};
 									code.expected(
 										"<name>",
 										&got,
-										line,
-										column,
+										position,
 										start..code.read,
 										None,
 									);
 									break 'main;
 								}
 								args.push(arg);
-								if let Some((b')', ..)) = code.peek_char_unchecked() {
+								if code.peek_char_unchecked().is_some_and(|c| c.value == b')') {
 									code.read_char_unchecked();
 									break (false, args);
 								}
@@ -1003,25 +1000,28 @@ pub fn preprocess_code(
 						};
 						code.assert_reach(b'{');
 						let (code, ppvars) = code.read_macro_block()?;
-						variables.insert(
-							name,
-							PPVar::Macro {
-								code,
-								args,
-								ppvars,
-								vararg,
-							},
-						);
+						let ppvalue = PPVar::Macro {
+							code,
+							args,
+							ppvars,
+							vararg,
+						};
+						#[cfg(feature = "lsp")]
+						{
+							//TODO
+							variables.insert(name, (ppvalue, Range::default()));
+						}
+						#[cfg(not(feature = "lsp"))]
+						variables.insert(name, ppvalue);
 					}
 					"error" => {
 						let err = code.read_line();
-						code.error(err, c.1, c.2, start..code.read, None)
+						code.error(err, c.position, start..code.read, None)
 					}
 					"print" => println!("{}", code.read_line()),
 					_ => code.error(
 						format!("Unknown directive '{directive_name}'"),
-						c.1,
-						c.2,
+						c.position,
 						start..start + directive_name.len() + 1,
 						None,
 					),
@@ -1031,28 +1031,31 @@ pub fn preprocess_code(
 				}
 				false
 			}
-			b'$' if is_block && matches!(code.peek_char_unchecked(), Some((b'{', ..))) => {
+			b'$' if is_block && code.peek_char_unchecked().is_some_and(|c| c.value == b'{') => {
 				size += currentcode.len() + 8;
 				finalcode.push_back((currentcode, false));
 				let name = format_clue!("_vararg", variables.len().to_string());
-				finalcode.push_back((Code::from((format_clue!("$", name), c.1, c.2)), true));
+				finalcode.push_back((Code::from((format_clue!("$", name), c.position)), true));
 				code.read_char_unchecked();
 				let (vararg_code, ppvars) = code.read_macro_block().unwrap();
 				variables.extend(ppvars);
-				variables.insert(Code::from((name, c.1, c.2)), PPVar::VarArgs(vararg_code));
+				#[cfg(feature = "lsp")]
+				variables.insert(Code::from((name, c.position)), (PPVar::VarArgs(vararg_code), Range::default()));
+				#[cfg(not(feature = "lsp"))]
+				variables.insert(Code::from((name, c.position)), PPVar::VarArgs(vararg_code));
 				currentcode = Code::with_capacity(code.code.len() - code.read);
 				false
 			}
 			b'$' => {
 				let mut name = code.read_identifier();
-				if name.len() <= 1 && matches!(name.last(), Some((b'1'..=b'9', ..)) | None) {
+				if name.len() <= 1 && matches!(name.last(), Some(CodeChar { value: b'1'..=b'9', .. }) | None) {
 					let n = match name.pop() {
-						Some((c, ..)) => (c - b'0') as usize,
+						Some(CodeChar { value, .. }) => (value - b'0') as usize,
 						None => 1,
 					};
 					if pseudos.is_none() {
 						let tocheck = code.code[code.checked..code.read].iter().rev().peekable();
-						pseudos = Some(read_pseudos(tocheck, c.1, c.2));
+						pseudos = Some(read_pseudos(tocheck, c.position));
 						code.checked = code.read;
 					}
 					match pseudos.as_ref().unwrap().get(n - 1) {
@@ -1064,9 +1067,9 @@ pub fn preprocess_code(
 					finalcode.push_back((currentcode, false));
 					name.push_start(c);
 					if {
-						if matches!(code.peek_char_unchecked(), Some((b'!', ..))) {
+						if code.peek_char_unchecked().is_some_and(|c| c.value == b'!') {
 							name.push(code.read_char_unchecked().unwrap());
-							matches!(code.peek_char_unchecked(), Some((b'(', ..)))
+							code.peek_char_unchecked().is_some_and(|c| c.value == b'(')
 						} else {
 							false
 						}
@@ -1085,7 +1088,7 @@ pub fn preprocess_code(
 				true
 			}
 			b'&' | b'|' => {
-				if code.peek_char_unchecked().unwrap_or((b'\0', 0, 0)).0 == c.0 {
+				if code.peek_char_unchecked().unwrap_or((b'\0', (0, 0)).into()).value == c.value {
 					currentcode.push(code.read_char_unchecked().unwrap());
 				} else {
 					bitwise = true;
@@ -1094,7 +1097,7 @@ pub fn preprocess_code(
 			}
 			b'^' => {
 				let nextc = code.peek_char_unchecked();
-				if nextc.is_some() && nextc.unwrap().0 == b'^' {
+				if nextc.is_some_and(|c| c.value == b'^') {
 					bitwise = true;
 					currentcode.push(code.read_char_unchecked().unwrap());
 				}
@@ -1106,12 +1109,12 @@ pub fn preprocess_code(
 			}
 			b'>' | b'<' => {
 				currentcode.push(c);
-				if let Some((nc, ..)) = code.peek_char_unchecked() {
-					match nc {
+				if let Some(CodeChar { value: next_value, .. }) = code.peek_char_unchecked() {
+					match next_value {
 						b'=' => {
 							currentcode.push(code.read_char_unchecked().unwrap());
 						}
-						nc if nc == c.0 => {
+						next_value if next_value == c.value => {
 							currentcode.push(code.read_char_unchecked().unwrap());
 							bitwise = true;
 						}
@@ -1122,8 +1125,8 @@ pub fn preprocess_code(
 			}
 			b'=' => {
 				currentcode.push(c);
-				if let Some((nc, ..)) = code.peek_char_unchecked() {
-					if matches!(nc, b'=' | b'>') {
+				if let Some(CodeChar { value: next_value, .. }) = code.peek_char_unchecked() {
+					if matches!(next_value, b'=' | b'>') {
 						currentcode.push(code.read_char_unchecked().unwrap());
 					} else {
 						pseudos = None;
@@ -1133,8 +1136,8 @@ pub fn preprocess_code(
 			}
 			b'!' => {
 				currentcode.push(c);
-				if let Some((nc, ..)) = code.peek_char_unchecked() {
-					if nc == b'=' {
+				if let Some(CodeChar { value: next_value, .. }) = code.peek_char_unchecked() {
+					if next_value == b'=' {
 						currentcode.push(code.read_char_unchecked().unwrap());
 					}
 				}
@@ -1169,8 +1172,7 @@ pub fn preprocess_code(
 		code.expected_before(
 			"}",
 			"<end>",
-			code.line,
-			code.column,
+			code.position,
 			code.read - 1..code.read,
 			None,
 		);
@@ -1183,8 +1185,7 @@ pub fn preprocess_code(
 		let bit = options.env_jitbit.as_ref().unwrap();
 		let mut loader = Code::from((
 			format_clue!("local ", bit, " = require(\"", bit, "\");"),
-			1,
-			1,
+			(1, 1),
 		));
 		let first = finalcode.pop_front().unwrap();
 		loader.append(first.0);
@@ -1196,7 +1197,7 @@ pub fn preprocess_code(
 	finish_step(
 		filename,
 		code.errors,
-		((finalcode, size), variables, code.line, code.column, code.read),
+		((finalcode, size), variables, code.position, code.read),
 	)
 }
 
@@ -1212,8 +1213,7 @@ fn skip_whitespace_backwards(code: &mut Peekable<Rev<std::slice::Iter<u8>>>) {
 
 fn read_pseudos(
 	mut code: Peekable<Rev<std::slice::Iter<u8>>>,
-	line: usize,
-	column: usize,
+	position: Position,
 ) -> VecDeque<Code> {
 	let mut newpseudos = VecDeque::new();
 	while {
@@ -1260,7 +1260,7 @@ fn read_pseudos(
 			if let Some(c) = code.peek() {
 				match c {
 					b'\'' | b'"' | b'`' => {
-						name.push_start((*code.next().unwrap(), line, column));
+						name.push_start((*code.next().unwrap(), position).into());
 						if !matches!(code.peek(), Some(b'\\')) {
 							in_string = !in_string;
 						}
@@ -1283,7 +1283,7 @@ fn read_pseudos(
 				false
 			}
 		} {
-			name.push_start((*code.next().unwrap(), line, column))
+			name.push_start((*code.next().unwrap(), position).into())
 		}
 		newpseudos.push_front(name);
 		skip_whitespace_backwards(&mut code);
@@ -1306,8 +1306,7 @@ impl_errormessaging!(
 	fn error(
 		&mut self,
 		message: impl Into<String>,
-		line: usize,
-		column: usize,
+		position: Position,
 		range: Range<usize>,
 		help: Option<&str>,
 	) {
@@ -1317,18 +1316,18 @@ impl_errormessaging!(
 				add_source_file(self.filename, code)
 			}
 		}
-		self.send(true, message, line, column, range, help)
+		self.send(true, message, position, range, help)
 	}
 );
 
 impl CodesInfo<'_> {
-	fn get_index(&self, line: usize, column: usize, len: usize) -> Range<usize> {
+	fn get_index(&self, position: Position, len: usize) -> Range<usize> {
 		let Ok(code) = fs::read_to_string(self.filename) else {
 			return 0..0
 		};
 		let mut lines = code.split('\n');
-		let mut start = column - 1;
-		for _ in 1..line {
+		let mut start = position.1 - 1;
+		for _ in 1..position.0 {
 			start += lines.next().unwrap().len() + 1;
 		}
 		start..start + len
@@ -1337,26 +1336,24 @@ impl CodesInfo<'_> {
 	fn error(
 		&mut self,
 		message: impl Into<String>,
-		line: usize,
-		column: usize,
+		position: Position,
 		len: usize,
 		help: Option<&str>,
 	) {
-		let range = self.get_index(line, column, len);
-		ErrorMessaging::error(self, message, line, column, range, help);
+		let range = self.get_index(position, len);
+		ErrorMessaging::error(self, message, position, range, help);
 	}
 
 	fn expected_before(
 		&mut self,
 		expected: &str,
 		before: &str,
-		line: usize,
-		column: usize,
+		position: Position,
 		len: usize,
 		help: Option<&str>,
 	) {
-		let range = self.get_index(line, column, len);
-		ErrorMessaging::expected_before(self, expected, before, line, column, range, help);
+		let range = self.get_index(position, len);
+		ErrorMessaging::expected_before(self, expected, before, position, range, help);
 	}
 }
 
@@ -1377,8 +1374,7 @@ impl CodesInfo<'_> {
 ///
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
-///         1,
-///         1,
+///         (1, 1),
 ///         false,
 ///         &filename,
 ///         &options,
@@ -1444,8 +1440,7 @@ pub fn preprocess_codes(
 ///     };
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
-///         1,
-///         1,
+///         (1, 1),
 ///         false,
 ///         &filename,
 ///         &options,
@@ -1473,12 +1468,12 @@ pub fn preprocess_variables(
 	let mut result = Code::with_capacity(size);
 	let mut chars = code.iter().peekable();
 	while let Some(c) = chars.next() {
-		match c.0 {
+		match c.value {
 			b'$' => {
 				let name = {
 					let mut name = Code::with_capacity(cmp::min(size - 1, 8));
-					while let Some((c, ..)) = chars.peek() {
-						if !(c.is_ascii_alphanumeric() || *c == b'_') {
+					while let Some(CodeChar { value, .. }) = chars.peek() {
+						if !(value.is_ascii_alphanumeric() || *value == b'_') {
 							break;
 						}
 						name.push(*chars.next().unwrap())
@@ -1486,22 +1481,23 @@ pub fn preprocess_variables(
 					name
 				};
 				if let Ok(value) = env::var(name.to_string()) {
-					result.push((b'"', c.1, c.2));
+					result.push((b'"', c.position).into());
 					for strc in value.as_bytes() {
-						result.push((*strc, c.1, c.2));
+						result.push((*strc, c.position).into());
 					}
-					result.push((b'"', c.1, c.2));
+					result.push((b'"', c.position).into());
 				} else if let Some(value) = variables.get(&name) {
 					if stacklevel == u8::MAX {
 						i.error(
 							"Too many variables called",
-							c.1,
-							c.2,
+							c.position,
 							name.len() + 1,
 							Some("Likely caused by recursion"),
 						);
 						break;
 					}
+					#[cfg(feature = "lsp")]
+					let value = &value.0;
 					result.append(match value {
 						PPVar::Simple(value) => value.clone(),
 						PPVar::ToProcess(value) => preprocess_variables(
@@ -1522,13 +1518,12 @@ pub fn preprocess_variables(
 							let macro_variables = {
 								let mut macro_variables = variables.clone();
 								macro_variables.extend(ppvars.clone());
-								let is_called = matches!(chars.next(), Some((b'!', ..)));
-								if !is_called || !matches!(chars.next(), Some((b'(', ..))) {
+								let is_called = chars.next().is_some_and(|c| c.value == b'!');
+								if !is_called || !chars.next().is_some_and(|c| c.value == b'(') {
 									let name = name.to_string();
 									i.error(
 										"Macro not called properly",
-										c.1,
-										c.2,
+										c.position,
 										name.len() + 1 + is_called as usize,
 										Some(&format!(
 											"Replace '${name}{}' with '${name}!()'",
@@ -1548,21 +1543,20 @@ pub fn preprocess_variables(
 											i.expected_before(
 												")",
 												"<end>",
-												c.1,
-												c.2,
+												c.position,
 												size,
 												None,
 											);
 											break b')';
 										};
-										match c.0 {
+										match c.value {
 											b'\'' | b'"' | b'`' => {
 												value.push(*c);
 												while let Some(stringc) = chars.next() {
 													value.push(*stringc);
-													match stringc.0 {
+													match stringc.value {
 														b'\\' => value.push(*chars.next().unwrap()),
-														stringc if stringc == c.0 => break,
+														str_value if str_value == c.value => break,
 														_ => {}
 													}
 												}
@@ -1588,7 +1582,7 @@ pub fn preprocess_variables(
 										} else {
 											let end = (end as char).to_string();
 											i.expected_before(
-												"<value>", &end, c.1, c.2, size, None,
+												"<value>", &end, c.position, size, None,
 											);
 										}
 									}
@@ -1601,21 +1595,26 @@ pub fn preprocess_variables(
 										filename,
 									)?);
 									if let Some(arg_name) = args.next() {
+										#[cfg(feature = "lsp")]
+										macro_variables.insert(arg_name.clone(), (ppvalue, Range::default()));
+										#[cfg(not(feature = "lsp"))]
 										macro_variables.insert(arg_name.clone(), ppvalue);
 									} else if *vararg {
 										varargs += 1;
 										let mut arg_name = Code::with_capacity(varargs + 1);
-										arg_name.push((b'_', c.1, c.2));
+										arg_name.push((b'_', c.position).into());
 										for _ in 0..varargs {
-											arg_name.push((b'v', c.1, c.2));
+											arg_name.push((b'v', c.position).into());
 										}
+										#[cfg(feature = "lsp")]
+										macro_variables.insert(arg_name, (ppvalue, Range::default()));
+										#[cfg(not(feature = "lsp"))]
 										macro_variables.insert(arg_name, ppvalue);
 									} else {
 										let first = value.get(0).unwrap_or(c);
 										i.error(
 											"Too many arguments passed to macro",
-											first.1,
-											first.2,
+											first.position,
 											value.len(),
 											None,
 										);
@@ -1627,9 +1626,8 @@ pub fn preprocess_variables(
 								}
 								for missed in args {
 									i.error(
-										format!("Missing argument '{missed}' for macro",),
-										c.1,
-										c.2,
+										format!("Missing argument '{missed}' for macro"),
+										c.position,
 										size,
 										None,
 									);
@@ -1646,9 +1644,9 @@ pub fn preprocess_variables(
 						PPVar::VarArgs((codes, size)) => {
 							let mut result = Code::with_capacity(size * 3);
 							let mut variables = variables.clone();
-							let mut name = Code::from((b"_v", c.1, c.2));
+							let mut name = Code::from((b"_v", c.position));
 							while let Some(vararg) = variables.remove(&name) {
-								variables.insert(Code::from((b"vararg", c.1, c.2)), vararg);
+								variables.insert(Code::from((b"vararg", c.position)), vararg);
 								result.append(preprocess_codes(
 									stacklevel + 1,
 									(codes.clone(), *size),
@@ -1663,8 +1661,7 @@ pub fn preprocess_variables(
 				} else {
 					i.error(
 						format_clue!("Value '", name.to_string(), "' not found"),
-						c.1,
-						c.2,
+						c.position,
 						1 + name.len(),
 						None,
 					);
@@ -1674,12 +1671,12 @@ pub fn preprocess_variables(
 				result.push(*c);
 				while let Some(stringc) = chars.next() {
 					result.push(*stringc);
-					let stringc = stringc.0;
-					if stringc == b'\\' {
+					let CodeChar { value, .. } = stringc;
+					if *value == b'\\' {
 						if let Some(nextc) = chars.next() {
 							result.push(*nextc)
 						}
-					} else if stringc == c.0 {
+					} else if *value == c.value {
 						break;
 					}
 				}

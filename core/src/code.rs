@@ -9,7 +9,9 @@ use std::{
 		VecDeque,
 	},
 	ffi::OsString,
-	hash::Hash, fmt::Display,
+	ops::Range,
+	hash::Hash,
+	fmt::Display,
 };
 
 use utf8_decode::{decode, Decoder};
@@ -17,8 +19,25 @@ use utf8_decode::{decode, Decoder};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-/// A tuple containing a byte, the line it was on, and the column it was on.
-pub type CodeChar = (u8, usize, usize);
+/// A simple tuple for storing the position (line and column) of a character.
+pub type Position = (usize, usize);
+
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+/// A data structure used for storing a single character and its position.
+pub struct CodeChar {
+	pub value: u8,
+	pub position: Position
+}
+
+impl From<(u8, Position)> for CodeChar {
+	fn from(value: (u8, Position)) -> Self {
+		CodeChar {
+			value: value.0,
+			position: value.1,
+		}
+	}
+}
 
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -51,11 +70,11 @@ impl Iterator for CodeBytes {
 
 	/// Returns an [`Option`] with the next byte in the [`Code`].
 	fn next(&mut self) -> Option<Self::Item> {
-		self.code.pop_start().map(|(c, line, column)| {
+		self.code.pop_start().map(|CodeChar { value, position: (line, column)}| {
 			self.read += 1;
 			self.line = line;
 			self.column = column;
-			c
+			value
 		})
 	}
 }
@@ -133,40 +152,40 @@ impl From<&Code> for String {
 
 impl Display for Code {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		for c in Decoder::new(self.iter().map(|(c, ..)| *c)) {
+		for c in Decoder::new(self.iter().map(|c| c.value)) {
 			write!(f, "{}", c.unwrap_or('\u{FFFD}'))?
 		}
 		Ok(())
 	}
 }
 
-impl<'a> From<(&'a [u8], usize, usize)> for Code {
-	fn from(value: (&'a [u8], usize, usize)) -> Self {
-		let (iter, line, mut column) = value;
+impl<'a> From<(&'a [u8], Position)> for Code {
+	fn from(value: (&'a [u8], Position)) -> Self {
+		let (iter, (line, mut column)) = value;
 		let mut result = Code::with_capacity(iter.len());
 		for c in iter {
-			result.push((*c, line, column));
+			result.push((*c, (line, column)).into());
 			column += 1;
 		}
 		result
 	}
 }
 
-impl<'a, const N: usize> From<(&'a [u8; N], usize, usize)> for Code {
-	fn from(value: (&'a [u8; N], usize, usize)) -> Self {
-		Code::from((value.0 as &[u8], value.1, value.2))
+impl<'a, const N: usize> From<(&'a [u8; N], Position)> for Code {
+	fn from(value: (&'a [u8; N], Position)) -> Self {
+		Code::from((value.0 as &[u8], value.1))
 	}
 }
 
-impl<'a> From<(&'a str, usize, usize)> for Code {
-	fn from(value: (&'a str, usize, usize)) -> Self {
-		Code::from((value.0.as_bytes(), value.1, value.2))
+impl<'a> From<(&'a str, Position)> for Code {
+	fn from(value: (&'a str, Position)) -> Self {
+		Code::from((value.0.as_bytes(), value.1))
 	}
 }
 
-impl From<(String, usize, usize)> for Code {
-	fn from(value: (String, usize, usize)) -> Self {
-		Code::from((value.0.as_bytes(), value.1, value.2))
+impl From<(String, Position)> for Code {
+	fn from(value: (String, Position)) -> Self {
+		Code::from((value.0.as_bytes(), value.1))
 	}
 }
 
@@ -174,8 +193,8 @@ impl PartialEq for Code {
 	fn eq(&self, other: &Self) -> bool {
 		self.len() == other.len() && {
 			let mut other = other.into_iter();
-			for (c, ..) in self {
-				if *c != other.next().unwrap().0 {
+			for CodeChar { value, .. } in self {
+				if *value != other.next().unwrap().value {
 					return false;
 				}
 			}
@@ -188,8 +207,8 @@ impl PartialEq<str> for Code {
 	fn eq(&self, other: &str) -> bool {
 		self.len() == other.len() && {
 			let mut other = other.bytes();
-			for (c, ..) in self {
-				if *c != other.next().unwrap() {
+			for CodeChar { value, .. } in self {
+				if *value != other.next().unwrap() {
 					return false;
 				}
 			}
@@ -220,8 +239,8 @@ impl Eq for Code {}
 
 impl Hash for Code {
 	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-		for (c, ..) in &self.list {
-			c.hash(state)
+		for CodeChar { value, .. } in &self.list {
+			value.hash(state)
 		}
 	}
 }
@@ -261,10 +280,27 @@ impl Code {
 		self.list.len()
 	}
 
+	/// Returns the first character in the [`Code`].
+	/// This is equivalent to [`VecDeque::front`].
+	pub fn first(&self) -> Option<&CodeChar> {
+		self.list.front()
+	}
+
 	/// Returns the last character in the [`Code`].
 	/// This is equivalent to [`VecDeque::back`].
 	pub fn last(&self) -> Option<&CodeChar> {
 		self.list.back()
+	}
+
+	/// Returns the position where the [`Code`] is located as a [`Range`].
+	pub fn range(&self) -> Option<Range<Position>> {
+		if let (Some(first), Some(last)) = (self.first(), self.last()) {
+			let mut range = first.position..last.position;
+			range.end.1 += 1;
+			Some(range)
+		} else {
+			None
+		}
 	}
 
 	/// Pushes the given character to the end of the [`Code`].
@@ -313,8 +349,8 @@ impl Code {
 
 	/// Trims whitespaces from the start of the [`Code`].
 	pub fn trim_start(mut self) -> Self {
-		while let Some((c, ..)) = self.list.front() {
-			if c.is_ascii_whitespace() {
+		while let Some(CodeChar { value, .. }) = self.list.front() {
+			if value.is_ascii_whitespace() {
 				self.list.pop_front();
 			} else {
 				break;
@@ -325,8 +361,8 @@ impl Code {
 
 	/// Trims whitespaces from the end of the [`Code`].
 	pub fn trim_end(mut self) -> Self {
-		while let Some((c, ..)) = self.list.back() {
-			if c.is_ascii_whitespace() {
+		while let Some(CodeChar { value, .. }) = self.list.back() {
+			if value.is_ascii_whitespace() {
 				self.list.pop_back();
 			} else {
 				break;

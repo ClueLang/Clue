@@ -11,7 +11,7 @@ use std::ops::Range;
 use phf::phf_map;
 use std::fmt;
 use crate::{
-	code::{Code, CodeChars},
+	code::{Code, CodeChars, Position},
 	format_clue,
 	errors::{finish_step, ErrorMessaging},
 	impl_errormessaging,
@@ -71,6 +71,12 @@ pub struct TokenPosition {
 	pub line: usize,
 	pub column: usize,
 	pub index: usize,
+}
+
+impl From<TokenPosition> for Position {
+	fn from(val: TokenPosition) -> Self {
+		(val.line, val.column)
+	}
 }
 
 #[derive(Clone, Debug)]
@@ -134,8 +140,13 @@ impl BorrowedToken {
 	}
 
 	/// Returns a clone of the [`Range<TokenPosition>`].
-	pub fn position(&self) -> Range<TokenPosition> {
+	pub fn full_position(&self) -> Range<TokenPosition> {
 		self.token().position.clone()
+	}
+
+	/// Returns a simplified position of the token.
+	pub fn position(&self) -> Position {
+		self.token().position.start.into()
 	}
 
 	/// Returns the index where the token's characters start.
@@ -208,8 +219,7 @@ impl<'a> ScannerInfo<'a> {
 		ErrorMessaging::error(
 			self,
 			message,
-			self.read[self.start].1,
-			self.read[self.start].2,
+			(self.read[self.start].1, self.read[self.start].2),
 			self.start..self.current,
 			help
 		)
@@ -684,8 +694,7 @@ static KEYWORDS: phf::Map<&'static [u8], KeywordType> = phf_map! {
 ///
 ///     let (codes, variables, ..) = preprocess_code(
 ///         unsafe { code.as_bytes_mut() },
-///         1,
-///         1,
+///         (1, 1),
 ///         false,
 ///         &filename,
 ///         &options,
