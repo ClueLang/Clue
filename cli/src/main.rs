@@ -204,6 +204,49 @@ pub fn compile_code(
 	Ok((code, statics))
 }
 
+fn compile_from_string(
+	name: &str,
+	mut source_code: String,
+	options: &Options,
+	#[cfg(feature = "mlua")] execute: bool,
+	debug: bool,
+	output_name: Option<PathBuf>
+) -> Result<(), String> {
+	let filename = name.to_string();
+	let preprocessed_code = preprocess_code(
+		unsafe { source_code.as_bytes_mut() },
+		1,
+		1,
+		false,
+		&filename,
+		options
+	)?;
+	let (output, statics) = compile_code(
+		preprocessed_code.0,
+		&preprocessed_code.1,
+		&filename,
+		0,
+		options,
+	)?;
+	let code = statics + &output;
+	#[cfg(feature = "mlua")]
+	if execute {
+		execute_lua_code(&code)
+	}
+	return if let Some(outputname) = output_name.as_ref() {
+		check!(fs::write(outputname, &code));
+		finish(
+			debug,
+			#[cfg(feature = "mlua")]
+			execute,
+			output_name,
+			code
+		)
+	} else {
+		Ok(())
+	};
+}
+
 #[cfg(feature = "mlua")]
 fn execute_lua_code(code: &str) {
 	println!("{} the compiled code...", "Running".blue().bold());
@@ -334,37 +377,15 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 	}*/
 	let mut path = cli.path.unwrap();
 	if cli.pathiscode {
-		let filename = String::from("(command line)");
-		let mut source_code = path.to_string_lossy().into_owned();
-		let preprocessed_code = preprocess_code(
-			unsafe { source_code.as_bytes_mut() },
-			1,
-			1,
-			false,
-			&filename,
-			&options
-		)?;
-		let (output, statics) = compile_code(
-			preprocessed_code.0,
-			&preprocessed_code.1,
-			&filename,
-			0,
+		return compile_from_string(
+			"(command line)",
+			path.to_string_lossy().into_owned(),
 			&options,
-		)?;
-		let code = statics + &output;
-		#[cfg(feature = "mlua")]
-		if cli.execute {
-			execute_lua_code(&code)
-		}
-		return if let Some(outputname) = cli.outputname.clone() {
-			check!(fs::write(&outputname, &code));
 			#[cfg(feature = "mlua")]
-			return finish(cli.debug, cli.execute, Some(outputname), code);
-			#[cfg(not(feature = "mlua"))]
-			finish(cli.debug, Some(outputname), code)
-		} else {
-			Ok(())
-		};
+			cli.execute,
+			cli.debug,
+			cli.outputname
+		);
 	}
 	let (output_path, code) = if path.is_dir() {
 		let time = Instant::now();
