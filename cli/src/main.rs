@@ -11,7 +11,7 @@ use clue_core::{
 	preprocessor::*,
 	scanner::*,
 };
-use std::{env, fs, path::PathBuf, time::Instant, process::exit};
+use std::{env, fs, path::PathBuf, time::Instant, process::exit, io::{self, Read}};
 use threads::compile_folder;
 use colored::*;
 
@@ -206,7 +206,7 @@ pub fn compile_code(
 
 fn compile_from_string(
 	name: &str,
-	mut source_code: String,
+	source_code: &mut [u8],
 	options: &Options,
 	#[cfg(feature = "mlua")] execute: bool,
 	debug: bool,
@@ -214,7 +214,7 @@ fn compile_from_string(
 ) -> Result<(), String> {
 	let filename = name.to_string();
 	let preprocessed_code = preprocess_code(
-		unsafe { source_code.as_bytes_mut() },
+		source_code,
 		1,
 		1,
 		false,
@@ -332,6 +332,8 @@ fn main() {
 }
 
 fn start_compilation(cli: Cli) -> Result<(), String> {
+	let mut path = cli.path.unwrap();
+	let read_from_stdin = path.as_os_str() == "-";
 	let mut options = Options {
 		env_outputname: cli.outputname.clone(),
 		env_tokens: cli.tokens,
@@ -351,7 +353,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		env_continue: cli.r#continue,
 		env_rawsetglobals: cli.rawsetglobals,
 		env_debug: cli.debug,
-		env_output: if cli.pathiscode {
+		env_output: if cli.pathiscode || read_from_stdin {
 			cli.outputname.is_none()
 		} else {
 			cli.output
@@ -375,11 +377,22 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 			_ => Some(AHashMap::default()),
 		};
 	}*/
-	let mut path = cli.path.unwrap();
 	if cli.pathiscode {
 		return compile_from_string(
 			"(command line)",
-			path.to_string_lossy().into_owned(),
+			unsafe { path.to_string_lossy().into_owned().as_bytes_mut() },
+			&options,
+			#[cfg(feature = "mlua")]
+			cli.execute,
+			cli.debug,
+			cli.outputname
+		);
+	} else if read_from_stdin {
+		let mut buf = Vec::new();
+		check!(io::stdin().read_to_end(&mut buf));
+		return compile_from_string(
+			"(stdin)",
+			&mut buf,
 			&options,
 			#[cfg(feature = "mlua")]
 			cli.execute,
