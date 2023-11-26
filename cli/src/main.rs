@@ -315,6 +315,8 @@ fn save_result(
 }
 
 fn main() {
+	#[cfg(windows)]
+	colored::control::set_virtual_terminal(true);
 	env::set_var("CLUE_VERSION", crate_version!());
 	let cli = Cli::parse();
 	if cli.license {
