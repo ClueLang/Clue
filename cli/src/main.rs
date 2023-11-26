@@ -426,10 +426,10 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		path.is_file()
 	} {
 		let filename = path.file_name().unwrap().to_string_lossy().into_owned();
-		let (rawcode, variables) = read_file(path, &filename, &options)?;
+		let (rawcode, variables) = read_file(&path, &filename, &options)?;
 		let (output, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
 		let code = statics + &output;
-		save_result(cli.dontsave, cli.outputname, code)?
+		save_result(cli.dontsave, cli.outputname.or_else(|| Some(path.with_extension("lua"))), code)?
 	} else {
 		return Err(format!(
 			"{} was not found!",
