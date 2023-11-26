@@ -1,6 +1,6 @@
 #![allow(clippy::blocks_in_if_conditions)]
 
-use clap::{crate_version, Parser};
+use clap::{crate_version, Parser, ValueEnum};
 use clue_core::{
 	check,
 	compiler::*,
@@ -16,6 +16,13 @@ use threads::compile_folder;
 use colored::*;
 
 mod threads;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
+enum ColorMode {
+	Auto,
+	Always,
+	Never
+}
 
 #[derive(Parser)]
 #[clap(
@@ -157,6 +164,17 @@ struct Cli {
 	/// Print the symbol table of the compiled files
 	#[clap(long, hide(true))]
 	symbols: bool,
+
+	#[clap(
+		short = 'C',
+		long,
+		value_enum,
+		ignore_case(true),
+		default_value = "auto",
+		value_name = "WHEN"
+	)]
+	/// Colorize the output
+	color: ColorMode,
 }
 
 pub fn compile_code(
@@ -322,6 +340,9 @@ fn main() {
 	if cli.license {
 		print!(include_str!("../LICENSE"));
 		return;
+	}
+	if cli.color != ColorMode::Auto {
+		colored::control::set_override(cli.color == ColorMode::Always);
 	}
 	if cli.r#continue == ContinueMode::LuaJIT { //TODO: REMOVE LUAJIT mode
 		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
