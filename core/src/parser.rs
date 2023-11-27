@@ -975,21 +975,20 @@ impl<'a> ParserInfo<'a> {
 						});
 						CodeBlock { start, code, end }
 					});
-					let MATCH_BLOCK {branches, line, ..} = &mut ctoken else {
-						unreachable!()
-					};
-					let last_branch = branches.last().unwrap();
-					if !(last_branch.0.is_empty() && last_branch.2.is_none()) {
-						branches.push((Vec::new(), Expression::new(), None, CodeBlock {
-							start: *line,
-							code: vec_deque![ALTER {
-								kind: DEFINE,
-								names: vec_deque![vec_deque![ident.clone()]],
-								values: vec![vec_deque![SYMBOL(String::from("nil"))]],
-								line: *line
-							}],
-							end: *line
-						}))
+					if let MATCH_BLOCK {branches, line, ..} = &mut ctoken {
+						let last_branch = branches.last().unwrap();
+						if !(last_branch.0.is_empty() && last_branch.2.is_none()) {
+							branches.push((Vec::new(), Expression::new(), None, CodeBlock {
+								start: *line,
+								code: vec_deque![ALTER {
+									kind: DEFINE,
+									names: vec_deque![vec_deque![ident.clone()]],
+									values: vec![vec_deque![SYMBOL(String::from("nil"))]],
+									line: *line
+								}],
+								end: *line
+							}))
+						}
 					}
 					self.get_prev_expr().push_back(ctoken);
 					expr.push_back(ident);
@@ -1216,7 +1215,7 @@ impl<'a> ParserInfo<'a> {
 								let mut expr_self = Expression::with_capacity(expr.len());
 								expr_self.append(expr);
 								let name = self.get_next_internal_var();
-								self.expr.push_back(VARIABLE {
+								self.get_prev_expr().push_back(VARIABLE {
 									local: true,
 									names: vec![name.clone()],
 									values: vec![expr_self],
@@ -1840,18 +1839,25 @@ impl<'a> ParserInfo<'a> {
 				let t = self.advance();
 				match t.kind() {
 					ARROW => {
-						if branches.is_empty() {
-							let t = self.look_back(1);
-							self.error(
-								"The default case (with no extra if) of a match block must be the last case, not the first",
-								t.line(),
-								t.column(),
-								t.range(),
-								None
-							);
-						}
-						branches.push((Vec::new(), Expression::new(), None, func(self /* , self.locals.clone() */)));
+						let only_case: Option<*mut ComplexToken> = if branches.is_empty() {
+							let prev_expr = self.get_prev_expr();
+							prev_expr.push_back(BREAK_LOOP); //random placeholder token
+							Some(prev_expr.back_mut().unwrap())
+						} else { None };
+						let code = func(self /* , self.locals.clone() */);
 						self.assert(CURLY_BRACKET_CLOSED, "}", Some("Missing default case's end"));
+						if let Some(pointer) = only_case {
+							unsafe {
+								*pointer = VARIABLE {
+									local: true,
+									names: vec![name],
+									values: vec![value],
+									line
+								};
+							}
+							return DO_BLOCK(code);
+						}
+						branches.push((Vec::new(), Expression::new(), None, code));
 						false
 					}
 					IF => {
