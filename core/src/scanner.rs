@@ -187,21 +187,20 @@ impl_errormessaging!(ScannerInfo<'_>);
 impl<'a> ScannerInfo<'a> {
 	fn new(code: Code, filename: &'a String) -> Self {
 		let size = code.len() + 2;
-		let mut code = code.chars();
-		let mut read = Vec::with_capacity(size);
-		read.push((code.next_unwrapped(), code.line(), code.column()));
-		read.push((code.next_unwrapped(), code.line(), code.column()));
-		Self {
+		let mut new = Self {
 			start: 0,
 			current: 0,
 			size,
-			code,
-			read,
+			code: code.chars(),
+			read: Vec::with_capacity(size),
 			filename,
 			tokens: Vec::new(),
 			last: EOF,
 			errors: 0,
-		}
+		};
+		new.push_next();
+		new.push_next();
+		new
 	}
 
 	fn error(&mut self, message: impl Into<String>, help: Option<&str>) {
@@ -243,12 +242,16 @@ impl<'a> ScannerInfo<'a> {
 		}
 	}
 
-	fn advance(&mut self) -> char {
+	fn push_next(&mut self) {
 		self.read.push((
 			self.code.next_unwrapped(),
 			self.code.line(),
 			self.code.column(),
 		));
+	}
+
+	fn advance(&mut self) -> char {
+		self.push_next();
 		let (prev, ..) = self.read[self.current];
 		let read = self.code.bytes_read();
 		if read > 0 {
