@@ -1838,26 +1838,25 @@ impl<'a> ParserInfo<'a> {
 			if self.advance_if(DEFAULT) {
 				let t = self.advance();
 				match t.kind() {
-					ARROW => {
-						let only_case: Option<*mut ComplexToken> = if branches.is_empty() {
-							let prev_expr = self.get_prev_expr();
-							prev_expr.push_back(BREAK_LOOP); //random placeholder token
-							Some(prev_expr.back_mut().unwrap())
-						} else { None };
+					ARROW if branches.is_empty() => {
+						self.get_prev_expr().push_back(VARIABLE {
+							local: true,
+							names: vec![name],
+							values: vec![value],
+							line
+						});
 						let code = func(self /* , self.locals.clone() */);
 						self.assert(CURLY_BRACKET_CLOSED, "}", Some("Missing default case's end"));
-						if let Some(pointer) = only_case {
-							unsafe {
-								*pointer = VARIABLE {
-									local: true,
-									names: vec![name],
-									values: vec![value],
-									line
-								};
-							}
-							return DO_BLOCK(code);
-						}
-						branches.push((Vec::new(), Expression::new(), None, code));
+						return DO_BLOCK(code);
+					}
+					ARROW => {
+						branches.push((
+							Vec::new(),
+							Expression::new(),
+							None,
+							func(self /* , self.locals.clone() */)
+						));
+						self.assert(CURLY_BRACKET_CLOSED, "}", Some("Missing default case's end"));
 						false
 					}
 					IF => {
