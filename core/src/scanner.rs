@@ -175,7 +175,8 @@ struct ScannerInfo<'a> {
 	current: usize,
 	size: usize,
 	code: CodeChars,
-	read: Vec<(char, usize, usize)>,
+	read: Vec<char>,
+	positions: Vec<(usize, usize)>,
 	filename: &'a String,
 	tokens: Vec<Token>,
 	last: TokenType,
@@ -193,6 +194,7 @@ impl<'a> ScannerInfo<'a> {
 			size,
 			code: code.chars(),
 			read: Vec::with_capacity(size),
+			positions: Vec::with_capacity(size),
 			filename,
 			tokens: Vec::new(),
 			last: EOF,
@@ -207,8 +209,8 @@ impl<'a> ScannerInfo<'a> {
 		ErrorMessaging::error(
 			self,
 			message,
-			self.read[self.start].1,
-			self.read[self.start].2,
+			self.positions[self.start].0,
+			self.positions[self.start].1,
 			self.start..self.current,
 			help
 		)
@@ -227,24 +229,24 @@ impl<'a> ScannerInfo<'a> {
 	}
 
 	fn at(&self, pos: usize) -> char {
-		self.read[pos].0
+		self.read[pos]
 	}
 
 	fn range(&self) -> Range<TokenPosition> {
 		TokenPosition {
-			line: self.read[self.start].1,
-			column: self.read[self.start].2,
+			line: self.positions[self.start].0,
+			column: self.positions[self.start].1,
 			index: self.start
 		}..TokenPosition {
-			line: self.read[self.current].1,
-			column: self.read[self.current].2,
+			line: self.positions[self.current].0,
+			column: self.positions[self.current].1,
 			index:self.current
 		}
 	}
 
 	fn push_next(&mut self) {
-		self.read.push((
-			self.code.next_unwrapped(),
+		self.read.push(self.code.next_unwrapped());
+		self.positions.push((
 			self.code.line(),
 			self.code.column(),
 		));
@@ -252,7 +254,7 @@ impl<'a> ScannerInfo<'a> {
 
 	fn advance(&mut self) -> char {
 		self.push_next();
-		let (prev, ..) = self.read[self.current];
+		let prev = self.read[self.current];
 		let read = self.code.bytes_read();
 		if read > 0 {
 			self.size -= read - 1
@@ -280,29 +282,17 @@ impl<'a> ScannerInfo<'a> {
 		self.at(self.current - 1)
 	}
 
-	//isNumber: c.is_ascii_digit()
-	//isChar: c.is_ascii_alphabetic()
-	//isCharOrNumber: c.is_ascii_alphanumeric()
-
-	fn substr(&self, start: usize, end: usize) -> String {
-		let mut result: String = String::new();
-		for i in start..end {
-			if i >= self.size {
-				break;
-			}
-			result.push(self.at(i));
-		}
-		result
-	}
-
 	fn add_literal_token(&mut self, kind: TokenType, literal: String) {
 		self.tokens.push(Token::new(kind, literal, self.range()));
 	}
 
 	fn add_token(&mut self, kind: TokenType) {
-		let lexeme: String = self.substr(self.start, self.current);
 		self.last = kind;
-		self.tokens.push(Token::new(kind, lexeme, self.range()));
+		self.tokens.push(Token::new(
+			kind,
+			self.read[self.start..self.current].iter().collect::<String>(),
+			self.range()
+		));
 	}
 
 	fn read_number(&mut self, check: impl Fn(&char) -> bool, simple: bool) {
@@ -335,18 +325,21 @@ impl<'a> ScannerInfo<'a> {
 		} else if self.current == start {
 			self.error("Malformed number", None);
 		}
-		let llcheck = self.substr(self.current, self.current + 2);
-		if llcheck == "LL" {
-			self.advance();
-			self.advance();
-		} else if llcheck == "UL" {
-			if self.peek(2) == 'L' {
+		match &self.read[self.current..self.current + 2] {
+			['L', 'L'] => {
 				self.advance();
 				self.advance();
-				self.advance();
-			} else {
-				self.error("Malformed number", None);
 			}
+			['U', 'L'] => {
+				if self.peek(2) == 'L' {
+					self.advance();
+					self.advance();
+					self.advance();
+				} else {
+					self.error("Malformed number", None);
+				}
+			}
+			_ => {}
 		}
 		self.add_token(NUMBER);
 	}
@@ -369,8 +362,13 @@ impl<'a> ScannerInfo<'a> {
 	fn read_string(&mut self, strend: char) {
 		if self.read_string_contents(strend) {
 			self.advance();
-			let mut literal = self.substr(self.start, self.current);
-			literal.retain(|c| !matches!(c, '\r' | '\n' | '\t'));
+			let mut literal = String::with_capacity(self.current - self.start);
+			for c in &self.read[self.start..self.current] {
+				match c {
+					'\r' | '\n' | '\t' => continue,
+					_ => literal.push(*c)
+				}
+			}
 			self.add_literal_token(STRING, literal);
 		}
 	}
@@ -378,7 +376,7 @@ impl<'a> ScannerInfo<'a> {
 	fn read_raw_string(&mut self) {
 		if self.read_string_contents('`') {
 			self.advance();
-			let literal = self.substr(self.start + 1, self.current - 1);
+			let literal: String = self.read[self.start + 1..self.current - 1].iter().collect();
 			let mut brackets = String::new();
 			let mut must = literal.ends_with(']');
 			while must || literal.contains(&format_clue!("]", brackets, "]")) {
@@ -401,13 +399,16 @@ impl<'a> ScannerInfo<'a> {
 	}
 
 	fn read_identifier(&mut self) -> String {
-		while {
+		let mut ident = String::with_capacity(8);
+		ident.push(self.read[self.start]);
+		loop {
 			let c = self.peek(0);
-			c.is_ascii_alphanumeric() || c == '_'
-		} {
+			if !(c.is_ascii_alphanumeric() || c == '_') {
+				break ident;
+			}
+			ident.push(c);
 			self.advance();
 		}
-		self.substr(self.start, self.current)
 	}
 
 	fn scan_char(&mut self, symbols: &SymbolsMap, c: char) -> bool {
@@ -430,10 +431,6 @@ impl<'a> ScannerInfo<'a> {
 		} else {
 			false
 		}
-	}
-
-	fn update_column(&mut self) {
-		//self.current.column = self.read[self.current.index].2
 	}
 }
 
@@ -703,7 +700,6 @@ pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
 	let mut i: ScannerInfo = ScannerInfo::new(code, filename);
 	while !i.ended() && i.peek(0) != '\0' {
 		i.start = i.current;
-		i.update_column();
 		let c = i.advance();
 		if !i.scan_char(&SYMBOLS, c) {
 			if c.is_whitespace() {
