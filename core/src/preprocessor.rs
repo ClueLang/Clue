@@ -320,7 +320,9 @@ impl<'a> CodeFile<'a> {
 				stringc
 			},
 			|code, (stringc, ..), read_code| {
-				if stringc == c.0 && !matches!(read_code.last(), Some((b'\\', ..))) {
+				if stringc == c.0
+				&& (!matches!(read_code.last(), Some((b'\\', ..)))
+				|| matches!(read_code.get(read_code.len().wrapping_sub(2)), Some((b'\\', ..)))) {
 					code.comment = CommentState::None;
 					true
 				} else {
