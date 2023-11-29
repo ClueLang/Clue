@@ -190,7 +190,7 @@ impl_errormessaging!(ScannerInfo<'_>);
 
 impl<'a> ScannerInfo<'a> {
 	fn new(code: Code, filename: &'a String, options: &'a Options) -> Self {
-		let size = code.len() + 2;
+		let size = code.len() + 3;
 		let mut new = Self {
 			start: 0,
 			current: 0,
@@ -204,6 +204,7 @@ impl<'a> ScannerInfo<'a> {
 			last: EOF,
 			errors: 0,
 		};
+		new.push_next();
 		new.push_next();
 		new.push_next();
 		new
@@ -329,9 +330,6 @@ impl<'a> ScannerInfo<'a> {
 		} else if self.current == start {
 			self.error("Malformed number", None);
 		}
-		for _ in self.read.len()..self.current + 3 {
-			self.push_next();
-		}
 		let suffix_len = match &self.read[self.current..self.current + 3] {
             ['U' | 'u', 'L' | 'l', 'L' | 'l'] => 3,
             ['L' | 'l', 'L' | 'l', ..] => 2,
@@ -340,7 +338,6 @@ impl<'a> ScannerInfo<'a> {
         };
         if suffix_len > 0 {
 			if self.options.env_target.is_some_and(|target| target != LuaVersion::LuaJIT) {
-				self.push_next();
 				let suffix = &self.read[self.current..self.current + 3];
 				self.start = self.current;
 				self.current += suffix_len;
