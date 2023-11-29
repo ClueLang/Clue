@@ -4,7 +4,7 @@
 //! and is used by the [`Compiler`](crate::compiler::Compiler) to determine how to compile the code
 //! and also other helpful enums such as [`LuaVersion`], [`BitwiseMode`] and [`ContinueMode`]
 
-use std::path::PathBuf;
+use std::{path::PathBuf, fmt::{Display, Error}};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -78,6 +78,18 @@ pub enum LuaVersion {
 
 	/// BLUA
 	BLUA,
+}
+
+impl Display for LuaVersion {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self
+			.to_possible_value()
+			.ok_or(Error)?
+			.get_help()
+			.ok_or(Error)?
+		)?;
+		Ok(())
+	}
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
