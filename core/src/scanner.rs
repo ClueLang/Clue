@@ -329,6 +329,9 @@ impl<'a> ScannerInfo<'a> {
 		} else if self.current == start {
 			self.error("Malformed number", None);
 		}
+		for _ in self.read.len()..self.current + 3 {
+			self.push_next();
+		}
 		let suffix_len = match &self.read[self.current..self.current + 3] {
             ['U' | 'u', 'L' | 'l', 'L' | 'l'] => 3,
             ['L' | 'l', 'L' | 'l', ..] => 2,
