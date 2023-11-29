@@ -603,9 +603,9 @@ impl<'a> ParserInfo<'a> {
 						"index" => "__index",
 						"newindex" => "__newindex",
 						"usedindex" => {
-							if !matches!(self.options.env_target, Some(LuaVersion::BLUA)) {
+							if !matches!(self.options.env_target, None | Some(LuaVersion::BLUA)) {
 								self.error(
-									"The 'usedindex' metamethod can only be used with --target=blua",
+									"The 'usedindex' metamethod is only supported in BLUA",
 									name_token.line(),
 									name_token.column(),
 									name_token.range(),
