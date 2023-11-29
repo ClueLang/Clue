@@ -15,6 +15,7 @@ use crate::{
 	format_clue,
 	errors::{finish_step, ErrorMessaging},
 	impl_errormessaging,
+	Options,
 };
 
 #[cfg(feature = "serde")]
@@ -178,6 +179,7 @@ struct ScannerInfo<'a> {
 	read: Vec<char>,
 	positions: Vec<(usize, usize)>,
 	filename: &'a String,
+	options: &'a Options,
 	tokens: Vec<Token>,
 	last: TokenType,
 	errors: u16,
@@ -186,7 +188,7 @@ struct ScannerInfo<'a> {
 impl_errormessaging!(ScannerInfo<'_>);
 
 impl<'a> ScannerInfo<'a> {
-	fn new(code: Code, filename: &'a String) -> Self {
+	fn new(code: Code, filename: &'a String, options: &'a Options) -> Self {
 		let size = code.len() + 2;
 		let mut new = Self {
 			start: 0,
@@ -196,6 +198,7 @@ impl<'a> ScannerInfo<'a> {
 			read: Vec::with_capacity(size),
 			positions: Vec::with_capacity(size),
 			filename,
+			options,
 			tokens: Vec::new(),
 			last: EOF,
 			errors: 0,
@@ -697,8 +700,8 @@ static KEYWORDS: phf::Map<&'static [u8], KeywordType> = phf_map! {
 ///     Ok(())
 /// }
 /// ```
-pub fn scan_code(code: Code, filename: &String) -> Result<Vec<Token>, String> {
-	let mut i: ScannerInfo = ScannerInfo::new(code, filename);
+pub fn scan_code(code: Code, filename: &String, options: &Options) -> Result<Vec<Token>, String> {
+	let mut i: ScannerInfo = ScannerInfo::new(code, filename, options);
 	while !i.ended() && i.peek(0) != '\0' {
 		i.start = i.current;
 		let c = i.advance();

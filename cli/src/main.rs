@@ -190,7 +190,7 @@ pub fn compile_code(
 	if options.env_expand {
 		println!("Preprocessed file \"{filename}\":\n{code}");
 	}
-	let tokens = scan_code(code, filename)?;
+	let tokens = scan_code(code, filename, options)?;
 	if options.env_tokens {
 		println!("Scanned tokens of file \"{filename}\":\n{tokens:#?}");
 	}

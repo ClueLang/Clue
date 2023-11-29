@@ -283,7 +283,7 @@ impl Clue {
 			.ok_or_else(|| format!("Invalid path: {path}"))?
 			.to_string_lossy()
 			.into_owned();
-		scan_code(code, &filename)
+		scan_code(code, &filename, &self.options)
 	}
 
 	/// Scans the given preprocessed code for tokens
@@ -313,7 +313,7 @@ impl Clue {
 	}
 
 	fn scan_preprocessed_internal(&self, code: Code) -> Result<Vec<Token>, String> {
-		scan_code(code, &String::from("(library)"))
+		scan_code(code, &String::from("(library)"), &self.options)
 	}
 
 	/// Scans the given code for tokens
