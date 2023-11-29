@@ -16,7 +16,6 @@ use crate::{
 	impl_errormessaging,
 };
 use std::{cell::Cell, vec, cmp, collections::VecDeque, ops::Range};
-use clap::ValueEnum;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -2377,12 +2376,7 @@ impl<'a> ParserInfo<'a> {
 			self.error(
 				format!(
 					"{} does not support goto statements",
-					self.options.env_target
-						.unwrap()
-						.to_possible_value()
-						.unwrap()
-						.get_help()
-						.unwrap()
+					self.options.env_target.unwrap()
 				),
 				t.line(),
 				t.column(),
