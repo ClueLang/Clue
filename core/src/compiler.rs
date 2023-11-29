@@ -717,6 +717,8 @@ impl<'a> Compiler<'a> {
 						String::from("return;")
 					}
 				}
+				GOTO_LABEL(label) => format_clue!("goto ", label, ';', self.indentate_if(ctokens, scope)),
+				LABEL(name) => format_clue!("::", name, "::", self.indentate_if(ctokens, scope)),
 				CONTINUE_LOOP => {
 					let end = self.indentate_if(ctokens, scope);
 					format!(
@@ -725,7 +727,7 @@ impl<'a> Compiler<'a> {
 							self.options.env_continue,
 							ContinueMode::LuaJIT | ContinueMode::Goto
 						) {
-							"goto continue"
+							"goto _clue_continue"
 						} else {
 							"continue"
 						},

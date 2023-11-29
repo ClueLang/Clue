@@ -16,6 +16,7 @@ use crate::{
 	impl_errormessaging,
 };
 use std::{cell::Cell, vec, cmp, collections::VecDeque, ops::Range};
+use clap::ValueEnum;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -243,6 +244,12 @@ pub enum ComplexToken {
 
 	/// Any symbol.
 	SYMBOL(String),
+
+	/// A goto statement.
+	GOTO_LABEL(String),
+
+	/// A label to be used with goto statements.
+	LABEL(String),
 
 	/// A function call.
 	CALL(Vec<Expression>),
@@ -1420,7 +1427,7 @@ impl<'a> ParserInfo<'a> {
 			use ContinueMode::*;
 			match self.options.env_continue {
 				Simple => {}
-				Goto | LuaJIT => code.push_back(SYMBOL(String::from("::continue::"))),
+				Goto | LuaJIT => code.push_back(SYMBOL(String::from("::_clue_continue::"))),
 				MoonScript => {
 					code.push_back(ALTER {
 						kind: DEFINE,
@@ -2070,6 +2077,10 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_token_identifier(&mut self, t: &BorrowedToken) {
+		if self.advance_if(COLON) {
+			self.expr.push_back(LABEL(t.lexeme()));
+			return;
+		}
 		let start = self.current - 1;
 		let mut first_expr = Expression::with_capacity(8);
 		let safe_indexing = self.build_identifier_internal(&mut first_expr);
@@ -2359,6 +2370,29 @@ impl<'a> ParserInfo<'a> {
 			None
 		)
 	}
+
+	fn parse_token_goto(&mut self, t: &BorrowedToken) {
+		use LuaVersion::*;
+		if self.options.env_target.is_some_and(|target| matches!(target, Lua51 | BLUA)) {
+			self.error(
+				format!(
+					"{} does not support goto statements",
+					self.options.env_target
+						.unwrap()
+						.to_possible_value()
+						.unwrap()
+						.get_help()
+						.unwrap()
+				),
+				t.line(),
+				t.column(),
+				t.range(),
+				None
+			)
+		}
+		let name = self.assert_advance(IDENTIFIER, "<label name>", None);
+		self.expr.push_back(GOTO_LABEL(name.lexeme()));
+	}
 }
 
 fn parse_tokens_internal<'a>(
@@ -2388,6 +2422,7 @@ fn parse_tokens_internal<'a>(
 			RETURN => i.parse_token_return(),
 			TRY => i.parse_token_try(),
 			FN | ENUM => i.parse_token_fn_enum(&t),
+			GOTO => i.parse_token_goto(&t),
 			SEMICOLON => {}
 			EOF => break,
 			_ => i.expected("<end>", &t.lexeme(), t.line(), t.column(), t.range(), None),
