@@ -15,6 +15,7 @@ use crate::{
 	format_clue,
 	errors::{finish_step, ErrorMessaging},
 	impl_errormessaging,
+	env::LuaVersion,
 	Options,
 };
 
@@ -328,22 +329,27 @@ impl<'a> ScannerInfo<'a> {
 		} else if self.current == start {
 			self.error("Malformed number", None);
 		}
-		match &self.read[self.current..self.current + 2] {
-			['L', 'L'] => {
-				self.advance();
-				self.advance();
-			}
-			['U', 'L'] => {
-				if self.peek(2) == 'L' {
-					self.advance();
-					self.advance();
-					self.advance();
-				} else {
-					self.error("Malformed number", None);
-				}
-			}
-			_ => {}
-		}
+		let suffix_len = match &self.read[self.current..self.current + 3] {
+            ['L', 'L', ..] => 2,
+            ['U', 'L', 'L'] => 3,
+            _ => 0
+        };
+        if suffix_len > 0 {
+			if self.options.env_target.is_some_and(|target| target != LuaVersion::LuaJIT) {
+				self.push_next();
+				let suffix = &self.read[self.current..self.current + 3];
+				self.start = self.current;
+				self.current += suffix_len;
+                self.error(format!(
+                    "{} does not support {}",
+					self.options.env_target.unwrap(),
+					suffix.iter().collect::<String>()
+                ), None);
+            }
+			for _ in 0..suffix_len {
+                self.advance();
+            }
+        }
 		self.add_token(NUMBER);
 	}
 
