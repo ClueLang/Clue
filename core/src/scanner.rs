@@ -330,8 +330,9 @@ impl<'a> ScannerInfo<'a> {
 			self.error("Malformed number", None);
 		}
 		let suffix_len = match &self.read[self.current..self.current + 3] {
-            ['L', 'L', ..] => 2,
-            ['U', 'L', 'L'] => 3,
+            ['U' | 'u', 'L' | 'l', 'L' | 'l'] => 3,
+            ['L' | 'l', 'L' | 'l', ..] => 2,
+			['i' | 'I', ..] => 1,
             _ => 0
         };
         if suffix_len > 0 {
