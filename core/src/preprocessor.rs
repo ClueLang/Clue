@@ -612,7 +612,7 @@ impl<'a> CodeFile<'a> {
 				);
 				return u32::MAX;
 			}
-			Some(num) if num == "*" => default,
+			Some("*") => default,
 			Some(num) => num,
 		};
 		match num.parse::<u32>() {
