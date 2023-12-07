@@ -7,7 +7,7 @@
 #![allow(clippy::upper_case_acronyms)]
 
 use self::TokenType::*;
-use std::ops::Range;
+use std::{ops::Range, cmp};
 use phf::phf_map;
 use std::fmt;
 use crate::{
@@ -379,13 +379,12 @@ impl<'a> ScannerInfo<'a> {
 				match c {
 					'\t' => continue,
 					'\r' | '\n' => {
-						let start = self.start + i + 1 + (*c == '\r') as usize;
-						//TODO: finish CRLF support
+						let offset = (*c == '\n') as usize;
+						let start = self.start + i + 2 - offset;
 						if let Some(indent) = indent {
 							let len = indent.len();
-							println!("{:?} {indent:?}", &self.read[start..start + len]);
-							if len > 0 && &self.read[start..start + len] == indent {
-								iter.nth(len - 1); //TODO: fix overflow
+							if len > 0 && &self.read[start..cmp::min(start + len, self.read.len())] == indent {
+								iter.nth(len - offset);
 							}
 						} else {
 							let mut end = start;
@@ -393,7 +392,7 @@ impl<'a> ScannerInfo<'a> {
 								end += 1;
 							}
 							if end != start {
-								iter.nth(end - start - 1);
+								iter.nth(end - start - offset);
 							}
 							indent = Some(&self.read[start..end]);
 						}
