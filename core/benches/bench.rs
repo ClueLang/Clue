@@ -51,7 +51,7 @@ fn compile_code(
 		}
 		finish_step(filename, i.errors, code)
 	}?;
-	let tokens: Vec<Token> = scan_code(code, filename)?;
+	let tokens: Vec<Token> = scan_code(code, filename, options)?;
 	let (ctokens, statics) = parse_tokens(tokens, filename, options)?;
 	let code = Compiler::new(options, filename).compile_tokens(scope, ctokens)?;
 	Ok((code, statics))
