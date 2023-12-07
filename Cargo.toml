@@ -1,6 +1,7 @@
 [workspace]
 members = ["cli", "core", "wasm"]
 default-members = ["cli", "core"]
+resolver = "2"
 
 [workspace.package]
 version = "4.0.0-c71fc5f4"
