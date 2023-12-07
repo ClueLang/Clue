@@ -373,9 +373,31 @@ impl<'a> ScannerInfo<'a> {
 		if self.read_string_contents(strend) {
 			self.advance();
 			let mut literal = String::with_capacity(self.current - self.start);
-			for c in &self.read[self.start..self.current] {
+			let mut indent: Option<&[char]> = None;
+			let mut iter = self.read[self.start..self.current].iter().enumerate();
+			while let Some((i, c)) = iter.next() {
 				match c {
-					'\r' | '\n' | '\t' => continue,
+					'\t' => continue,
+					'\r' | '\n' => {
+						let start = self.start + i + 1 + (*c == '\r') as usize;
+						//TODO: finish CRLF support
+						if let Some(indent) = indent {
+							let len = indent.len();
+							println!("{:?} {indent:?}", &self.read[start..start + len]);
+							if len > 0 && &self.read[start..start + len] == indent {
+								iter.nth(len - 1); //TODO: fix overflow
+							}
+						} else {
+							let mut end = start;
+							while matches!(self.read[end], ' ' | '\t') {
+								end += 1;
+							}
+							if end != start {
+								iter.nth(end - start - 1);
+							}
+							indent = Some(&self.read[start..end]);
+						}
+					}
 					_ => literal.push(*c)
 				}
 			}
