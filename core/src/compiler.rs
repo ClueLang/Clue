@@ -417,22 +417,28 @@ impl<'a> Compiler<'a> {
 							String::from("nil")
 						};
 						i += 1;
-						Ok((if kind == DEFINE {
-							String::new()
+						let expr = self.compile_expression(scope, expr)?;
+						Ok(if kind == DEFINE {
+							expr
 						} else {
-							name + match kind {
-								DEFINE_AND => " and ",
-								DEFINE_OR => " or ",
-								INCREASE => " + ",
-								DECREASE => " - ",
-								MULTIPLY => " * ",
-								DIVIDE => " / ",
-								EXPONENTIATE => " ^ ",
-								CONCATENATE => " .. ",
-								MODULATE => " % ",
-								_ => return Err(String::from("Unexpected alter type found")),
-							}
-						}) + &self.compile_expression(scope, expr)?)
+							format_clue!(
+								name,
+								match kind {
+									DEFINE_AND => " and (",
+									DEFINE_OR => " or (",
+									INCREASE => " + (",
+									DECREASE => " - (",
+									MULTIPLY => " * (",
+									DIVIDE => " / (",
+									EXPONENTIATE => " ^ (",
+									CONCATENATE => " .. (",
+									MODULATE => " % (",
+									_ => return Err(String::from("Unexpected alter type found")),
+								},
+								expr,
+								')'
+							)
+						})
 					})?;
 					let names = self.compile_identifiers(names)?;
 					let debug = self.compile_debug_line(line, scope, true);
