@@ -642,21 +642,30 @@ impl<'a> Compiler<'a> {
 				}
 				FOR_FUNC_LOOP {
 					iterators,
-					expr,
+					exprs: (expr, stop, initial),
 					code,
 					line,
 				} => {
 					let expr = self.compile_expression(scope, expr)?;
 					let iterators = self.compile_identifiers(iterators)?;
 					let debug = self.compile_debug_line(line, scope, true);
-					let code = self.compile_code_block(scope, "do", code)?;
+					let code = self.compile_code_block(scope, " do", code)?;
 					format_clue!(
 						debug,
 						"for ",
 						iterators,
 						" in ",
 						expr,
-						" ",
+						if let Some(stop) = stop {
+							String::from(", ") + &self.compile_expression(scope, stop)?
+						} else {
+							String::new()
+						},
+						if let Some(initial) = initial {
+							String::from(", ") + &self.compile_expression(scope, initial)?
+						} else {
+							String::new()
+						},
 						code,
 						debug,
 						"end",

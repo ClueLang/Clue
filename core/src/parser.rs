@@ -207,11 +207,11 @@ pub enum ComplexToken {
 		/// The iterator of the for loop.
 		iterators: Vec<String>,
 
-		/// The expression of the for loop
+		/// The expression(s) of the for loop
 		/// for..in loops: for k,v in pairs(t) do end
 		/// for..of loops: for k,v in ipairs(t) do end
-		/// for..with loops: for k,v in custom_iter(t) do end
-		expr: Expression,
+		/// for..with loops: for k,v in custom_iter[, stop[, initial]] do end
+		exprs: (Expression, Option<Expression>, Option<Expression>),
 
 		/// The code block of the for loop.
 		code: CodeBlock,
@@ -2268,7 +2268,7 @@ impl<'a> ParserInfo<'a> {
 			})
 		} else {
 			let iterators = self.build_identifier_list();
-			let expr = match self.advance().kind() {
+			let exprs = match self.advance().kind() {
 				OF => {
 					let mut expr = vec_deque![SYMBOL(String::from("pairs("))];
 					expr.append(&mut self.build_expression(
@@ -2276,7 +2276,7 @@ impl<'a> ParserInfo<'a> {
 						Some("Missing table to iterate")
 					));
 					expr.push_back(SYMBOL(String::from(")")));
-					expr
+					(expr, None, None)
 				}
 				IN => {
 					let mut expr = vec_deque![SYMBOL(String::from("ipairs("))];
@@ -2285,9 +2285,27 @@ impl<'a> ParserInfo<'a> {
 						Some("Missing array to iterate")
 					));
 					expr.push_back(SYMBOL(String::from(")")));
-					expr
+					(expr, None, None)
 				}
-				WITH => self.build_expression(Some((CURLY_BRACKET_OPEN, "{")), Some("Missing iterator")),
+				WITH => {
+					let expr = self.build_expression(None, Some("Missing iterator"));
+					self.current -= 1;
+					if self.advance_if(COMMA) {
+						let stop = self.build_expression(None, Some("Missing stop value"));
+						self.current -= 1;
+						if self.advance_if(COMMA) {
+							let initial = self.build_expression(
+								Some((CURLY_BRACKET_OPEN, "{")),
+								Some("Missing initial value")
+							);
+							(expr, Some(stop), Some(initial))
+						} else {
+							(expr, Some(stop), None)
+						}
+					} else {
+						(expr, None, None)
+					}
+				},
 				_ => {
 					let t = self.peek(0);
 					self.expected(
@@ -2298,13 +2316,13 @@ impl<'a> ParserInfo<'a> {
 						t.range(),
 						None
 					);
-					Expression::new()
+					(Expression::new(), None, None)
 				}
 			};
 			let code = self.build_loop_block();
 			self.expr.push_back(FOR_FUNC_LOOP {
 				iterators,
-				expr,
+				exprs,
 				code,
 				line,
 			});
