@@ -15,7 +15,14 @@ use crate::{
 	format_clue,
 	impl_errormessaging,
 };
-use std::{cell::Cell, vec, cmp, collections::VecDeque, ops::Range};
+use std::{
+	collections::VecDeque,
+	mem::ManuallyDrop,
+	ops::Range,
+	cell::Cell,
+	vec,
+	cmp,
+};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -58,6 +65,11 @@ type OptionalEnd = Option<(TokenType, &'static str)>;
 /// the first element of the tuple would be `1`, the second element would be `z == 0`
 /// and the third element would be `{foo()}`.
 type MatchCase = (Vec<Expression>, Expression, Option<Expression>, CodeBlock);
+
+union InternalDestructuringName {
+	expr: ManuallyDrop<Expression>,
+	name: ManuallyDrop<String>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -1702,16 +1714,18 @@ impl<'a> ParserInfo<'a> {
 	}*/
 
 	#[allow(clippy::type_complexity)]
-	fn build_destructure_table(&mut self) -> (Vec<String>, Vec<String>, Vec<String>) {
+	fn build_destructure_table(&mut self) -> (Vec<String>, Vec<Expression>, Vec<InternalDestructuringName>) {
 		let mut names = Vec::new();
 		let mut key_names = Vec::new();
 		let name = self.get_next_internal_var();
-		let mut internal_names = vec![name.clone()];
+		let mut internal_names = vec![InternalDestructuringName {
+			name: ManuallyDrop::new(name.clone())
+		}];
 		self.build_destructure_table_internal(
 			&mut names,
 			&mut key_names,
 			&mut internal_names,
-			name + ".",
+			vec_deque![SYMBOL(name), SYMBOL(String::from("."))],
 		);
 		(names, key_names, internal_names)
 	}
@@ -1719,27 +1733,34 @@ impl<'a> ParserInfo<'a> {
 	fn build_destructure_table_internal(
 		&mut self,
 		names: &mut Vec<String>,
-		key_names: &mut Vec<String>,
-		internal_names: &mut Vec<String>,
-		key_start: String,
+		key_names: &mut Vec<Expression>,
+		internal_names: &mut Vec<InternalDestructuringName>,
+		key_start: Expression,
 	) {
 		loop {
 			let t = self.assert_advance(IDENTIFIER, "<name>", None);
 			names.push(if self.advance_if(ARROW) {
 				if self.advance_if(CURLY_BRACKET_OPEN) {
-					let name = self.get_next_internal_var();
-					internal_names.push(format_clue!(key_start, t.lexeme()));
-					internal_names.push(name.clone());
+					let name = self.get_next_internal_var();//SYMBOL();
+					//let name = vec_deque![self.get_next_internal_var(), SYMBOL(String::from("."))];
+					let mut internal_name = key_start.clone();
+					internal_name.push_back(SYMBOL(t.lexeme()));
+					internal_names.push(InternalDestructuringName {
+						expr: ManuallyDrop::new(internal_name)
+					});
+					internal_names.push(InternalDestructuringName {
+						name: ManuallyDrop::new(name.clone())
+					});
 					self.build_destructure_table_internal(
 						names,
 						key_names,
 						internal_names,
-						name + ".",
+						vec_deque![SYMBOL(name), SYMBOL(String::from("."))],
 					);
 					if self.advance_if(COMMA) {
 						continue;
 					} else {
-						self.assert_advance(CURLY_BRACKET_CLOSED, "}", Some("Missing destructued table end"));
+						self.assert_advance(CURLY_BRACKET_CLOSED, "}", Some("Missing destructured table end"));
 						break;
 					}
 				} else {
@@ -1748,9 +1769,13 @@ impl<'a> ParserInfo<'a> {
 			} else {
 				t.lexeme()
 			});
-			key_names.push(format_clue!(key_start, t.lexeme()));
+			key_names.push({
+				let mut key_start = key_start.clone();
+				key_start.push_back(SYMBOL(t.lexeme()));
+				key_start
+			});
 			if !self.advance_if(COMMA) {
-				self.assert_advance(CURLY_BRACKET_CLOSED, "}", Some("Missing destructued table end"));
+				self.assert_advance(CURLY_BRACKET_CLOSED, "}", Some("Missing destructured table end"));
 				break;
 			}
 		}
@@ -1758,25 +1783,29 @@ impl<'a> ParserInfo<'a> {
 
 	fn build_table_destructuring(
 		&mut self,
-		internal_names: Vec<String>,
+		internal_names: Vec<InternalDestructuringName>,
 		values: Vec<Expression>,
 		line: usize,
 	) {
-		let prev_expr = self.get_prev_expr();
-		let mut names = internal_names.into_iter();
-		prev_expr.push_back(VARIABLE {
-			local: true,
-			names: vec![names.next().unwrap()],
-			values,
-			line,
-		});
-		while let (Some(prev_name), Some(name)) = (names.next(), names.next()) {
+		//SAFETY: the union is guaranteed to be in the correct order
+		//and no variable manually dropped value is used twice
+		unsafe {
+			let prev_expr = self.get_prev_expr();
+			let mut names = internal_names.into_iter();
 			prev_expr.push_back(VARIABLE {
 				local: true,
-				names: vec![name.clone()],
-				values: vec![vec_deque![SYMBOL(prev_name)]],
+				names: vec![ManuallyDrop::into_inner(names.next().unwrap().name)],
+				values,
 				line,
 			});
+			while let (Some(prev_name), Some(name)) = (names.next(), names.next()) {
+				prev_expr.push_back(VARIABLE {
+					local: true,
+					names: vec![ManuallyDrop::into_inner(name.name)],
+					values: vec![ManuallyDrop::into_inner(prev_name.expr)],
+					line,
+				});
+			}
 		}
 	}
 
@@ -1816,7 +1845,7 @@ impl<'a> ParserInfo<'a> {
 			self.build_table_destructuring(internal_names, values, line);
 			values = Vec::new();
 			for key_name in key_names {
-				values.push(vec_deque![SYMBOL(key_name)])
+				values.push(key_name)
 			}
 		}
 		VARIABLE {
