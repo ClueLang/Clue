@@ -1725,7 +1725,7 @@ impl<'a> ParserInfo<'a> {
 			&mut names,
 			&mut key_names,
 			&mut internal_names,
-			vec_deque![SYMBOL(name), SYMBOL(String::from("."))],
+			SYMBOL(name),
 		);
 		(names, key_names, internal_names)
 	}
@@ -1735,18 +1735,32 @@ impl<'a> ParserInfo<'a> {
 		names: &mut Vec<String>,
 		key_names: &mut Vec<Expression>,
 		internal_names: &mut Vec<InternalDestructuringName>,
-		key_start: Expression,
+		key_start: ComplexToken,
 	) {
 		loop {
-			let t = self.assert_advance(IDENTIFIER, "<name>", None);
+			let t = self.advance();
+			let key = match t.kind() {
+				IDENTIFIER => vec_deque![
+					key_start.clone(),
+					SYMBOL(String::from(".")),
+					SYMBOL(t.lexeme())
+				],
+				SQUARE_BRACKET_OPEN => vec_deque![
+					key_start.clone(),
+					SYMBOL(String::from("[(")),
+					EXPR(self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")), None)),
+					SYMBOL(String::from(")]"))
+				],
+				_ => {
+					self.expected("<name>", &t.lexeme(), t.line(), t.column(), t.range(), None);
+					Expression::new()
+				}
+			};
 			names.push(if self.advance_if(ARROW) {
 				if self.advance_if(CURLY_BRACKET_OPEN) {
-					let name = self.get_next_internal_var();//SYMBOL();
-					//let name = vec_deque![self.get_next_internal_var(), SYMBOL(String::from("."))];
-					let mut internal_name = key_start.clone();
-					internal_name.push_back(SYMBOL(t.lexeme()));
+					let name = self.get_next_internal_var();
 					internal_names.push(InternalDestructuringName {
-						expr: ManuallyDrop::new(internal_name)
+						expr: ManuallyDrop::new(key)
 					});
 					internal_names.push(InternalDestructuringName {
 						name: ManuallyDrop::new(name.clone())
@@ -1755,7 +1769,7 @@ impl<'a> ParserInfo<'a> {
 						names,
 						key_names,
 						internal_names,
-						vec_deque![SYMBOL(name), SYMBOL(String::from("."))],
+						SYMBOL(name),
 					);
 					if self.advance_if(COMMA) {
 						continue;
@@ -1767,13 +1781,13 @@ impl<'a> ParserInfo<'a> {
 					self.assert_advance(IDENTIFIER, "<name>", None).lexeme()
 				}
 			} else {
+				if t.kind() != IDENTIFIER {
+					let t = self.peek(0);
+					self.expected("=>", &t.lexeme(), t.line(), t.column(), t.range(), None);
+				}
 				t.lexeme()
 			});
-			key_names.push({
-				let mut key_start = key_start.clone();
-				key_start.push_back(SYMBOL(t.lexeme()));
-				key_start
-			});
+			key_names.push(key);
 			if !self.advance_if(COMMA) {
 				self.assert_advance(CURLY_BRACKET_CLOSED, "}", Some("Missing destructured table end"));
 				break;
@@ -1787,8 +1801,8 @@ impl<'a> ParserInfo<'a> {
 		values: Vec<Expression>,
 		line: usize,
 	) {
-		//SAFETY: the union is guaranteed to be in the correct order
-		//and no variable manually dropped value is used twice
+		//SAFETY: the unions are guaranteed to be in the correct order
+		//and no manually dropped variable is used twice
 		unsafe {
 			let prev_expr = self.get_prev_expr();
 			let mut names = internal_names.into_iter();
