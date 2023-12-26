@@ -1,6 +1,11 @@
 #![allow(clippy::blocks_in_if_conditions)]
 
-use clap::{crate_version, Parser, ValueEnum, builder::ArgPredicate};
+use clap::{
+	crate_version,
+	Parser,
+	ValueEnum,
+	builder::{ArgPredicate, Styles, styling::{AnsiColor, Effects}}
+};
 use clue_core::{
 	check,
 	compiler::*,
@@ -27,6 +32,14 @@ enum ColorMode {
 #[derive(Parser)]
 #[clap(
 	version,
+	styles = Styles::plain()
+		.header(AnsiColor::Green.on_default().effects(Effects::BOLD))
+		.usage(AnsiColor::Green.on_default().effects(Effects::BOLD))
+		.literal(AnsiColor::Cyan.on_default().effects(Effects::BOLD))
+		.placeholder(AnsiColor::Cyan.on_default())
+		.error(AnsiColor::Red.on_default().effects(Effects::BOLD))
+		.valid(AnsiColor::Cyan.on_default().effects(Effects::BOLD))
+		.invalid(AnsiColor::Yellow.on_default().effects(Effects::BOLD)),
 	about = "C/Rust like programming language that compiles into Lua code\nMade by Felicia.iso\nhttps://github.com/ClueLang/Clue",
 )]
 struct Cli {
