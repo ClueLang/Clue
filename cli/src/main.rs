@@ -1,6 +1,6 @@
 #![allow(clippy::blocks_in_if_conditions)]
 
-use clap::{crate_version, Parser, ValueEnum};
+use clap::{crate_version, Parser, ValueEnum, builder::ArgPredicate};
 use clue_core::{
 	check,
 	compiler::*,
@@ -28,13 +28,12 @@ enum ColorMode {
 #[clap(
 	version,
 	about = "C/Rust like programming language that compiles into Lua code\nMade by Felicia.iso\nhttps://github.com/ClueLang/Clue",
-	long_about = None
 )]
 struct Cli {
-	/// The path to the directory where the *.clue files are located.
-	/// Every directory inside the given directory will be checked too.
-	/// If the path points to a single *.clue file, only that file will be compiled.
-	#[clap(default_value_if("--license", None, Some("test")))]
+	/// The path to the directory where the *.clue files are located,
+	/// every directory inside the given directory will be checked too;
+	/// if the path points to a single *.clue file, only that file will be compiled
+	#[clap(default_value_if("--license", ArgPredicate::IsPresent, Some("test")))] //FIXME
 	path: PathBuf,
 
 	/// The name the output file will have

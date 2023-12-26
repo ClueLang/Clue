@@ -18,23 +18,23 @@ use clap::ValueEnum;
 pub enum ContinueMode {
 	#[default]
 	#[clap(name = "simple")]
-	/// Simple: This mode uses the native continue keyword.
-	/// This can only be used in implementations which support it (like BLUA).
+	/// This mode uses the native continue keyword,
+	/// this can only be used in implementations which support it (Works in BLUA)
 	Simple,
 
 	/// DEPRECATED
 	///
-	/// LuaJIT: Same as `Goto`, only for compatibility reasons
+	/// Same as `Goto`, only for compatibility reasons
 	LuaJIT,
 
 	#[clap(name = "goto")]
-	/// Goto: Clue will use goto continue; and a ::continue:: label when compiling `continue` keywords
-	/// instead of assuming the version of Lua you're compiling to has a proper continue keyword.
-	/// This will work with most versions of Lua (Lua 5.2, LuaJIT).
+	/// Clue will use `goto continue;` and a `::continue::` label when compiling `continue` keywords
+	/// instead of assuming the version of Lua you're compiling to has a proper continue keyword
+	/// (Works in Lua 5.2+ and LuaJIT)
 	Goto,
 
-	/// Moonscript: This approach is guaranteed to work with any version of Lua although
-	/// it has a performance impact because it uses an additional loop.
+	/// This approach is guaranteed to work with any version of Lua although
+	/// it has a performance impact because it uses an additional loop
 	MoonScript,
 }
 
@@ -61,22 +61,11 @@ pub enum LuaSTD {
 /// The Lua version to target
 pub enum LuaVersion {
 	#[default]
-	/// LuaJIT
 	LuaJIT,
-
-	/// Lua 5.4
 	Lua54,
-
-	/// Lua 5.3
 	Lua53,
-
-	/// Lua 5.2
 	Lua52,
-
-	/// Lua 5.1
 	Lua51,
-
-	/// BLUA
 	BLUA,
 }
 
@@ -98,18 +87,17 @@ impl Display for LuaVersion {
 /// The mode to use for bitwise operations
 pub enum BitwiseMode {
 	#[default]
-	/// Clue: This mode uses the bitwise operators from Clue as is with no change
-	/// Works in BLUA
+	/// Use the bitwise operators from Clue as is with no change (Works in BLUA)
 	Clue,
 
 	#[clap(name = "library")]
-	/// Library: This mode uses the bit library to perform bitwise operations
-	/// Works in LuaJIT (bit), Lua 5.2 (bit32)
+	/// This mode uses the bit library to perform bitwise operations
+	/// (Works in LuaJIT (using bit) and Lua 5.2 (using bit32))
 	Library,
 
 	#[clap(name = "vanilla")]
-	/// Vanilla: This mode uses the bitwise operators from standard Lua
-	/// Works in Lua 5.3+
+	/// This mode uses the bitwise operators from standard Lua
+	/// (Works in Lua 5.3+)
 	Vanilla,
 }
 

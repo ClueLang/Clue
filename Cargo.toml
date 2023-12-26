@@ -8,7 +8,7 @@ version = "4.0.0-19359309"
 description = "C/Rust like programming language that compiles into Lua code"
 edition = "2021"
 rust-version = "1.65"
-authors = ["Maiori"]
+authors = ["Felicia.iso"]
 repository = "https://github.com/ClueLang/Clue"
 license = "MIT"
 keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
@@ -16,8 +16,11 @@ categories = ["compilers"]
 
 [workspace.dependencies]
 ahash = "0.8.2"
-clap = { version = "3.2.25", features = ["derive", "cargo"] }
-colored = "2.0.0"
+clap = { version = "4.4.11", features = ["derive", "cargo", "wrap_help"] }
+colored = "2.1.0"
+crossbeam-queue = "0.3.10"
+flume = "0.11.0"
+num_cpus = "1.16.0"
 
 [profile.release]
 lto = true

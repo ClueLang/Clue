@@ -12,20 +12,20 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-phf = { version = "0.11", features = ["macros"] }
+phf = { version = "0.11.2", features = ["macros"] }
 utf8-decode = "1.0.1"
 ahash.workspace = true
 clap.workspace = true
 rpmalloc = { version = "0.2.2", optional = true }
-serde = { version = "1.0.159", optional = true }
-serde_json = { version = "1.0.96", optional = true }
+serde = { version = "1.0.193", optional = true }
+serde_json = { version = "1.0.108", optional = true }
 colored.workspace = true
 
 [dev-dependencies]
-criterion = "0.4.0"
-num_cpus = "1.15.0"
-flume = "0.10.14"
-crossbeam-queue = "0.3.8"
+criterion = "0.5.1"
+num_cpus.workspace = true
+flume.workspace = true
+crossbeam-queue.workspace = true
 
 [[bench]]
 name = "bench"
