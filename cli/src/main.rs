@@ -11,7 +11,7 @@ use clue_core::{
 	preprocessor::*,
 	scanner::*,
 };
-use std::{env, fs, path::{PathBuf, Path}, time::Instant, process::exit, io::{self, Read}};
+use std::{env, fs, path::PathBuf, time::Instant, process::exit, io::{self, Read}};
 use threads::compile_folder;
 use colored::*;
 
@@ -228,7 +228,7 @@ fn compile_from_string(
 	options: &Options,
 	#[cfg(feature = "mlua")] execute: bool,
 	debug: bool,
-	//output_name: Option<PathBuf>
+	dont_save: bool,
 ) -> Result<(), String> {
 	let filename = name.to_string();
 	let preprocessed_code = preprocess_code(
@@ -248,8 +248,8 @@ fn compile_from_string(
 	)?;
 	let code = statics + &output;
 	if options.env_outputname.is_some() {
-		let output_path = options.env_outputname.as_ref();
-		check!(fs::write(output_path.unwrap(), &code));
+		let outputname = options.env_outputname.clone();
+		let (output_path, code) = save_result(dont_save, outputname, code)?;
 		finish(
 			debug,
 			#[cfg(feature = "mlua")]
@@ -278,7 +278,7 @@ fn execute_lua_code(code: &str) {
 fn finish(
 	debug: bool,
 	#[cfg(feature = "mlua")] execute: bool,
-	output_path: Option<impl AsRef<Path>>,
+	output_path: Option<PathBuf>,
 	code: String,
 ) -> Result<(), String> {
 	if debug {
@@ -409,6 +409,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 			#[cfg(feature = "mlua")]
 			cli.execute,
 			cli.debug,
+			cli.dontsave,
 		);
 	} else if read_from_stdin {
 		let mut buf = Vec::new();
@@ -420,6 +421,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 			#[cfg(feature = "mlua")]
 			cli.execute,
 			cli.debug,
+			cli.dontsave,
 		);
 	}
 	let (output_path, code) = if path.is_dir() {
