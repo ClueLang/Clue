@@ -11,7 +11,7 @@ use clue_core::{
 	preprocessor::*,
 	scanner::*,
 };
-use std::{env, fs, path::PathBuf, time::Instant, process::exit, io::{self, Read}};
+use std::{env, fs, path::{PathBuf, Path}, time::Instant, process::exit, io::{self, Read}};
 use threads::compile_folder;
 use colored::*;
 
@@ -228,7 +228,7 @@ fn compile_from_string(
 	options: &Options,
 	#[cfg(feature = "mlua")] execute: bool,
 	debug: bool,
-	output_name: Option<PathBuf>
+	//output_name: Option<PathBuf>
 ) -> Result<(), String> {
 	let filename = name.to_string();
 	let preprocessed_code = preprocess_code(
@@ -247,22 +247,23 @@ fn compile_from_string(
 		options,
 	)?;
 	let code = statics + &output;
-	#[cfg(feature = "mlua")]
-	if execute {
-		execute_lua_code(&code)
-	}
-	return if let Some(outputname) = output_name.as_ref() {
-		check!(fs::write(outputname, &code));
+	if options.env_outputname.is_some() {
+		let output_path = options.env_outputname.as_ref();
+		check!(fs::write(output_path.unwrap(), &code));
 		finish(
 			debug,
 			#[cfg(feature = "mlua")]
 			execute,
-			output_name,
+			output_path,
 			code
 		)
 	} else {
+		#[cfg(feature = "mlua")]
+		if execute {
+			execute_lua_code(&code)
+		}
 		Ok(())
-	};
+	}
 }
 
 #[cfg(feature = "mlua")]
@@ -277,7 +278,7 @@ fn execute_lua_code(code: &str) {
 fn finish(
 	debug: bool,
 	#[cfg(feature = "mlua")] execute: bool,
-	output_path: Option<PathBuf>,
+	output_path: Option<impl AsRef<Path>>,
 	code: String,
 ) -> Result<(), String> {
 	if debug {
@@ -358,7 +359,6 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 	let mut path = cli.path.unwrap();
 	let read_from_stdin = path.as_os_str() == "-";
 	let mut options = Options {
-		env_outputname: cli.outputname.clone(),
 		env_tokens: cli.tokens,
 		env_struct: cli.r#struct,
 		env_expand: cli.expand,
@@ -381,6 +381,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		} else {
 			cli.output
 		},
+		env_outputname: cli.outputname,
 		env_target: cli.target,
 		env_targetos: cli.targetos,
 		#[cfg(feature = "lsp")]
@@ -408,7 +409,6 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 			#[cfg(feature = "mlua")]
 			cli.execute,
 			cli.debug,
-			cli.outputname
 		);
 	} else if read_from_stdin {
 		let mut buf = Vec::new();
@@ -420,11 +420,11 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 			#[cfg(feature = "mlua")]
 			cli.execute,
 			cli.debug,
-			cli.outputname
 		);
 	}
 	let (output_path, code) = if path.is_dir() {
 		let time = Instant::now();
+		let output_name = options.env_outputname.clone();
 		let (output, statics) = compile_folder(&path, String::new(), options)?;
 		println!(
 			"{} \"{}\" in {} seconds!",
@@ -448,7 +448,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 				.replace("--STATICS\n", &statics)
 				.replace('§', &output),
 		};
-		save_result(cli.dontsave, cli.outputname, code)?
+		save_result(cli.dontsave, output_name, code)?
 	} else if {
 		match path.extension() {
 			Some(extension) if extension != "clue" => {
@@ -465,7 +465,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		let (rawcode, variables) = read_file(&path, &filename, &options)?;
 		let (output, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
 		let code = statics + &output;
-		save_result(cli.dontsave, cli.outputname.or_else(|| Some(path.with_extension("lua"))), code)?
+		save_result(cli.dontsave, options.env_outputname.or_else(|| Some(path.with_extension("lua"))), code)?
 	} else {
 		return Err(format!(
 			"{} was not found!",
