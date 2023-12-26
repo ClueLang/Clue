@@ -27,15 +27,15 @@ enum ColorMode {
 #[derive(Parser)]
 #[clap(
 	version,
-	about = "C/Rust like programming language that compiles into Lua code\nMade by Maiori\nhttps://github.com/ClueLang/Clue",
+	about = "C/Rust like programming language that compiles into Lua code\nMade by Felicia.iso\nhttps://github.com/ClueLang/Clue",
 	long_about = None
 )]
 struct Cli {
 	/// The path to the directory where the *.clue files are located.
 	/// Every directory inside the given directory will be checked too.
 	/// If the path points to a single *.clue file, only that file will be compiled.
-	#[clap(required_unless_present = "license")]
-	path: Option<PathBuf>,
+	#[clap(default_value_if("--license", None, Some("test")))]
+	path: PathBuf,
 
 	/// The name the output file will have
 	/// [default for compiling a directory: main]
@@ -111,7 +111,8 @@ struct Cli {
 	#[clap(short, long)]
 	debug: bool,
 
-	/// Use a custom Lua file as base for compiling the directory
+	/// Use a custom Lua file as base for compiling the directory,
+	/// does nothing when not compiling a directory
 	#[clap(short = 'B', long, value_name = "FILE NAME")]
 	base: Option<String>,
 
@@ -356,7 +357,7 @@ fn main() {
 }
 
 fn start_compilation(cli: Cli) -> Result<(), String> {
-	let mut path = cli.path.unwrap();
+	let mut path = cli.path;
 	let read_from_stdin = path.as_os_str() == "-";
 	let mut options = Options {
 		env_tokens: cli.tokens,
