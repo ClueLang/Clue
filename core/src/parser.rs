@@ -25,14 +25,6 @@ macro_rules! vec_deque {
 	};
 }
 
-macro_rules! bitwise {
-	($self:expr, $t:expr, $expr:expr, $fname:literal, $end:expr, $notable:expr) => {{
-		if $self.build_bitwise_op(&$t, &mut $expr, $fname, $end, $notable)? {
-			break $t;
-		}
-	}};
-}
-
 /// A list of [`ComplexToken`]s, which is the AST.
 pub type Expression = VecDeque<ComplexToken>;
 
@@ -824,6 +816,15 @@ impl<'a> ParserInfo<'a> {
 		let start = self.current;
 		let last = loop {
 			let t = self.advance();
+
+			macro_rules! bitwise {
+				($fname:literal) => {{
+					if self.build_bitwise_op(&t, &mut expr, $fname, end, notable)? {
+						break t;
+					}
+				}};
+			}
+
 			match t.kind() {
 				IDENTIFIER => {
 					let fname = self.build_identifier()?;
@@ -868,8 +869,8 @@ impl<'a> ParserInfo<'a> {
 					expr.push_back(CALL(vec![division]));
 					self.current -= 1;
 				}
-				BIT_AND => bitwise!(self, t, expr, "band", end, notable),
-				BIT_OR => bitwise!(self, t, expr, "bor", end, notable),
+				BIT_AND => bitwise!("band"),
+				BIT_OR => bitwise!("bor"),
 				BIT_XOR => {
 					//SAFETY: the token goes out of scope after BorrowedToken is used, so it stays valid
 					let t2 = if self.options.env_bitwise == BitwiseMode::Vanilla {
@@ -895,8 +896,8 @@ impl<'a> ParserInfo<'a> {
 						expr.push_back(SYMBOL(t.lexeme()))
 					}
 				}
-				LEFT_SHIFT => bitwise!(self, t, expr, "lshift", end, notable),
-				RIGHT_SHIFT => bitwise!(self, t, expr, "rshift", end, notable),
+				LEFT_SHIFT => bitwise!("lshift"),
+				RIGHT_SHIFT => bitwise!("rshift"),
 				NOT_EQUAL => {
 					self.check_operator(&t, notable, Some(&expr))?;
 					expr.push_back(SYMBOL(String::from("~=")))
