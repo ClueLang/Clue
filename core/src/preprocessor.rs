@@ -1397,8 +1397,9 @@ pub fn preprocess_variables(
 												}
 												continue
 											}
-											b'(' => cscope += 1,
+											b'(' | b'{' => cscope += 1,
 											b',' if cscope == 1 => break b',',
+											b'}' if cscope > 1 => cscope -= 1,
 											b')' => {
 												cscope -= 1;
 												if cscope == 0 {
