@@ -17,11 +17,6 @@ use parser::{parse_tokens, Expression};
 use preprocessor::{preprocess_code, preprocess_codes, read_file};
 use scanner::{scan_code, Token};
 
-#[cfg(feature = "rpmalloc")]
-#[global_allocator]
-/// The best memory allocator available for Clue
-static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
-
 pub mod code;
 pub mod compiler;
 pub mod env;

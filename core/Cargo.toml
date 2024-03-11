@@ -16,7 +16,6 @@ phf = { version = "0.11", features = ["macros"] }
 utf8-decode = "1.0.1"
 ahash.workspace = true
 clap.workspace = true
-rpmalloc = { version = "0.2.2", optional = true }
 serde = { version = "1.0.159", optional = true }
 serde_json = { version = "1.0.96", optional = true }
 
@@ -31,6 +30,5 @@ name = "bench"
 harness = false
 
 [features]
-default = ["rpmalloc"]
 serde = ["serde/derive"]
 lsp = ["serde_json", "serde"]
