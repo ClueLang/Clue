@@ -13,6 +13,11 @@ use clue_core::{
 use std::{fs, path::PathBuf, time::Instant};
 use threads::compile_folder;
 
+#[cfg(feature = "rpmalloc")]
+#[global_allocator]
+/// The best memory allocator available for Clue
+static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
+
 mod threads;
 
 #[derive(Parser)]
@@ -313,8 +318,8 @@ fn main() -> Result<(), String> {
 		env_targetos: cli.targetos,
 		#[cfg(feature = "lsp")]
 		env_symbols: cli.symbols,
-        #[cfg(not(feature = "lsp"))]
-        env_symbols: false,
+		#[cfg(not(feature = "lsp"))]
+		env_symbols: false,
 	};
 	options.preset();
 
