@@ -16,8 +16,8 @@ extended-description = "Clue is a programming language that compiles blazingly f
 
 [dependencies]
 flume = "0.11.0"
-num_cpus = "1.14.0"
-crossbeam-queue = "0.3.8"
+num_cpus = "1.16.0"
+crossbeam-queue = "0.3.11"
 ahash.workspace = true
 clue_core = { path = "../core", version = "3.4.6", default-features = false }
 clap.workspace = true

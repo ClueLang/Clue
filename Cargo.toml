@@ -4,7 +4,7 @@ default-members = ["cli", "core"]
 resolver = "2"
 
 [workspace.package]
-version = "3.4.6"
+version = "3.4.7"
 description = "C/Rust like programming language that compiles into Lua code"
 edition = "2021"
 rust-version = "1.70"
@@ -15,7 +15,7 @@ keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
 categories = ["compilers"]
 
 [workspace.dependencies]
-ahash = "0.8.2"
+ahash = "0.8.11"
 clap = { version = "3.2.25", features = ["derive", "cargo"] }
 
 [profile.release]
