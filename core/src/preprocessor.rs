@@ -12,7 +12,7 @@ use crate::{
 use ahash::AHashMap;
 use std::{
 	cmp,
-	collections::{VecDeque, HashMap},
+	collections::VecDeque,
 	env,
 	fs,
 	iter::{Peekable, Rev},
@@ -571,7 +571,7 @@ impl<'a> CodeFile<'a> {
 					self.filename,
 				))
 			}
-			Some(num) if num == "*" => default,
+			Some("*") => default,
 			Some(num) => num,
 		};
 		match num.parse::<u8>() {
@@ -632,7 +632,7 @@ pub fn read_file(
 ///
 ///   Ok(())
 /// }
-#[allow(clippy::blocks_in_if_conditions)]
+#[allow(clippy::blocks_in_conditions)]
 pub fn preprocess_code(
 	code: &mut [u8],
 	line: usize,
@@ -1102,6 +1102,7 @@ pub fn preprocess_code(
 	#[cfg(feature = "lsp")]
 	if options.env_symbols {
 		use PPVar::*;
+		use std::collections::HashMap;
 		let mut str_variables = HashMap::new();
 		for (name, variable) in &variables {
 			let (name, value) = match variable {
