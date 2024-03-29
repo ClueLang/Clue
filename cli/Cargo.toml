@@ -19,7 +19,7 @@ flume = "0.11.0"
 num_cpus = "1.16.0"
 crossbeam-queue = "0.3.11"
 ahash.workspace = true
-clue_core = { path = "../core", version = "3.4.6", default-features = false }
+clue_core = { path = "../core", version = "3.4.7", default-features = false }
 clap.workspace = true
 mlua = { version = "0.9.6", features = ["luajit", "vendored"], optional = true }
 rpmalloc = { version = "0.2.2", optional = true }
