@@ -53,7 +53,7 @@ jobs:
           TARGET_CFLAGS: "--target=${{ matrix.target }}"
         run: |
           cargo build --release --target=${{ matrix.target }} -vv
-          cd target/${{ matrix.target }}/release/ && tar -cvf "$CRATE_NAME-${{ matrix.target }}.tar.gz" "$CRATE_NAME" && cd ../../..
+          ( cd target/${{ matrix.target }}/release/ && tar -cavf "$CRATE_NAME-${{ matrix.target }}.tar.gz" "$CRATE_NAME" )
       - name: Upload clue-${{ matrix.target }}.tar.gz
         uses: actions/upload-artifact@v3
         with:
@@ -119,7 +119,7 @@ jobs:
       - name: Build ${{ matrix.target }}
         run: |
           cargo build --target=${{ matrix.target }} --release -vv
-          cd target/${{ matrix.target }}/release/ && tar -cvf "$CRATE_NAME-${{ matrix.target }}.tar.gz" "$CRATE_NAME" && cd ../../..
+          ( cd target/${{ matrix.target }}/release/ && tar -cavf "$CRATE_NAME-${{ matrix.target }}.tar.gz" "$CRATE_NAME" )
       - name: Build deb
         run: |
           cd cli && cargo deb -p clue --target=${{ matrix.target }} && cd ..
