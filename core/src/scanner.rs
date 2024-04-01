@@ -564,9 +564,7 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 	(
 		':',
 		SymbolType::Symbols(
-			generate_map(&[
-				(':', SymbolType::Just(DOUBLE_COLON)),
-			]),
+			generate_map(&[(':', SymbolType::Just(DOUBLE_COLON))]),
 			COLON,
 		),
 	),
