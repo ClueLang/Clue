@@ -1605,7 +1605,7 @@ impl<'a> ParserInfo<'a> {
 		self.current += 1;
 		self.assert(CURLY_BRACKET_OPEN, "{", Some("Missing enum block start"));
 		let mut enums = Expression::new();
-		let mut n = 0i16;
+		let mut n = 0i128;
 		loop {
 			if self.advance_if(CURLY_BRACKET_CLOSED) {
 				break;
@@ -1632,7 +1632,7 @@ impl<'a> ParserInfo<'a> {
 						Err(msg) => {
 							let t = self.look_back(0);
 							self.error(
-								"Enums values should be a non-float number ranging from -32768 to 32767.",
+								"Enums values should be numbers that can be represented in an signed 128 bit integer.",
 								t.line(),
 								t.column(),
 								t.range(),
