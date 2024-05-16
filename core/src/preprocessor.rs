@@ -331,13 +331,9 @@ impl<'a> CodeFile<'a> {
 			},
 		)
 	}
-
+															
 	fn read_constant(&mut self, end: u8, has_values: &mut bool) -> Code {
-		let mut to_append: Option<Code> = None;
 		self.read(Self::peek_char, |code, c, read_code| {
-			if to_append.is_some() {
-				read_code.append(to_append.take().unwrap());
-			}
 			match c.0 {
 				b'$' => {
 					code.read_char_unchecked();
@@ -350,9 +346,9 @@ impl<'a> CodeFile<'a> {
 					false
 				}
 				b'{' => {
-					code.read_char_unchecked();
-					to_append = Some(code.read_constant(b'}', has_values));
-					false
+					read_code.push(code.read_char_unchecked().unwrap());
+					read_code.append(code.read_constant(b'}', has_values));
+					true
 				}
 				ch => {
 					if ch == end {
