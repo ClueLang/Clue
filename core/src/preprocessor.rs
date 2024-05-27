@@ -44,6 +44,24 @@ pub enum PPVar {
 	/// A variable that has to be processed before expansion.
 	ToProcess(Code),
 
+	/// A variable that spans multiple lines.
+	MultiLined {
+		/// The part of the variable before the multilined (may be empty).
+		start: Code,
+
+		/// If the part before the multilined is a ToProcess or not.
+		has_values: bool,
+
+		/// The code of the multilined.
+		code: PPCode,
+
+		/// The preprocessor variables of the multilined.
+		ppvars: PPVars,
+
+		/// The closing bracket of the multilined.
+		last_char: CodeChar,
+	},
+
 	/// A macro.
 	Macro {
 		/// The code of the macro.
@@ -331,13 +349,15 @@ impl<'a> CodeFile<'a> {
 			},
 		)
 	}
-															
-	fn read_constant(&mut self, end: u8, has_values: &mut bool) -> Code {
-		self.read(Self::peek_char, |code, c, read_code| {
+
+	fn read_constant(&mut self) -> Result<(Code, Option<((PPCode, PPVars), CodeChar)>, bool), String> {
+		let mut multilined = None;
+		let mut has_values = false;
+		Ok((self.read(Self::peek_char, |code, c, read_code| {
 			match c.0 {
 				b'$' => {
 					code.read_char_unchecked();
-					*has_values = true;
+					has_values = true;
 					false
 				}
 				b'\'' | b'"' | b'`' => {
@@ -347,20 +367,21 @@ impl<'a> CodeFile<'a> {
 				}
 				b'{' => {
 					read_code.push(code.read_char_unchecked().unwrap());
-					read_code.append(code.read_constant(b'}', has_values));
+					multilined = Some((code.read_macro_block(), (b'}', code.line, code.column)));
 					true
 				}
-				ch => {
-					if ch == end {
-						read_code.push(code.read_char_unchecked().unwrap());
-						true
-					} else {
-						code.read_char_unchecked();
-						false
-					}
+				b'\n' => {
+					read_code.push(code.read_char_unchecked().unwrap());
+					true
+				}
+				_ => {
+					code.read_char_unchecked();
+					false
 				}
 			}
-		})
+		}), if let Some((multilined, last_char)) = multilined {
+			Some((multilined?, last_char))
+		} else { None }, has_values))
 	}
 
 	fn read_until_with(
@@ -921,13 +942,20 @@ pub fn preprocess_code(
 							).to_string();
 							code.expected("<name>", &got, c.1, c.2, start..code.read - 1, None);
 						}
-						let mut has_values = false;
 						code.skip_whitespace();
-						let value = code.read_constant(b'\n', &mut has_values);
+						let (value, multilined, has_values) = code.read_constant()?;
 						let trimmed_value = value.trim_end();
 						variables.insert(
 							name,
-							if has_values {
+							if let Some(((code, ppvars), last_char)) = multilined {
+								PPVar::MultiLined {
+									start: trimmed_value,
+									has_values,
+									code,
+									ppvars,
+									last_char
+								}
+							} else if has_values {
 								PPVar::ToProcess(trimmed_value)
 							} else {
 								PPVar::Simple(trimmed_value)
@@ -1510,6 +1538,31 @@ pub fn preprocess_variables(
 							i,
 							filename,
 						)?,
+						PPVar::MultiLined { start, has_values, code, ppvars, last_char } => {
+							let mut result = Code::with_capacity(start.len() + code.1 + 1);
+							result.append(if *has_values {
+								preprocess_variables(
+									stacklevel + 1,
+									start,
+									start.len(),
+									variables,
+									i,
+									filename,
+								)?
+							} else {
+								start.clone()
+							});
+							let mut multilined_variables = variables.clone();
+							multilined_variables.extend(ppvars.clone());
+							result.append(preprocess_codes(
+								stacklevel + 1,
+								code.clone(),
+								&multilined_variables,
+								filename,
+							)?);
+							result.push(*last_char);
+							result
+						},
 						PPVar::Macro {
 							code,
 							args,
