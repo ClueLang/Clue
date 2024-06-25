@@ -60,6 +60,9 @@ pub enum ComplexToken {
 		/// Whether the variable(s) is/are local or not.
 		local: bool,
 
+		/// Whether the variable(s) is/are const or not.
+		r#const: bool,
+
 		/// The names of the variable(s).
 		names: Vec<String>,
 
@@ -215,10 +218,10 @@ pub enum ComplexToken {
 	TRY_CATCH {
 		/// The code block of the try block.
 		totry: CodeBlock,
-		
+
 		/// An optional code block of the catch block.
 		catch: Option<CodeBlock>,
-		
+
 		/// The name of the error variable in the catch block.
 		error: Option<String>,
 	},
@@ -796,13 +799,13 @@ impl<'a> ParserInfo<'a> {
 	fn get_prev_expr(&mut self) -> &mut Expression {
 		return match self.internal_stack.last_mut() {
 			Some(last) => last.get_mut(),
-			None => &mut self.expr
+			None => &mut self.expr,
 		};
 	}
 
 	fn use_internal_stack<T>(
 		&mut self,
-		f: impl FnOnce(&mut Self) -> Result<T, String>
+		f: impl FnOnce(&mut Self) -> Result<T, String>,
 	) -> Result<(T, Expression), String> {
 		self.internal_stack.push(Cell::new(Expression::new()));
 		let result = f(self)?;
@@ -878,7 +881,13 @@ impl<'a> ParserInfo<'a> {
 					} else {
 						t.into_owned()
 					};
-					if self.build_bitwise_op(&BorrowedToken::new(&t2), &mut expr, "bxor", end, notable)? {
+					if self.build_bitwise_op(
+						&BorrowedToken::new(&t2),
+						&mut expr,
+						"bxor",
+						end,
+						notable,
+					)? {
 						break t;
 					}
 				}
@@ -934,7 +943,8 @@ impl<'a> ParserInfo<'a> {
 					let ident = SYMBOL(name.clone());
 					let mut ctoken = self.build_match_block(name, &|i /* , _ */| {
 						let start = i.peek(0).line();
-						let (expr, mut code) = i.use_internal_stack(|i| i.build_expression(None))?;
+						let (expr, mut code) =
+							i.use_internal_stack(|i| i.build_expression(None))?;
 						let end = i.look_back(1).line();
 						if matches!(i.look_back(0).kind(), CURLY_BRACKET_CLOSED | DEFAULT) {
 							i.current -= 1
@@ -943,25 +953,30 @@ impl<'a> ParserInfo<'a> {
 							kind: DEFINE,
 							names: vec_deque![vec_deque![ident.clone()]],
 							values: vec![expr],
-							line: end
+							line: end,
 						});
 						Ok(CodeBlock { start, code, end })
 					})?;
-					let MATCH_BLOCK {branches, line, ..} = &mut ctoken else {
+					let MATCH_BLOCK { branches, line, .. } = &mut ctoken else {
 						unreachable!()
 					};
 					let last_branch = branches.last().unwrap();
 					if !(last_branch.0.is_empty() && last_branch.2.is_none()) {
-						branches.push((Vec::new(), Expression::new(), None, CodeBlock {
-							start: *line,
-							code: vec_deque![ALTER {
-								kind: DEFINE,
-								names: vec_deque![vec_deque![ident.clone()]],
-								values: vec![vec_deque![SYMBOL(String::from("nil"))]],
-								line: *line
-							}],
-							end: *line
-						}))
+						branches.push((
+							Vec::new(),
+							Expression::new(),
+							None,
+							CodeBlock {
+								start: *line,
+								code: vec_deque![ALTER {
+									kind: DEFINE,
+									names: vec_deque![vec_deque![ident.clone()]],
+									values: vec![vec_deque![SYMBOL(String::from("nil"))]],
+									line: *line
+								}],
+								end: *line,
+							},
+						))
 					}
 					self.get_prev_expr().push_back(ctoken);
 					expr.push_back(ident);
@@ -972,7 +987,8 @@ impl<'a> ParserInfo<'a> {
 				COALESCE => {
 					let mut leftexpr = Expression::with_capacity(expr.len());
 					leftexpr.append(&mut expr);
-					let (rightexpr, mut code) = self.use_internal_stack(|i| i.build_expression(end))?;
+					let (rightexpr, mut code) =
+						self.use_internal_stack(|i| i.build_expression(end))?;
 					self.current -= 1;
 					let name = self.get_next_internal_var();
 					let start = self.at(start).line();
@@ -981,6 +997,7 @@ impl<'a> ParserInfo<'a> {
 					prev_expr.push_back(VARIABLE {
 						line: start,
 						local: true,
+						r#const: false,
 						names: vec![name.clone()],
 						values: vec![leftexpr],
 					});
@@ -989,7 +1006,7 @@ impl<'a> ParserInfo<'a> {
 						kind: DEFINE,
 						line: t.line(),
 						names: vec_deque![vec_deque![name.clone()]],
-						values: vec![rightexpr]
+						values: vec![rightexpr],
 					});
 					prev_expr.push_back(IF_STATEMENT {
 						condition: vec_deque![name.clone(), SYMBOL(String::from(" == nil"))],
@@ -1008,13 +1025,11 @@ impl<'a> ParserInfo<'a> {
 				QUESTION_MARK => {
 					let mut condition = Expression::with_capacity(expr.len());
 					condition.append(&mut expr);
-					let (exprtrue, mut codetrue) = self.use_internal_stack(
-						|i| i.build_expression(Some((COLON, ":")))
-					)?;
+					let (exprtrue, mut codetrue) =
+						self.use_internal_stack(|i| i.build_expression(Some((COLON, ":"))))?;
 					let t2 = self.look_back(0);
-					let (exprfalse, mut codefalse) = self.use_internal_stack(
-						|i| i.build_expression(end)
-					)?;
+					let (exprfalse, mut codefalse) =
+						self.use_internal_stack(|i| i.build_expression(end))?;
 					self.current -= 1;
 					let name = self.get_next_internal_var();
 					let start = self.at(start).line();
@@ -1023,6 +1038,7 @@ impl<'a> ParserInfo<'a> {
 					prev_expr.push_back(VARIABLE {
 						line: t.line(),
 						local: true,
+						r#const: false,
 						names: vec![name.clone()],
 						values: Vec::new(),
 					});
@@ -1031,13 +1047,13 @@ impl<'a> ParserInfo<'a> {
 						kind: DEFINE,
 						line: t.line(),
 						names: vec_deque![vec_deque![name.clone()]],
-						values: vec![exprtrue]
+						values: vec![exprtrue],
 					});
 					codefalse.push_back(ALTER {
 						kind: DEFINE,
 						line: t.line(),
 						names: vec_deque![vec_deque![name.clone()]],
-						values: vec![exprfalse]
+						values: vec![exprfalse],
 					});
 					prev_expr.push_back(IF_STATEMENT {
 						condition,
@@ -1064,7 +1080,8 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				ROUND_BRACKET_OPEN => {
-					let bracketed_expr = EXPR(self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?);
+					let bracketed_expr =
+						EXPR(self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?);
 					if self.check_val() {
 						expr.push_back(bracketed_expr);
 						break t;
@@ -1131,6 +1148,7 @@ impl<'a> ParserInfo<'a> {
 		let line = self.peek(0).line();
 		self.get_prev_expr().push_back(VARIABLE {
 			local: true,
+			r#const: false,
 			names: vec![name.clone()],
 			values: vec![safe_expr],
 			line,
@@ -1181,6 +1199,7 @@ impl<'a> ParserInfo<'a> {
 								let name = self.get_next_internal_var();
 								self.expr.push_back(VARIABLE {
 									local: true,
+									r#const: false,
 									names: vec![name.clone()],
 									values: vec![expr_self],
 									line,
@@ -1214,8 +1233,7 @@ impl<'a> ParserInfo<'a> {
 					}
 				}
 				SQUARE_BRACKET_OPEN | SAFE_SQUARE_BRACKET => {
-					safe_indexing |=
-						self.build_safe_index(SQUARE_BRACKET_OPEN, t.kind(), expr);
+					safe_indexing |= self.build_safe_index(SQUARE_BRACKET_OPEN, t.kind(), expr);
 					let qexpr = self.build_expression(Some((SQUARE_BRACKET_CLOSED, "]")))?;
 					expr.push_back(SYMBOL(String::from("[(")));
 					expr.push_back(EXPR(qexpr));
@@ -1333,15 +1351,20 @@ impl<'a> ParserInfo<'a> {
 				CONTINUE if !is_in_other_loop => {
 					if self.options.env_continue == ContinueMode::MoonScript {
 						let line = t.line();
-						tokens.push(Token::new(IDENTIFIER, {
-							if let Some(name) = hascontinue.as_ref() {
-								name.clone()
-							} else {
-								let name = self.get_next_internal_var();
-								hascontinue = Some(name.clone());
-								name
-							}
-						}, line, 0));
+						tokens.push(Token::new(
+							IDENTIFIER,
+							{
+								if let Some(name) = hascontinue.as_ref() {
+									name.clone()
+								} else {
+									let name = self.get_next_internal_var();
+									hascontinue = Some(name.clone());
+									name
+								}
+							},
+							line,
+							0,
+						));
 						tokens.push(Token::new(DEFINE, "=", line, 0));
 						tokens.push(Token::new(TRUE, "true", line, 0));
 						tokens.push(Token::new(BREAK, "break", line, 0));
@@ -1371,6 +1394,7 @@ impl<'a> ParserInfo<'a> {
 					code = vec_deque![
 						VARIABLE {
 							local: true,
+							r#const: false,
 							names: vec![name.clone()],
 							values: vec![vec_deque![SYMBOL(String::from("false"))]],
 							line: start
@@ -1468,18 +1492,23 @@ impl<'a> ParserInfo<'a> {
 		Ok(/* (args, types) */ args)
 	}
 
-	fn build_elseif_chain(&mut self, condition: Option<Expression>) -> Result<ComplexToken, String> {
+	fn build_elseif_chain(
+		&mut self,
+		condition: Option<Expression>,
+	) -> Result<ComplexToken, String> {
 		let condition = match condition {
 			Some(condition) => condition,
 			None => {
 				if self.advance_if(LOCAL) {
 					let start = self.look_back(0).line();
 					let destructure = self.advance_if(CURLY_BRACKET_OPEN);
-					let (vars, mut code) = self.use_internal_stack(
-						|i| i.build_variables(true, start, destructure)
-					)?;
+					let (vars, mut code) =
+						self.use_internal_stack(|i| i.build_variables(true, start, destructure))?;
 					let (condition, end) = {
-						let VARIABLE {names, line: end, ..} = &vars else {
+						let VARIABLE {
+							names, line: end, ..
+						} = &vars
+						else {
 							unreachable!()
 						};
 						let mut condition = Expression::with_capacity(names.len());
@@ -1493,7 +1522,7 @@ impl<'a> ParserInfo<'a> {
 					};
 					code.push_back(vars);
 					code.push_back(self.build_elseif_chain(Some(condition))?);
-					return Ok(DO_BLOCK(CodeBlock { start, code, end }))
+					return Ok(DO_BLOCK(CodeBlock { start, code, end }));
 				}
 				self.build_expression(Some((CURLY_BRACKET_OPEN, "{")))?
 			}
@@ -1563,6 +1592,7 @@ impl<'a> ParserInfo<'a> {
 			enums.push_back(VARIABLE {
 				line: name.line(),
 				local,
+				r#const: false,
 				names: vec![name.lexeme()],
 				values: vec![vec_deque![value]],
 			});
@@ -1625,7 +1655,9 @@ impl<'a> ParserInfo<'a> {
 	}*/
 
 	#[allow(clippy::type_complexity)]
-	fn build_destructure_table(&mut self) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
+	fn build_destructure_table(
+		&mut self,
+	) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
 		let mut names = Vec::new();
 		let mut key_names = Vec::new();
 		let name = self.get_next_internal_var();
@@ -1689,6 +1721,7 @@ impl<'a> ParserInfo<'a> {
 		let mut names = internal_names.into_iter();
 		prev_expr.push_back(VARIABLE {
 			local: true,
+			r#const: false,
 			names: vec![names.next().unwrap()],
 			values,
 			line,
@@ -1696,6 +1729,7 @@ impl<'a> ParserInfo<'a> {
 		while let (Some(prev_name), Some(name)) = (names.next(), names.next()) {
 			prev_expr.push_back(VARIABLE {
 				local: true,
+				r#const: false,
 				names: vec![name.clone()],
 				values: vec![vec_deque![SYMBOL(prev_name)]],
 				line,
@@ -1709,6 +1743,7 @@ impl<'a> ParserInfo<'a> {
 		line: usize,
 		destructure: bool,
 	) -> Result<ComplexToken, String> {
+		let r#const = self.advance_if(CONST);
 		let (names, destructure) = if destructure {
 			let (names, key_names, internal_names) = self.build_destructure_table()?;
 			(names, Some((key_names, internal_names)))
@@ -1720,6 +1755,7 @@ impl<'a> ParserInfo<'a> {
 			if check == SEMICOLON {
 				self.current += 1;
 			}
+
 			if local {
 				Vec::new()
 			} else {
@@ -1744,6 +1780,7 @@ impl<'a> ParserInfo<'a> {
 		}
 		Ok(VARIABLE {
 			local,
+			r#const,
 			names,
 			values,
 			line,
@@ -1776,14 +1813,18 @@ impl<'a> ParserInfo<'a> {
 								t.column()
 							));
 						}
-						branches.push((Vec::new(), Expression::new(), None, func(self /* , self.locals.clone() */)?));
+						branches.push((
+							Vec::new(),
+							Expression::new(),
+							None,
+							func(self /* , self.locals.clone() */)?,
+						));
 						self.assert(CURLY_BRACKET_CLOSED, "}")?;
 						false
 					}
 					IF => {
-						let (extra_if, internal_expr) = self.use_internal_stack(|i|
-							i.build_expression(Some((ARROW, "=>")))
-						)?;
+						let (extra_if, internal_expr) =
+							self.use_internal_stack(|i| i.build_expression(Some((ARROW, "=>"))))?;
 						branches.push((
 							Vec::new(),
 							internal_expr,
@@ -1801,7 +1842,7 @@ impl<'a> ParserInfo<'a> {
 					let extra_if = match t.kind() {
 						ARROW => None,
 						IF => Some(i.build_expression(Some((ARROW, "=>")))?),
-						_ => return Err(i.expected("=>", &t.lexeme(), t.line(), t.column()))
+						_ => return Err(i.expected("=>", &t.lexeme(), t.line(), t.column())),
 					};
 					Ok((expr, extra_if))
 				})?;
@@ -1823,7 +1864,7 @@ impl<'a> ParserInfo<'a> {
 					conditions,
 					internal_expr,
 					extra_if,
-					func(self /* , self.locals.clone() */)?
+					func(self /* , self.locals.clone() */)?,
 				));
 				!self.advance_if(CURLY_BRACKET_CLOSED)
 			}
@@ -1839,14 +1880,15 @@ impl<'a> ParserInfo<'a> {
 	fn build_loop(
 		&mut self,
 		code: Option<CodeBlock>,
-		end: OptionalEnd
+		end: OptionalEnd,
 	) -> Result<(Expression, CodeBlock), String> {
 		let start = self.peek(0).line();
-		let (condition, mut internal_code) = self.use_internal_stack(|i| i.build_expression(end))?;
+		let (condition, mut internal_code) =
+			self.use_internal_stack(|i| i.build_expression(end))?;
 		let end = self.look_back(1).line();
 		let code = match code {
 			Some(code) => code,
-			None => self.build_loop_block()?
+			None => self.build_loop_block()?,
 		};
 		if !internal_code.is_empty() {
 			internal_code.push_back(RETURN_EXPR(Some(vec![condition])));
@@ -1855,7 +1897,11 @@ impl<'a> ParserInfo<'a> {
 				local: true,
 				name: vec_deque![SYMBOL(function_name.clone())],
 				args: vec![],
-				code: CodeBlock { start, code: internal_code, end }
+				code: CodeBlock {
+					start,
+					code: internal_code,
+					end,
+				},
 			});
 			Ok((vec_deque![SYMBOL(format_clue!(function_name, "()"))], code))
 		} else {
@@ -1874,12 +1920,7 @@ impl<'a> ParserInfo<'a> {
 		let safe_indexing = self.build_identifier_internal(&mut expr)?;
 		if strict && !matches!(expr.back(), Some(CALL(..))) {
 			let t = self.look_back(0);
-			return Err(self.expected_before(
-				"<function call>",
-				&t.lexeme(),
-				t.line(),
-				t.column()
-			))
+			return Err(self.expected_before("<function call>", &t.lexeme(), t.line(), t.column()));
 		}
 		if safe_indexing {
 			let call = if strict { expr.pop_back() } else { None };
@@ -2073,7 +2114,9 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_token_round_bracket_open(&mut self) -> Result<(), String> {
-		let expr = vec_deque![EXPR(self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?)];
+		let expr = vec_deque![EXPR(
+			self.build_expression(Some((ROUND_BRACKET_CLOSED, ")")))?
+		)];
 		let mut target_expr = Expression::with_capacity(2);
 		self.build_round_brackets(expr, &mut target_expr, true)?;
 		self.expr.append(&mut target_expr);
@@ -2103,7 +2146,11 @@ impl<'a> ParserInfo<'a> {
 
 	fn parse_token_while(&mut self, line: usize) -> Result<(), String> {
 		let (condition, code) = self.build_loop(None, Some((CURLY_BRACKET_OPEN, "{")))?;
-		self.expr.push_back(WHILE_LOOP { condition, code, line });
+		self.expr.push_back(WHILE_LOOP {
+			condition,
+			code,
+			line,
+		});
 		Ok(())
 	}
 
@@ -2111,7 +2158,11 @@ impl<'a> ParserInfo<'a> {
 		let (mut condition, code) = self.build_loop(None, Some((CURLY_BRACKET_OPEN, "{")))?;
 		condition.push_front(SYMBOL(String::from("not (")));
 		condition.push_back(SYMBOL(String::from(")")));
-		self.expr.push_back(WHILE_LOOP { condition, code, line });
+		self.expr.push_back(WHILE_LOOP {
+			condition,
+			code,
+			line,
+		});
 		Ok(())
 	}
 
@@ -2121,13 +2172,21 @@ impl<'a> ParserInfo<'a> {
 		match t.kind() {
 			UNTIL => {
 				let (condition, code) = self.build_loop(Some(code), None)?;
-				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })
+				self.expr.push_back(LOOP_UNTIL {
+					condition,
+					code,
+					line: t.line(),
+				})
 			}
 			WHILE => {
 				let (mut condition, code) = self.build_loop(Some(code), None)?;
 				condition.push_front(SYMBOL(String::from("not (")));
 				condition.push_back(SYMBOL(String::from(")")));
-				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })
+				self.expr.push_back(LOOP_UNTIL {
+					condition,
+					code,
+					line: t.line(),
+				})
 			}
 			_ => self.expr.push_back(WHILE_LOOP {
 				condition: vec_deque![SYMBOL(String::from("true"))],
@@ -2222,7 +2281,7 @@ impl<'a> ParserInfo<'a> {
 		self.expr.push_back(RETURN_EXPR(exprs));
 		if !self.ended() {
 			let t = self.look_back(0);
-			return Err(self.expected("<end>", &t.lexeme(), t.line(), t.column()))
+			return Err(self.expected("<end>", &t.lexeme(), t.line(), t.column()));
 		}
 		Ok(())
 	}

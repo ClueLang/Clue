@@ -6,6 +6,7 @@
 use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
 
+use crate::env::LuaVersion;
 use crate::{
 	env::{ContinueMode, Options},
 	format_clue,
@@ -102,7 +103,8 @@ impl<'a> Compiler<'a> {
 		args: FunctionArgs,
 		code: CodeBlock,
 	) -> Result<(String, String), String> {
-		let mut code = self.compile_code_block(scope + self.options.env_debug as usize, "", code)?;
+		let mut code =
+			self.compile_code_block(scope + self.options.env_debug as usize, "", code)?;
 		let args = self.compile_list(args, ", ", &mut |(arg, default)| {
 			if let Some((default, line)) = default {
 				let default = self.compile_expression(scope + 2, default)?;
@@ -357,6 +359,7 @@ impl<'a> Compiler<'a> {
 				SYMBOL(lexeme) => lexeme,
 				VARIABLE {
 					local,
+					r#const,
 					names,
 					values,
 					line,
@@ -388,13 +391,23 @@ impl<'a> Compiler<'a> {
 					} else {
 						let end = self.indentate_if(ctokens, scope);
 						let pre = if local { "local " } else { "" };
+						let post = if r#const
+							&& self
+								.options
+								.env_target
+								.is_some_and(|lua| lua == LuaVersion::Lua54)
+						{
+							"<const> "
+						} else {
+							""
+						};
 						if values.is_empty() {
 							let ident = self.compile_identifiers(names)?;
 							format_clue!(debug, pre, ident, ";", line, end)
 						} else {
 							let values = self.compile_expressions(scope, values)?;
 							let names = self.compile_identifiers(names)?;
-							format_clue!(debug, pre, names, " = ", values, ";", line, end)
+							format_clue!(debug, pre, names, post, " = ", values, ";", line, end)
 						}
 					}
 				}
@@ -489,23 +502,23 @@ impl<'a> Compiler<'a> {
 										let expr = self.compile_expression(scope, expr)?;
 										Ok(format_clue!("(", name, " == ", expr, ") "))
 									})?;
-								format_clue!("if ", if let Some(extraif) = extraif {
-									condition.pop();
-									let extraif = self.compile_expression(scope, extraif)?;
-									if empty {
-										extraif + " "
+								format_clue!(
+									"if ",
+									if let Some(extraif) = extraif {
+										condition.pop();
+										let extraif = self.compile_expression(scope, extraif)?;
+										if empty {
+											extraif + " "
+										} else {
+											format_clue!("(", condition, ") and ", extraif, " ")
+										}
 									} else {
-										format_clue!("(", condition, ") and ", extraif, " ")
-									}
-								} else {
-									condition
-								}, "then")
+										condition
+									},
+									"then"
+								)
 							};
-							let end = if i >= last {
-								"end"
-							} else {
-								"else"
-							};
+							let end = if i >= last { "end" } else { "else" };
 							let pre = self.indentate(scope + i);
 							let internal_code = if internal_expr.is_empty() {
 								None
@@ -513,48 +526,23 @@ impl<'a> Compiler<'a> {
 								Some(self.compile_tokens(scope + i, internal_expr)?)
 							};
 							let code = if i == 0 {
-								let code = self.compile_code_block(
-									scope,
-									&condition,
-									code,
-								)? + end;
+								let code = self.compile_code_block(scope, &condition, code)? + end;
 								if let Some(internal_code) = internal_code {
-									format_clue!(
-										internal_code,
-										'\n',
-										pre,
-										code
-									)
+									format_clue!(internal_code, '\n', pre, code)
 								} else {
 									code
 								}
 							} else if default {
-								self.compile_code_block(
-									scope + i - 1,
-									"",
-									code,
-								)? + end
+								self.compile_code_block(scope + i - 1, "", code)? + end
 							} else {
-								let code = self.compile_code_block(
-									scope + i,
-									&condition,
-									code,
-								)?;
-								let mut code = format_clue!(
-									'\n',
-									pre,
-									code,
-									end
-								);
+								let code = self.compile_code_block(scope + i, &condition, code)?;
+								let mut code = format_clue!('\n', pre, code, end);
 								if let Some(internal_code) = internal_code {
-									code = format_clue!(
-										'\n',
-										internal_code,
-										code
-									)
+									code = format_clue!('\n', internal_code, code)
 								}
 								if i >= last {
-									code += &format_clue!('\n', self.indentate(scope + i - 1), "end");
+									code +=
+										&format_clue!('\n', self.indentate(scope + i - 1), "end");
 								}
 								code
 							};
@@ -575,7 +563,11 @@ impl<'a> Compiler<'a> {
 						debug, "local ", name, " = ", value, ';', line, '\n', branches, end
 					)
 				}
-				WHILE_LOOP { condition, code, line } => {
+				WHILE_LOOP {
+					condition,
+					code,
+					line,
+				} => {
 					let condition = self.compile_expression(scope, condition)?;
 					let debug = self.compile_debug_line(line, scope, true);
 					let code = self.compile_code_block(scope, "do", code)?;
@@ -590,7 +582,11 @@ impl<'a> Compiler<'a> {
 						self.indentate_if(ctokens, scope)
 					)
 				}
-				LOOP_UNTIL { condition, code, line } => {
+				LOOP_UNTIL {
+					condition,
+					code,
+					line,
+				} => {
 					let condition = self.compile_expression(scope, condition)?;
 					let debug = self.compile_debug_line(line, scope, true);
 					let code = self.compile_code_block(scope, "", code)?;
@@ -618,20 +614,8 @@ impl<'a> Compiler<'a> {
 					let code = self.compile_code_block(scope, "do", code)?;
 					let end = self.indentate_if(ctokens, scope);
 					format_clue!(
-						debug,
-						"for ",
-						iterator,
-						" = ",
-						start,
-						", ",
-						endexpr,
-						", ",
-						alter,
-						" ",
-						code,
-						debug,
-						"end",
-						end
+						debug, "for ", iterator, " = ", start, ", ", endexpr, ", ", alter, " ",
+						code, debug, "end", end
 					)
 				}
 				FOR_FUNC_LOOP {
