@@ -390,7 +390,6 @@ impl<'a> Compiler<'a> {
 						result
 					} else {
 						let end = self.indentate_if(ctokens, scope);
-						let pre = if local { "local " } else { "" };
 						let post = if r#const
 							&& self
 								.options
@@ -398,6 +397,11 @@ impl<'a> Compiler<'a> {
 								.is_some_and(|lua| lua == LuaVersion::Lua54)
 						{
 							" <const> "
+						} else {
+							""
+						};
+						let pre = if local || !post.is_empty() {
+							"local "
 						} else {
 							""
 						};
