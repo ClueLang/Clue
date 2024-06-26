@@ -54,7 +54,7 @@ pub enum TokenType {
 
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, UNTIL,
-	LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP, STATIC, ENUM,
+	LOCAL, CONST, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP, STATIC, ENUM,
 	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT, STRUCT, EXTERN, CONSTRUCTOR,
 
 	EOF,
@@ -602,6 +602,7 @@ static KEYWORDS: phf::Map<&'static [u8], KeywordType> = phf_map! {
 	b"while" => KeywordType::Lua(WHILE),
 	b"until" => KeywordType::Lua(UNTIL),
 	b"local" => KeywordType::Lua(LOCAL),
+	b"const" => KeywordType::Lua(CONST),
 	b"return" => KeywordType::Lua(RETURN),
 	b"true" => KeywordType::Lua(TRUE),
 	b"false" => KeywordType::Lua(FALSE),
