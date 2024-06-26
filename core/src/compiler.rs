@@ -397,7 +397,7 @@ impl<'a> Compiler<'a> {
 								.env_target
 								.is_some_and(|lua| lua == LuaVersion::Lua54)
 						{
-							"<const> "
+							" <const> "
 						} else {
 							""
 						};
