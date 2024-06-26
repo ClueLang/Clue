@@ -1942,6 +1942,19 @@ impl<'a> ParserInfo<'a> {
 	fn parse_token_local_global(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let local = t.kind() == LOCAL;
 		let r#const = t.kind() == CONST || self.advance_if(CONST);
+		if r#const
+			&& (self.options.env_target.is_none()
+				|| self
+					.options
+					.env_target
+					.is_some_and(|lua| lua != LuaVersion::Lua54))
+		{
+			println!(
+				"Warning: Using `const` without targeting Lua 5.4 {}:{}",
+				t.line(),
+				t.column()
+			);
+		}
 		match self.peek(0).kind() {
 			FN => {
 				let function = self.build_function(local)?;
@@ -1962,6 +1975,19 @@ impl<'a> ParserInfo<'a> {
 
 	fn parse_token_static(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let r#const = t.kind() == CONST || self.advance_if(CONST);
+		if r#const
+			&& (self.options.env_target.is_none()
+				|| self
+					.options
+					.env_target
+					.is_some_and(|lua| lua != LuaVersion::Lua54))
+		{
+			println!(
+				"Warning: Using `const` without targeting Lua 5.4 {}:{}",
+				t.line(),
+				t.column()
+			);
+		}
 		match self.peek(0).kind() {
 			FN => {
 				let function = vec_deque![self.build_function(true)?];
