@@ -1502,8 +1502,9 @@ impl<'a> ParserInfo<'a> {
 				if self.advance_if(LOCAL) {
 					let start = self.look_back(0).line();
 					let destructure = self.advance_if(CURLY_BRACKET_OPEN);
-					let (vars, mut code) =
-						self.use_internal_stack(|i| i.build_variables(true, start, destructure))?;
+					let (vars, mut code) = self.use_internal_stack(|i| {
+						i.build_variables(true, false, start, destructure)
+					})?;
 					let (condition, end) = {
 						let VARIABLE {
 							names, line: end, ..
@@ -1740,10 +1741,10 @@ impl<'a> ParserInfo<'a> {
 	fn build_variables(
 		&mut self,
 		local: bool,
+		r#const: bool,
 		line: usize,
 		destructure: bool,
 	) -> Result<ComplexToken, String> {
-		let r#const = self.advance_if(CONST);
 		let (names, destructure) = if destructure {
 			let (names, key_names, internal_names) = self.build_destructure_table()?;
 			(names, Some((key_names, internal_names)))
@@ -1940,6 +1941,7 @@ impl<'a> ParserInfo<'a> {
 
 	fn parse_token_local_global(&mut self, t: &BorrowedToken) -> Result<(), String> {
 		let local = t.kind() == LOCAL;
+		let r#const = t.kind() == CONST || self.advance_if(CONST);
 		match self.peek(0).kind() {
 			FN => {
 				let function = self.build_function(local)?;
@@ -1951,7 +1953,7 @@ impl<'a> ParserInfo<'a> {
 			}
 			_ => {
 				let destructure = self.advance_if(CURLY_BRACKET_OPEN);
-				let vars = self.build_variables(local, t.line(), destructure)?;
+				let vars = self.build_variables(local, r#const, t.line(), destructure)?;
 				self.expr.push_back(vars);
 			}
 		}
@@ -1969,7 +1971,7 @@ impl<'a> ParserInfo<'a> {
 				self.compile_static(enums)?;
 			}
 			_ => {
-				let vars = vec_deque![self.build_variables(true, t.line(), false)?];
+				let vars = vec_deque![self.build_variables(true, false, t.line(), false)?];
 				self.compile_static(vars)?;
 			}
 		}
@@ -2362,7 +2364,7 @@ pub fn parse_tokens(
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {
-			LOCAL | GLOBAL => i.parse_token_local_global(&t)?,
+			LOCAL | GLOBAL | CONST => i.parse_token_local_global(&t)?,
 			STATIC => i.parse_token_static(&t)?,
 			METHOD => i.parse_token_method()?,
 			IDENTIFIER => i.parse_token_identifier(&t)?,
