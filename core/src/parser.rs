@@ -1961,6 +1961,7 @@ impl<'a> ParserInfo<'a> {
 	}
 
 	fn parse_token_static(&mut self, t: &BorrowedToken) -> Result<(), String> {
+		let r#const = t.kind() == CONST || self.advance_if(CONST);
 		match self.peek(0).kind() {
 			FN => {
 				let function = vec_deque![self.build_function(true)?];
@@ -1971,7 +1972,7 @@ impl<'a> ParserInfo<'a> {
 				self.compile_static(enums)?;
 			}
 			_ => {
-				let vars = vec_deque![self.build_variables(true, false, t.line(), false)?];
+				let vars = vec_deque![self.build_variables(true, r#const, t.line(), false)?];
 				self.compile_static(vars)?;
 			}
 		}
