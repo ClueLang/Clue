@@ -109,7 +109,7 @@ makepkg -si
 There are still features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
 - type system (coming in 4.0)
-- better error messages (comming in 4.0)
+- better error messages (coming in 4.0)
 - proper language server support (coming in 4.0)
 
 For any suggestion or bug you can make a github issue.
