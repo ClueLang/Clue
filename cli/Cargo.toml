@@ -21,7 +21,10 @@ crossbeam-queue.workspace = true
 ahash.workspace = true
 clue_core = { path = "../core", version = "4.0.0-78ce10c1", default-features = false }
 clap.workspace = true
-mlua = { version = "0.9.6", features = ["luajit", "vendored"], optional = true }
+mlua = { version = "0.10.5", features = [
+    "luajit",
+    "vendored",
+], optional = true }
 colored.workspace = true
 rpmalloc = { version = "0.2.2", optional = true }
 

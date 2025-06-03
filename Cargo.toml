@@ -15,12 +15,12 @@ keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
 categories = ["compilers"]
 
 [workspace.dependencies]
-ahash = "0.8.11"
-clap = { version = "4.4.11", features = ["derive", "cargo", "wrap_help"] }
-colored = "2.1.0"
-crossbeam-queue = "0.3.10"
-flume = "0.11.0"
-num_cpus = "1.16.0"
+ahash = "0.8.12"
+clap = { version = "4.5.39", features = ["derive", "cargo", "wrap_help"] }
+colored = "3.0.0"
+crossbeam-queue = "0.3.12"
+flume = "0.11.1"
+num_cpus = "1.17.0"
 
 [profile.release]
 lto = true
