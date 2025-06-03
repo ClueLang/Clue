@@ -724,7 +724,7 @@ static KEYWORDS: phf::Map<&'static [u8], KeywordType> = phf_map! {
 ///         &options,
 ///     )?;
 ///     let codes = preprocess_codes(0, codes, &variables, &filename)?;
-///     let tokens = scan_code(codes, &filename)?;
+///     let tokens = scan_code(codes, &filename, &options)?;
 ///
 ///     Ok(())
 /// }

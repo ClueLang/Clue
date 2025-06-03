@@ -2570,7 +2570,7 @@ fn parse_tokens_internal<'a>(
 ///         &options,
 ///     )?;
 ///     let codes = preprocess_codes(0, codes, &variables, &filename)?;
-///     let tokens = scan_code(codes, &filename)?;
+///     let tokens = scan_code(codes, &filename, &options)?;
 ///     let (expr, statics) = parse_tokens(tokens, &filename, &options)?;
 ///
 ///     Ok(())
