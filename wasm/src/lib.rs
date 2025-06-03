@@ -77,7 +77,7 @@ impl Clue {
 		self.inner.continue_mode(match mode.as_str() {
 			"simple" => ContinueMode::Simple,
 			"goto" => ContinueMode::Goto,
-			"moonsrcipt" => ContinueMode::MoonScript,
+			"moonscript" => ContinueMode::MoonScript,
 			_ => return Err(format!("Invalid continue mode {}", mode)),
 		});
 		Ok(())
