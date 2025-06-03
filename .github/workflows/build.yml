@@ -169,6 +169,8 @@ jobs:
           cd wasm
           wasm-pack build --target web --release
           zip -r clue_wasm.zip pkg
+        env:
+          RUSTFLAGS: '--cfg getrandom_backend="wasm_js"'
       - name: Upload clue_wasm.zip
         uses: actions/upload-artifact@v4
         with:
