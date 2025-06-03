@@ -64,6 +64,7 @@ pub fn compile_folder(
 	file_path: impl Into<PathBuf>,
 	rpath: String,
 	options: Options,
+	quiet: bool,
 ) -> Result<(String, String), String> {
 	let files = check!(check_for_files(file_path.into(), rpath));
 	let files_len = files.len();
@@ -121,7 +122,7 @@ pub fn compile_folder(
 		let codes = codes.clone();
 		let variables = variables.clone();
 
-		let thread = thread::spawn(move || compile_file_dir(tx, &options, codes, variables));
+		let thread = thread::spawn(move || compile_file_dir(tx, &options, codes, variables, quiet));
 
 		threads.push(thread);
 	}
@@ -188,6 +189,7 @@ fn compile_file_dir(
 	options: &Options,
 	codes: Arc<CodeQueue>,
 	variables: Arc<AHashMap<Code, PPVar>>,
+	quiet: bool,
 ) {
 	loop {
 		let (codes, filename, realname) = match codes.pop() {
@@ -195,7 +197,7 @@ fn compile_file_dir(
 			Some(codes) => codes,
 		};
 
-		let (code, static_vars) = match compile_code(codes, &variables, &filename, 2, options) {
+		let (code, static_vars) = match compile_code(codes, &variables, &filename, 2, options, quiet) {
 			Ok(t) => t,
 			Err(e) => {
 				tx.send(ThreadData {

@@ -64,6 +64,10 @@ struct Cli {
 	#[clap(short = 'L', long, display_order = 1000)]
 	license: bool,
 
+	/// Suppress unnecessary prints
+	#[clap(short, long)]
+	quiet: bool,
+
 	/// Print list of detected tokens in compiled files
 	#[clap(long)]
 	tokens: bool,
@@ -201,6 +205,7 @@ pub fn compile_code(
 	filename: &String,
 	scope: usize,
 	options: &Options,
+	quiet: bool,
 ) -> Result<(String, String), String> {
 	let time = Instant::now();
 	let code = preprocess_codes(0, codes, variables, filename)?;
@@ -231,12 +236,15 @@ pub fn compile_code(
 	if options.env_output {
 		println!("Compiled Lua code of file \"{filename}\":\n{code}");
 	}
-	println!(
-		"{} \"{}\" in {} seconds!",
-		"Compiled".green().bold(),
-		filename,
-		time.elapsed().as_secs_f32()
-	);
+
+	if !quiet {
+		println!(
+			"{} \"{}\" in {} seconds!",
+			"Compiled".green().bold(),
+			filename,
+			time.elapsed().as_secs_f32()
+		);
+	}
 	Ok((code, statics))
 }
 
@@ -247,6 +255,7 @@ fn compile_from_string(
 	#[cfg(feature = "mlua")] execute: bool,
 	debug: bool,
 	dont_save: bool,
+	quiet: bool,
 ) -> Result<(), String> {
 	let filename = name.to_string();
 	let preprocessed_code = preprocess_code(
@@ -263,6 +272,7 @@ fn compile_from_string(
 		&filename,
 		0,
 		options,
+		quiet,
 	)?;
 	let code = statics + &output;
 	if options.env_outputname.is_some() {
@@ -271,6 +281,8 @@ fn compile_from_string(
 		finish(
 			debug,
 			#[cfg(feature = "mlua")]
+			quiet,
+			#[cfg(feature = "mlua")]
 			execute,
 			output_path,
 			code
@@ -278,15 +290,17 @@ fn compile_from_string(
 	} else {
 		#[cfg(feature = "mlua")]
 		if execute {
-			execute_lua_code(&code)
+			execute_lua_code(&code, quiet)
 		}
 		Ok(())
 	}
 }
 
 #[cfg(feature = "mlua")]
-fn execute_lua_code(code: &str) {
-	println!("{} the compiled code...", "Running".blue().bold());
+fn execute_lua_code(code: &str, quiet: bool) {
+	if !quiet {
+		println!("{} the compiled code...", "Running".blue().bold());
+	}
 	let lua = mlua::Lua::new();
 	if let Err(error) = lua.load(code).exec() {
 		println!("{error}");
@@ -295,6 +309,7 @@ fn execute_lua_code(code: &str) {
 
 fn finish(
 	debug: bool,
+	#[cfg(feature = "mlua")] quiet: bool,
 	#[cfg(feature = "mlua")] execute: bool,
 	output_path: Option<PathBuf>,
 	code: String,
@@ -309,13 +324,13 @@ fn finish(
 		}
 		#[cfg(feature = "mlua")]
 		if execute {
-			execute_lua_code(&new_output)
+			execute_lua_code(&new_output, quiet)
 		}
 		return Ok(());
 	}
 	#[cfg(feature = "mlua")]
 	if execute {
-		execute_lua_code(&code)
+		execute_lua_code(&code, quiet)
 	}
 	Ok(())
 }
@@ -428,6 +443,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 			cli.execute,
 			cli.debug,
 			cli.dontsave,
+			cli.quiet,
 		);
 	} else if read_from_stdin {
 		let mut buf = Vec::new();
@@ -440,18 +456,22 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 			cli.execute,
 			cli.debug,
 			cli.dontsave,
+			cli.quiet,
 		);
 	}
 	let (output_path, code) = if path.is_dir() {
 		let time = Instant::now();
 		let output_name = options.env_outputname.clone();
-		let (output, statics) = compile_folder(&path, String::new(), options)?;
-		println!(
-			"{} \"{}\" in {} seconds!",
-			"Finished".green().bold(),
-			path.display(),
-			time.elapsed().as_secs_f32()
-		);
+		let (output, statics) = compile_folder(&path, String::new(), options, cli.quiet)?;
+
+		if !cli.quiet {
+			println!(
+				"{} \"{}\" in {} seconds!",
+				"Finished".green().bold(),
+				path.display(),
+				time.elapsed().as_secs_f32()
+			);
+		}
 
 		let code = match cli.base {
 			Some(filename) => {
@@ -483,7 +503,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 	} {
 		let filename = path.file_name().unwrap().to_string_lossy().into_owned();
 		let (rawcode, variables) = read_file(&path, &filename, &options)?;
-		let (output, statics) = compile_code(rawcode, &variables, &filename, 0, &options)?;
+		let (output, statics) = compile_code(rawcode, &variables, &filename, 0, &options, cli.quiet)?;
 		let code = statics + &output;
 		save_result(cli.dontsave, options.env_outputname.or_else(|| Some(path.with_extension("lua"))), code)?
 	} else {
@@ -494,7 +514,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 	};
 
 	#[cfg(feature = "mlua")]
-	return finish(cli.debug, cli.execute, output_path, code);
+	return finish(cli.debug, cli.quiet, cli.execute, output_path, code);
 	#[cfg(not(feature = "mlua"))]
 	finish(cli.debug, output_path, code)
 }
@@ -506,6 +526,6 @@ mod tests {
 
 	#[test]
 	fn compilation_success() {
-		compile_folder("../examples/", String::new(), Options::default()).unwrap();
+		compile_folder("../examples/", String::new(), Options::default(), false).unwrap();
 	}
 }
