@@ -22,11 +22,6 @@ pub enum ContinueMode {
 	/// this can only be used in implementations which support it (Works in BLUA)
 	Simple,
 
-	/// DEPRECATED
-	///
-	/// Same as `Goto`, only for compatibility reasons
-	LuaJIT,
-
 	#[clap(name = "goto")]
 	/// Clue will use `goto continue;` and a `::continue::` label when compiling `continue` keywords
 	/// instead of assuming the version of Lua you're compiling to has a proper continue keyword
@@ -114,10 +109,8 @@ pub struct Options {
 	/// Prints the AST to stdout
 	pub env_struct: bool,
 
-	/// DEPRECATED
-	///
 	/// The name of the varible the bits library is assigned to
-	pub env_jitbit: Option<String>,
+	pub env_bitlib: Option<String>,
 
 	/// The mode to use for bitwise operations
 	pub env_bitwise: BitwiseMode,
@@ -152,7 +145,7 @@ pub struct Options {
 
 impl Options {
 	/// Applies the chosen preset to the options
-	/// This should be called after `env_jitbit` or `env_target` is set to reflect the chosen preset
+	/// This should be called after `env_bitlib` or `env_target` is set to reflect the chosen preset
 	pub fn preset(&mut self) {
 		use LuaVersion::*;
 		let Some(version) = self.env_target else {
@@ -160,8 +153,8 @@ impl Options {
 		};
 		match version {
 			LuaJIT => {
-				if self.env_jitbit.is_none() {
-					self.env_jitbit = Some(String::from("bit"));
+				if self.env_bitlib.is_none() {
+					self.env_bitlib = Some(String::from("bit"));
 				}
 				self.env_bitwise = BitwiseMode::Library;
 				self.env_continue = ContinueMode::Goto;
@@ -171,15 +164,15 @@ impl Options {
 				self.env_continue = ContinueMode::Goto;
 			}
 			Lua52 => {
-				if self.env_jitbit.is_none() {
-					self.env_jitbit = Some(String::from("bit32"));
+				if self.env_bitlib.is_none() {
+					self.env_bitlib = Some(String::from("bit32"));
 				}
 				self.env_bitwise = BitwiseMode::Library;
 				self.env_continue = ContinueMode::Goto;
 			}
 			Lua51 => {
-				if self.env_jitbit.is_none() {
-					self.env_jitbit = Some(String::from("bit"));
+				if self.env_bitlib.is_none() {
+					self.env_bitlib = Some(String::from("bit"));
 				}
 				self.env_bitwise = BitwiseMode::Library;
 				self.env_continue = ContinueMode::MoonScript;

@@ -76,7 +76,6 @@ impl Clue {
 	pub fn continue_mode(&mut self, mode: String) -> Result<(), String> {
 		self.inner.continue_mode(match mode.as_str() {
 			"simple" => ContinueMode::Simple,
-			"luajit" => ContinueMode::LuaJIT,
 			"goto" => ContinueMode::Goto,
 			"moonsrcipt" => ContinueMode::MoonScript,
 			_ => return Err(format!("Invalid continue mode {}", mode)),

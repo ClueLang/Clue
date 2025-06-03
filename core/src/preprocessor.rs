@@ -1206,8 +1206,8 @@ pub fn preprocess_code(
 		size += currentcode.len();
 		finalcode.push_back((currentcode, false))
 	}
-	if bitwise && options.env_jitbit.is_some() {
-		let bit = options.env_jitbit.as_ref().unwrap();
+	if bitwise && options.env_bitlib.is_some() {
+		let bit = options.env_bitlib.as_ref().unwrap();
 		let mut loader = Code::from((
 			format_clue!("local ", bit, " = require(\"", bit, "\");"),
 			1,

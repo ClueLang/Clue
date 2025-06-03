@@ -726,10 +726,7 @@ impl<'a> Compiler<'a> {
 					let end = self.indentate_if(ctokens, scope);
 					format!(
 						"{};{}",
-						if matches!(
-							self.options.env_continue,
-							ContinueMode::LuaJIT | ContinueMode::Goto
-						) {
+						if self.options.env_continue == ContinueMode::Goto {
 							"goto _clue_continue"
 						} else {
 							"continue"

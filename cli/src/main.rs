@@ -84,16 +84,6 @@ struct Cli {
 	#[clap(short = 'E', long)]
 	expand: bool,
 
-	/// Use LuaJIT's bit library for bitwise operations
-	#[clap(
-		short,
-		long,
-		hide(true),
-		default_missing_value = "bit",
-		value_name = "VAR NAME"
-	)]
-	jitbit: Option<String>,
-
 	/// Change the way bitwise operators are compiled
 	#[clap(
 		short,
@@ -144,7 +134,6 @@ struct Cli {
 		value_enum,
 		ignore_case(true),
 		conflicts_with("bitwise"),
-		conflicts_with("jitbit"),
 		conflicts_with("continue"),
 		value_name = "LUA VERSION"
 	)]
@@ -378,9 +367,6 @@ fn main() {
 	if cli.color != ColorMode::Auto {
 		colored::control::set_override(cli.color == ColorMode::Always);
 	}
-	if cli.r#continue == ContinueMode::LuaJIT { //TODO: REMOVE LUAJIT mode
-		println!("Warning: \"LuaJIT continue mode was deprecated and replaced by goto mode\"")
-	}
 	if let Err(e) = start_compilation(cli) {
 		print_errors();
 		eprintln!("{}: {e}", "Error".red().bold());
@@ -395,15 +381,10 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		env_tokens: cli.tokens,
 		env_struct: cli.r#struct,
 		env_expand: cli.expand,
-		env_jitbit: {
-			if cli.jitbit.is_some() {
-				println!("Warning: \"--jitbit was deprecated and replaced by --bitwise\"");
-				cli.jitbit
-			} else if cli.bitwise == BitwiseMode::Library {
-				Some(String::from("bit"))
-			} else {
-				None
-			}
+		env_bitlib: if cli.bitwise == BitwiseMode::Library { // TODO: add a way back to set your own library name
+			Some(String::from("bit"))
+		} else {
+			None
 		},
 		env_bitwise: cli.bitwise,
 		env_continue: cli.r#continue,

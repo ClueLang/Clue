@@ -790,7 +790,7 @@ impl<'a> ParserInfo<'a> {
 		help: Option<&str>
 	) -> bool {
 		self.check_operator(t, notable, Some(expr));
-		if let Some(bit) = &self.options.env_jitbit {
+		if let Some(bit) = &self.options.env_bitlib {
 			self.build_function_op(t, expr, format!("{bit}.{fname}"), end, notable, help);
 			self.check_val()
 		} else {
@@ -928,7 +928,7 @@ impl<'a> ParserInfo<'a> {
 				}
 				BIT_NOT => {
 					self.check_operator(&t, notable, None);
-					if let Some(bit) = self.options.env_jitbit.clone() {
+					if let Some(bit) = self.options.env_bitlib.clone() {
 						let arg = self.build_expression(end, help);
 						expr.push_back(SYMBOL(bit.clone() + ".bnot"));
 						expr.push_back(CALL(vec![arg]));
@@ -1446,7 +1446,7 @@ impl<'a> ParserInfo<'a> {
 			use ContinueMode::*;
 			match self.options.env_continue {
 				Simple => {}
-				Goto | LuaJIT => code.push_back(SYMBOL(String::from("::_clue_continue::"))),
+				Goto => code.push_back(SYMBOL(String::from("::_clue_continue::"))),
 				MoonScript => {
 					code.push_back(ALTER {
 						kind: DEFINE,
