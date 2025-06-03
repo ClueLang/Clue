@@ -16,11 +16,6 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-#[cfg(feature = "rpmalloc")]
-#[global_allocator]
-/// The best memory allocator available for Clue
-static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
-
 pub mod code;
 pub mod compiler;
 pub mod env;

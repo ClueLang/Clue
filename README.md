@@ -10,7 +10,7 @@ Clue is a programming language that compiles blazingly fast into Lua code with a
 
 Clue tries to be almost as simple as Lua (with only a slightly more advanced syntax) but adds many optional features that can make code look better or make some things (like metatables) easier to code.
 
-Clue does not compile to a specfic version of Lua: flags can be toggled to alter the output to allow most if not all versions or modifications of Lua to be compiled to with Clue.
+Clue does not compile to a specific version of Lua: flags can be toggled to alter the output to allow most if not all versions or modifications of Lua to be compiled to with Clue.
 
 ## General syntax differences
 - Code blocks are now inside `{}` instead of `then`/`do`/`repeat` and `end`/`until`
@@ -99,7 +99,7 @@ cd clue
 makepkg -si
 ```
 
-### Manual insallation
+### Manual installation
 1. Download the [latest release](https://github.com/ClueLang/Clue/releases/latest) and save it somewhere
 2. Open your system environment variables
 3. Add the path to the directory that contains `clue.exe` in the PATH variable
@@ -109,7 +109,7 @@ makepkg -si
 There are still features that I'm considering adding and others that will be added soon.
 The most likely ones to be added in the future are:
 - type system (coming in 4.0)
-- better error messages (comming in 4.0)
+- better error messages (coming in 4.0)
 - proper language server support (coming in 4.0)
 
 For any suggestion or bug you can make a github issue.

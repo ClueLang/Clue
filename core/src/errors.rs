@@ -68,7 +68,7 @@ pub fn print_errors() {
 fn get_errored_edges<'a, T: Iterator<Item = &'a str>>(
 	code: &'a str,
 	splitter: impl FnOnce(&'a str, char) -> T,
-) -> &str {
+) -> &'a str {
 	splitter(code, '\n').next().unwrap_or_default()
 }
 

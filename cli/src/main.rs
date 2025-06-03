@@ -1,4 +1,4 @@
-#![allow(clippy::blocks_in_if_conditions)]
+#![allow(clippy::blocks_in_conditions)]
 
 use clap::{
 	crate_version,
@@ -19,6 +19,11 @@ use clue_core::{
 use std::{env, fs, path::PathBuf, time::Instant, process::exit, io::{self, Read}};
 use threads::compile_folder;
 use colored::*;
+
+#[cfg(feature = "rpmalloc")]
+#[global_allocator]
+/// The best memory allocator available for Clue
+static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
 mod threads;
 
@@ -399,8 +404,8 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		env_targetos: cli.targetos,
 		#[cfg(feature = "lsp")]
 		env_symbols: cli.symbols,
-        #[cfg(not(feature = "lsp"))]
-        env_symbols: false,
+		#[cfg(not(feature = "lsp"))]
+		env_symbols: false,
 	};
 	options.preset();
 	//let mut code = String::with_capacity(512);

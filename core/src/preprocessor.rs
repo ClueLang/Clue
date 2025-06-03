@@ -14,7 +14,8 @@ use ahash::AHashMap;
 use std::{
 	cmp,
 	collections::VecDeque,
-	env, fs,
+	env,
+	fs,
 	iter::{Peekable, Rev},
 	ops::Range,
 	path::PathBuf,
@@ -702,7 +703,7 @@ pub fn read_file(
 ///
 ///     Ok(())
 /// }
-#[allow(clippy::blocks_in_if_conditions)]
+#[allow(clippy::blocks_in_conditions)]
 pub fn preprocess_code(
 	code: &mut [u8],
 	line: usize,
@@ -1218,6 +1219,24 @@ pub fn preprocess_code(
 	}
 	if code.errors > 0 {
 		add_source_file(filename, String::from_utf8_lossy(code.code));
+	}
+	#[cfg(feature = "lsp")]
+	if options.env_symbols {
+		use PPVar::*;
+		use std::collections::HashMap;
+		use serde_json::json;
+		let mut str_variables = HashMap::new();
+		for (name, variable) in &variables {
+			let (name, value) = match variable {
+				Simple(value) | ToProcess(value) => (format_clue!('$', name), value.to_string()),
+				_ => unimplemented!()
+			};
+			str_variables.insert(name, value);
+		}
+		println!("{}", json!({
+			"type": "PPVars",
+			"value": str_variables
+		}));
 	}
 	finish_step(
 		filename,

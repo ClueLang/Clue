@@ -45,22 +45,20 @@ pub enum TokenType {
 	ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSED, SQUARE_BRACKET_OPEN,
 	SQUARE_BRACKET_CLOSED, CURLY_BRACKET_OPEN, CURLY_BRACKET_CLOSED,
 	SAFE_CALL, COMMA, SAFE_SQUARE_BRACKET, SEMICOLON, QUESTION_MARK,
-	NOT, AND, OR, PLUS, MINUS, STAR, SLASH, FLOOR_DIVISION,
-	PERCENTUAL, CARET, HASHTAG, COALESCE, DOT, DOUBLE_COLON, TWODOTS,
-	COLON, THREEDOTS, ARROW, SAFE_DOT, SAFE_DOUBLE_COLON,
-	BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, LEFT_SHIFT, RIGHT_SHIFT,
-
-	//definition and comparison
+	DOT, DOUBLE_COLON, TWODOTS, COLON, THREEDOTS, ARROW, SAFE_DOT,
+	SAFE_DOUBLE_COLON, NOT, BIT_NOT, STAR, SLASH, PERCENTUAL,
+	PLUS, MINUS, LEFT_SHIFT, RIGHT_SHIFT, SMALLER, SMALLER_EQUAL,
+	BIGGER, BIGGER_EQUAL, EQUAL, NOT_EQUAL, BIT_AND, BIT_XOR, BIT_OR,
+	AND, OR, FLOOR_DIVISION, CARET, HASHTAG, COALESCE,
 	DEFINE, DEFINE_AND, DEFINE_OR, INCREASE, DECREASE, MULTIPLY, DIVIDE,
 	DEFINE_COALESCE, EXPONENTIATE, CONCATENATE, MODULATE,
-	BIGGER, BIGGER_EQUAL, SMALLER, SMALLER_EQUAL, EQUAL, NOT_EQUAL,
 
 	//literals
 	IDENTIFIER, NUMBER, STRING,
 
 	//keywords
 	IF, ELSEIF, ELSE, FOR, OF, IN, WITH, WHILE, META, GLOBAL, UNTIL,
-	LOCAL, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP, STATIC, ENUM, GOTO,
+	LOCAL, CONST, FN, METHOD, RETURN, TRUE, FALSE, NIL, LOOP, STATIC, ENUM, GOTO,
 	CONTINUE, BREAK, TRY, CATCH, MATCH, DEFAULT, STRUCT, EXTERN, CONSTRUCTOR,
 
 	EOF,
@@ -99,6 +97,10 @@ impl Token {
 			lexeme: lexeme.into(),
 			position,
 		}
+	}
+
+	pub fn is_op(&self) -> bool {
+		self.kind >= NOT && self.kind <= OR
 	}
 }
 
@@ -634,9 +636,7 @@ const SYMBOLS: SymbolsMap = generate_map(&[
 	(
 		':',
 		SymbolType::Symbols(
-			generate_map(&[
-				(':', SymbolType::Just(DOUBLE_COLON)),
-			]),
+			generate_map(&[(':', SymbolType::Just(DOUBLE_COLON))]),
 			COLON,
 		),
 	),
@@ -674,6 +674,7 @@ static KEYWORDS: phf::Map<&'static [u8], KeywordType> = phf_map! {
 	b"while" => KeywordType::Lua(WHILE),
 	b"until" => KeywordType::Lua(UNTIL),
 	b"local" => KeywordType::Lua(LOCAL),
+	b"const" => KeywordType::Lua(CONST),
 	b"return" => KeywordType::Lua(RETURN),
 	b"true" => KeywordType::Lua(TRUE),
 	b"false" => KeywordType::Lua(FALSE),

@@ -4,18 +4,18 @@ default-members = ["cli", "core"]
 resolver = "2"
 
 [workspace.package]
-version = "4.0.0-31695b61"
+version = "4.0.0-78ce10c1"
 description = "C/Rust like programming language that compiles into Lua code"
 edition = "2021"
-rust-version = "1.65"
-authors = ["Felicia.iso"]
+rust-version = "1.70"
+authors = ["Rosy.iso"]
 repository = "https://github.com/ClueLang/Clue"
 license = "MIT"
 keywords = ["language", "programming-language", "lua", "compiler", "transpiler"]
 categories = ["compilers"]
 
 [workspace.dependencies]
-ahash = "0.8.2"
+ahash = "0.8.11"
 clap = { version = "4.4.11", features = ["derive", "cargo", "wrap_help"] }
 colored = "2.1.0"
 crossbeam-queue = "0.3.10"

@@ -33,14 +33,6 @@ macro_rules! vec_deque {
 	};
 }
 
-macro_rules! bitwise {
-	($self:expr, $t:expr, $expr:expr, $fname:literal, $end:expr, $notable:expr, $help:expr) => {{
-		if $self.build_bitwise_op(&$t, &mut $expr, $fname, $end, $notable, $help) {
-			break $t;
-		}
-	}};
-}
-
 /// A list of [`ComplexToken`]s, which is the AST.
 pub type Expression = VecDeque<ComplexToken>;
 
@@ -80,6 +72,9 @@ pub enum ComplexToken {
 	VARIABLE {
 		/// Whether the variable(s) is/are local or not.
 		local: bool,
+
+		/// Whether the variable(s) is/are const or not.
+		r#const: bool,
 
 		/// The names of the variable(s).
 		names: Vec<String>,
@@ -236,10 +231,10 @@ pub enum ComplexToken {
 	TRY_CATCH {
 		/// The code block of the try block.
 		totry: CodeBlock,
-		
+
 		/// An optional code block of the catch block.
 		catch: Option<CodeBlock>,
-		
+
 		/// The name of the error variable in the catch block.
 		error: Option<String>,
 	},
@@ -839,7 +834,7 @@ impl<'a> ParserInfo<'a> {
 	fn get_prev_expr(&mut self) -> &mut Expression {
 		return match self.internal_stack.last_mut() {
 			Some(last) => last.get_mut(),
-			None => &mut self.expr
+			None => &mut self.expr,
 		};
 	}
 
@@ -859,6 +854,15 @@ impl<'a> ParserInfo<'a> {
 		let start = self.current;
 		let last = loop {
 			let t = self.advance();
+
+			macro_rules! bitwise {
+				($fname:literal) => {{
+					if self.build_bitwise_op(&t, &mut expr, $fname, end, notable, help) {
+						break t;
+					}
+				}};
+			}
+
 			match t.kind() {
 				IDENTIFIER => {
 					let fname = self.build_identifier();
@@ -903,8 +907,8 @@ impl<'a> ParserInfo<'a> {
 					expr.push_back(CALL(vec![division]));
 					self.current -= 1;
 				}
-				BIT_AND => bitwise!(self, t, expr, "band", end, notable, help),
-				BIT_OR => bitwise!(self, t, expr, "bor", end, notable, help),
+				BIT_AND => bitwise!("band"),
+				BIT_OR => bitwise!("bor"),
 				BIT_XOR => {
 					let t2 = if self.options.env_bitwise == BitwiseMode::Vanilla {
 						Token::new(t.kind(), '~', t.position())
@@ -936,8 +940,8 @@ impl<'a> ParserInfo<'a> {
 						expr.push_back(SYMBOL(t.lexeme()))
 					}
 				}
-				LEFT_SHIFT => bitwise!(self, t, expr, "lshift", end, notable, help),
-				RIGHT_SHIFT => bitwise!(self, t, expr, "rshift", end, notable, help),
+				LEFT_SHIFT => bitwise!("lshift"),
+				RIGHT_SHIFT => bitwise!("rshift"),
 				NOT_EQUAL => {
 					self.check_operator(&t, notable, Some(&expr));
 					expr.push_back(SYMBOL(String::from("~=")))
@@ -989,7 +993,7 @@ impl<'a> ParserInfo<'a> {
 							kind: DEFINE,
 							names: vec_deque![vec_deque![ident.clone()]],
 							values: vec![expr],
-							line: end
+							line: end,
 						});
 						CodeBlock { start, code, end }
 					});
@@ -1026,6 +1030,7 @@ impl<'a> ParserInfo<'a> {
 					prev_expr.push_back(VARIABLE {
 						line: start,
 						local: true,
+						r#const: false,
 						names: vec![name.clone()],
 						values: vec![leftexpr],
 					});
@@ -1034,7 +1039,7 @@ impl<'a> ParserInfo<'a> {
 						kind: DEFINE,
 						line: t.line(),
 						names: vec_deque![vec_deque![name.clone()]],
-						values: vec![rightexpr]
+						values: vec![rightexpr],
 					});
 					prev_expr.push_back(IF_STATEMENT {
 						condition: vec_deque![name.clone(), SYMBOL(String::from(" == nil"))],
@@ -1068,6 +1073,7 @@ impl<'a> ParserInfo<'a> {
 					prev_expr.push_back(VARIABLE {
 						line: t.line(),
 						local: true,
+						r#const: false,
 						names: vec![name.clone()],
 						values: Vec::new(),
 					});
@@ -1076,13 +1082,13 @@ impl<'a> ParserInfo<'a> {
 						kind: DEFINE,
 						line: t.line(),
 						names: vec_deque![vec_deque![name.clone()]],
-						values: vec![exprtrue]
+						values: vec![exprtrue],
 					});
 					codefalse.push_back(ALTER {
 						kind: DEFINE,
 						line: t.line(),
 						names: vec_deque![vec_deque![name.clone()]],
-						values: vec![exprfalse]
+						values: vec![exprfalse],
 					});
 					prev_expr.push_back(IF_STATEMENT {
 						condition,
@@ -1185,6 +1191,7 @@ impl<'a> ParserInfo<'a> {
 		let line = self.peek(0).line();
 		self.get_prev_expr().push_back(VARIABLE {
 			local: true,
+			r#const: false,
 			names: vec![name.clone()],
 			values: vec![safe_expr],
 			line,
@@ -1235,6 +1242,7 @@ impl<'a> ParserInfo<'a> {
 								let name = self.get_next_internal_var();
 								self.get_prev_expr().push_back(VARIABLE {
 									local: true,
+									r#const: false,
 									names: vec![name.clone()],
 									values: vec![expr_self],
 									line: position.start.line,
@@ -1449,6 +1457,7 @@ impl<'a> ParserInfo<'a> {
 					code = vec_deque![
 						VARIABLE {
 							local: true,
+							r#const: false,
 							names: vec![name.clone()],
 							values: vec![vec_deque![SYMBOL(String::from("false"))]],
 							line: start
@@ -1559,10 +1568,13 @@ impl<'a> ParserInfo<'a> {
 					let start = self.look_back(0).line();
 					let destructure = self.advance_if(CURLY_BRACKET_OPEN);
 					let (vars, mut code) = self.use_internal_stack(
-						|i| i.build_variables(true, start, destructure)
+						|i| i.build_variables(true, false, start, destructure)
 					);
 					let (condition, end) = {
-						let VARIABLE {names, line: end, ..} = &vars else {
+						let VARIABLE {
+							names, line: end, ..
+						} = &vars
+						else {
 							unreachable!()
 						};
 						let mut condition = Expression::with_capacity(names.len());
@@ -1652,6 +1664,7 @@ impl<'a> ParserInfo<'a> {
 			enums.push_back(VARIABLE {
 				line: name.line(),
 				local,
+				r#const: false,
 				names: vec![name.lexeme()],
 				values: vec![vec_deque![value]],
 			});
@@ -1808,6 +1821,7 @@ impl<'a> ParserInfo<'a> {
 			let mut names = internal_names.into_iter();
 			prev_expr.push_back(VARIABLE {
 				local: true,
+				r#const: false,
 				names: vec![ManuallyDrop::into_inner(names.next().unwrap().name)],
 				values,
 				line,
@@ -1815,6 +1829,7 @@ impl<'a> ParserInfo<'a> {
 			while let (Some(prev_name), Some(name)) = (names.next(), names.next()) {
 				prev_expr.push_back(VARIABLE {
 					local: true,
+					r#const: false,
 					names: vec![ManuallyDrop::into_inner(name.name)],
 					values: vec![ManuallyDrop::into_inner(prev_name.expr)],
 					line,
@@ -1826,6 +1841,7 @@ impl<'a> ParserInfo<'a> {
 	fn build_variables(
 		&mut self,
 		local: bool,
+		r#const: bool,
 		line: usize,
 		destructure: bool,
 	) -> ComplexToken {
@@ -1840,6 +1856,7 @@ impl<'a> ParserInfo<'a> {
 			if check == SEMICOLON {
 				self.current += 1;
 			}
+
 			if local {
 				Vec::new()
 			} else {
@@ -1864,6 +1881,7 @@ impl<'a> ParserInfo<'a> {
 		}
 		VARIABLE {
 			local,
+			r#const,
 			names,
 			values,
 			line,
@@ -1890,6 +1908,7 @@ impl<'a> ParserInfo<'a> {
 					ARROW if branches.is_empty() => {
 						self.get_prev_expr().push_back(VARIABLE {
 							local: true,
+							r#const: false,
 							names: vec![name],
 							values: vec![value],
 							line
@@ -1995,7 +2014,11 @@ impl<'a> ParserInfo<'a> {
 				local: true,
 				name: vec_deque![SYMBOL(function_name.clone())],
 				args: vec![],
-				code: CodeBlock { start, code: internal_code, end }
+				code: CodeBlock {
+					start,
+					code: internal_code,
+					end,
+				},
 			});
 			(vec_deque![SYMBOL(format_clue!(function_name, "()"))], code)
 		} else {
@@ -2042,6 +2065,22 @@ impl<'a> ParserInfo<'a> {
 
 	fn parse_token_local_global(&mut self, t: &BorrowedToken) {
 		let local = t.kind() == LOCAL;
+		let r#const = t.kind() == CONST || self.advance_if(CONST);
+		if r#const
+			&& (self.options.env_target.is_none()
+				|| self
+					.options
+					.env_target
+					.is_some_and(|lua| lua != LuaVersion::Lua54))
+		{
+			self.warning(
+				"Using `const` without targeting Lua 5.4",
+				t.line(),
+				t.column(),
+				t.range(),
+				None
+			);
+		}
 		match self.peek(0).kind() {
 			FN => {
 				let function = self.build_function(local);
@@ -2053,13 +2092,29 @@ impl<'a> ParserInfo<'a> {
 			}
 			_ => {
 				let destructure = self.advance_if(CURLY_BRACKET_OPEN);
-				let vars = self.build_variables(local, t.line(), destructure);
+				let vars = self.build_variables(local, r#const, t.line(), destructure);
 				self.expr.push_back(vars);
 			}
 		}
 	}
 
 	fn parse_token_static(&mut self, t: &BorrowedToken) {
+		let r#const = t.kind() == CONST || self.advance_if(CONST);
+		if r#const
+			&& (self.options.env_target.is_none()
+				|| self
+					.options
+					.env_target
+					.is_some_and(|lua| lua != LuaVersion::Lua54))
+		{
+			self.warning(
+				"Using `const` without targeting Lua 5.4",
+				t.line(),
+				t.column(),
+				t.range(),
+				None
+			);
+		}
 		match self.peek(0).kind() {
 			FN => {
 				let function = vec_deque![self.build_function(true)];
@@ -2070,7 +2125,7 @@ impl<'a> ParserInfo<'a> {
 				self.compile_static(enums);
 			}
 			_ => {
-				let vars = vec_deque![self.build_variables(true, t.line(), false)];
+				let vars = vec_deque![self.build_variables(true, r#const, t.line(), false)];
 				self.compile_static(vars);
 			}
 		}
@@ -2267,7 +2322,11 @@ impl<'a> ParserInfo<'a> {
 				let (mut condition, code) = self.build_loop(Some(code), None);
 				condition.push_front(SYMBOL(String::from("not (")));
 				condition.push_back(SYMBOL(String::from(")")));
-				self.expr.push_back(LOOP_UNTIL { condition, code, line: t.line() })
+				self.expr.push_back(LOOP_UNTIL {
+					condition,
+					code,
+					line: t.line(),
+				})
 			}
 			_ => self.expr.push_back(WHILE_LOOP {
 				condition: vec_deque![SYMBOL(String::from("true"))],
@@ -2460,7 +2519,7 @@ fn parse_tokens_internal<'a>(
 	while !i.ended() {
 		let t = i.advance();
 		match t.kind() {
-			LOCAL | GLOBAL => i.parse_token_local_global(&t),
+			LOCAL | GLOBAL | CONST => i.parse_token_local_global(&t),
 			STATIC => i.parse_token_static(&t),
 			METHOD => i.parse_token_method(),
 			IDENTIFIER => i.parse_token_identifier(&t),
