@@ -55,14 +55,13 @@ pub fn get_errors() -> ErrorsVec {
 		.clone()
 }
 
-/// Prints all previous error messages stored, then clears the vector.
+/// Prints all previous error messages stored, clearing the vector.
 pub fn print_errors() {
 	let errors = get_errors();
 	let mut errors = errors.write().unwrap();
-	for error in errors.iter() {
+	for error in errors.drain(..) {
 		eprintln!("{error}");
 	}
-	errors.clear();
 }
 
 fn get_errored_edges<'a, T: Iterator<Item = &'a str>>(
@@ -127,14 +126,22 @@ pub trait ErrorMessaging {
 				"{}\n\n{}{}{}\n\n{}",
 				header,
 				before_err.trim_start(),
-				errored.red().underline(),
+				if is_error {
+					errored.red()
+				} else {
+					errored.yellow()
+				}.underline(),
 				after_err.trim_end(),
 				full_message
 			)
 		} else {
 			format!("{}\n{}", header, full_message)
 		};
-		get_errors().write().unwrap().push(error);
+		if is_error {
+			get_errors().write().unwrap().push(error);
+		} else {
+			eprintln!("{error}"); // TODO: errors are stored and printed at the end, should warnings do the same...
+		}
 	}
 
 	fn error(

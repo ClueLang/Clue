@@ -15,7 +15,7 @@ use crate::{
 	format_clue,
 	errors::{finish_step, ErrorMessaging},
 	impl_errormessaging,
-	env::LuaVersion,
+	env::{KeepMode, LuaVersion},
 	Options,
 };
 
@@ -339,16 +339,27 @@ impl<'a> ScannerInfo<'a> {
             _ => 0
         };
         if suffix_len > 0 {
-			if self.options.env_target.is_some_and(|target| target != LuaVersion::LuaJIT) {
-				let suffix = &self.read[self.current..self.current + 3];
-				self.start = self.current;
-				self.current += suffix_len;
-                self.error(format!(
-                    "{} does not support {}",
-					self.options.env_target.unwrap(),
-					suffix.iter().collect::<String>()
-                ), None);
-            }
+			if self.options.env_numsuffix != KeepMode::Keep {
+				let suffix = &self.read[self.current..self.current + suffix_len].iter().collect::<String>();
+				let forbid = self.options.env_numsuffix == KeepMode::Forbid;
+				self.send(
+					forbid,
+					if self.options.env_target.is_some_and(|target| target != LuaVersion::LuaJIT) {
+						format!(
+							"{} does not support '{suffix}'",
+							self.options.env_target.unwrap(),
+						)
+					} else if forbid {
+						format!("'{suffix}' has been disabled")
+					} else {
+						format!("'{suffix}' will be removed from the output")
+					},
+					self.positions[self.current].0,
+					self.positions[self.current].1,
+					self.current..self.current + suffix_len,
+					Some(&format!("--numsuffix is set to '{}'", self.options.env_numsuffix))
+				)
+			}
 			for _ in 0..suffix_len {
                 self.advance();
             }

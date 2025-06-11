@@ -4,7 +4,7 @@
 //! and is used by the [`Compiler`](crate::compiler::Compiler) to determine how to compile the code
 //! and also other helpful enums such as [`LuaVersion`], [`BitwiseMode`] and [`ContinueMode`]
 
-use std::{path::PathBuf, fmt::{Display, Error}};
+use std::{path::PathBuf, fmt::Display};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -66,13 +66,14 @@ pub enum LuaVersion {
 
 impl Display for LuaVersion {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self
-			.to_possible_value()
-			.ok_or(Error)?
-			.get_help()
-			.ok_or(Error)?
-		)?;
-		Ok(())
+		write!(f, "{}", match self {
+			LuaVersion::LuaJIT => "LuaJIT",
+			LuaVersion::Lua54 => "Lua 5.4",
+			LuaVersion::Lua53 => "Lua 5.3",
+			LuaVersion::Lua52 => "Lua 5.2",
+			LuaVersion::Lua51 => "Lua 5.1",
+			LuaVersion::BLUA => "BLUA",
+		})
 	}
 }
 
@@ -94,6 +95,31 @@ pub enum BitwiseMode {
 	/// This mode uses the bitwise operators from standard Lua
 	/// (Works in Lua 5.3+)
 	Vanilla,
+}
+
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+//#[clap(rename_all = "verbatim")]
+pub enum KeepMode {
+	#[default]
+	/// Keep every instance
+	Keep,
+
+	/// Emit a warning if used and remove every instance
+	Remove,
+
+	/// Fail compilation if used
+	Forbid,
+}
+
+impl Display for KeepMode {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		write!(f, "{}", match self {
+			KeepMode::Keep => "keep",
+			KeepMode::Remove => "remove",
+			KeepMode::Forbid => "forbid",
+		})
+	}
 }
 
 #[derive(Debug, Default, Clone)]
@@ -120,6 +146,9 @@ pub struct Options {
 
 	/// Whether to use rawset(_G, ...) instead of simply x = ... for globals
 	pub env_rawsetglobals: bool,
+
+	/// The mode to use for number suffixes (LL, ULL, i)
+	pub env_numsuffix: KeepMode,
 
 	/// Whether to print debug information
 	pub env_debug: bool,

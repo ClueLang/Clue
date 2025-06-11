@@ -9,7 +9,7 @@ use clap::{
 use clue_core::{
 	check,
 	compiler::*,
-	env::{BitwiseMode, ContinueMode, LuaVersion, Options},
+	env::{BitwiseMode, ContinueMode, KeepMode, LuaVersion, Options},
 	errors::{print_errors, add_source_file},
 	format_clue,
 	parser::*,
@@ -117,6 +117,17 @@ struct Cli {
 	/// Use rawset to create globals
 	#[clap(short, long)]
 	rawsetglobals: bool,
+
+	/// Change if number suffixes ('LL', 'ULL', 'i') are kept or allowed
+	#[clap(
+		short,
+		long,
+		value_enum,
+		ignore_case(true),
+		default_value = "keep",
+		value_name = "KEEP"
+	)]
+	numsuffix: KeepMode,
 
 	/// Add debug information in output (might slow down runtime)
 	#[clap(short, long)]
@@ -389,6 +400,7 @@ fn start_compilation(cli: Cli) -> Result<(), String> {
 		env_bitwise: cli.bitwise,
 		env_continue: cli.r#continue,
 		env_rawsetglobals: cli.rawsetglobals,
+		env_numsuffix: cli.numsuffix,
 		env_debug: cli.debug,
 		env_output: if cli.pathiscode || read_from_stdin {
 			cli.outputname.is_none()
